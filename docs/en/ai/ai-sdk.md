@@ -62,7 +62,7 @@ Add `ai-gateway` to `[features].default` in your application’s `Cargo.toml` an
 
 Set a separate randomly generated secret for `AI_GATEWAY_SUPPORT_KEY` in the application environment. The upstream connection uses `DEEPSEEK_API_KEY`. Set the external client’s base URL to `https://your-app.example/v1`, use the client Key as a Bearer credential, and select `support-chat`. `GET /v1/models` lists published models available to that Key. The optional `requests_per_minute` uses the application's configured rate-limit cache.
 
-`POST /v1/chat/completions` supports OpenAI and compatible connections. `POST /v1/responses` can route natively to OpenAI connections or translate requests to Anthropic Messages. Both support JSON and SSE. Responses can also route to a Chat Completions-only connection. For this mapping, the gateway converts stateless text, system instructions, basic generation options, JSON object mode, and client-side function tools. It keeps tool call IDs and streams argument deltas. Attachments and JSON Schema require a connection or conversion that supports them. Responses runs in stateless mode with `store` set to `false`. It rejects upstream conversations, previous response IDs, and server-side tools. The `ai_gateway.call` structured log records outcomes and upstream-reported token counts. Set `usage_channel` to select a logging channel that accepts `info` records. Unreported token counts are recorded as `null`.
+`POST /v1/chat/completions` supports OpenAI and compatible connections. `POST /v1/responses` can route natively to OpenAI connections or translate requests to Anthropic Messages. Both support JSON and SSE. Responses can also route to a Chat Completions-only connection. For this mapping, the gateway converts stateless text, system instructions, basic generation options, JSON object mode, and client-side function tools. It keeps tool call IDs and streams argument deltas. Attachments and JSON Schema require a connection or conversion that supports them. Responses runs in stateless mode with `store` set to `false`. Upstream conversations and previous response IDs are unavailable. Server-side web search requires explicit permission on the published model. The `ai_gateway.call` structured log records outcomes and upstream-reported token counts. Set `usage_channel` to select a logging channel that accepts `info` records. Unreported token counts are recorded as `null`.
 
 For an Anthropic client, set the base URL to your application domain and send the client Key in `x-api-key`. The gateway accepts `/v1/messages` and `/v1/messages/count_tokens` for models mapped to Anthropic connections. Messages requests can also route to a published OpenAI Responses or Chat Completions model. The gateway preserves client tool call IDs and sends each tool's content block in order. `/v1/models` and `/v1/models/{model}` use the Anthropic format with `x-api-key` and the OpenAI format with Bearer authentication.
 
@@ -144,6 +144,8 @@ Add an optional `codex` object to a public model mapping to set its display name
   }
 }
 ```
+
+Set a Responses provider for Codex with the gateway base URL, such as `https://your-app.example/v1`, and the downstream Key. Use a published alias as the model. Native Responses upstreams can receive client tool namespaces. For upstream web search, allow `"server_tools": ["web_search"]` on the public model. Set `web_search = "disabled"` in the Codex client configuration when the model has no web search enabled.
 
 ### Persist gateway usage {#gateway-usage}
 

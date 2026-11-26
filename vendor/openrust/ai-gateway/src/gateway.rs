@@ -48,7 +48,15 @@ struct ModelConfiguration {
     endpoints: Option<Vec<String>>,
     codex: Option<CodexMetadata>,
     #[serde(default)]
+    server_tools: HashSet<ResponsesServerTool>,
+    #[serde(default)]
     fallbacks: Vec<TargetConfiguration>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum ResponsesServerTool {
+    WebSearch,
 }
 
 #[derive(Deserialize)]
@@ -183,11 +191,16 @@ pub(crate) struct Target {
 
 pub(crate) struct Model {
     pub(crate) codex: Option<CodexMetadata>,
+    server_tools: HashSet<ResponsesServerTool>,
     targets: Vec<Target>,
     endpoints: Vec<TextEndpoint>,
 }
 
 impl Model {
+    pub(crate) fn allows_web_search(&self) -> bool {
+        self.server_tools.contains(&ResponsesServerTool::WebSearch)
+    }
+
     pub(crate) fn supports_key(&self, key: &Key) -> bool {
         self.endpoints
             .iter()
@@ -352,12 +365,23 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
+                if !model.server_tools.is_empty()
+                    && (!endpoints.contains(&TextEndpoint::Responses)
+                        || !targets.iter().any(|target| {
+                            target.provider.supports_endpoint(TextEndpoint::Responses)
+                        }))
+                {
+                    return Err(invalid(format!(
+                        "公开模型 {name} 的服务端工具要求原生 Responses 上游"
+                    )));
+                }
                 Ok((
                     name,
                     Model {
                         targets,
                         endpoints,
                         codex: model.codex,
+                        server_tools: model.server_tools,
                     },
                 ))
             })

@@ -343,6 +343,32 @@ impl Protocol {
     }
 }
 
+fn responses_tools(tools: Option<&Value>, web_search_allowed: bool) -> Option<bool> {
+    let Some(tools) = tools.filter(|tools| !tools.is_null()) else {
+        return Some(false);
+    };
+    let mut native = false;
+    for tool in tools.as_array()? {
+        match tool["type"].as_str()? {
+            "function" | "custom" => {}
+            "namespace" => {
+                let members = tool["tools"].as_array()?;
+                if members.is_empty()
+                    || !members.iter().all(|member| {
+                        matches!(member["type"].as_str(), Some("function" | "custom"))
+                    })
+                {
+                    return None;
+                }
+                native = true;
+            }
+            "web_search" | "web_search_preview" if web_search_allowed => native = true,
+            _ => return None,
+        }
+    }
+    Some(native)
+}
+
 async fn authorize(
     gateway: &Gateway,
     token: Option<&str>,
@@ -442,6 +468,7 @@ async fn relay(
             }
         }
     };
+    let mut native_responses_only = false;
     if matches!(
         endpoint,
         TextEndpoint::Responses | TextEndpoint::CountResponseTokens
@@ -459,14 +486,6 @@ async fn relay(
                 .get("input")
                 .and_then(Value::as_array)
                 .is_some_and(|items| items.iter().any(|item| item["type"] == "item_reference"))
-            || data
-                .get("tools")
-                .and_then(Value::as_array)
-                .is_some_and(|tools| {
-                    tools
-                        .iter()
-                        .any(|tool| !matches!(tool["type"].as_str(), Some("function" | "custom")))
-                })
         {
             return protocol.error(
                 StatusCode::BAD_REQUEST,
@@ -474,6 +493,19 @@ async fn relay(
                 "此端点仅支持无状态请求及客户端工具",
             );
         }
+        native_responses_only = match responses_tools(
+            data.get("tools"),
+            endpoint == TextEndpoint::Responses && model.allows_web_search(),
+        ) {
+            Some(native) => native,
+            None => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "unsupported_state",
+                    "当前模型不支持所请求的 Responses 工具",
+                );
+            }
+        };
         if endpoint == TextEndpoint::CountResponseTokens {
             if data
                 .get("input")
@@ -552,7 +584,17 @@ async fn relay(
     } else {
         None
     };
-    let mut targets: Vec<_> = model.targets_for(endpoint, key).collect();
+    let mut targets: Vec<_> = model
+        .targets_for(endpoint, key)
+        .filter(|(_, upstream)| !native_responses_only || *upstream == endpoint)
+        .collect();
+    if native_responses_only && targets.is_empty() {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_endpoint",
+            "所选工具要求当前凭证可访问原生 Responses 上游",
+        );
+    }
     if let Some(affinity) = &affinity
         && let Some(preferred) = affinity.preferred().await
     {

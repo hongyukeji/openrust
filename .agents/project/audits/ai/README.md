@@ -278,7 +278,7 @@ SQLite、MySQL 8.4.13、PostgreSQL 18.7 均实测两个独立 HTTP 实例竞争�
 
 OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `/backend-api/codex/models`。启用无版本路径时 `/models` 也支持同一查询。清单使用公开模型名，按下游 Key 的分组和 Responses 路由能力筛选。可为模型配置显示名称、上下文窗口、输入类型和推理选项。默认公布文本能力，避免由模型 ID 推断未验证能力。ETag 由筛选后的内容生成，鉴权先于 304 判断。
 
-独立 HTTP 验证普通 OpenAI 和 Anthropic 目录、单模型形状、两类别名、不同 Key、未认证条件头、空版本及无效版本参数。独立 Artisan 走标准目录，外部 HTTP 用清单中的别名成功调用实际 Responses 线路。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器与全站导航通过。官方 Codex 0.170.0 Linux ARM64 发布资产已校验，启动隔离客户端时 Docker 守护进程未在时限内响应，正式 CLI 读取仍待实测。固定 Sub2API 另有固定账号拉取与供应商清单合并，继续单列。
+独立 HTTP 验证普通 OpenAI 和 Anthropic 目录、单模型形状、两类别名、不同 Key、未认证条件头、空版本及无效版本参数。独立 Artisan 走标准目录，外部 HTTP 用清单中的别名成功调用实际 Responses 线路。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器与全站导航通过。官方 Codex 0.170.0 Linux ARM64 发布资产已校验。隔离客户端实测原生模型目录及使用授权别名的流式生成，详见[网关验收账本](gateway.md#gw-05-官方-codex-客户端)。固定 Sub2API 的上游账号目录拉取仍单列。
 
 - [固定 Sub2API Codex 模型处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_codex_models_handler.go) · [Codex 0.170.0 模型结构](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/protocol/src/openai_models.rs)
 

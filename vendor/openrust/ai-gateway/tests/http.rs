@@ -188,6 +188,8 @@ async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
         json!({"previous_response_id":"resp_other"}),
         json!({"input":[{"type":"item_reference","id":"item_other"}]}),
         json!({"tools":[{"type":"file_search","vector_store_ids":["vs_other"]}]}),
+        json!({"tools":[{"type":"web_search"}]}),
+        json!({"tools":[{"type":"namespace","name":"scoped","tools":[{"type":"file_search","vector_store_ids":["vs_other"]}]}]}),
     ] {
         let mut state = state;
         state["model"] = "public-responses".into();

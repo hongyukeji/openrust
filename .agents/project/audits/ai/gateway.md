@@ -37,7 +37,7 @@
 | 基线入口 | 裁决 |
 |---|---|
 | 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 通过 `unversioned_paths` 可选启用目录、Chat、Responses、`input_tokens`、Embeddings 与 Messages 计数的 HTTP 别名，实测共用授权及限流。其他操作和升级待验收。 |
-| `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 待验证 Codex 客户端配置、模型清单与会话边界；专用账号适用性归 GW-04。 |
+| `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 已实测专用模型目录、适配 `/v1` 的官方 Codex 流式文本及工具声明。专用前缀的生成路径及会话边界待验收，专用账号归 GW-04。 |
 | `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | GW-04／05 待结合对应账号和平台能力裁决与验收，保留专用路由的账号隔离。 |
 | 上游 API Key、OAuth／订阅、平台专用连接与组合分组 | API Key 已通过 SDK 与自托管网关验证。同名模型按端点、原生／转换支持和账号可用性选路。OAuth 刷新、订阅限制、会话黏性、分组模型白名单和跨账号失败回退归 GW-04；管理与发布入口验收归 GW-05。 |
 
@@ -144,3 +144,11 @@ Messages 现在可在保留原生优先级的情况下选择 Responses 或 Chat-
 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了迁移发布、回退的请求／尝试去重、真实与缺失用量、UTC 日序列、两种鉴权头、仅大小写不同的 Key 名称隔离、凭证轮换、撤销及同名更换。两个包测试、严格 Clippy 与三语页面验收通过。依供应商价格计量、私有账单接口和固定基线的模型区间聚合继续单列。
 
 - [Sub2API 固定 Usage handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler.go)
+
+## GW-05 官方 Codex 客户端
+
+固定版 Codex 0.170.0 的已校验发布资产在隔离 Linux ARM64 容器运行。独立的 `codex debug models` 加载 OpenRust 目录，并保留 Codex 自带目录，验证授权别名、显示名称、上下文窗口及排除其他分组的模型。`codex exec` 使用公开别名，经过真实网关和本地 Responses 模拟上游完成流式回复。独立 HTTP 与 Artisan 验证模型目录格式、条件请求与协议路由。
+
+原生 Responses 接受只包含客户端函数或自定义工具的命名空间。公开模型可用 `server_tools: ["web_search"]` 启用上游网页搜索；原生目标仍须通过当前 Key 的分组授权。需要原生 Responses 的工具不进入协议桥接，也不自动重放。HTTP 和包测试验证未开启的搜索、通过命名空间声明供应商资源工具，以及 Chat-only 模型处理原生工具的拒绝。两个包测试、严格 Clippy、三语构建、十二组浏览器及导航通过。该轮覆盖工具声明与文本回复，搜索执行、工具回送及供应商真实账号仍分列。
+
+- [Codex 0.170.0 发布资产](https://github.com/openai/codex/releases/tag/rust-v0.170.0) · [Codex 配置参考](https://developers.openai.com/codex/config-reference)

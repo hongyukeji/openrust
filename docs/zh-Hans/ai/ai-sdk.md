@@ -62,7 +62,7 @@ let answer = response.text;
 
 在应用环境中为 `AI_GATEWAY_SUPPORT_KEY` 设置独立的随机密钥，`DEEPSEEK_API_KEY` 仍由上游连接单独使用。外部客户端将基础 URL 设为 `https://你的应用域名/v1`，用下游 Key 作为 Bearer 凭证，模型填写 `support-chat`。`GET /v1/models` 只显示当前 Key 有权调用的已发布模型。可选的 `requests_per_minute` 通过应用的限流缓存执行。
 
-`POST /v1/chat/completions` 支持 OpenAI 与兼容连接。`POST /v1/responses` 可原生转发至 OpenAI 连接，也可将请求转换为 Anthropic Messages。两个入口均支持 JSON 和 SSE。Responses 也可以路由到只提供 Chat Completions 的连接。这条转换支持无状态文本、系统指令、基础生成参数、JSON 对象模式和客户端函数工具。工具调用 ID 原样回传，参数增量会流式发送。附件和 JSON Schema 需选择支持相应能力的连接或转换。Responses 当前采用无状态模式，令 `store` 为 `false`，并拒绝上游会话、旧 Response ID 和服务端工具。网关以结构化日志 `ai_gateway.call` 记录调用结果和上游报告的 Token 数。可用 `usage_channel` 指定日志通道，通道须允许 `info` 级别。未报告的计数记为 `null`。
+`POST /v1/chat/completions` 支持 OpenAI 与兼容连接。`POST /v1/responses` 可原生转发至 OpenAI 连接，也可将请求转换为 Anthropic Messages。两个入口均支持 JSON 和 SSE。Responses 也可以路由到只提供 Chat Completions 的连接。这条转换支持无状态文本、系统指令、基础生成参数、JSON 对象模式和客户端函数工具。工具调用 ID 原样回传，参数增量会流式发送。附件和 JSON Schema 需选择支持相应能力的连接或转换。Responses 当前采用无状态模式，令 `store` 为 `false`。上游会话和旧 Response ID 当前不可用。服务端网页搜索需要在公开模型上明确启用。网关以结构化日志 `ai_gateway.call` 记录调用结果和上游报告的 Token 数。可用 `usage_channel` 指定日志通道，通道须允许 `info` 级别。未报告的计数记为 `null`。
 
 使用 Anthropic 客户端时，基础 URL 指向应用域名，下游 Key 通过 `x-api-key` 提交。网关支持 `/v1/messages` 和 `/v1/messages/count_tokens`，模型可映射到 Anthropic 原生连接。Messages 请求也可以路由到已发布的 OpenAI Responses 或 Chat Completions 模型。网关保留客户端工具调用 ID，并按顺序发送每个工具的内容块。带 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目录使用 OpenAI 格式。
 
@@ -144,6 +144,8 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
   }
 }
 ```
+
+在 Codex 中配置 Responses 连接，填写网关基础 URL（例如 `https://your-app.example/v1`）和下游 Key，并用公开别名作为模型。原生 Responses 上游支持客户端工具命名空间。要使用上游网页搜索，在公开模型上设置 `"server_tools": ["web_search"]`。模型未启用网页搜索时，在 Codex 客户端配置中使用 `web_search = "disabled"`。
 
 ### 持久化网关用量 {#gateway-usage}
 
