@@ -59,6 +59,8 @@ Anthropic Messages 串流透過同一套原生 SSE、Vercel 和 AG-UI 格式傳�
 
 OpenAI Responses 的一般回應可透過 `response.meta()` 讀取來源連線、模型與網頁引文。引文沿用上游順序與各文字分段回報的位置。結構化回應也提供該方法。自訂文字驅動可使用 `AgentResponse::new` 建立回應，再填入引文。 非串流工具呼叫的回應中繼資料取自最後一個模型步驟。
 
+內建文字驅動的非串流回應透過 `response.steps` 提供各個模型步驟。每步包含自己的模型、用量、結束原因、公開摘要與引文，以及本步的工具呼叫和結果。頂層用量彙總整個呼叫。
+
 非串流 Anthropic Messages 提供網頁搜尋和擷取引文。非串流 Gemini GenerateContent 提供選中候選的 Grounding 網頁來源。兩者保留每個 URL 首次出現的順序和公開標題。
 
 Responses 模型支援公開推理摘要時，可透過 `with_provider_options` 將 `reasoning.summary` 設為 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用獨立事件。可在完成回呼中用 `StreamedAgentResponse::reasoning()` 讀取合併後的摘要。 非串流 Responses 在 `response.reasoning` 中提供公開摘要，結構化回應同樣可讀。非串流工具呼叫提供最後一個模型步驟的公開摘要。
@@ -672,6 +674,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
         .await?;
 }
 ```
+
+核准完成後，`ApprovalResponse::Completed(response)` 包含 `Box<AgentResponse>`，可直接透過 `response.steps` 讀取模型步驟。
 
 保留對話 ID 和審批 ID。在同一已驗證的參與者和 Agent 下，用 `pending_approvals_for` 重新讀取待審批項目，再顯示給使用者。使用 `resume_approval` 提交每筆請求的決定。`Decisions::new` 支援逐項核准、拒絕或編輯參數，也可為其餘項目套用預設決定。
 

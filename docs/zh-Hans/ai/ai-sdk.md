@@ -59,6 +59,8 @@ Anthropic Messages 流通过同一套原生 SSE、Vercel 和 AG-UI 格式发送�
 
 OpenAI Responses 的普通响应可通过 `response.meta()` 读取来源连接、模型和网页引文。引文沿用上游顺序与各文本分段报告的位置。结构化响应也提供该方法。自定义文本驱动可用 `AgentResponse::new` 创建响应，再填写引文。 非流式工具调用的响应元数据取自最后一个模型步骤。
 
+内置文本驱动的非流式响应通过 `response.steps` 提供各个模型步骤。每步包含自己的模型、用量、结束原因、公开摘要和引文，以及本步的工具调用和结果。顶层用量汇总整个调用。
+
 非流式 Anthropic Messages 提供网页搜索和抓取引文。非流式 Gemini GenerateContent 提供选中候选的 Grounding 网页来源。两者保留每个 URL 首次出现的顺序和公开标题。
 
 Responses 模型支持公开推理摘要时，可通过 `with_provider_options` 将 `reasoning.summary` 设为 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用独立事件。可在完成回调中用 `StreamedAgentResponse::reasoning()` 读取合并后的摘要。 非流式 Responses 在 `response.reasoning` 中提供公开摘要，结构化响应同样可读。非流式工具调用提供最后一个模型步骤的公开摘要。
@@ -672,6 +674,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
         .await?;
 }
 ```
+
+审批完成后，`ApprovalResponse::Completed(response)` 包含 `Box<AgentResponse>`，可直接通过 `response.steps` 读取模型步骤。
 
 保留会话 ID 和审批 ID。在同一已认证参与者和 Agent 下，用 `pending_approvals_for` 重新读取待审批项，再展示给用户。使用 `resume_approval` 提交每条请求的决定。`Decisions::new` 支持逐项批准、拒绝或编辑参数，也可为剩余项应用默认决定。
 

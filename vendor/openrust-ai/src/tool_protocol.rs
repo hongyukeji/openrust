@@ -95,6 +95,11 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text: message["content"].as_str().map(str::to_owned),
+        finish_reason: if tool_calls.is_empty() {
+            crate::FinishReason::from_wire(data["choices"][0]["finish_reason"].as_str())
+        } else {
+            crate::FinishReason::ToolCalls
+        },
         reasoning: String::new(),
         usage: Usage::from_openai(&data["usage"]),
         citations: Vec::new(),
@@ -143,6 +148,11 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
         model: data["model"].as_str().map(str::to_owned),
         text,
         reasoning: reasoning.join("\n\n"),
+        finish_reason: if tool_calls.is_empty() {
+            crate::FinishReason::from_wire(data["status"].as_str())
+        } else {
+            crate::FinishReason::ToolCalls
+        },
         usage: Usage::from_openai(&data["usage"]),
         citations,
         tool_calls,

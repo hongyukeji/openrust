@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub enum ApprovalResponse {
-    Completed(AgentResponse),
+    Completed(Box<AgentResponse>),
     Pending(PendingToolApprovals),
 }
 

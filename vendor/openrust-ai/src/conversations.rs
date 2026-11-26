@@ -383,7 +383,7 @@ async fn resolve_approval_turn(
         Ok(response) => {
             turn.persist_with_approval(prompt, &response, approval)
                 .await?;
-            Ok(turn.reply(ApprovalResponse::Completed(response)))
+            Ok(turn.reply(ApprovalResponse::Completed(Box::new(response))))
         }
         Err(AiError::ApprovalPaused(pending)) => Ok(turn.reply(ApprovalResponse::Pending(pending))),
         Err(error) => Err(error),

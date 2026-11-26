@@ -228,7 +228,11 @@ impl TextProvider for AnthropicTextProvider {
                 citations: citations(blocks),
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
-            })
+                steps: Vec::new(),
+            }
+            .with_step(crate::FinishReason::from_wire(
+                response["stop_reason"].as_str(),
+            )))
         })
     }
 
@@ -411,6 +415,7 @@ pub(crate) fn parse_step(mut response: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: response["model"].as_str().map(str::to_owned),
         text,
+        finish_reason: crate::FinishReason::from_wire(response["stop_reason"].as_str()),
         reasoning: String::new(),
         usage: Usage::from_anthropic(&response["usage"]).include_cached_input(),
         citations: citations(blocks),

@@ -173,6 +173,11 @@ pub(crate) async fn generate_step(
                     return Ok(StepResponse {
                         model: Some(response.model),
                         text: Some(response.text),
+                        finish_reason: response
+                            .steps
+                            .last()
+                            .map(|step| step.finish_reason)
+                            .unwrap_or_default(),
                         reasoning: response.reasoning,
                         usage: response.usage,
                         citations: response.citations,

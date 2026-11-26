@@ -109,6 +109,7 @@ impl FakeTextGateway {
             citations: Vec::new(),
             tool_calls: Vec::new(),
             tool_results: Vec::new(),
+            steps: Vec::new(),
         })
     }
 }

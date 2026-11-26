@@ -17,7 +17,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, Decision, Decisions,
-    PendingApproval, PendingStep, PendingToolApprovals, TextProvider, Usage,
+    FinishReason, PendingApproval, PendingStep, PendingToolApprovals, Step, TextProvider, Usage,
     approval_turn::ApprovalSession, error::ProviderAttemptError, messages::OwnedPrompt,
 };
 
@@ -100,6 +100,16 @@ pub struct ToolStep {
     pub text: Option<String>,
     pub calls: Vec<ToolCall>,
     pub results: Vec<ToolResult>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub finish_reason: FinishReason,
+    #[serde(default)]
+    pub usage: Usage,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub citations: Vec<crate::UrlCitation>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reasoning: String,
     /// 供同一协议重放的原始模型内容，例如签名与推理块。
     pub provider_content: Option<Value>,
 }
@@ -108,6 +118,8 @@ pub struct ToolStep {
 pub struct StepResponse {
     pub model: Option<String>,
     pub text: Option<String>,
+    #[serde(default)]
+    pub finish_reason: FinishReason,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reasoning: String,
     pub usage: Usage,
@@ -275,13 +287,18 @@ impl ToolRun {
 
     pub(crate) fn add_step(&mut self, response: StepResponse, results: Vec<ToolResult>) {
         self.usage = Some(match self.usage.as_ref() {
-            Some(previous) => response.usage.combine(previous),
-            None => response.usage,
+            Some(previous) => response.usage.clone().combine(previous),
+            None => response.usage.clone(),
         });
         self.history.push(ToolStep {
             text: response.text,
             calls: response.tool_calls,
             results,
+            model: response.model,
+            finish_reason: response.finish_reason,
+            usage: response.usage,
+            citations: response.citations,
+            reasoning: response.reasoning,
             provider_content: response.provider_content,
         });
     }
@@ -340,7 +357,7 @@ impl ToolRun {
             .collect::<HashSet<_>>();
         for step in self.history.len()..self.max_steps {
             let final_step = step + 1 == self.max_steps;
-            let (mut response, allowed) = crate::middleware::generate_step(
+            let (response, allowed) = crate::middleware::generate_step(
                 provider,
                 PendingStep {
                     number: step,
@@ -391,36 +408,47 @@ impl ToolRun {
             }
             let results = plan.run().await;
             let finished = response.tool_calls.is_empty() || final_step;
-            let model = response.model.clone();
-            let (citations, reasoning) = if finished {
-                (
-                    std::mem::take(&mut response.citations),
-                    std::mem::take(&mut response.reasoning),
-                )
-            } else {
-                (Vec::new(), String::new())
-            };
+            if finished
+                && response.text.is_none()
+                && response.tool_calls.is_empty()
+                && self.history.iter().all(|step| step.calls.is_empty())
+            {
+                return Err(AiError::InvalidResponse.into());
+            }
             self.add_step(response, results);
             if finished {
-                let text = self.history.last_mut().and_then(|step| step.text.take());
-                let mut tool_calls = Vec::new();
-                let mut tool_results = Vec::new();
-                for step in self.history {
-                    tool_calls.extend(step.calls);
-                    tool_results.extend(step.results);
-                }
-                if text.is_none() && tool_calls.is_empty() {
-                    return Err(AiError::InvalidResponse.into());
-                }
+                let steps: Vec<_> = self
+                    .history
+                    .into_iter()
+                    .map(|step| Step {
+                        text: step.text.unwrap_or_default(),
+                        tool_calls: step.calls,
+                        tool_results: step.results,
+                        finish_reason: step.finish_reason,
+                        usage: step.usage,
+                        provider: provider.name().into(),
+                        model: step.model.unwrap_or_else(|| prompt.text.model.into()),
+                        citations: step.citations,
+                        reasoning: step.reasoning,
+                    })
+                    .collect();
+                let last = steps.last().ok_or(AiError::InvalidResponse)?;
                 return Ok(AgentResponse {
-                    text: text.unwrap_or_default(),
-                    reasoning,
+                    text: last.text.clone(),
+                    reasoning: last.reasoning.clone(),
                     usage: self.usage.unwrap_or_default(),
-                    provider: provider.name().into(),
-                    model: model.unwrap_or_else(|| prompt.text.model.into()),
-                    citations,
-                    tool_calls,
-                    tool_results,
+                    provider: last.provider.clone(),
+                    model: last.model.clone(),
+                    citations: last.citations.clone(),
+                    tool_calls: steps
+                        .iter()
+                        .flat_map(|step| step.tool_calls.iter().cloned())
+                        .collect(),
+                    tool_results: steps
+                        .iter()
+                        .flat_map(|step| step.tool_results.iter().cloned())
+                        .collect(),
+                    steps,
                 });
             }
         }

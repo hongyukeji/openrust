@@ -59,6 +59,8 @@ Anthropic Messages streams emit web search and web fetch citations through the s
 
 Buffered OpenAI Responses results expose the connection, model, and URL citations through `response.meta()`. Citations keep the upstream order and each text part’s reported offsets. The method is also available on structured results. Custom text providers can use `AgentResponse::new` to initialize a response and then fill its citations. For buffered tool calls, the top-level metadata belongs to the final model step.
 
+Buffered responses from built-in text drivers expose each model turn through `response.steps`. A step includes its own model, usage, finish reason, public summaries and citations, plus the tool calls and results for that turn. The top-level totals cover the entire invocation.
+
 Buffered Anthropic Messages includes web search and web fetch citations. Buffered Gemini GenerateContent includes web sources from the selected candidate’s grounding metadata. Both preserve the first occurrence of each URL and expose its public title.
 
 For a Responses model that provides public reasoning summaries, set `reasoning.summary` to `auto` in `with_provider_options`. Summary fragments have their own events in native SSE, Vercel, and AG-UI. Use `StreamedAgentResponse::reasoning()` to read the joined summary in a completion callback. Buffered Responses expose the public summary as `response.reasoning`, including structured results. A buffered tool call exposes the final model step’s summary.
@@ -672,6 +674,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
         .await?;
 }
 ```
+
+After approval completes, `ApprovalResponse::Completed(response)` contains a boxed `AgentResponse`. Read `response.steps` from it.
 
 Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
 

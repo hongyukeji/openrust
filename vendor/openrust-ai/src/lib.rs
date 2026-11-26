@@ -57,6 +57,7 @@ mod request_context;
 mod reranking;
 mod similarity_search;
 mod skill;
+mod step;
 mod stores;
 mod streaming;
 mod structured;
@@ -123,6 +124,7 @@ pub use reranking::{
 };
 pub use similarity_search::SimilaritySearch;
 pub use skill::{Skill, SkillSource};
+pub use step::{FinishReason, Step};
 pub use stores::{
     FakeStoreGateway, ProviderStoreFilePage, ProviderStorePage, RecordedStoreCreation,
     RecordedStoreDeletion, Store, StoreFile, StoreFileCounts, StoreFileInfo, StoreFilePage,

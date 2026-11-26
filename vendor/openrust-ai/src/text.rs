@@ -28,10 +28,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
-    RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
-    StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice, ToolDefinition, ToolResult,
-    ToolStep, UrlCitation, Usage,
+    AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, FinishReason, MessageRole,
+    ModelCatalog, RerankingProvider, Step, StepEventStream, StepResponse, StepTextGateway,
+    StreamableAgentResponse, StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice,
+    ToolDefinition, ToolResult, ToolStep, UrlCitation, Usage,
     audio::{AudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
@@ -59,6 +59,7 @@ pub struct AgentResponse {
     pub citations: Vec<UrlCitation>,
     pub tool_calls: Vec<ToolCall>,
     pub tool_results: Vec<ToolResult>,
+    pub steps: Vec<Step>,
 }
 
 /// 模型响应的来源连接、模型以及引文。
@@ -85,6 +86,7 @@ impl AgentResponse {
             citations: Vec::new(),
             tool_calls: Vec::new(),
             tool_results: Vec::new(),
+            steps: Vec::new(),
         }
     }
 
@@ -94,6 +96,21 @@ impl AgentResponse {
             model: &self.model,
             citations: &self.citations,
         }
+    }
+
+    pub(crate) fn with_step(mut self, finish_reason: FinishReason) -> Self {
+        self.steps.push(Step {
+            text: self.text.clone(),
+            tool_calls: self.tool_calls.clone(),
+            tool_results: self.tool_results.clone(),
+            finish_reason,
+            usage: self.usage.clone(),
+            provider: self.provider.clone(),
+            model: self.model.clone(),
+            citations: self.citations.clone(),
+            reasoning: self.reasoning.clone(),
+        });
+        self
     }
 }
 
@@ -712,7 +729,9 @@ impl TextProvider for OpenAiTextProvider {
                 citations: result.citations,
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
-            })
+                steps: Vec::new(),
+            }
+            .with_step(result.finish_reason))
         })
     }
     fn stream<'a>(
@@ -951,6 +970,7 @@ struct ParsedText {
     usage: Usage,
     model: Option<String>,
     citations: Vec<UrlCitation>,
+    finish_reason: FinishReason,
 }
 
 #[derive(Deserialize)]
@@ -963,6 +983,7 @@ struct ChatResponse {
 #[derive(Deserialize)]
 struct ChatChoice {
     message: ChatMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -973,12 +994,12 @@ struct ChatMessage {
 
 fn parse_chat(response: Response) -> AiResult<ParsedText> {
     let response: ChatResponse = response.json().map_err(|_| AiError::InvalidResponse)?;
-    let message = response
+    let choice = response
         .choices
         .into_iter()
         .next()
-        .ok_or(AiError::InvalidResponse)?
-        .message;
+        .ok_or(AiError::InvalidResponse)?;
+    let message = choice.message;
     if message.refusal.is_some_and(|refusal| !refusal.is_empty()) {
         return Err(AiError::Refused);
     }
@@ -988,6 +1009,7 @@ fn parse_chat(response: Response) -> AiResult<ParsedText> {
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
         citations: Vec::new(),
+        finish_reason: FinishReason::from_wire(choice.finish_reason.as_deref()),
     })
 }
 
@@ -1065,6 +1087,7 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
         citations,
+        finish_reason: FinishReason::from_wire(response.status.as_deref()),
     })
 }
 

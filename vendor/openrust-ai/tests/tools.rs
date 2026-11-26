@@ -17,8 +17,8 @@ use openrust::{
     validation::RuleSet,
 };
 use openrust_ai::{
-    Agent, AiError, AiResult, PromptOptions, ProviderTarget, StreamEventData, Tool, ToolRequest,
-    agent,
+    Agent, AiError, AiResult, FinishReason, PromptOptions, ProviderTarget, StreamEventData, Tool,
+    ToolRequest, agent,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -261,6 +261,16 @@ async fn check_tools(provider: &str) {
     assert!(!response.tool_results[0].failed);
     assert_eq!(response.usage.prompt_tokens, Some(11));
     assert_eq!(response.usage.completion_tokens, Some(3));
+    assert_eq!(response.steps.len(), 2);
+    let [first, last] = response.steps.as_slice() else {
+        unreachable!()
+    };
+    assert_eq!(first.finish_reason, FinishReason::ToolCalls);
+    assert_eq!(first.usage.prompt_tokens, Some(5));
+    assert_eq!(last.usage.prompt_tokens, Some(6));
+    assert_eq!(first.tool_calls, response.tool_calls);
+    assert_eq!(first.tool_results, response.tool_results);
+    assert!(last.tool_results.is_empty());
     let citation = match provider {
         "openai" => Some("https://example.test/final"),
         "anthropic" => Some("https://example.test/anthropic"),

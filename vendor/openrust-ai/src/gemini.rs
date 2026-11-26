@@ -234,7 +234,7 @@ impl TextProvider for GeminiTextProvider {
                 .await?;
             let value: Value = response.json().map_err(|_| AiError::InvalidResponse)?;
             let candidate = &value["candidates"][0];
-            finish_reason(&value, candidate)?;
+            let reason = finish_reason(&value, candidate)?;
             let text: String = text_parts(candidate).collect();
             if text.is_empty() {
                 return Err(AiError::InvalidResponse);
@@ -251,7 +251,9 @@ impl TextProvider for GeminiTextProvider {
                 citations: citations(candidate),
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
-            })
+                steps: Vec::new(),
+            }
+            .with_step(crate::FinishReason::from_wire(reason.as_deref())))
         })
     }
 
@@ -549,6 +551,11 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: value["modelVersion"].as_str().map(str::to_owned),
         text,
+        finish_reason: if tool_calls.is_empty() {
+            crate::FinishReason::from_wire(reason.as_deref())
+        } else {
+            crate::FinishReason::ToolCalls
+        },
         reasoning: String::new(),
         usage: usage(&value),
         citations,
