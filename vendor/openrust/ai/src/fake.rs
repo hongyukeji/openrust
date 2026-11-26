@@ -108,6 +108,8 @@ impl FakeTextGateway {
             usage: Usage::default(),
             provider: provider.unwrap_or_default(),
             model: model.unwrap_or_default(),
+            tool_calls: Vec::new(),
+            tool_results: Vec::new(),
         })
     }
 }

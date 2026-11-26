@@ -314,18 +314,22 @@ impl AiManager {
         }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
-        provider
-            .generate(AgentPrompt {
-                text: TextPrompt {
-                    instructions: agent.instructions(),
-                    prompt,
-                    model,
-                    timeout: options.timeout,
-                },
-                messages: agent.messages(),
-                structured_output,
-            })
-            .await
+        let request = AgentPrompt {
+            text: TextPrompt {
+                instructions: agent.instructions(),
+                prompt,
+                model,
+                timeout: options.timeout,
+            },
+            messages: agent.messages(),
+            structured_output,
+        };
+        let tools = agent.tools();
+        if tools.is_empty() {
+            provider.generate(request).await
+        } else {
+            crate::tools::run(provider.as_ref(), request, tools, agent.max_steps()).await
+        }
     }
 
     pub async fn stream<A: Agent>(
@@ -352,6 +356,9 @@ impl AiManager {
                 .prompt_with_schema(agent, prompt, options, structured_output)
                 .await
                 .map(StreamableAgentResponse::from_text);
+        }
+        if !agent.tools().is_empty() {
+            return Err(AiError::ToolsNotSupported);
         }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;

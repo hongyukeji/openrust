@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use openrust::{
     http::HttpFuture,
@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     Agent, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message, PromptOptions,
-    StreamableAgentResponse,
+    StreamableAgentResponse, Tool,
 };
 
 pub struct StructuredOutput<'a> {
@@ -146,6 +146,13 @@ impl Agent for StructuredAnonymousAgent {
 
     fn messages(&self) -> &[Message] {
         self.agent.messages()
+    }
+    fn tools(&self) -> Vec<Arc<dyn Tool>> {
+        self.agent.tools()
+    }
+
+    fn max_steps(&self) -> Option<usize> {
+        self.agent.max_steps()
     }
 }
 

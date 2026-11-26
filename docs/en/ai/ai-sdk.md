@@ -43,7 +43,7 @@ For a connection needed only during the current request or command, use `Ai::bui
 
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. SDK tools and conversations are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. Persistent conversations are pending.
 
 ## Model gateway {#model-gateway}
 
@@ -69,6 +69,20 @@ The same published Anthropic model can serve Messages and Responses clients. The
 Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent?alt=sse`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.
 
 Add `fallbacks` to a public model mapping to try backup connections in order. Each entry specifies `provider` and `model`, for example `[{"provider":"openai","model":"backup-model"}]`. The gateway can retry stateless requests after eligible upstream failures, including 429 and 5xx responses. It keeps the same public model and records each attempt under one request ID. Requests with tools or stored output, and streams already sent to the client, are excluded from replay.
+
+## Agent tools {#agent-tools}
+
+Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.
+
+```rust
+let response = agent("Check the catalog before answering.")
+    .with_tools(vec![std::sync::Arc::new(LookupInventory)])
+    .prompt("How many units are available?")
+    .await?;
+let answer = response.text;
+```
+
+Tool execution uses buffered Chat Completions or Responses. The Agent sends results back with their call IDs and exposes `tool_calls` and `tool_results` on the response. Use `with_max_steps(n)` to limit model steps. Tool execution stops on the last step, and any calls proposed in that step appear as failed results.
 
 ## Embeddings {#embeddings}
 

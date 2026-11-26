@@ -107,3 +107,9 @@ HTTP Kernel 及本地协议上游覆盖具名与自动命名、同名重建、�
 固定 `StreamableAgentResponse.php` 与 `Streaming/Protocols` 的 `usingProtocol`、`usingVercelDataProtocol`、`usingAgentUserInteractionProtocol` 分别由对应 Rust 方法及公开 `StreamProtocol` 实现。Vercel 使用 UI Stream `v1` 响应头、步进帧、文本增量、结束用量及 `[DONE]`。AG-UI 映射 run、step、assistant message 与结束／错误；支持线程和运行 ID。序列化流中错误按协议返回脱敏终止帧。未报告计数保持缺失。
 
 HTTP Kernel 及独立应用进程经实际 TCP 模拟服务验收格式、首段提前、用量与终止。Artisan 验证两个正常路由。工具、审批、引用、推理、浏览器 SDK 集成及其余高级事件仍待对应批次。
+
+## AI-03 非流式应用工具
+
+`Tool`、`ToolRequest`、`ToolCall`、`ToolResult` 和 `StepTextGateway::generate_text_step` 进入正常 Agent 调用。Rust 的工具列表由 `Agent::tools` 或匿名 Builder 装配。复用框架 JSON Schema、Validator 和 ULID。每一步按调用 ID 记录工具结果，限定应用声明的工具集合。重复 ID、非法参数、保密的错误摘要和最后一步停止策略避免重复或未授权执行。累计各步上游报告的 Token。原生 OpenAI Chat Completions 和 Responses 的工具输出按协议回送。
+
+实际 HTTP Kernel 与本地 TCP 测试验证两个协议、参数校验、调用关联、下一步、终止与用量。独立 Artisan 应用命令验收工具执行与第二次真实 HTTP 请求。流式工具、正常／失败／延迟工具的事件、单步中间件、审批与恢复、会话、Provider 工具和其他协议归后续批次。

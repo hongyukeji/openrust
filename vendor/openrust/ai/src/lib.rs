@@ -28,6 +28,8 @@ mod on_demand;
 mod streaming;
 mod structured;
 mod text;
+mod tool_protocol;
+mod tools;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use configuration::load as default_config;
@@ -49,6 +51,10 @@ pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
 };
 pub use text::{AgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage};
+pub use tools::{
+    StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition, ToolRequest, ToolResult,
+    ToolStep,
+};
 
 pub struct AiServiceProvider;
 

@@ -18,6 +18,9 @@ pub enum AiError {
     MessagesNotSupported,
     StructuredOutputNotSupported,
     InvalidSchema,
+    InvalidTools,
+    InvalidToolArguments,
+    ToolsNotSupported,
     InvalidStructuredResponse,
     StreamingNotSupported,
     EndpointNotSupported,
@@ -48,6 +51,9 @@ impl fmt::Display for AiError {
                 formatter.write_str("该 AI 协议驱动未提供结构化输出")
             }
             Self::InvalidSchema => formatter.write_str("AI 结构化输出模式无效"),
+            Self::InvalidTools => formatter.write_str("AI 工具名称无效或重复"),
+            Self::InvalidToolArguments => formatter.write_str("AI 工具参数无效"),
+            Self::ToolsNotSupported => formatter.write_str("当前 AI 连接或调用方式未提供工具执行"),
             Self::InvalidStructuredResponse => formatter.write_str("AI 响应不是预期的 JSON 对象"),
             Self::StreamingNotSupported => formatter.write_str("该 AI 协议驱动未提供流式输出"),
             Self::EndpointNotSupported => formatter.write_str("该 AI 协议驱动未提供所选端点"),

@@ -43,7 +43,7 @@ let answer = response.text;
 
 ## 范围 {#scope}
 
-当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 与 Gemini 原生连接也支持普通文本、SSE 和分页模型目录。SDK 工具和会话仍待实现。
+当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 与 Gemini 原生连接也支持普通文本、SSE 和分页模型目录。持久化会话仍待实现。
 
 ## 模型网关 {#model-gateway}
 
@@ -69,6 +69,20 @@ let answer = response.text;
 Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key。网关列出授权的 Gemini 模型，并支持 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中选择 `gemini` 连接，模型 ID 可带 `models/` 前缀。
 
 公开模型映射可配置 `fallbacks`，依次尝试备用连接。每项填写 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。无状态请求遇到上游 429、5xx 等可重试错误时，网关会尝试备用连接。客户端仍使用同一个公开名，每次尝试用同一个请求 ID 记录。带工具、要求存储输出或已经开始返回的流不参与重放。
+
+## Agent 工具 {#agent-tools}
+
+实现 `Tool` 的名称、描述、JSON Schema 和异步 `handle`。用 `ToolRequest::validate` 运行框架验证规则，或通过 `decode` 将参数读为 Rust 类型。工具可以读取上游调用 ID 和本次执行的独立 ID。
+
+```rust
+let response = agent("回答前先查目录。")
+    .with_tools(vec![std::sync::Arc::new(LookupInventory)])
+    .prompt("还有多少库存？")
+    .await?;
+let answer = response.text;
+```
+
+工具调用使用 Chat Completions 或 Responses 的非流式请求。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
 
 ## Embeddings {#embeddings}
 

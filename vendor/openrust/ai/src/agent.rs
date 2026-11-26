@@ -4,7 +4,7 @@ use openrust::{http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
     AgentResponse, Ai, AiResult, FakeTextGateway, Message, StreamableAgentResponse,
-    StructuredAnonymousAgent,
+    StructuredAnonymousAgent, Tool,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -28,6 +28,14 @@ pub trait Agent: Send + Sync + 'static {
 
     fn messages(&self) -> &[Message] {
         &[]
+    }
+
+    fn tools(&self) -> Vec<Arc<dyn Tool>> {
+        Vec::new()
+    }
+
+    fn max_steps(&self) -> Option<usize> {
+        None
     }
 
     fn fake(responses: impl IntoIterator<Item = String>) -> AiResult<Arc<FakeTextGateway>>
@@ -83,16 +91,30 @@ pub trait Agent: Send + Sync + 'static {
 pub struct AnonymousAgent {
     instructions: String,
     messages: Vec<Message>,
+    tools: Vec<Arc<dyn Tool>>,
+    max_steps: Option<usize>,
 }
 
 pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
         messages: Vec::new(),
+        tools: Vec::new(),
+        max_steps: None,
     }
 }
 
 impl AnonymousAgent {
+    pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
+        self.tools = tools;
+        self
+    }
+
+    pub fn with_max_steps(mut self, steps: usize) -> Self {
+        self.max_steps = Some(steps);
+        self
+    }
+
     pub fn with_schema(self, schema: ObjectType) -> StructuredAnonymousAgent {
         StructuredAnonymousAgent::new(self, schema)
     }
@@ -110,5 +132,12 @@ impl Agent for AnonymousAgent {
 
     fn messages(&self) -> &[Message] {
         &self.messages
+    }
+    fn tools(&self) -> Vec<Arc<dyn Tool>> {
+        self.tools.clone()
+    }
+
+    fn max_steps(&self) -> Option<usize> {
+        self.max_steps
     }
 }

@@ -24,8 +24,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
-    StreamableAgentResponse, StructuredOutput,
+    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog, StepResponse,
+    StepTextGateway, StreamableAgentResponse, StructuredOutput, ToolCall, ToolDefinition,
+    ToolResult, ToolStep,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
@@ -43,6 +44,8 @@ pub struct AgentResponse {
     pub usage: Usage,
     pub provider: String,
     pub model: String,
+    pub tool_calls: Vec<ToolCall>,
+    pub tool_results: Vec<ToolResult>,
 }
 
 pub struct TextPrompt<'a> {
@@ -96,6 +99,10 @@ pub trait TextProvider: Send + Sync {
         Box::pin(async {
             ModelCatalog::merge(Err(AiError::ModelsNotSupported), std::iter::empty())
         })
+    }
+
+    fn step_text_gateway(&self) -> Option<&dyn StepTextGateway> {
+        None
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
@@ -321,6 +328,10 @@ impl TextProvider for OpenAiTextProvider {
         Box::pin(async { self.connection.catalog(self.list_models().await) })
     }
 
+    fn step_text_gateway(&self) -> Option<&dyn StepTextGateway> {
+        Some(self)
+    }
+
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
         self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
             Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
@@ -375,6 +386,8 @@ impl TextProvider for OpenAiTextProvider {
                 usage: result.usage,
                 provider: self.name().into(),
                 model: result.model.unwrap_or_else(|| prompt.text.model.into()),
+                tool_calls: Vec::new(),
+                tool_results: Vec::new(),
             })
         })
     }
@@ -393,6 +406,48 @@ impl TextProvider for OpenAiTextProvider {
                 self.name().into(),
                 prompt.text.model.to_owned(),
             ))
+        })
+    }
+}
+
+impl StepTextGateway for OpenAiTextProvider {
+    fn generate_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        Box::pin(async move {
+            use crate::tool_protocol;
+
+            let payload = match self.protocol {
+                OpenAiProtocol::ChatCompletions => {
+                    let body = serde_json::to_value(Self::chat_body(prompt, false))
+                        .map_err(|_| AiError::InvalidSchema)?;
+                    tool_protocol::chat_request(body, tools, history)?
+                }
+                OpenAiProtocol::Responses => {
+                    let body = serde_json::to_value(self.responses_body(prompt, false))
+                        .map_err(|_| AiError::InvalidSchema)?;
+                    tool_protocol::responses_request(body, tools, history)?
+                }
+            };
+            let response = validate(Ok(self
+                .connection
+                .send(
+                    self.protocol.endpoint(),
+                    &payload,
+                    false,
+                    prompt.text.timeout,
+                )
+                .await?))?;
+            let response = response
+                .json::<Value>()
+                .map_err(|_| AiError::InvalidResponse)?;
+            match self.protocol {
+                OpenAiProtocol::ChatCompletions => tool_protocol::chat_step(response),
+                OpenAiProtocol::Responses => tool_protocol::responses_step(response),
+            }
         })
     }
 }

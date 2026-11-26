@@ -147,6 +147,8 @@ impl TextProvider for AnthropicTextProvider {
                     .as_str()
                     .unwrap_or(prompt.text.model)
                     .into(),
+                tool_calls: Vec::new(),
+                tool_results: Vec::new(),
             })
         })
     }
