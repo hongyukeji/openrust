@@ -1,13 +1,18 @@
 use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
-use openrust::http::{HttpFuture, UploadedFile, client::Part};
+use openrust::{
+    filesystem::Storage,
+    http::{HttpFuture, UploadedFile, client::Part},
+    support::facades::Facade,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
     Ai, AiError, AiResult, AudioResponse, FakeTranscriptionGateway, FakeTranscriptionResult,
-    RecordedTranscription, Usage,
+    MediaQueueCatch, MediaQueueThen, QueuedAudioSource, QueuedTranscriptionResponse,
+    RecordedQueuedTranscription, RecordedTranscription, Usage,
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
@@ -18,9 +23,30 @@ const MAX_AUDIO_BYTES: usize = 25_000_000;
 pub struct Transcription;
 
 impl Transcription {
+    pub fn register_queue_then(
+        name: impl Into<String>,
+        callback: MediaQueueThen<TranscriptionResponse>,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .transcription_queue_callbacks()
+            .register_then(name, callback)
+    }
+
+    pub fn register_queue_catch(
+        name: impl Into<String>,
+        callback: MediaQueueCatch,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .transcription_queue_callbacks()
+            .register_catch(name, callback)
+    }
+
     pub fn of(audio: TranscriptionAudio) -> PendingTranscriptionGeneration {
         PendingTranscriptionGeneration {
             audio,
+            source: None,
             language: None,
             diarize: false,
             timeout: Duration::from_secs(30),
@@ -38,20 +64,35 @@ impl Transcription {
     pub async fn from_path(
         path: impl AsRef<std::path::Path>,
     ) -> AiResult<PendingTranscriptionGeneration> {
-        let file = tokio::fs::File::open(path)
+        let path = tokio::fs::canonicalize(path)
             .await
             .map_err(|_| AiError::MediaStorageUnavailable)?;
-        Self::from_bytes(media_storage::read_limited(file, MAX_AUDIO_BYTES).await?)
+        let mut pending =
+            Self::from_bytes(media_storage::read_path(&path, MAX_AUDIO_BYTES).await?)?;
+        pending.source = Some(QueuedAudioSource::Path { path });
+        Ok(pending)
     }
 
     pub async fn from_storage(
         path: &str,
         disk: Option<&str>,
     ) -> AiResult<PendingTranscriptionGeneration> {
-        let content = media_storage::read(path, disk, MAX_AUDIO_BYTES)
+        let disk = match disk.filter(|name| !name.is_empty()) {
+            Some(name) => name.to_owned(),
+            None => Storage::get_facade_root()
+                .map_err(|_| AiError::MediaStorageUnavailable)?
+                .get_default_driver()
+                .map_err(|_| AiError::MediaStorageUnavailable)?,
+        };
+        let content = media_storage::read(path, Some(&disk), MAX_AUDIO_BYTES)
             .await?
             .ok_or(AiError::InvalidAudio)?;
-        Self::from_bytes(content)
+        let mut pending = Self::from_bytes(content)?;
+        pending.source = Some(QueuedAudioSource::Storage {
+            disk,
+            path: path.into(),
+        });
+        Ok(pending)
     }
 
     pub fn fake(
@@ -77,6 +118,26 @@ impl Transcription {
         Ai::manager()?
             .transcription_fake()
             .ok_or(AiError::FakeNotInstalled)
+    }
+
+    #[track_caller]
+    pub fn assert_queued(predicate: impl Fn(&RecordedQueuedTranscription) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(
+        predicate: impl Fn(&RecordedQueuedTranscription) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_queued();
+        Ok(())
     }
 
     #[track_caller]
@@ -149,6 +210,7 @@ impl TryFrom<&AudioResponse> for TranscriptionAudio {
 
 pub struct PendingTranscriptionGeneration {
     audio: TranscriptionAudio,
+    source: Option<QueuedAudioSource>,
     language: Option<String>,
     diarize: bool,
     timeout: Duration,
@@ -167,6 +229,45 @@ impl PendingTranscriptionGeneration {
 
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    pub fn queue(self) -> AiResult<QueuedTranscriptionResponse> {
+        self.queue_with(None, None)
+    }
+
+    pub fn queue_with(
+        self,
+        provider: Option<&str>,
+        model: Option<&str>,
+    ) -> AiResult<QueuedTranscriptionResponse> {
+        TranscriptionPrompt {
+            audio: &self.audio,
+            language: self.language.as_deref(),
+            diarize: self.diarize,
+            model: model.unwrap_or("queued"),
+            timeout: self.timeout,
+        }
+        .validate()?;
+        let audio = self
+            .source
+            .ok_or(AiError::InvalidConfiguration("transcription.queue_source"))?;
+        Ok(QueuedTranscriptionResponse::transcription(
+            RecordedQueuedTranscription {
+                audio,
+                language: self.language,
+                diarize: self.diarize,
+                timeout: self.timeout,
+                provider: provider.map(str::to_owned),
+                model: model.map(str::to_owned),
+            },
+        ))
+    }
+
+    pub(crate) fn with_queued_options(mut self, prompt: &RecordedQueuedTranscription) -> Self {
+        self.language.clone_from(&prompt.language);
+        self.diarize = prompt.diarize;
+        self.timeout = prompt.timeout;
         self
     }
 

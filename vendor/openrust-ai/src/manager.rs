@@ -27,6 +27,7 @@ use crate::{
     connection::{Authorization, Connection},
     error::ProviderAttemptError,
     gemini::GeminiTextProvider,
+    media_queue::{AudioQueueCallbacks, TranscriptionQueueCallbacks},
     ollama::OllamaProvider,
     on_demand::{OnDemandProviders, reserved_name},
     reranking::{HttpRerankingProvider, RerankingProtocol},
@@ -43,6 +44,8 @@ pub struct AiManager {
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
+    audio_callbacks: AudioQueueCallbacks,
+    transcription_callbacks: TranscriptionQueueCallbacks,
     audio_fake: RwLock<Option<Arc<FakeAudioGateway>>>,
     transcription_fake: RwLock<Option<Arc<FakeTranscriptionGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
@@ -65,6 +68,8 @@ impl AiManager {
             factories: RwLock::default(),
             providers: Mutex::default(),
             fakes: RwLock::default(),
+            audio_callbacks: Default::default(),
+            transcription_callbacks: Default::default(),
             audio_fake: RwLock::default(),
             transcription_fake: RwLock::default(),
             embeddings_fake: RwLock::default(),
@@ -380,6 +385,14 @@ impl AiManager {
         self.text_provider(Some(&name))?
             .image_provider()
             .ok_or(AiError::ImagesNotSupported)
+    }
+
+    pub(crate) fn audio_queue_callbacks(&self) -> &AudioQueueCallbacks {
+        &self.audio_callbacks
+    }
+
+    pub(crate) fn transcription_queue_callbacks(&self) -> &TranscriptionQueueCallbacks {
+        &self.transcription_callbacks
     }
 
     pub fn fake_audio(

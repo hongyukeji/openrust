@@ -49,6 +49,7 @@ mod load_skill;
 mod localization;
 mod manager;
 mod mcp_tool;
+mod media_queue;
 mod media_storage;
 mod messages;
 mod middleware;
@@ -124,6 +125,10 @@ pub use image::{
 pub use load_skill::LoadSkill;
 pub use manager::AiManager;
 pub use mcp_tool::{McpServerTool, McpTool};
+pub use media_queue::{
+    MediaQueueCatch, MediaQueueThen, QueuedAudioResponse, QueuedAudioSource, QueuedMediaResponse,
+    QueuedTranscriptionResponse, RecordedQueuedTranscription,
+};
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{
     AgentMiddleware, NextStep, NextStreamStep, PendingStep, StepResult, Stop, StopCondition,
@@ -208,6 +213,8 @@ impl ServiceProvider for AiServiceProvider {
             self.load_bundled_translations_from(app, localization::RESOURCES, "ai")
                 .await?;
             self.commands(app, console::register);
+            let queue = app.container().make::<openrust::queue::QueueManager>()?;
+            media_queue::register(&queue)?;
             let config = &[("config/ai.rs", include_bytes!("../config/ai.rs").as_slice())];
             self.publishes(app, config, "ai")?;
             self.publishes(app, config, "ai-config")?;

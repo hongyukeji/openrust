@@ -102,6 +102,23 @@ impl Ai {
         crate::Audio::assert_nothing_generated()
     }
 
+    #[track_caller]
+    pub fn assert_audio_queued(predicate: impl Fn(&crate::RecordedAudio) -> bool) -> AiResult<()> {
+        crate::Audio::assert_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_audio_not_queued(
+        predicate: impl Fn(&crate::RecordedAudio) -> bool,
+    ) -> AiResult<()> {
+        crate::Audio::assert_not_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_audio_queued() -> AiResult<()> {
+        crate::Audio::assert_nothing_queued()
+    }
+
     pub fn audio_is_faked() -> AiResult<bool> {
         Ok(Self::manager()?.audio_fake().is_some())
     }
@@ -142,6 +159,25 @@ impl Ai {
     #[track_caller]
     pub fn assert_no_transcription_generated() -> AiResult<()> {
         crate::Transcription::assert_nothing_generated()
+    }
+
+    #[track_caller]
+    pub fn assert_transcription_queued(
+        predicate: impl Fn(&crate::RecordedQueuedTranscription) -> bool,
+    ) -> AiResult<()> {
+        crate::Transcription::assert_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_transcription_not_queued(
+        predicate: impl Fn(&crate::RecordedQueuedTranscription) -> bool,
+    ) -> AiResult<()> {
+        crate::Transcription::assert_not_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_transcription_queued() -> AiResult<()> {
+        crate::Transcription::assert_nothing_queued()
     }
 
     pub fn transcription_is_faked() -> AiResult<bool> {

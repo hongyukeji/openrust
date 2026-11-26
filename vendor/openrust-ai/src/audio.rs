@@ -6,10 +6,12 @@ use openrust::{
     http::{HttpFuture, UploadedFile},
     support::Str,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    Ai, AiError, AiResult, FakeAudioGateway, RecordedAudio,
+    Ai, AiError, AiResult, FakeAudioGateway, MediaQueueCatch, MediaQueueThen, QueuedAudioResponse,
+    RecordedAudio,
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
@@ -18,6 +20,26 @@ use crate::{
 pub struct Audio;
 
 impl Audio {
+    pub fn register_queue_then(
+        name: impl Into<String>,
+        callback: MediaQueueThen<AudioResponse>,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .audio_queue_callbacks()
+            .register_then(name, callback)
+    }
+
+    pub fn register_queue_catch(
+        name: impl Into<String>,
+        callback: MediaQueueCatch,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .audio_queue_callbacks()
+            .register_catch(name, callback)
+    }
+
     pub fn of(text: impl Into<String>) -> AiResult<PendingAudioGeneration> {
         let text = text.into();
         if text.trim().is_empty() {
@@ -50,6 +72,24 @@ impl Audio {
 
     fn fake_gateway() -> AiResult<Arc<FakeAudioGateway>> {
         Ai::manager()?.audio_fake().ok_or(AiError::FakeNotInstalled)
+    }
+
+    #[track_caller]
+    pub fn assert_queued(predicate: impl Fn(&RecordedAudio) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(predicate: impl Fn(&RecordedAudio) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_queued();
+        Ok(())
     }
 
     #[track_caller]
@@ -120,6 +160,49 @@ impl PendingAudioGeneration {
         self
     }
 
+    pub fn queue(self) -> AiResult<QueuedAudioResponse> {
+        self.queue_with(None, None)
+    }
+
+    pub fn queue_with(
+        self,
+        provider: Option<&str>,
+        model: Option<&str>,
+    ) -> AiResult<QueuedAudioResponse> {
+        AudioPrompt {
+            text: &self.text,
+            voice: &self.voice,
+            instructions: self.instructions.as_deref(),
+            format: self.format,
+            model: model.unwrap_or("queued"),
+            timeout: self.timeout,
+        }
+        .validate()?;
+        Ok(QueuedAudioResponse::audio(RecordedAudio {
+            text: self.text,
+            voice: self.voice,
+            instructions: self.instructions,
+            format: self.format,
+            timeout: self.timeout,
+            provider: provider.map(str::to_owned),
+            model: model.map(str::to_owned),
+        }))
+    }
+
+    pub(crate) fn from_queued(prompt: RecordedAudio) -> (Self, Option<String>, Option<String>) {
+        (
+            Self {
+                text: prompt.text,
+                voice: prompt.voice,
+                instructions: prompt.instructions,
+                format: prompt.format,
+                timeout: prompt.timeout,
+            },
+            prompt.provider,
+            prompt.model,
+        )
+    }
+
     pub async fn generate(self) -> AiResult<AudioResponse> {
         self.generate_with(None, None).await
     }
@@ -179,7 +262,8 @@ impl PendingAudioGeneration {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AudioVoice {
     #[default]
     Default,
@@ -188,7 +272,8 @@ pub enum AudioVoice {
     Female,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AudioFormat {
     Mp3,
     Opus,

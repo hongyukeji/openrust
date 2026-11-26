@@ -8,13 +8,14 @@ use std::{
 };
 
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    AiError, AiResult, AudioFormat, AudioResponse, AudioVoice, TranscriptionResponse,
-    TranscriptionSegment, TranscriptionUsage,
+    AiError, AiResult, AudioFormat, AudioResponse, AudioVoice, RecordedQueuedTranscription,
+    TranscriptionResponse, TranscriptionSegment, TranscriptionUsage,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordedAudio {
     pub text: String,
     pub voice: AudioVoice,
@@ -92,9 +93,41 @@ impl<Request, Response> AudioFake<Request, Response> {
     }
 }
 
-pub struct FakeAudioGateway(AudioFake<RecordedAudio, AudioResponse>);
+pub struct FakeAudioGateway(
+    AudioFake<RecordedAudio, AudioResponse>,
+    Mutex<Vec<RecordedAudio>>,
+);
 
 impl FakeAudioGateway {
+    pub(crate) fn record_queued(&self, prompt: RecordedAudio) {
+        self.1.lock().unwrap().push(prompt);
+    }
+
+    pub fn recorded_queued(&self) -> Vec<RecordedAudio> {
+        self.1.lock().unwrap().clone()
+    }
+
+    #[track_caller]
+    pub fn assert_queued(&self, predicate: impl Fn(&RecordedAudio) -> bool) {
+        assert!(
+            self.recorded_queued().iter().any(predicate),
+            "未发现匹配的语音生成队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(&self, predicate: impl Fn(&RecordedAudio) -> bool) {
+        assert!(
+            !self.recorded_queued().iter().any(predicate),
+            "发现了不应发生的语音生成队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued(&self) {
+        assert!(self.1.lock().unwrap().is_empty(), "发现了语音生成队列任务");
+    }
+
     pub(crate) fn respond(&self, request: RecordedAudio) -> AiResult<AudioResponse> {
         let response = self.0.next(&request)?.unwrap_or_else(|| {
             AudioResponse::fake_placeholder(
@@ -108,9 +141,41 @@ impl FakeAudioGateway {
     }
 }
 
-pub struct FakeTranscriptionGateway(AudioFake<RecordedTranscription, FakeTranscriptionResult>);
+pub struct FakeTranscriptionGateway(
+    AudioFake<RecordedTranscription, FakeTranscriptionResult>,
+    Mutex<Vec<RecordedQueuedTranscription>>,
+);
 
 impl FakeTranscriptionGateway {
+    pub(crate) fn record_queued(&self, prompt: RecordedQueuedTranscription) {
+        self.1.lock().unwrap().push(prompt);
+    }
+
+    pub fn recorded_queued(&self) -> Vec<RecordedQueuedTranscription> {
+        self.1.lock().unwrap().clone()
+    }
+
+    #[track_caller]
+    pub fn assert_queued(&self, predicate: impl Fn(&RecordedQueuedTranscription) -> bool) {
+        assert!(
+            self.recorded_queued().iter().any(predicate),
+            "未发现匹配的转录队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(&self, predicate: impl Fn(&RecordedQueuedTranscription) -> bool) {
+        assert!(
+            !self.recorded_queued().iter().any(predicate),
+            "发现了不应发生的转录队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued(&self) {
+        assert!(self.1.lock().unwrap().is_empty(), "发现了转录队列任务");
+    }
+
     pub(crate) fn respond(
         &self,
         request: RecordedTranscription,
@@ -144,15 +209,21 @@ impl FakeTranscriptionGateway {
 
 impl FakeAudioGateway {
     pub(crate) fn new(responses: impl IntoIterator<Item = AudioResponse>) -> Self {
-        Self(AudioFake::new(Responses::Sequence(Mutex::new(
-            responses.into_iter().collect(),
-        ))))
+        Self(
+            AudioFake::new(Responses::Sequence(Mutex::new(
+                responses.into_iter().collect(),
+            ))),
+            Mutex::default(),
+        )
     }
 
     pub(crate) fn with(
         resolve: impl Fn(&RecordedAudio) -> AiResult<AudioResponse> + Send + Sync + 'static,
     ) -> Self {
-        Self(AudioFake::new(Responses::Callback(Box::new(resolve))))
+        Self(
+            AudioFake::new(Responses::Callback(Box::new(resolve))),
+            Mutex::default(),
+        )
     }
 
     pub fn prevent_stray_audio(&self, prevent: bool) -> &Self {
@@ -191,9 +262,12 @@ impl FakeAudioGateway {
 
 impl FakeTranscriptionGateway {
     pub(crate) fn new(responses: impl IntoIterator<Item = FakeTranscriptionResult>) -> Self {
-        Self(AudioFake::new(Responses::Sequence(Mutex::new(
-            responses.into_iter().collect(),
-        ))))
+        Self(
+            AudioFake::new(Responses::Sequence(Mutex::new(
+                responses.into_iter().collect(),
+            ))),
+            Mutex::default(),
+        )
     }
 
     pub(crate) fn with(
@@ -202,7 +276,10 @@ impl FakeTranscriptionGateway {
         + Sync
         + 'static,
     ) -> Self {
-        Self(AudioFake::new(Responses::Callback(Box::new(resolve))))
+        Self(
+            AudioFake::new(Responses::Callback(Box::new(resolve))),
+            Mutex::default(),
+        )
     }
 
     pub fn prevent_stray_transcriptions(&self, prevent: bool) -> &Self {

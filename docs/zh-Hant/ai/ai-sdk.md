@@ -938,6 +938,25 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 在應用測試作用域內呼叫 `Audio::fake([])?` 或 `Transcription::fake(["測試轉錄".into()])?`。用 `fake_with` 依請求產生替身回應。預設語音替身傳回佔位位元組。測試需要播放或轉錄該音訊時，透過 `AudioResponse::from_bytes` 提供有效的音訊樣本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 檢查呼叫。對傳回的替身呼叫 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在回應序列耗盡時回報錯誤。
 
+### 排入佇列處理媒體請求 {#queued-audio}
+
+兩種 Builder 都提供 `queue()` 和 `queue_with(provider, model)`。設定佇列和重試選項後呼叫 `dispatch().await`。轉錄排入佇列時，用 `Transcription::from_storage` 或 `from_path` 選擇現有檔案，確保 Worker 能存取具名磁碟上的物件或同一本機路徑。佇列資料保存檔案參照，Worker 執行時解析供應商憑證。
+
+```rust
+use openrust_ai::Transcription;
+
+Transcription::from_storage("recordings/notice.mp3", Some("local"))
+    .await?
+    .diarize(true)
+    .queue()?
+    .on_queue("media")
+    .then("save_transcript")
+    .dispatch()
+    .await?;
+```
+
+在應用程式啟動時用 `Audio::register_queue_then`、`Audio::register_queue_catch` 或 `Transcription` 的同名方法註冊具名回呼，派發端和 Worker 使用相同註冊。重試用盡後執行失敗回呼。測試用 `assert_queued`、`assert_not_queued` 和 `assert_nothing_queued` 檢查派發記錄，可獨立驗證後續是否產生結果。
+
 ## 分類 {#classification}
 
 將 `AI_CLASSIFICATION_PROVIDER` 設為連線名稱，並將該連線的預設模型設為支援對應 Decisions API 的模型 ID。

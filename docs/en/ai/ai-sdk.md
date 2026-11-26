@@ -938,6 +938,25 @@ Speech defaults to MP3 and also supports WAV, Opus, FLAC and PCM. `male()` selec
 
 In application tests, install `Audio::fake([])?` or `Transcription::fake(["Recorded notice".into()])?` inside the application scope. Use `fake_with` for a request-based callback. The default speech fixture is placeholder bytes. Supply an `AudioResponse::from_bytes` fixture when the test consumes or transcribes the generated audio. Assert calls with `assert_generated`, `assert_not_generated` or `assert_nothing_generated`. Enable `prevent_stray_audio(true)` or `prevent_stray_transcriptions(true)` on the returned gateway to catch exhausted response sequences.
 
+### Queue a media request {#queued-audio}
+
+Both builders expose `queue()` and `queue_with(provider, model)`. Configure the queue and retry options before calling `dispatch().await`. For queued transcription, select an existing file with `Transcription::from_storage` or `from_path`. Keep the named disk and object accessible to the Worker, or use a local path shared with the Worker. The payload stores the file reference, and the Worker resolves provider credentials when it runs.
+
+```rust
+use openrust_ai::Transcription;
+
+Transcription::from_storage("recordings/notice.mp3", Some("local"))
+    .await?
+    .diarize(true)
+    .queue()?
+    .on_queue("media")
+    .then("save_transcript")
+    .dispatch()
+    .await?;
+```
+
+Register named `then` and `catch` callbacks during application boot with `Audio::register_queue_then`, `Audio::register_queue_catch` or the corresponding `Transcription` methods. Use the same registration in producers and Workers. The terminal failure callback runs after the configured retries. In tests, use `assert_queued`, `assert_not_queued` and `assert_nothing_queued` to inspect dispatches separately from generated responses.
+
 ## Classification {#classification}
 
 Set `AI_CLASSIFICATION_PROVIDER` to the connection name and set its default model to an ID that supports the provider's Decisions API.

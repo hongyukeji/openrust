@@ -306,9 +306,17 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Audio` 与 `Transcription` 提供 `fake`、`fake_with`、`is_faked` 及生成断言，状态由当前应用的 `AiManager` 持有。音频可提供完整响应，转录可提供文本或完整响应。默认语音使用固定 Laravel 的占位字节。请求记录包含选用的连接、模型和各自的生成选项。启用禁止意外调用后，序列用尽返回 `FakeExhausted`。
 
-独立 Artisan、HTTP 在无供应商密钥的应用实测默认响应、序列、WAV 请求字节、生成断言和耗尽行为。两套应用验证状态隔离，SDK 回归同时覆盖回调、显式连接与模型、完整 WAV 响应和既有 OpenAI 出站协议。16 项 SDK 测试、严格 Clippy 与三语站点通过。语音与转录的 Worker 排队及排队 Fake 断言仍待实现。
+独立 Artisan、HTTP 在无供应商密钥的应用实测默认响应、序列、WAV 请求字节、生成断言和耗尽行为。两套应用验证状态隔离，SDK 回归同时覆盖回调、显式连接与模型、完整 WAV 响应和既有 OpenAI 出站协议。16 项 SDK 测试、严格 Clippy 与三语站点通过。
 
 - [固定 Laravel 音频 Fake](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeAudioGateway.php) · [固定 Laravel 转录 Fake](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeTranscriptionGateway.php)
+
+### 语音与转录队列
+
+`PendingAudioGeneration` 与 `PendingTranscriptionGeneration` 提供 `queue` 和 `queue_with`。派发时沿用框架队列的连接、队列名、延迟和重试选项。Worker 重新解析供应商凭证和模型，按注册名称运行完成及终态失败回调。转录支持本地绝对路径或具名 Storage 对象，和固定基线一样拒绝直接排队内联字节。两个 Fake 分别记录派发和实际生成，提供队列断言。
+
+SQLite 队列使用独立 HTTP 和 Artisan 派发。验收检查数据库队列载荷仅保留转录路径引用，无音频字节或供应商凭证。Worker 用本地 Mistral 协议上游实测 503 重试后合成、私有磁盘与本地路径转录、输出私有存储、文件丢失的终态失败和具名回调。两种 Fake 在保留框架派发的同时记录独立队列断言，未注册的回调在派发前拒绝。14 项 SDK 回归、严格 Clippy 与三语文档站点通过。
+
+- [固定 Laravel GenerateAudio](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/GenerateAudio.php) · [固定 Laravel GenerateTranscription](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/GenerateTranscription.php)
 
 ## AI-05 OpenAI Decisions 分类
 
