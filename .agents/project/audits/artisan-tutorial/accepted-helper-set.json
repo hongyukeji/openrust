@@ -1,0 +1,35 @@
+{
+  "base": "5e297b5a12a5a2930be5ad499c21b7357f70fb99",
+  "contract": "helper-set-contracts.json",
+  "results": [
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.83s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.83s",
+    "test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+    "test result: ok. 186 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s"
+  ],
+  "runtime": {
+    "framework_targets": 6,
+    "framework_parent_tests": 36,
+    "new_artisan_processes": 3,
+    "new_http_requests": 15,
+    "formal_document_consumers": 186,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/helper-set-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/helper-set-site.log",
+    "target/tmp/artisan-tutorial-20261125/helper-set-final-lint.log"
+  ],
+  "unaccepted_attempts": [
+    "helper-set-gates.log: nonexistent test target, corrected and rerun",
+    "helper-set-gates-final.log: disk threshold interrupted first Clippy attempt, followed by successful strict retry"
+  ],
+  "remaining": [
+    "Application 与 Command 的默认集合、替换与调用接线继续。固定默认 FormatterHelper、DebugFormatterHelper、ProcessHelper 的所属方法尚待验证。",
+    "终端样式/颜色仓库、独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
+  ],
+  "pushed": false
+}

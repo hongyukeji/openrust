@@ -2342,3 +2342,32 @@ fn register_helper_tools() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Console helper sets {#console-helper-sets}
+
+A `HelperSet` registers each `HelperInterface` instance under its canonical name and, optionally, a case-sensitive alias. Replacing a name keeps the position of that name and preserves existing aliases that still point to the previous instance. `get_iterator` captures the registration order and helper references at the time of the call. Missing names produce a `HelperNotFound` error. Build a collection from several named or unnamed entries with `from_helpers`.
+
+Use `Helper` to store the association in a custom helper. The set owns the registered instances and each helper holds a weak reference back to its last set. A manual association change leaves the registry entries in place. The default and component question helpers expose this association directly.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, DefaultQuestionHelper, HelperSet,
+};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_helper_set() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:lookup", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let helpers = HelperSet::new();
+            let question = Arc::new(DefaultQuestionHelper::new());
+            helpers.set(question.clone(), Some("ask"));
+            let resolved = helpers.get("ask").map_err(ConsoleError::from_source)?;
+            assert!(question.get_helper_set().unwrap().same_set(&helpers));
+            output.comment(&format!("{} has {} entries", resolved.get_name(), helpers.get_iterator().count()));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

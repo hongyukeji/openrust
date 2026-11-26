@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第61簇 HelperSet 与助手实例关联已验，覆盖别名、身份、迭代和缺名。继续默认助手及 Application、Command 接线。见[验收契约](audits/artisan-tutorial/helper-set-contracts.json)。
+
 - Artisan 第60簇 Helper 六项静态工具及 QuestionHelper 继承入口已验。183 个三语示例、真实 HTTP 和 Artisan 通过。继续 HelperSet 及命令接线。见[验收契约](audits/artisan-tutorial/helper-tools-contracts.json)。
 
 - 2026-11-26 Artisan第59簇时间Trait/Task四继承助手已验：320时间/11时区来源、3Artisan/26HTTP、180三语消费者与严格门禁。见[契约](audits/artisan-tutorial/time-contracts.json)。58已提交ef70dd71f，退役组守卫另提交ad7731383；复用Calendar修复边界与DST归一化，继续仓库/扩展对象、Factory/Helper，整章开放，不推送。

@@ -411,7 +411,7 @@ impl<'a> OutputStyle<'a> {
     ) -> Result<serde_json::Value, ConsoleError> {
         let helper = self
             .question_helper
-            .get_or_insert_with(|| Arc::new(super::DefaultQuestionHelper))
+            .get_or_insert_with(|| Arc::new(super::DefaultQuestionHelper::new()))
             .clone();
         self.ask_question_using(question, helper, true, true).await
     }

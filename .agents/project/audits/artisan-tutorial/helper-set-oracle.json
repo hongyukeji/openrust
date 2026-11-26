@@ -1,0 +1,37 @@
+{
+    "initial": {
+        "question": "old",
+        "q": "old",
+        "formatter": "formatter"
+    },
+    "initial_owner": true,
+    "after_replace": {
+        "question": "new",
+        "q": "old",
+        "formatter": "formatter",
+        "": "new"
+    },
+    "old_alias_kept": true,
+    "old_owner_kept": true,
+    "iterator_snapshot": {
+        "question": "old",
+        "q": "old",
+        "formatter": "formatter"
+    },
+    "right": {
+        "question": "old",
+        "other": "old"
+    },
+    "old_still_lookup_after_move": true,
+    "owner_after_move": true,
+    "manual_detach": true,
+    "still_registered_after_detach": true,
+    "alias_collision": {
+        "question": "formatter",
+        "q": "old",
+        "formatter": "formatter",
+        "": "new"
+    },
+    "case_sensitive": true,
+    "missing": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException"
+}

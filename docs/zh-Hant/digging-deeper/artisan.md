@@ -2342,3 +2342,32 @@ fn register_helper_tools() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 控制台助手集合 {#console-helper-sets}
+
+`HelperSet` 按標準名稱註冊每個 `HelperInterface` 實例，也可指定區分大小寫的別名。替換同名項目時保留該名稱的位置，既有別名仍可指向舊實例。`get_iterator` 取得呼叫時的註冊順序和實例參照。名稱不存在時回傳 `HelperNotFound`。批次註冊有別名或無別名的項目可用 `from_helpers`。
+
+自訂助手可用 `Helper` 儲存關聯。集合擁有註冊實例，助手只保留最後一次關聯集合的弱參照。手動改變實例關聯時保留現有註冊項目。預設問答助手和元件問答助手皆提供此關聯入口。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, DefaultQuestionHelper, HelperSet,
+};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_helper_set() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:lookup", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let helpers = HelperSet::new();
+            let question = Arc::new(DefaultQuestionHelper::new());
+            helpers.set(question.clone(), Some("ask"));
+            let resolved = helpers.get("ask").map_err(ConsoleError::from_source)?;
+            assert!(question.get_helper_set().unwrap().same_set(&helpers));
+            output.comment(&format!("{} has {} entries", resolved.get_name(), helpers.get_iterator().count()));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

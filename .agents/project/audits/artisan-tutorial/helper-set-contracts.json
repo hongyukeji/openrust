@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_version": "7.4.0",
+  "status": "verified_helper_set_and_membership_native_sdk",
+  "bindings": {
+    "HelperInterface": [
+      "get_name",
+      "set_helper_set",
+      "get_helper_set"
+    ],
+    "Helper": [
+      "set_helper_set",
+      "get_helper_set"
+    ],
+    "HelperSet": [
+      "new / from_helpers",
+      "set",
+      "has",
+      "get",
+      "get_iterator / IntoIterator"
+    ]
+  },
+  "source_oracle": "helper-set-oracle.json",
+  "runtime": {
+    "framework_targets": 6,
+    "framework_parent_tests": 36,
+    "new_artisan_processes": 3,
+    "new_http_requests": 15,
+    "formal_document_consumers": 186,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "本名和别名按原顺序插入。同名替换保留位置和旧别名，旧迭代器保留当时的对象引用。",
+    "手动关联与注册表独立，可变更或清空实例关联。相同实例加入新集合后，旧键依然保留。",
+    "Arc 维持对象与集合身份，反向引用用 Weak，已释放的集合返回 None。固定 PHP 集合的强引用由垃圾收集管理，Rust 弱引用避免循环保留。",
+    "助手的虚方法及被替换条目的析构都在锁外执行。注册通知可读取本次新条目。",
+    "缺名返回具名 HelperNotFound。Rust 集合名称统一用 String，提供显式别名和无别名构造项。"
+  ],
+  "remaining": [
+    "Application 与 Command 的默认集合、替换与调用接线继续。固定默认 FormatterHelper、DebugFormatterHelper、ProcessHelper 的所属方法尚待验证。",
+    "终端样式/颜色仓库、独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
+  ]
+}

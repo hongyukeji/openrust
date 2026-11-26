@@ -2194,7 +2194,27 @@
       {
         "source": "removeDecoration",
         "native": "remove_decoration"
+      },
+      {
+        "source": "setHelperSet",
+        "native": "set_helper_set"
+      },
+      {
+        "source": "getHelperSet",
+        "native": "get_helper_set"
       }
+    ],
+    "HelperInterface": [
+      "get_name",
+      "set_helper_set",
+      "get_helper_set"
+    ],
+    "HelperSet": [
+      "new / from_helpers",
+      "set",
+      "has",
+      "get",
+      "get_iterator / IntoIterator"
     ]
   },
   "notes": [
@@ -2207,7 +2227,8 @@
     "57: HTML table now binds to existing native Table/Cell/Style/Separator; per-render title style ownership verified without changing shared Table SDK. Code/custom-style/extension/Factory/helper gaps remain. See component-html-table-contracts.json.",
     "58: CodeRenderer is bound to native streaming lexical tokens and existing style/Prepared pipeline, with source grammar preserved and no PHP runtime. Custom repositories/standalone extensions/Factory/helper gaps remain. See component-code-contracts.json.",
     "59: InteractsWithTime five documented methods and inherited Task delay helpers verified with320 actual time and11 zone vectors, actual HTTP/Artisan and formal docs. Complete Carbon locale/custom cascade SDK not claimed; see time-contracts.json.",
-    "60: Six owned static Helper tools and both QuestionHelper inherited surfaces verified. HelperInterface, HelperSet and command membership remain open. See helper-tools-contracts.json."
+    "60: Six owned static Helper tools and both QuestionHelper inherited surfaces verified. HelperInterface, HelperSet and command membership remain open. See helper-tools-contracts.json.",
+    "61: The native HelperInterface, Helper membership and HelperSet APIs are verified separately. Application and Command default registry wiring remains open."
   ],
   "native_adaptations": [
     {

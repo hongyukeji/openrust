@@ -46,11 +46,15 @@ pub trait QuestionHelperBehavior: Send + Sync {
 }
 #[derive(Default, Clone, Debug)]
 #[non_exhaustive]
-pub struct QuestionHelper;
+pub struct QuestionHelper {
+    helper: crate::console::Helper,
+}
 impl QuestionHelperBehavior for QuestionHelper {}
 #[derive(Default, Clone, Debug)]
 #[non_exhaustive]
-pub struct DefaultQuestionHelper;
+pub struct DefaultQuestionHelper {
+    helper: crate::console::Helper,
+}
 impl QuestionHelperBehavior for DefaultQuestionHelper {
     fn write_prompt(
         &self,
@@ -62,9 +66,28 @@ impl QuestionHelperBehavior for DefaultQuestionHelper {
 }
 macro_rules! helper_api {
     ($name:ident) => {
+        impl crate::console::HelperInterface for $name {
+            fn get_name(&self) -> &str {
+                self.get_name()
+            }
+            fn set_helper_set(&self, set: Option<&crate::console::HelperSet>) {
+                self.set_helper_set(set);
+            }
+            fn get_helper_set(&self) -> Option<crate::console::HelperSet> {
+                self.get_helper_set()
+            }
+        }
         impl $name {
             pub const fn new() -> Self {
-                Self
+                Self {
+                    helper: crate::console::Helper::new(),
+                }
+            }
+            pub fn set_helper_set(&self, set: Option<&crate::console::HelperSet>) {
+                self.helper.set_helper_set(set);
+            }
+            pub fn get_helper_set(&self) -> Option<crate::console::HelperSet> {
+                self.helper.get_helper_set()
             }
             pub const fn get_name(&self) -> &'static str {
                 "question"
@@ -112,7 +135,7 @@ impl<'scope, T: QuestionStyle + ?Sized> QuestionHelperScope<'scope, T> {
     pub fn new(style: &'scope mut T, helper: Arc<dyn QuestionHelperBehavior>) -> Self {
         let previous = style
             .get_question_helper()
-            .unwrap_or_else(|| Arc::new(DefaultQuestionHelper));
+            .unwrap_or_else(|| Arc::new(DefaultQuestionHelper::new()));
         style.set_question_helper(Some(helper));
         Self {
             style,

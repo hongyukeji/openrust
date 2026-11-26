@@ -571,3 +571,5 @@ impl From<crate::support::DateError> for ConsoleError {
 
 mod helper;
 pub use helper::Helper;
+mod helper_set;
+pub use helper_set::{HelperInterface, HelperNotFound, HelperSet};

@@ -5,12 +5,27 @@ use crate::support::{NumberValue, input_scalars};
 use std::collections::BTreeMap;
 /// 通用帮助器的文本与数值工具；关联集合入口单独维护。
 #[non_exhaustive]
-pub struct Helper;
+#[derive(Clone, Debug, Default)]
+pub struct Helper {
+    membership: super::helper_set::HelperMembership,
+}
 fn contains(ranges: &[(u32, u32)], value: u32) -> bool {
     let at = ranges.partition_point(|(_, end)| *end < value);
     ranges.get(at).is_some_and(|(start, _)| *start <= value)
 }
 impl Helper {
+    pub const fn new() -> Self {
+        Self {
+            membership: super::helper_set::HelperMembership::new(),
+        }
+    }
+    pub fn set_helper_set(&self, set: Option<&super::HelperSet>) {
+        self.membership.set_helper_set(set);
+    }
+    pub fn get_helper_set(&self) -> Option<super::HelperSet> {
+        self.membership.get_helper_set()
+    }
+
     pub fn width(value: Option<&str>) -> usize {
         let text = value.unwrap_or_default();
         let mut clean = String::with_capacity(text.len());

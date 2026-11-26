@@ -658,5 +658,13 @@
       "实例 Helper 关联、HelperInterface、HelperSet 的构造/注册/查询/迭代以及命令装配继续逐项验收。",
       "样式/颜色仓库与独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
     ]
+  },
+  "console_helper_set": {
+    "status": "verified_helper_set_and_membership_native_sdk",
+    "contract": "helper-set-contracts.json",
+    "remaining": [
+      "Application 与 Command 的默认集合、替换与调用接线继续。固定默认 FormatterHelper、DebugFormatterHelper、ProcessHelper 的所属方法尚待验证。",
+      "终端样式/颜色仓库、独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
+    ]
   }
 }
