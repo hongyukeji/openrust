@@ -6,7 +6,7 @@ use openrust::http::client::ResponseStream;
 use serde_json::{Value, json};
 
 use crate::{
-    AiError, AiResult, StepEvent, StepEventStream, StepResponse, UrlCitation, Usage,
+    AiError, AiResult, ReasoningPart, StepEvent, StepEventStream, StepResponse, UrlCitation, Usage,
     streaming::output_part,
     text::{OpenAiProtocol, transport_error},
     tool_protocol,
@@ -65,7 +65,11 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                     }
                     Some("response.refusal.delta" | "response.refusal.done") => Err(AiError::Refused)?,
                     Some("response.failed" | "response.incomplete") => Err(AiError::InvalidResponse)?,
-                    _ => {}
+                    _ => {
+                        if let Some(part) = ReasoningPart::from_openai_frame(&data) {
+                            yield StepEvent::Reasoning(part);
+                        }
+                    }
                 },
             }
         }

@@ -24,10 +24,12 @@ use crate::{
 mod citations;
 mod completion;
 mod protocols;
+mod reasoning;
 pub use citations::UrlCitation;
 use completion::CompletionCallbacks;
 pub use completion::StreamedAgentResponse;
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
+pub use reasoning::ReasoningPart;
 
 pub type AgentEventStream = Pin<Box<dyn Stream<Item = AiResult<StreamEvent>> + Send>>;
 
@@ -61,6 +63,16 @@ pub enum StreamEventData {
         message_id: String,
         #[serde(serialize_with = "citations::serialize_event")]
         citation: UrlCitation,
+    },
+    ReasoningStart {
+        reasoning_id: String,
+    },
+    ReasoningDelta {
+        reasoning_id: String,
+        delta: String,
+    },
+    ReasoningEnd {
+        reasoning_id: String,
     },
     ToolCall {
         call: ToolCall,
@@ -258,6 +270,7 @@ impl StreamableAgentResponse {
         let events = async_stream::try_stream! {
             let mut source = stream.eventsource();
             let mut messages = TextMessages::default();
+            let mut reasoning = TextMessages::default();
             let mut started = false;
             let mut reason = None;
             let mut usage = Usage::default();
@@ -282,6 +295,11 @@ impl StreamableAgentResponse {
                 if let Some(citation) = part.citation {
                     yield event(&invocation, messages.citation(part.output_part.as_ref(), citation));
                 }
+                if let Some(part) = part.reasoning {
+                    for data in reasoning.reasoning(part).into_iter().flatten() {
+                        yield event(&invocation, data);
+                    }
+                }
                 if part.end_message && let Some(message_id) = messages.close(part.output_part.as_ref()) {
                     yield event(&invocation, StreamEventData::TextEnd { message_id });
                 }
@@ -296,6 +314,9 @@ impl StreamableAgentResponse {
                 }
             }
             let reason = reason.ok_or(AiError::InvalidResponse)?;
+            for reasoning_id in reasoning.open_ids() {
+                yield event(&invocation, StreamEventData::ReasoningEnd { reasoning_id });
+            }
             for message_id in messages.open_ids() {
                 yield event(&invocation, StreamEventData::TextEnd { message_id });
             }
@@ -356,16 +377,21 @@ impl TextMessages {
         part: Option<&OutputPart>,
         delta: String,
     ) -> [Option<StreamEventData>; 2] {
-        let message = self.get(part);
-        let message_id = message.id.clone();
-        let start = (!message.open).then(|| StreamEventData::TextStart {
+        let (message_id, starts) = self.open(part);
+        let start = starts.then(|| StreamEventData::TextStart {
             message_id: message_id.clone(),
         });
-        message.open = true;
         [
             start,
             Some(StreamEventData::TextDelta { message_id, delta }),
         ]
+    }
+
+    fn open(&mut self, part: Option<&OutputPart>) -> (String, bool) {
+        let message = self.get(part);
+        let starts = !message.open;
+        message.open = true;
+        (message.id.clone(), starts)
     }
 
     pub(crate) fn citation(
@@ -420,6 +446,7 @@ struct Part {
     delta: Option<String>,
     output_part: Option<OutputPart>,
     citation: Option<UrlCitation>,
+    reasoning: Option<ReasoningPart>,
     usage: Option<Usage>,
     reason: Option<String>,
     end_message: bool,
@@ -495,6 +522,7 @@ impl TextEndpoint {
                     }),
                     _ => Ok(Part {
                         model,
+                        reasoning: ReasoningPart::from_openai_frame(&value),
                         ..Default::default()
                     }),
                 }

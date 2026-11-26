@@ -49,6 +49,7 @@ pub(crate) async fn stream(
                 model: prompt.as_prompt(step - 1).text.model.into(),
             });
             let mut messages = TextMessages::default();
+            let mut reasoning = TextMessages::default();
             let mut has_text = false;
             let (completed, reason) = loop {
                 let (part, delta) = match upstream.next().await.ok_or(AiError::InvalidResponse)?? {
@@ -64,6 +65,12 @@ pub(crate) async fn stream(
                         yield event(&invocation_id, messages.citation(part.as_ref(), citation));
                         continue;
                     }
+                    StepEvent::Reasoning(part) => {
+                        for data in reasoning.reasoning(part).into_iter().flatten() {
+                            yield event(&invocation_id, data);
+                        }
+                        continue;
+                    }
                     StepEvent::Finished { response, reason } => break (*response, reason),
                 };
                 if !delta.is_empty() {
@@ -74,6 +81,9 @@ pub(crate) async fn stream(
                 }
             };
             drop(upstream);
+            for reasoning_id in reasoning.open_ids() {
+                yield event(&invocation_id, StreamEventData::ReasoningEnd { reasoning_id });
+            }
             if !has_text {
                 if let Some(text) = completed.text.as_ref().filter(|text| !text.is_empty()) {
                     for data in messages.delta(None, text.clone()).into_iter().flatten() {

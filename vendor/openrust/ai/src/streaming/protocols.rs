@@ -63,6 +63,15 @@ impl StreamProtocol for VercelDataProtocol {
                             part["sourceId"] = part["url"].clone();
                             yield payload(part);
                         }
+                        StreamEventData::ReasoningStart { reasoning_id } => {
+                            yield payload(json!({"type":"reasoning-start","id":reasoning_id}));
+                        }
+                        StreamEventData::ReasoningDelta { reasoning_id, delta } => {
+                            yield payload(json!({"type":"reasoning-delta","id":reasoning_id,"delta":delta}));
+                        }
+                        StreamEventData::ReasoningEnd { reasoning_id } => {
+                            yield payload(json!({"type":"reasoning-end","id":reasoning_id}));
+                        }
                         StreamEventData::ToolCall { call } => {
                             yield payload(json!({"type":"tool-input-available","toolCallId":call.id,"toolName":call.name,"input":call.arguments}));
                         }
@@ -168,6 +177,17 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                         }
                         StreamEventData::Citation { citation, .. } => {
                             yield payload(json!({"type":"CUSTOM","name":"citation","value":citation_data(citation)}));
+                        }
+                        StreamEventData::ReasoningStart { reasoning_id } => {
+                            yield payload(json!({"type":"REASONING_START","messageId":reasoning_id}));
+                            yield payload(json!({"type":"REASONING_MESSAGE_START","messageId":reasoning_id,"role":"reasoning"}));
+                        }
+                        StreamEventData::ReasoningDelta { reasoning_id, delta } => {
+                            yield payload(json!({"type":"REASONING_MESSAGE_CONTENT","messageId":reasoning_id,"delta":delta}));
+                        }
+                        StreamEventData::ReasoningEnd { reasoning_id } => {
+                            yield payload(json!({"type":"REASONING_MESSAGE_END","messageId":reasoning_id}));
+                            yield payload(json!({"type":"REASONING_END","messageId":reasoning_id}));
                         }
                         StreamEventData::ToolCall { call } => {
                             yield payload(json!({"type":"TOOL_CALL_START","toolCallId":call.id,"toolCallName":call.name}));

@@ -55,6 +55,8 @@ Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在
 
 OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名為 `citation` 的 `CUSTOM` 事件。原生引文會附上對應的文字訊息 ID。可在完成回呼中透過 `StreamedAgentResponse::citations()` 依序讀取引文和上游回報的文字位置。 工具續輪會依事件順序保留各次模型呼叫的引文。
 
+Responses 模型支援公開推理摘要時，可透過 `with_provider_options` 將 `reasoning.summary` 設為 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用獨立事件。可在完成回呼中用 `StreamedAgentResponse::reasoning()` 讀取合併後的摘要。
+
 Vercel 和 AG-UI 串流配接器使用目前的應用程式語言顯示產生失敗提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆寫 `stream` 文字。
 
 使用 `agent(instructions).with_schema(schema).prompt(text)` 請求 JSON 物件。Schema 使用框架既有的 `JsonSchema` 建立。可讀取 `response.structured`，或透過 `response.decode::<YourType>()` 轉成 Rust 型別。所選模型必須支援連線的原生結構化輸出格式。結構化串流會將 JSON 作為文字增量傳送。可透過 `./artisan ai:prompt` 的 `--schema` 傳入 JSON 物件 Schema 進行試呼叫。 SDK 會在送出的 Schema 中停用物件的額外屬性，包括巢狀物件。如果模型執行 OpenAI 嚴格 Schema 驗證，請將所有屬性標示為必填。

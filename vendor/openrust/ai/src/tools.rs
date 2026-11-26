@@ -126,6 +126,7 @@ pub enum StepEvent {
         part: Option<(String, u64)>,
         citation: crate::UrlCitation,
     },
+    Reasoning(crate::ReasoningPart),
     Finished {
         response: Box<StepResponse>,
         reason: String,

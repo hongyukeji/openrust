@@ -129,8 +129,9 @@ pub use stores::{
     StoreInfo, StoreOptions, StorePage, StoreProvider, Stores,
 };
 pub use streaming::{
-    AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,
-    StreamableAgentResponse, StreamedAgentResponse, UrlCitation, VercelDataProtocol,
+    AgentEventStream, AgentUserInteractionProtocol, ReasoningPart, StreamEvent, StreamEventData,
+    StreamProtocol, StreamableAgentResponse, StreamedAgentResponse, UrlCitation,
+    VercelDataProtocol,
 };
 pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,

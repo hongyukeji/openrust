@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use futures_util::StreamExt;
 use openrust::{
@@ -26,6 +26,27 @@ impl StreamedAgentResponse {
             StreamEventData::Citation { citation, .. } => Some(citation),
             _ => None,
         })
+    }
+
+    pub fn reasoning(&self) -> String {
+        let mut indices = BTreeMap::new();
+        let mut blocks: Vec<String> = Vec::new();
+        for event in &self.events {
+            if let StreamEventData::ReasoningDelta {
+                reasoning_id,
+                delta,
+            } = &event.data
+            {
+                let index = *indices.entry(reasoning_id).or_insert_with(|| {
+                    let index = blocks.len();
+                    blocks.push(String::new());
+                    index
+                });
+                blocks[index].push_str(delta);
+            }
+        }
+        blocks.retain(|block| !block.trim().is_empty());
+        blocks.join("\n\n")
     }
 
     pub(super) fn from_events(events: Vec<StreamEvent>) -> Option<Self> {
