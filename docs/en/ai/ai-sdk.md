@@ -103,6 +103,22 @@ For database-managed keys, set `managed_keys.enabled` to `true`. The optional `m
 
 Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
 
+### Responses over WebSocket {#responses-websocket}
+
+Connect to `wss://your-app.example/v1/responses` with the same Bearer Key as the HTTP endpoint. With `unversioned_paths` enabled you can also connect to `/responses`. Send a `response.create` JSON text frame and read the Responses events until `response.completed` or `response.incomplete`.
+
+```json
+{
+  "type": "response.create",
+  "model": "support-chat",
+  "input": "How do I return an item?"
+}
+```
+
+Keep one active response per socket and send full `input` for each turn. The optional `stream_id` is echoed on the events. The gateway checks Key and model permissions for each turn and uses the same routing, limits and usage accounting as HTTP. Closing the socket cancels the active turn.
+
+The socket accepts text frames up to 2 MiB and reconnects are required after one hour. For a prior response ID the gateway returns `previous_response_not_found`. Resend the turn with full context.
+
 ### Codex model catalog {#codex-model-catalog}
 
 A Bearer-authenticated request to `/v1/models?client_version=0.170.0` returns the Codex catalog. The `/backend-api/codex/models` alias serves the same format. Only aliases available to the current Key through the Responses endpoint appear. The ordinary OpenAI and Anthropic model endpoints keep their original formats.

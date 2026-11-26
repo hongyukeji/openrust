@@ -24,6 +24,8 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod websocket;
+
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
         shared_routes(router)?;
@@ -51,6 +53,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/models/{model}", model)?;
     router.post("/chat/completions", chat_completions)?;
     router.post("/responses", responses)?;
+    router.get("/responses", websocket)?;
     router.post("/responses/input_tokens", count_response_tokens)?;
     router.post("/embeddings", embeddings)?;
     router.post("/messages/count_tokens", count_message_tokens)?;
@@ -229,6 +232,10 @@ fn chat_completions(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn responses(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::Responses, None))
+}
+
+fn websocket(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(websocket::handshake(request))
 }
 
 fn count_response_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -882,7 +889,7 @@ async fn respond(
     let status = upstream.status();
     let headers = downstream_headers(upstream.headers());
     if streaming {
-        return stream(upstream, headers, name, call, protocol, bridge).await;
+        return stream(upstream, headers, name, call, protocol, bridge, endpoint).await;
     }
     call.release().await;
     let Ok(mut data) = upstream.json::<Value>() else {
@@ -939,6 +946,7 @@ async fn stream(
     mut call: Call,
     protocol: Protocol,
     bridge: Option<Translation>,
+    endpoint: TextEndpoint,
 ) -> HttpResult {
     let status = upstream.status();
     let is_sse = upstream
@@ -984,6 +992,12 @@ async fn stream(
                 return;
             };
             if event.data == "[DONE]" {
+                if endpoint == TextEndpoint::Responses && !terminal {
+                    call.outcome("incomplete_stream");
+                    call.settle().await;
+                    yield Ok(protocol.stream_error());
+                    return;
+                }
                 call.complete().await;
                 call.settle().await;
                 yield Ok("data: [DONE]\n\n".to_owned());

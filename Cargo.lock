@@ -4611,6 +4611,7 @@ name = "openrust-ai-gateway"
 version = "0.0.0"
 dependencies = [
  "async-stream",
+ "axum",
  "eventsource-stream",
  "futures-util",
  "http 1.5.0",

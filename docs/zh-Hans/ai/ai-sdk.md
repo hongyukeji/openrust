@@ -103,6 +103,22 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 签发和轮换只返回一次可用的 Bearer Token。数据库保存 SHA-256 摘要。轮换沿用 Key ID、分组、有效期和请求额度。旧版本、撤销或过期的 Token 后续请求返回 HTTP 401。需要定制迁移时，执行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新编译后运行迁移。
 
+### Responses WebSocket {#responses-websocket}
+
+使用 HTTP 端点同一 Bearer Key 连接 `wss://your-app.example/v1/responses`。启用 `unversioned_paths` 时也可使用 `/responses`。发送 `response.create` JSON 文本帧，读取 Responses 事件直至 `response.completed` 或 `response.incomplete`。
+
+```json
+{
+  "type": "response.create",
+  "model": "support-chat",
+  "input": "How do I return an item?"
+}
+```
+
+每条连接同时处理一个响应，每轮发送完整 `input`。可选的 `stream_id` 随事件返回。网关逐轮检查 Key 和模型权限，沿用 HTTP 的路由、限额与用量记录。关闭连接会取消当前生成。
+
+文本帧上限为 2 MiB，连接到一小时后需重连。对于上一轮响应 ID，网关返回 `previous_response_not_found`，可带完整上下文重发。
+
 ### Codex 模型目录 {#codex-model-catalog}
 
 使用 Bearer 凭证请求 `/v1/models?client_version=0.170.0` 可获得 Codex 模型目录。`/backend-api/codex/models` 提供同一格式。目录只列出当前 Key 能通过 Responses 调用的公开模型。普通 OpenAI 和 Anthropic 模型端点沿用各自格式。

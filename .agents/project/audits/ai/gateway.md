@@ -9,7 +9,7 @@
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | 已验收 OpenAI 同协议和 Anthropic 转换的 JSON、SSE、下游取消与客户端函数工具。上游选择覆盖配置回退、组授权、冷却、并发及会话黏性。 |
 | `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | 已验收原生 Responses、转换到 Messages 和 Chat Completions 的普通及 SSE 文本与客户端函数工具。Chat 转换另覆盖 JSON 对象模式。结构化 Schema、附件、推理及其他高级字段仍待核对。 |
 | `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | 已验收 `input_tokens`，可使用 OpenAI 原生计数或映射到 Anthropic 计数。其余子路径待核对。共享凭证当前拒绝 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
-| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 待验收首帧、取消、连接期间权限、账号归属和关闭码。 |
+| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。上游 WebSocket、续接状态与并行通道待核对。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，正式客户端进程待验收。 |
@@ -128,3 +128,11 @@ Messages 现在可在保留原生优先级的情况下选择 Responses 或 Chat-
 ## GW-04 分组输出配额
 
 在用量账本上通过数据库事务提供共享的输出 Token 日窗口。按上游协议注入生成上限，对回退逐次预留。过量回报停止该分组当日生成。验证了两个实例并发、真实结算、取消、异常、额度不足和数据库恢复三库行为，详见[AI 验收账本](README.md#gw-04-分组输出-token-配额)。待核对金额、其他协议及未结算记录的管理入口。
+
+## GW-03 Responses WebSocket
+
+网关使用相同的 Bearer Key 处理升级，每次 `response.create` 重新鉴权并走同一模型路由和上游协议转换。SSE 事件转换为 WebSocket JSON 帧，单连接当前允许一条活动请求，可传入 `stream_id` 作为事件关联标识。断开时取消上游请求。原生 HTTP Responses 缺失已知终止事件时记作截断，包括只有 `[DONE]` 的响应。
+
+独立 WebSocket 客户端使用实际网关进程，并通过独立 Artisan 撤销 Key。实测未鉴权、别名、首段早于完成、Chat 上游回退、权限撤销、取消、关闭码及 SQLite 用量入账。上游使用本地 TCP 服务。包测试、严格 Clippy、三语构建、两种部署路径的十二组浏览器及完整导航通过。上游 WebSocket、同连接历史续接和并行通道继续单列。
+
+- [OpenAI Responses WebSocket](https://developers.openai.com/api/docs/guides/websocket-mode) · [Sub2API 固定路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)
