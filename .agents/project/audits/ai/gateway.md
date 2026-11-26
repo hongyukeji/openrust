@@ -92,3 +92,9 @@ HTTP Kernel 验证非法和重复 ID、Key／模型别名隔离、首选失败�
 包测试覆盖协议字段、JSON 格式、用量、显式端点限制及无完成状态时的错误。独立应用通过 HTTP 处理普通响应和实时 SSE，独立 Artisan 通过 SDK Responses 客户端调用网关后接入模拟的 Chat-only 上游。已确认首段文本早于上游结束。此批函数工具、附件、JSON Schema 以及反向 Chat 协议转换仍留待后续。
 
 - [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) · [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create)
+
+## GW-03 Responses 到 Chat Completions 的客户端工具
+
+带函数 Schema 的 Responses 工具转换为 Chat 的具名函数。支持工具选择、并行选项、历史调用和匹配的文本结果。缺失、重复或未配对的结果在出站前拒绝。普通响应与 SSE 提供原始调用 ID，SSE 可同时转发多个工具的参数增量。只有确认结束且每个工具参数是完整 JSON 对象后才交付最终事件，错误流不产生假的完成帧。
+
+包测试验证多工具交错、无结果的调用历史、参数截断和 JSON 响应。独立 Artisan 调用 SDK，经 Responses 网关和 Chat 上游获得函数调用，使用框架参数验证执行后回传结果，最后得到文本。独立 HTTP 进程确认参数增量先于上游终止到达，随后验证完整参数、调用 ID 与用量。

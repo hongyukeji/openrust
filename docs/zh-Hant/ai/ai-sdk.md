@@ -58,7 +58,7 @@ let answer = response.text;
 
 在應用程式環境中為 `AI_GATEWAY_SUPPORT_KEY` 設定獨立的隨機金鑰，`DEEPSEEK_API_KEY` 仍由上游連線單獨使用。外部用戶端的基礎 URL 設為 `https://你的應用程式網域/v1`，使用下游 Key 作為 Bearer 憑證，模型填寫 `support-chat`。`GET /v1/models` 只顯示目前 Key 有權呼叫的已發佈模型。選用的 `requests_per_minute` 由應用程式的速率限制快取執行。
 
-`POST /v1/chat/completions` 支援 OpenAI 和相容連線。`POST /v1/responses` 可原生轉發至 OpenAI 連線，也可將請求轉換為 Anthropic Messages。兩個入口皆支援 JSON 和 SSE。Responses 也可路由至只提供 Chat Completions 的連線。這條轉換支援無狀態文字、系統指令、基本生成參數和 JSON 物件模式。函式工具和附件需要支援對應功能的連線或轉換。Responses 目前採用無狀態模式，將 `store` 設為 `false`，並拒絕上游會話、舊 Response ID 和伺服器端工具。閘道使用結構化日誌 `ai_gateway.call` 記錄呼叫結果和上游回報的 Token 數。可用 `usage_channel` 指定日誌通道，通道必須允許 `info` 層級。未回報的計數記為 `null`。
+`POST /v1/chat/completions` 支援 OpenAI 和相容連線。`POST /v1/responses` 可原生轉發至 OpenAI 連線，也可將請求轉換為 Anthropic Messages。兩個入口皆支援 JSON 和 SSE。Responses 也可路由至只提供 Chat Completions 的連線。這條轉換支援無狀態文字、系統指令、基本生成參數、JSON 物件模式和用戶端函式工具。工具呼叫 ID 原樣回傳，參數增量會串流傳送。附件與 JSON Schema 需要支援對應功能的連線或轉換。Responses 目前採用無狀態模式，將 `store` 設為 `false`，並拒絕上游會話、舊 Response ID 和伺服器端工具。閘道使用結構化日誌 `ai_gateway.call` 記錄呼叫結果和上游回報的 Token 數。可用 `usage_channel` 指定日誌通道，通道必須允許 `info` 層級。未回報的計數記為 `null`。
 
 使用 Anthropic 用戶端時，基礎 URL 指向應用程式網域，下游 Key 透過 `x-api-key` 提交。閘道支援 `/v1/messages` 和 `/v1/messages/count_tokens`，模型可對應到 Anthropic 原生連線。Messages 請求也可轉送至已發佈的 OpenAI Responses 模型。附帶 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目錄使用 OpenAI 格式。
 

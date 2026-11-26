@@ -368,6 +368,59 @@ impl Response {
         frames
     }
 
+    pub(super) fn push_function(&mut self, call_id: &str, name: &str, arguments: &str) {
+        let item_id = format!("fc_{}", Str::ulid());
+        self.output.push(function_item(
+            &item_id,
+            call_id,
+            name,
+            arguments,
+            "completed",
+        ));
+    }
+
+    pub(super) fn start_function(
+        &mut self,
+        output_index: usize,
+        call_id: &str,
+        name: &str,
+    ) -> (String, String) {
+        let item_id = format!("fc_{}", Str::ulid());
+        let item = function_item(&item_id, call_id, name, "", "in_progress");
+        let frame = self.frame(
+            "response.output_item.added",
+            json!({"output_index":output_index,"item":item}),
+        );
+        (item_id, frame)
+    }
+
+    pub(super) fn function_delta(
+        &mut self,
+        output_index: usize,
+        item_id: &str,
+        delta: &str,
+    ) -> String {
+        self.frame(
+            "response.function_call_arguments.delta",
+            json!({"output_index":output_index,"item_id":item_id,"delta":delta}),
+        )
+    }
+
+    pub(super) fn end_function(
+        &mut self,
+        item_id: &str,
+        call_id: &str,
+        name: &str,
+        arguments: &str,
+    ) -> [String; 2] {
+        let done = self.frame(
+            "response.function_call_arguments.done",
+            json!({"output_index":self.output.len(),"item_id":item_id,"name":name,"arguments":arguments}),
+        );
+        let item = function_item(item_id, call_id, name, arguments, "completed");
+        [done, self.push_item(item)]
+    }
+
     pub(super) fn terminal(&mut self, finish: Finish) -> String {
         let kind = if finish.incomplete_reason().is_some() {
             "response.incomplete"
@@ -497,12 +550,8 @@ impl StreamState {
                             return None;
                         }
                         let name = tool_name(&part["name"])?.to_owned();
-                        let id = format!("fc_{}", Str::ulid());
-                        let item = function_item(&id, &call_id, &name, "", "in_progress");
-                        let frames = vec![response.frame(
-                            "response.output_item.added",
-                            json!({"output_index":output_index,"item":item}),
-                        )];
+                        let (id, frame) = response.start_function(output_index, &call_id, &name);
+                        let frames = vec![frame];
                         (
                             id,
                             BlockContent::Tool {
@@ -539,10 +588,7 @@ impl StreamState {
                     ) if initial.as_object()?.is_empty() => {
                         let delta = event["delta"]["partial_json"].as_str()?;
                         arguments.push_str(delta);
-                        vec![response.frame(
-                            "response.function_call_arguments.delta",
-                            json!({"output_index":output_index,"item_id":block.id,"delta":delta}),
-                        )]
+                        vec![response.function_delta(output_index, &block.id, delta)]
                     }
                     _ => return None,
                 }

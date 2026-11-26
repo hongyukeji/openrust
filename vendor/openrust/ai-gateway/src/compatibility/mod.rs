@@ -1,4 +1,5 @@
 mod chat;
+mod chat_tools;
 mod messages;
 mod responses;
 mod tools;
@@ -31,8 +32,9 @@ impl Bridge {
             .get("tools")
             .and_then(Value::as_array)
             .is_some_and(|tools| !tools.is_empty());
-        let response_fields = match self {
-            Self::ResponsesToMessages if allows_tools => Some(Map::from_iter([
+        let mut response_fields = Map::new();
+        if allows_tools && matches!(self, Self::ResponsesToMessages | Self::ResponsesToChat) {
+            response_fields.extend([
                 ("tools".into(), data["tools"].clone()),
                 (
                     "tool_choice".into(),
@@ -48,13 +50,13 @@ impl Bridge {
                         .cloned()
                         .unwrap_or(Value::Bool(true)),
                 ),
-            ])),
-            Self::ResponsesToChat => data
-                .get("text")
-                .filter(|text| !text.is_null())
-                .map(|text| Map::from_iter([("text".into(), text.clone())])),
-            _ => None,
-        };
+            ]);
+        }
+        if matches!(self, Self::ResponsesToChat)
+            && let Some(text) = data.get("text").filter(|text| !text.is_null())
+        {
+            response_fields.insert("text".into(), text.clone());
+        }
         let request = match self {
             Self::ResponsesToMessages => responses::to_messages(data)?,
             Self::ResponsesToChat => chat::from_responses(data)?,
@@ -64,7 +66,7 @@ impl Bridge {
             request,
             Translation {
                 bridge: self,
-                response_fields,
+                response_fields: (!response_fields.is_empty()).then_some(response_fields),
                 allows_tools,
             },
         ))
@@ -83,7 +85,9 @@ impl Translation {
             Bridge::ResponsesToMessages => {
                 responses::Response::new(name, self.response_fields).buffered(data)
             }
-            Bridge::ResponsesToChat => chat::response(name, self.response_fields, data),
+            Bridge::ResponsesToChat => {
+                chat::response(name, self.response_fields, self.allows_tools, data)
+            }
             Bridge::MessagesToResponses => {
                 messages::Message::new(name, self.allows_tools).buffered(data)
             }
@@ -96,9 +100,11 @@ impl Translation {
                 Box::new(responses::Response::new(name, self.response_fields)),
                 responses::StreamState::default(),
             ),
-            Bridge::ResponsesToChat => {
-                Stream::Chat(Box::new(chat::StreamState::new(name, self.response_fields)))
-            }
+            Bridge::ResponsesToChat => Stream::Chat(Box::new(chat::StreamState::new(
+                name,
+                self.response_fields,
+                self.allows_tools,
+            ))),
             Bridge::MessagesToResponses => Stream::Messages(
                 messages::Message::new(name, self.allows_tools),
                 messages::StreamState::default(),

@@ -24,6 +24,10 @@ impl<'a> ToolHistory<'a> {
         Ok(())
     }
 
+    pub(super) fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
     pub(super) fn finish(self) -> Result<(), &'static str> {
         if self.pending.is_empty() {
             Ok(())

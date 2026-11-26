@@ -1,11 +1,12 @@
 use serde_json::{Map, Value, json};
 
 use super::{
+    chat_tools::{self, History, StreamTools},
     responses::{Finish, Response, text_parts},
     tools::allowed_fields,
 };
 
-/// 将 Responses 的无状态文本请求发送到 Chat Completions。
+/// 将 Responses 的无状态请求发送到 Chat Completions。
 pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'static str> {
     let mut target = Map::new();
     target.insert("model".into(), request["model"].clone());
@@ -33,14 +34,13 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
                     target.insert("response_format".into(), format.clone());
                 }
             }
-            "tools" if value.as_array().is_some_and(Vec::is_empty) => {}
-            "tool_choice" if value == "none" || value == "auto" => {}
-            "parallel_tool_calls" if value.is_boolean() => {}
+            "tools" | "tool_choice" | "parallel_tool_calls" => {}
             _ if value.is_null() => {}
             _ => return Err("当前 Responses 到 Chat Completions 转换不支持该请求字段"),
         }
     }
 
+    chat_tools::configure(&request, &mut target)?;
     let mut messages = Vec::new();
     if let Some(value) = request.get("instructions").filter(|value| !value.is_null()) {
         let instructions = value.as_str().ok_or("instructions 必须是文本")?;
@@ -51,7 +51,11 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
         messages.push(json!({"role":"user","content":text}));
     } else {
         let items = input.as_array().ok_or("input 必须是文本或消息数组")?;
+        let mut history = History::default();
         for item in items {
+            if history.append(item, &mut messages)? {
+                continue;
+            }
             if !allowed_fields(item, &["type", "role", "content", "status"])
                 || !(item["type"].is_null() || item["type"] == "message")
                 || !(item["status"].is_null() || item["status"] == "completed")
@@ -67,6 +71,7 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
             let text = text_parts(&item["content"], role)?.concat();
             messages.push(json!({"role":role,"content":text}));
         }
+        history.finish()?;
     }
     if !messages
         .iter()
@@ -84,6 +89,7 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
 fn finish(reason: &Value) -> Option<Finish> {
     match reason.as_str()? {
         "stop" => Some(Finish::Complete),
+        "tool_calls" => Some(Finish::ToolUse),
         "length" => Some(Finish::Length),
         "content_filter" => Some(Finish::Refused),
         _ => None,
@@ -93,6 +99,7 @@ fn finish(reason: &Value) -> Option<Finish> {
 pub(crate) fn response(
     model: String,
     response_fields: Option<Map<String, Value>>,
+    allows_tools: bool,
     data: &Value,
 ) -> Option<Value> {
     let [choice] = data["choices"].as_array()?.as_slice() else {
@@ -101,10 +108,7 @@ pub(crate) fn response(
     let mut response = Response::new(model, response_fields);
     response.observe_chat_usage(&data["usage"]);
     let message = &choice["message"];
-    if !message.is_object()
-        || !message["tool_calls"].is_null()
-        || !message["function_call"].is_null()
-    {
+    if !message.is_object() || !message["function_call"].is_null() {
         return None;
     }
     let finish = if message["refusal"]
@@ -120,6 +124,19 @@ pub(crate) fn response(
     } else if matches!(finish, Finish::Complete) {
         return None;
     }
+    let calls = if message["tool_calls"].is_null() {
+        Vec::new()
+    } else {
+        chat_tools::buffered(&message["tool_calls"])?
+    };
+    if (!calls.is_empty() && !allows_tools)
+        || (matches!(finish, Finish::ToolUse) == calls.is_empty())
+    {
+        return None;
+    }
+    for call in calls {
+        response.push_function(call.id, call.name, call.arguments);
+    }
     Some(response.response(Some(finish)))
 }
 
@@ -129,16 +146,24 @@ pub(crate) struct StreamState {
     text: Option<super::responses::TextOutput>,
     finish: Option<Finish>,
     refused: bool,
+    allows_tools: bool,
+    tools: StreamTools,
 }
 
 impl StreamState {
-    pub(crate) fn new(model: String, response_fields: Option<Map<String, Value>>) -> Self {
+    pub(crate) fn new(
+        model: String,
+        response_fields: Option<Map<String, Value>>,
+        allows_tools: bool,
+    ) -> Self {
         Self {
             response: Response::new(model, response_fields),
             started: false,
             text: None,
             finish: None,
             refused: false,
+            allows_tools,
+            tools: StreamTools::default(),
         }
     }
 
@@ -159,8 +184,7 @@ impl StreamState {
             _ => return None,
         };
         let delta = &choice["delta"];
-        if !delta.is_object() || !delta["tool_calls"].is_null() || !delta["function_call"].is_null()
-        {
+        if !delta.is_object() || !delta["function_call"].is_null() {
             return None;
         }
         if delta["refusal"]
@@ -170,6 +194,9 @@ impl StreamState {
             self.refused = true;
         }
         if let Some(content) = delta["content"].as_str().filter(|text| !text.is_empty()) {
+            if self.text.is_none() && !self.tools.is_empty() {
+                return None;
+            }
             let text = self.text.get_or_insert_with(|| {
                 let (output, added) = self.response.start_text(String::new());
                 frames.extend(added);
@@ -177,6 +204,16 @@ impl StreamState {
             });
             text.text.push_str(content);
             frames.push(self.response.text_delta(&text.id, content));
+        }
+        if !delta["tool_calls"].is_null() {
+            if !self.allows_tools && !delta["tool_calls"].as_array().is_some_and(Vec::is_empty) {
+                return None;
+            }
+            frames.extend(self.tools.delta(
+                &mut self.response,
+                &delta["tool_calls"],
+                usize::from(self.text.is_some()),
+            )?);
         }
         if !choice["finish_reason"].is_null() {
             self.finish = Some(if self.refused {
@@ -190,13 +227,16 @@ impl StreamState {
 
     pub(crate) fn finish(&mut self) -> Option<(Vec<String>, bool)> {
         let finish = self.finish.take()?;
-        if self.text.is_none() && matches!(finish, Finish::Complete) {
+        if (matches!(finish, Finish::ToolUse) == self.tools.is_empty())
+            || (self.text.is_none() && matches!(finish, Finish::Complete))
+        {
             return None;
         }
         let mut frames = Vec::new();
         if let Some(text) = self.text.take() {
             frames.extend(self.response.end_text(text, finish));
         }
+        frames.extend(self.tools.finish(&mut self.response)?);
         frames.push(self.response.terminal(finish));
         Some((frames, true))
     }

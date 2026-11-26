@@ -17,7 +17,15 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
     let upstream = TcpListener::bind("127.0.0.1:0").await?;
     let address = upstream.local_addr()?;
     let relay = tokio::spawn(async move {
-        for stage in ["json", "stream", "cut"] {
+        for stage in [
+            "json",
+            "stream",
+            "cut",
+            "json_tool",
+            "history",
+            "tool_stream",
+            "bad_tool",
+        ] {
             let (socket, _) = timeout(Duration::from_secs(5), upstream.accept())
                 .await
                 .unwrap()
@@ -50,20 +58,67 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
             assert_eq!(payload["max_tokens"], 64);
             assert!(payload.get("store").is_none());
             assert_eq!(
-                payload["messages"],
+                &payload["messages"].as_array().unwrap()[..4],
                 json!([
                     {"role":"system","content":"Be concise"},
                     {"role":"user","content":"Hello world"},
                     {"role":"assistant","content":"Hello"},
                     {"role":"user","content":"Next?"},
                 ])
+                .as_array()
+                .unwrap()
             );
+            if matches!(stage, "json_tool" | "history" | "tool_stream" | "bad_tool") {
+                assert_eq!(payload["tools"][0]["function"]["name"], "lookup");
+                assert_eq!(
+                    payload["tools"][0]["function"]["parameters"]["type"],
+                    "object"
+                );
+                assert_eq!(payload["tool_choice"]["function"]["name"], "lookup");
+            }
             let (kind, body) = if stage == "json" {
                 assert!(payload["stream"].is_null());
                 assert_eq!(payload["response_format"]["type"], "json_object");
                 ("application/json",json!({"choices":[{"message":{"content":"{\"done\":true}"},"finish_reason":"stop"}],
                     "usage":{"prompt_tokens":10,"completion_tokens":4,"prompt_cache_hit_tokens":3,
                     "completion_tokens_details":{"reasoning_tokens":1}}}).to_string())
+            } else if stage == "json_tool" {
+                ("application/json",json!({"choices":[{"message":{"content":null,"tool_calls":[
+                    {"id":"call_one","type":"function","function":{"name":"lookup","arguments":"{\"sku\":1}"}}
+                ]},"finish_reason":"tool_calls"}]}).to_string())
+            } else if stage == "history" {
+                assert_eq!(payload["messages"][4]["tool_calls"][0]["id"], "call_one");
+                assert_eq!(
+                    payload["messages"][5],
+                    json!({"role":"tool","tool_call_id":"call_one","content":"found"})
+                );
+                (
+                    "application/json",
+                    json!({"choices":[{"message":{"content":"confirmed"},"finish_reason":"stop"}]})
+                        .to_string(),
+                )
+            } else if matches!(stage, "tool_stream" | "bad_tool") {
+                let mut frames = vec![
+                    json!({"choices":[{"delta":{"content":"Checking"},"finish_reason":null}]}),
+                    json!({"choices":[{"delta":{"tool_calls":[
+                        {"index":0,"id":"call_one","type":"function","function":{"name":"lookup","arguments":"{\"sku\":"}},
+                        {"index":1,"id":"call_two","type":"function","function":{"name":"lookup","arguments":"{\"sku\":"}}
+                    ]},"finish_reason":null}]}),
+                ];
+                if stage == "tool_stream" {
+                    frames.push(json!({"choices":[{"delta":{"tool_calls":[
+                        {"index":1,"function":{"arguments":"2}"}},
+                        {"index":0,"function":{"arguments":"1}"}}
+                    ]},"finish_reason":"tool_calls"}]}));
+                } else {
+                    frames.push(json!({"choices":[{"delta":{},"finish_reason":"tool_calls"}]}));
+                }
+                let sse = frames
+                    .into_iter()
+                    .map(|frame| format!("data: {frame}\n\n"))
+                    .collect::<String>()
+                    + "data: [DONE]\n\n";
+                ("text/event-stream", sse)
             } else {
                 assert_eq!(payload["stream"], true);
                 assert_eq!(payload["stream_options"]["include_usage"], true);
@@ -146,6 +201,59 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
     let response = app.call(request(&payload)?).await?;
     let body = std::str::from_utf8(response.streamed_content())?;
     assert!(body.contains("event: error") && !body.contains("response.completed"));
+    payload.as_object_mut().unwrap().remove("stream");
+    payload["tools"] = json!([{"type":"function","name":"lookup","parameters":{"type":"object"}}]);
+    payload["tool_choice"] = json!({"type":"function","name":"lookup"});
+    let response = app.call(request(&payload)?).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = response.json::<Value>()?;
+    assert_eq!(response["output"][0]["type"], "function_call");
+    assert_eq!(response["output"][0]["call_id"], "call_one");
+    assert_eq!(response["output"][0]["arguments"], "{\"sku\":1}");
+    assert_eq!(response["tool_choice"]["name"], "lookup");
+    let mut followup = payload.clone();
+    followup["input"]
+        .as_array_mut()
+        .unwrap()
+        .push(response["output"][0].clone());
+    let rejected = app.call(request(&followup)?).await?;
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    followup["input"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"type":"function_call_output","call_id":"call_one","output":"found"}));
+    let result = app.call(request(&followup)?).await?;
+    assert_eq!(
+        result.json::<Value>()?["output"][0]["content"][0]["text"],
+        "confirmed"
+    );
+    payload["stream"] = true.into();
+    let response = app.call(request(&payload)?).await?;
+    let body = std::str::from_utf8(response.streamed_content())?;
+    let completed: Value = body
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter_map(|data| serde_json::from_str::<Value>(data).ok())
+        .find(|event| event["type"] == "response.completed")
+        .unwrap();
+    assert!(body.contains("response.function_call_arguments.delta"));
+    assert_eq!(completed["response"]["output"][1]["call_id"], "call_one");
+    assert_eq!(
+        completed["response"]["output"][1]["arguments"],
+        "{\"sku\":1}"
+    );
+    assert_eq!(completed["response"]["output"][2]["call_id"], "call_two");
+    assert_eq!(
+        completed["response"]["output"][2]["arguments"],
+        "{\"sku\":2}"
+    );
+    let response = app.call(request(&payload)?).await?;
+    let bad = std::str::from_utf8(response.streamed_content())?;
+    assert!(bad.contains("event: error"));
+    assert!(
+        !bad.contains("response.function_call_arguments.done")
+            && !bad.contains("response.completed")
+    );
     relay.await?;
     Ok(())
 }
