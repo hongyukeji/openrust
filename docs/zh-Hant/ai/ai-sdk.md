@@ -399,6 +399,33 @@ fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval>
 }
 ```
 
+### 工具審批後恢復對話 {#resume-tool-approval}
+
+用 `./artisan vendor:publish --tag=ai-migrations` 發布 AI 遷移，重新建置應用程式以註冊遷移檔案，再執行 `./artisan migrate --force`。實作 `RemembersConversations` 的 Agent 可透過 `prompt_with_approvals` 在執行目前批次的任何工具前暫停。
+
+```rust
+use openrust_ai::{ApprovalResponse, Decision, RemembersConversations};
+
+let result = agent
+    .for_participant(participant.clone())
+    .prompt_with_approvals(prompt, Default::default())
+    .await?;
+
+if let ApprovalResponse::Pending(pending) = result.response {
+    let conversation_id = result.conversation_id;
+    let approval_id = pending.id;
+    // 已驗證的參與者提交決定後，再恢復執行。
+    let _result = agent
+        .r#continue(conversation_id, participant)
+        .resume_approval(&approval_id, Decision::approve_all())
+        .await?;
+}
+```
+
+保留對話 ID 和審批 ID。在同一已驗證的參與者和 Agent 下，用 `pending_approvals_for` 重新讀取待審批項目，再顯示給使用者。使用 `resume_approval` 提交每筆請求的決定。`Decisions::new` 支援逐項核准、拒絕或編輯參數，也可為其餘項目套用預設決定。
+
+SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批次只能由一個請求領取。目前審批有效期為 24 小時。領取後的請求失敗或中斷時，工具可能已執行，SDK 不會自動重播。目前流程適用於非串流文字提示詞，串流與帶附件的審批仍待支援。
+
 ## Agent 排隊 {#queued-agents}
 
 讓具名 Agent 派生 `Serialize` 和 `Deserialize`，實作 `QueueableAgent` 並提供穩定的 `QUEUE_JOB` 名稱。在應用程式服務提供者的 `boot` 方法裡，從應用程式取得 `QueueManager`，呼叫 `TicketAgent::register_queue(queue.as_ref())` 註冊。

@@ -217,7 +217,7 @@ impl Connection {
             .transpose()
     }
 
-    pub(crate) fn embeddings_cache_namespace(&self, protocol: &str) -> AiResult<String> {
+    pub(crate) fn request_namespace(&self, protocol: &str) -> AiResult<String> {
         let credential = self
             .credential()?
             .map(|token| format!("{:x}", Sha256::digest(token)));

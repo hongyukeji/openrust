@@ -1,12 +1,11 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc};
 
 use futures_util::StreamExt;
 use openrust::support::{Str, facades::App};
-use serde_json::Value;
 
 use crate::{
-    AgentPrompt, AiError, AiResult, Message, StepEvent, StreamEventData, StreamableAgentResponse,
-    StructuredOutput, TextPrompt, TextProvider, Tool, ToolStep, streaming::event, tools,
+    AgentPrompt, AiError, AiResult, StepEvent, StreamEventData, StreamableAgentResponse,
+    TextProvider, Tool, ToolStep, messages::OwnedPrompt, streaming::event, tools,
 };
 
 pub(crate) async fn stream(
@@ -33,7 +32,7 @@ pub(crate) async fn stream(
         for step in 1..=max_steps {
             yield event(&invocation_id, StreamEventData::StreamStart {
                 provider: provider.name().into(),
-                model: prompt.model.clone(),
+                model: prompt.as_prompt(step - 1).text.model.into(),
             });
             let mut message_id = None::<String>;
             let (completed, reason) = loop {
@@ -106,67 +105,4 @@ pub(crate) async fn stream(
         }
     };
     Ok(StreamableAgentResponse::from_events(Box::pin(stream)))
-}
-
-struct OwnedPrompt {
-    instructions: String,
-    text: String,
-    model: String,
-    timeout: Option<Duration>,
-    options: crate::TextGenerationOptions,
-    provider_options: Option<crate::ProviderOptions>,
-    tool_choice: Option<crate::ToolChoice>,
-    messages: Vec<Message>,
-    attachments: Vec<crate::Attachment>,
-    schema: Option<(Value, bool)>,
-}
-
-impl From<AgentPrompt<'_>> for OwnedPrompt {
-    fn from(value: AgentPrompt<'_>) -> Self {
-        Self {
-            instructions: value.text.instructions.into(),
-            text: value.text.prompt.into(),
-            model: value.text.model.into(),
-            timeout: value.text.timeout,
-            options: value.options,
-            provider_options: value.provider_options.cloned(),
-            tool_choice: value.tool_choice.cloned(),
-            messages: value.messages.to_vec(),
-            attachments: value.attachments.to_vec(),
-            schema: value
-                .structured_output
-                .map(|output| (output.schema.clone(), output.strict)),
-        }
-    }
-}
-
-impl OwnedPrompt {
-    fn choice_for(&self, step: usize) -> Option<&crate::ToolChoice> {
-        self.tool_choice
-            .as_ref()
-            .and_then(|choice| choice.for_step(step))
-    }
-
-    fn as_prompt(&self, step: usize) -> AgentPrompt<'_> {
-        AgentPrompt {
-            text: TextPrompt {
-                instructions: &self.instructions,
-                prompt: &self.text,
-                model: &self.model,
-                timeout: self.timeout,
-            },
-            options: self.options,
-            provider_options: self.provider_options.as_ref(),
-            tool_choice: self.choice_for(step),
-            messages: &self.messages,
-            attachments: &self.attachments,
-            structured_output: self
-                .schema
-                .as_ref()
-                .map(|(schema, strict)| StructuredOutput {
-                    schema,
-                    strict: *strict,
-                }),
-        }
-    }
 }

@@ -278,6 +278,10 @@ impl TextProvider for AnthropicTextProvider {
 }
 
 impl StepTextGateway for AnthropicTextProvider {
+    fn approval_replay_scope(&self) -> AiResult<Option<String>> {
+        self.0.request_namespace("messages-tool-replay").map(Some)
+    }
+
     fn generate_text_step<'a>(
         &'a self,
         prompt: &'a AgentPrompt<'a>,

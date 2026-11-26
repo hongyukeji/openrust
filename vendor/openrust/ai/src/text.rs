@@ -48,7 +48,7 @@ use crate::{
     transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
 };
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Usage {
     pub prompt_tokens: Option<u64>,
     pub completion_tokens: Option<u64>,
@@ -750,6 +750,14 @@ impl OpenAiTextProvider {
 }
 
 impl StepTextGateway for OpenAiTextProvider {
+    fn approval_replay_scope(&self) -> AiResult<Option<String>> {
+        let protocol = match self.protocol {
+            OpenAiProtocol::ChatCompletions => "chat-tool-replay",
+            OpenAiProtocol::Responses => "responses-tool-replay",
+        };
+        self.connection.request_namespace(protocol).map(Some)
+    }
+
     fn generate_text_step<'a>(
         &'a self,
         prompt: &'a AgentPrompt<'a>,

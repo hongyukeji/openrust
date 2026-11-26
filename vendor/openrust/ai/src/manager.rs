@@ -624,6 +624,19 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
     ) -> AiResult<AgentResponse> {
+        self.prompt_in_session(agent, prompt, options, structured_output, messages, None)
+            .await
+    }
+
+    pub(crate) async fn prompt_in_session<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+        messages: &[crate::Message],
+        approvals: Option<&crate::approval_turn::ApprovalSession<'_>>,
+    ) -> AiResult<AgentResponse> {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
@@ -710,6 +723,7 @@ impl AiManager {
                 tools,
                 agent.max_steps(),
                 middleware,
+                approvals,
             )
             .await
         }

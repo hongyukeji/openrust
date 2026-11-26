@@ -399,6 +399,33 @@ fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval>
 }
 ```
 
+### Resume a conversation after tool approval {#resume-tool-approval}
+
+Publish the AI migrations with `./artisan vendor:publish --tag=ai-migrations`, rebuild the application to register the migration files, and run `./artisan migrate --force`. An agent that implements `RemembersConversations` can use `prompt_with_approvals` to pause before running any tool in the current batch.
+
+```rust
+use openrust_ai::{ApprovalResponse, Decision, RemembersConversations};
+
+let result = agent
+    .for_participant(participant.clone())
+    .prompt_with_approvals(prompt, Default::default())
+    .await?;
+
+if let ApprovalResponse::Pending(pending) = result.response {
+    let conversation_id = result.conversation_id;
+    let approval_id = pending.id;
+    // Resume after the authenticated participant submits their decisions.
+    let _result = agent
+        .r#continue(conversation_id, participant)
+        .resume_approval(&approval_id, Decision::approve_all())
+        .await?;
+}
+```
+
+Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
+
+The SDK verifies participant, agent and provider connection before resuming. Only one request can claim a pending batch. The current approval window is 24 hours. A failed or interrupted request after claiming approval may already have executed a tool. The SDK does not automatically replay it. This workflow covers buffered text prompts. Streamed and attachment-based approval flows remain pending.
+
 ## Queued agents {#queued-agents}
 
 Implement `QueueableAgent` on a named Agent that derives `Serialize` and `Deserialize`. Give it a stable `QUEUE_JOB` name. Register it in the application service provider’s `boot` method with `TicketAgent::register_queue(queue.as_ref())`, where `queue` is the application’s `QueueManager`.

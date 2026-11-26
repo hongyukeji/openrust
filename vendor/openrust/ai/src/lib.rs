@@ -15,6 +15,8 @@ mod agent;
 mod agent_broadcast;
 mod agent_queue;
 mod anthropic;
+mod approval_store;
+mod approval_turn;
 mod approvals;
 mod attachments;
 mod audio;
@@ -62,6 +64,7 @@ mod transcription;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
+pub use approval_turn::{ApprovalResponse, PendingToolApprovals};
 pub use approvals::{Approval, Decision, Decisions, PendingApproval};
 pub use attachments::{Attachment, DocumentAttachment};
 pub use audio::{
@@ -178,10 +181,16 @@ impl ServiceProvider for AiServiceProvider {
             self.publishes(app, config, "ai-config")?;
             self.publishes_migrations(
                 app,
-                &[(
-                    "database/migrations/2026_01_11_000001_create_agent_conversations_table.rs",
-                    include_bytes!("../database/migrations/2026_01_11_000001_create_agent_conversations_table.rs"),
-                )],
+                &[
+                    (
+                        "database/migrations/2026_01_11_000001_create_agent_conversations_table.rs",
+                        include_bytes!("../database/migrations/2026_01_11_000001_create_agent_conversations_table.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_01_11_000002_create_agent_tool_approvals_table.rs",
+                        include_bytes!("../database/migrations/2026_01_11_000002_create_agent_tool_approvals_table.rs"),
+                    ),
+                ],
                 "ai-migrations",
             )?;
             self.publishes(app, console::STUBS, "ai-stubs")

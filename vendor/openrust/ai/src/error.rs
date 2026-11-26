@@ -31,6 +31,10 @@ pub enum AiError {
     InvalidTools,
     InvalidToolChoice,
     InvalidApprovalDecisions,
+    ApprovalNotFound,
+    ApprovalExpired,
+    ApprovalConsumed,
+    ApprovalPaused(crate::PendingToolApprovals),
     ApprovalNotResumable {
         pending: Vec<crate::PendingApproval>,
     },
@@ -114,6 +118,10 @@ impl fmt::Display for AiError {
             Self::InvalidTools => formatter.write_str("AI 工具名称无效或重复"),
             Self::InvalidToolChoice => formatter.write_str("AI 工具选择与当前步骤的工具不匹配"),
             Self::InvalidApprovalDecisions => formatter.write_str("AI 工具审批决定无效"),
+            Self::ApprovalNotFound => formatter.write_str("未找到当前会话的 AI 工具审批"),
+            Self::ApprovalExpired => formatter.write_str("AI 工具审批已过期"),
+            Self::ApprovalConsumed => formatter.write_str("AI 工具审批已提交或正在执行"),
+            Self::ApprovalPaused(_) => formatter.write_str("AI 工具执行等待审批"),
             Self::ApprovalNotResumable { .. } => {
                 formatter.write_str("该工具须经审批，当前调用没有审批恢复入口")
             }

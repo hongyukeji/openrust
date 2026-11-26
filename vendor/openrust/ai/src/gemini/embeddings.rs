@@ -34,7 +34,7 @@ impl EmbeddingProvider for GeminiEmbeddingProvider {
 
     fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {
         self.0
-            .embeddings_cache_namespace("gemini-batch-embed-contents")
+            .request_namespace("gemini-batch-embed-contents")
             .map(Some)
     }
 

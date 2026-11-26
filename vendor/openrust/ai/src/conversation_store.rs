@@ -9,7 +9,10 @@ use serde::Serialize;
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
-use crate::{AgentResponse, Message, MessageRole};
+use crate::{
+    AgentResponse, Message, MessageRole, approval_store::ApprovalScope,
+    approval_turn::ApprovalSession,
+};
 
 const CONVERSATIONS: &str = "agent_conversations";
 const MESSAGES: &str = "agent_conversation_messages";
@@ -36,7 +39,7 @@ impl ConversationParticipant {
         &self.id
     }
 
-    fn key(&self, agent: &str) -> String {
+    pub(crate) fn key(&self, agent: &str) -> String {
         let mut digest = Sha256::new();
         for part in [&self.kind, &self.id, agent] {
             digest.update((part.len() as u64).to_be_bytes());
@@ -79,6 +82,10 @@ pub struct DatabaseConversationStore {
 impl DatabaseConversationStore {
     pub fn new(connection: Connection) -> Self {
         Self { connection }
+    }
+
+    pub(crate) fn approval_store(&self) -> crate::approval_store::ApprovalStore {
+        crate::approval_store::ApprovalStore::new(self.connection.clone())
     }
 
     pub async fn conversation_belongs_to(
@@ -200,13 +207,17 @@ impl DatabaseConversationStore {
 
     pub(crate) async fn store_turn(
         &self,
-        id: &str,
+        scope: ApprovalScope<'_>,
         existing: bool,
-        participant: &ConversationParticipant,
-        agent: &str,
         prompt: &str,
         response: &AgentResponse,
+        approval: Option<&ApprovalSession<'_>>,
     ) -> DatabaseResult<bool> {
+        let ApprovalScope {
+            conversation_id: id,
+            participant,
+            agent,
+        } = scope;
         participant.validate()?;
         if !valid_field(agent) {
             return Err(DatabaseError::InvalidQuery("AI 会话 Agent 名称无效"));
@@ -295,6 +306,12 @@ impl DatabaseConversationStore {
         if !transaction.table(MESSAGES).insert(&rows).await? {
             return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
         }
+        if let Some(approval) = approval
+            && !approval.complete(&mut transaction).await?
+        {
+            transaction.roll_back(None).await?;
+            return Ok(false);
+        }
         transaction.commit().await?;
         Ok(true)
     }
@@ -373,7 +390,7 @@ fn uuid() -> String {
     Str::uuid7().to_string()
 }
 
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     SystemTime::UNIX_EPOCH
         .elapsed()
         .map(|value| i64::try_from(value.as_secs()).unwrap_or(i64::MAX))

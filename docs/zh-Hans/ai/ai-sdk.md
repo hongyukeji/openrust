@@ -399,6 +399,33 @@ fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval>
 }
 ```
 
+### 工具审批后恢复会话 {#resume-tool-approval}
+
+用 `./artisan vendor:publish --tag=ai-migrations` 发布 AI 迁移，重新构建应用以注册迁移文件，再运行 `./artisan migrate --force`。实现 `RemembersConversations` 的 Agent 可以通过 `prompt_with_approvals` 在执行当前批次的任何工具前暂停。
+
+```rust
+use openrust_ai::{ApprovalResponse, Decision, RemembersConversations};
+
+let result = agent
+    .for_participant(participant.clone())
+    .prompt_with_approvals(prompt, Default::default())
+    .await?;
+
+if let ApprovalResponse::Pending(pending) = result.response {
+    let conversation_id = result.conversation_id;
+    let approval_id = pending.id;
+    // 已认证的参与者提交决定后，再恢复执行。
+    let _result = agent
+        .r#continue(conversation_id, participant)
+        .resume_approval(&approval_id, Decision::approve_all())
+        .await?;
+}
+```
+
+保留会话 ID 和审批 ID。在同一已认证参与者和 Agent 下，用 `pending_approvals_for` 重新读取待审批项，再展示给用户。使用 `resume_approval` 提交每条请求的决定。`Decisions::new` 支持逐项批准、拒绝或编辑参数，也可为剩余项应用默认决定。
+
+SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批次仅能被一个请求领取。当前审批有效期为 24 小时。领取后的请求失败或中断时，工具可能已经执行，SDK 不会自动重放。当前流程适用于非流式文本提示词，流式和带附件的审批仍待支持。
+
 ## Agent 排队 {#queued-agents}
 
 给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。

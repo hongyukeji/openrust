@@ -375,6 +375,10 @@ pub(crate) fn usage(value: &Value) -> Usage {
 }
 
 impl StepTextGateway for GeminiTextProvider {
+    fn approval_replay_scope(&self) -> AiResult<Option<String>> {
+        self.0.request_namespace("gemini-tool-replay").map(Some)
+    }
+
     fn generate_text_step<'a>(
         &'a self,
         prompt: &'a AgentPrompt<'a>,

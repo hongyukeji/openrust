@@ -244,9 +244,7 @@ impl EmbeddingProvider for OpenAiEmbeddingProvider {
     }
 
     fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {
-        self.0
-            .embeddings_cache_namespace("openai-embeddings")
-            .map(Some)
+        self.0.request_namespace("openai-embeddings").map(Some)
     }
 
     fn embeddings<'a>(

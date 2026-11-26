@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{AiError, AiResult};
 
 /// 由 Agent 声明、按当前连接编译的文本生成选项。
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TextGenerationOptions {
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,

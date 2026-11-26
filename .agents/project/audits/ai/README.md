@@ -438,3 +438,13 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 连接级 `headers` 沿用固定 Laravel 的配置名，在 SDK 共享 HTTP 入口合并并标记为敏感值。实际 Artisan 配置入口验证保留鉴权头、重复名称及非法头值被拒绝。回归测试通过 Chat Completions 与 Responses 核对嵌套 Schema；Anthropic、Gemini 同样使用对象转换。此记录对应 SDK 消费既有实例，OpenRust 自托管网关及实际客户端入站证据见[网关端点账本](gateway.md)。
 
 - [固定 Laravel Provider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [固定 Laravel ObjectSchema](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/ObjectSchema.php)
+
+## AI-03 持久化工具审批与恢复
+
+具名会话 Agent 通过 `prompt_with_approvals` 返回已完成响应或待审批批次。应用用会话 ID、审批 ID 和同一参与者读取待审批项，使用 `resume_approval` 提交决定。SQLite 或生产会话数据库保存恢复快照，绑定参与者与 Agent 类型。协议、基础地址、凭证和连接头的摘要保护上游回放，同一连接在其他作用域或进程可以恢复。快照记录调用 ID、提示词、已完成的步骤、用量及原始协议状态，不保存连接凭证。审批窗口为 24 小时。
+
+缺项、未知项、失效的连接和其他参与者均在工具执行前拒绝。批准执行原参数，编辑用批准的参数执行，拒绝将可选原因作为失败结果交给模型。数据库先原子领取，再执行工具。完成后在同一数据库事务写入会话消息并清空快照。如果执行期间中断，旧领取仍阻挡再次执行。当前批次覆盖普通会话文本，流式审批事件、附件和审批 Fake 另行验收。
+
+独立 Artisan 发布并安装迁移，在隔离应用创建待审批。SQLite 和原生 PostgreSQL 18.7 的实际 HTTP 进程核对参与者、连接凭证变更、过期、缺失与额外决定，跨两个进程并发提交仅一个调用完成。验证编辑、拒绝、上游仅续接一次、会话历史和累计用量。包测试、严格 Clippy 和三语文档均通过。
+
+- [固定 Laravel ResolvesPendingApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ResolvesPendingApprovals.php) · [固定 Laravel ResumesToolApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/ResumesToolApprovals.php)

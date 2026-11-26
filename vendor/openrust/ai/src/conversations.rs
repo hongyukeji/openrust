@@ -3,10 +3,15 @@ use std::any::type_name;
 use openrust::{contracts::auth::Authenticatable, support::Str};
 
 use crate::{
-    Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ConversationParticipant,
-    DatabaseConversationStore, HasStructuredOutput, Message, PromptOptions,
-    StreamableAgentResponse, StructuredAgentResponse, StructuredOutput, conversation_stream,
+    Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse,
+    ConversationParticipant, DatabaseConversationStore, Decisions, HasStructuredOutput, Message,
+    PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
+    StructuredOutput,
+    approval_store::{ApprovalScope, SavedApproval},
+    approval_turn::ApprovalSession,
+    conversation_stream,
     structured::schema_for,
+    tools::ApprovalCheckpoint,
 };
 
 /// 实现此契约即可按参与者保存和继续 Agent 对话。
@@ -87,15 +92,23 @@ struct ConversationTurn {
 
 impl ConversationTurn {
     async fn persist(&self, prompt: &str, response: &AgentResponse) -> AiResult<()> {
+        self.persist_with_approval(prompt, response, None).await
+    }
+
+    async fn persist_with_approval(
+        &self,
+        prompt: &str,
+        response: &AgentResponse,
+        approval: Option<&ApprovalSession<'_>>,
+    ) -> AiResult<()> {
         let stored = self
             .store
             .store_turn(
-                &self.id,
+                self.approval_scope(),
                 self.existing,
-                &self.participant,
-                self.agent_name,
                 prompt,
                 response,
+                approval,
             )
             .await
             .map_err(|_| AiError::ConversationStorageUnavailable)?;
@@ -103,6 +116,14 @@ impl ConversationTurn {
             Ok(())
         } else {
             Err(AiError::ConversationNotFound)
+        }
+    }
+
+    fn approval_scope(&self) -> ApprovalScope<'_> {
+        ApprovalScope {
+            conversation_id: &self.id,
+            participant: &self.participant,
+            agent: self.agent_name,
         }
     }
 
@@ -146,6 +167,92 @@ impl<A: Agent> PendingConversation<'_, A> {
             .await?;
         turn.persist(prompt, &response).await?;
         Ok(turn.reply(response))
+    }
+
+    pub async fn prompt_with_approvals(
+        self,
+        prompt: &str,
+        options: PromptOptions<'_>,
+    ) -> AiResult<ConversationResponse<ApprovalResponse>> {
+        let manager = Ai::manager()?;
+        let (turn, history) = self.prepare(&manager, prompt).await?;
+        let session = ApprovalSession::new(
+            turn.store.approval_store(),
+            turn.approval_scope(),
+            turn.existing,
+        );
+        let outcome = manager
+            .prompt_in_session(self.agent, prompt, options, None, &history, Some(&session))
+            .await;
+        resolve_approval_turn(turn, prompt, outcome, None).await
+    }
+
+    pub async fn pending_approvals_for(&self, id: &str) -> AiResult<PendingToolApprovals> {
+        let manager = Ai::manager()?;
+        let (store, _) = manager.conversation_store()?;
+        let scope = self.approval_scope()?;
+        let (checkpoint, _) = load_approval(&store, &scope, id).await?;
+        Ok(PendingToolApprovals {
+            id: id.to_owned(),
+            approvals: checkpoint.pending,
+        })
+    }
+
+    pub async fn resume_approval(
+        self,
+        id: &str,
+        decisions: Decisions,
+    ) -> AiResult<ConversationResponse<ApprovalResponse>> {
+        let manager = Ai::manager()?;
+        let (store, _) = manager.conversation_store()?;
+        let scope = self.approval_scope()?;
+        let (checkpoint, revision) = load_approval(&store, &scope, id).await?;
+        if store
+            .conversation_belongs_to(scope.conversation_id, scope.participant)
+            .await
+            .map_err(|_| AiError::ConversationStorageUnavailable)?
+            != checkpoint.existing
+        {
+            return Err(AiError::ApprovalNotFound);
+        }
+        let provider = manager.text_provider(Some(&checkpoint.provider))?;
+        let prompt = checkpoint.prompt.text.clone();
+        let turn = ConversationTurn {
+            id: scope.conversation_id.to_owned(),
+            existing: checkpoint.existing,
+            participant: self.participant.clone(),
+            agent_name: type_name::<A>(),
+            store,
+        };
+        let mut session = ApprovalSession::new(turn.store.approval_store(), scope, turn.existing);
+        let outcome = checkpoint
+            .resume(
+                provider.as_ref(),
+                self.agent.tools(),
+                self.agent.middleware(),
+                &decisions,
+                &mut session,
+                (id, revision),
+            )
+            .await;
+        if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
+            session.settle().await?;
+        }
+        resolve_approval_turn(turn, &prompt, outcome, Some(&session)).await
+    }
+
+    fn approval_scope(&self) -> AiResult<ApprovalScope<'_>> {
+        let conversation_id = self
+            .current_conversation()
+            .ok_or(AiError::ApprovalNotFound)?;
+        self.participant
+            .validate()
+            .map_err(|_| AiError::InvalidConversationParticipant)?;
+        Ok(ApprovalScope {
+            conversation_id,
+            participant: &self.participant,
+            agent: type_name::<A>(),
+        })
     }
 
     pub async fn stream(
@@ -223,6 +330,41 @@ impl<A: Agent> PendingConversation<'_, A> {
             agent_name,
         };
         Ok((turn, history))
+    }
+}
+
+async fn load_approval(
+    store: &DatabaseConversationStore,
+    scope: &ApprovalScope<'_>,
+    id: &str,
+) -> AiResult<(ApprovalCheckpoint, i64)> {
+    match store
+        .approval_store()
+        .load(scope, id)
+        .await
+        .map_err(|_| AiError::ConversationStorageUnavailable)?
+    {
+        Some(SavedApproval::Pending { snapshot, revision }) => Ok((snapshot, revision)),
+        Some(SavedApproval::Expired) => Err(AiError::ApprovalExpired),
+        Some(SavedApproval::Consumed) => Err(AiError::ApprovalConsumed),
+        None => Err(AiError::ApprovalNotFound),
+    }
+}
+
+async fn resolve_approval_turn(
+    turn: ConversationTurn,
+    prompt: &str,
+    outcome: AiResult<AgentResponse>,
+    approval: Option<&ApprovalSession<'_>>,
+) -> AiResult<ConversationResponse<ApprovalResponse>> {
+    match outcome {
+        Ok(response) => {
+            turn.persist_with_approval(prompt, &response, approval)
+                .await?;
+            Ok(turn.reply(ApprovalResponse::Completed(response)))
+        }
+        Err(AiError::ApprovalPaused(pending)) => Ok(turn.reply(ApprovalResponse::Pending(pending))),
+        Err(error) => Err(error),
     }
 }
 

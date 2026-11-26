@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{AiError, AiResult, ToolCall, ToolDefinition};
 
 /// 控制模型能否调用工具，或要求第一步调用一个工具。
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolChoice {
     Auto,
     None,
