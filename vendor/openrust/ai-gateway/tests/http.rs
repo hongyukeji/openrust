@@ -18,7 +18,7 @@ type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
 fn config(_: &std::path::Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     let mut gateway = openrust_ai_gateway::default_config(env)?;
     gateway["models"] = json!({
-        "public-chat": {"provider": "deepseek", "model": "private-chat"},
+        "public-chat": {"provider": "deepseek", "model": "private-chat", "endpoints":["chat/completions"]},
         "public-responses": {"provider": "openai", "model": "private-responses"}
     });
     gateway["keys"] = json!({

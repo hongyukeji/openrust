@@ -166,12 +166,15 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
     if provider.supports_endpoint(endpoint) {
         return Some(endpoint);
     }
-    let translated = match endpoint {
-        TextEndpoint::Responses => TextEndpoint::Messages,
-        TextEndpoint::Messages => TextEndpoint::Responses,
-        _ => return None,
+    let translated: &[TextEndpoint] = match endpoint {
+        TextEndpoint::Responses => &[TextEndpoint::Messages, TextEndpoint::ChatCompletions],
+        TextEndpoint::Messages => &[TextEndpoint::Responses],
+        _ => &[],
     };
-    provider.supports_endpoint(translated).then_some(translated)
+    translated
+        .iter()
+        .copied()
+        .find(|endpoint| provider.supports_endpoint(*endpoint))
 }
 
 pub(crate) struct Gateway {

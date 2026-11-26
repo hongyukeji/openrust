@@ -84,3 +84,11 @@ HTTP Kernel 及独立网关验证两个方向的工具调用、上游鉴权、�
 HTTP Kernel 验证非法和重复 ID、Key／模型别名隔离、首选失败后将可用连接写回。独立 Artisan 确认配置，两个 HTTP 进程共享 Redis 8，实测先回退并完成 SSE、跨副本命中、截断不黏连以及有效期结束回到主连接。协议上游使用真实 TCP 模拟。
 
 - [Sub2API 固定 Responses 账号选择](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go) · [Bifrost 固定路由设计](https://github.com/maximhq/bifrost/blob/53c2fcc22acd5ec4a02b4bd03da9bcb34856c055/docs/providers/provider-routing.mdx)
+
+## GW-03 Responses 到 Chat Completions
+
+公开模型在授权和端点策略允许的情况下，Responses 优先使用原生连接，其次可选 Messages 或 Chat Completions。Chat 转换支持文本历史、系统指令、基础生成设置和 JSON 对象模式。共用 Responses 的输出与事件构造。用量中的提示 Token、缓存子集、生成 Token 与已报告的推理 Token 按 Chat 口径转换，缓存不重复计费。SSE 实时转发文本，确认 Chat 停止原因及 `[DONE]` 后发送终止事件。
+
+包测试覆盖协议字段、JSON 格式、用量、显式端点限制及无完成状态时的错误。独立应用通过 HTTP 处理普通响应和实时 SSE，独立 Artisan 通过 SDK Responses 客户端调用网关后接入模拟的 Chat-only 上游。已确认首段文本早于上游结束。此批函数工具、附件、JSON Schema 以及反向 Chat 协议转换仍留待后续。
+
+- [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) · [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create)

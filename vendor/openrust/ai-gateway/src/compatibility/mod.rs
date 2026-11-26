@@ -1,3 +1,4 @@
+mod chat;
 mod messages;
 mod responses;
 mod tools;
@@ -8,6 +9,7 @@ use serde_json::{Map, Value};
 #[derive(Clone, Copy)]
 pub(super) enum Bridge {
     ResponsesToMessages,
+    ResponsesToChat,
     MessagesToResponses,
 }
 
@@ -15,6 +17,7 @@ impl Bridge {
     pub(super) fn between(inbound: TextEndpoint, upstream: TextEndpoint) -> Option<Self> {
         match (inbound, upstream) {
             (TextEndpoint::Responses, TextEndpoint::Messages) => Some(Self::ResponsesToMessages),
+            (TextEndpoint::Responses, TextEndpoint::ChatCompletions) => Some(Self::ResponsesToChat),
             (TextEndpoint::Messages, TextEndpoint::Responses) => Some(Self::MessagesToResponses),
             _ => None,
         }
@@ -46,10 +49,15 @@ impl Bridge {
                         .unwrap_or(Value::Bool(true)),
                 ),
             ])),
+            Self::ResponsesToChat => data
+                .get("text")
+                .filter(|text| !text.is_null())
+                .map(|text| Map::from_iter([("text".into(), text.clone())])),
             _ => None,
         };
         let request = match self {
             Self::ResponsesToMessages => responses::to_messages(data)?,
+            Self::ResponsesToChat => chat::from_responses(data)?,
             Self::MessagesToResponses => messages::to_responses(data)?,
         };
         Ok((
@@ -75,6 +83,7 @@ impl Translation {
             Bridge::ResponsesToMessages => {
                 responses::Response::new(name, self.response_fields).buffered(data)
             }
+            Bridge::ResponsesToChat => chat::response(name, self.response_fields, data),
             Bridge::MessagesToResponses => {
                 messages::Message::new(name, self.allows_tools).buffered(data)
             }
@@ -87,6 +96,9 @@ impl Translation {
                 Box::new(responses::Response::new(name, self.response_fields)),
                 responses::StreamState::default(),
             ),
+            Bridge::ResponsesToChat => {
+                Stream::Chat(Box::new(chat::StreamState::new(name, self.response_fields)))
+            }
             Bridge::MessagesToResponses => Stream::Messages(
                 messages::Message::new(name, self.allows_tools),
                 messages::StreamState::default(),
@@ -97,6 +109,7 @@ impl Translation {
 
 pub(super) enum Stream {
     Responses(Box<responses::Response>, responses::StreamState),
+    Chat(Box<chat::StreamState>),
     Messages(messages::Message, messages::StreamState),
 }
 
@@ -104,7 +117,14 @@ impl Stream {
     pub(super) fn convert(&mut self, data: &Value) -> Option<(Vec<String>, bool)> {
         match self {
             Self::Responses(response, state) => state.convert(response, data),
+            Self::Chat(state) => state.convert(data),
             Self::Messages(message, state) => state.convert(message, data),
+        }
+    }
+    pub(super) fn finish(&mut self) -> Option<(Vec<String>, bool)> {
+        match self {
+            Self::Chat(state) => state.finish(),
+            _ => None,
         }
     }
 }

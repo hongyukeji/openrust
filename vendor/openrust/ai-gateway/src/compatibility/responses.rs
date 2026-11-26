@@ -156,7 +156,7 @@ fn append_blocks(messages: &mut Vec<Value>, role: &str, blocks: Vec<Value>) {
     }
 }
 
-fn text_parts(content: &Value, role: &str) -> Result<Vec<String>, &'static str> {
+pub(super) fn text_parts(content: &Value, role: &str) -> Result<Vec<String>, &'static str> {
     if let Some(content) = content.as_str() {
         return Ok(vec![content.to_owned()]);
     }
@@ -193,6 +193,7 @@ pub(crate) struct Response {
     output_tokens: Option<u64>,
     cache_read_tokens: Option<u64>,
     cache_creation_tokens: Option<u64>,
+    reasoning_tokens: Option<u64>,
 }
 
 impl Response {
@@ -211,6 +212,7 @@ impl Response {
             output_tokens: None,
             cache_read_tokens: None,
             cache_creation_tokens: None,
+            reasoning_tokens: None,
         }
     }
 
@@ -260,7 +262,7 @@ impl Response {
             .or(self.cache_creation_tokens);
     }
 
-    fn response(&self, finish: Option<Finish>) -> Value {
+    pub(super) fn response(&self, finish: Option<Finish>) -> Value {
         let usage = match (self.input_tokens, self.output_tokens) {
             (Some(input), Some(output)) => {
                 let cached = self.cache_read_tokens.unwrap_or_default();
@@ -269,7 +271,7 @@ impl Response {
                     .saturating_add(self.cache_creation_tokens.unwrap_or_default());
                 let mut usage = json!({
                     "input_tokens":input,"output_tokens":output,"total_tokens":input.saturating_add(output),
-                    "input_tokens_details":{"cached_tokens":cached},"output_tokens_details":{"reasoning_tokens":0},
+                    "input_tokens_details":{"cached_tokens":cached},"output_tokens_details":{"reasoning_tokens":self.reasoning_tokens.unwrap_or_default()},
                 });
                 if let Some(created) = self.cache_creation_tokens {
                     usage["cache_creation_input_tokens"] = created.into();
@@ -295,6 +297,87 @@ impl Response {
         result
     }
 
+    pub(super) fn observe_chat_usage(&mut self, usage: &Value) {
+        if let Some(input) = usage["prompt_tokens"].as_u64() {
+            let cached = usage["prompt_tokens_details"]["cached_tokens"]
+                .as_u64()
+                .or_else(|| usage["prompt_cache_hit_tokens"].as_u64())
+                .filter(|cached| *cached <= input);
+            self.input_tokens = Some(input - cached.unwrap_or_default());
+            self.cache_read_tokens = cached;
+        }
+        self.output_tokens = usage["completion_tokens"].as_u64().or(self.output_tokens);
+        self.reasoning_tokens = usage["completion_tokens_details"]["reasoning_tokens"]
+            .as_u64()
+            .or(self.reasoning_tokens);
+    }
+
+    pub(super) fn push_text(&mut self, text: &str, finish: Finish) {
+        self.output.push(output_item(
+            &message_id(),
+            finish.item_status(),
+            vec![text_part(text)],
+        ));
+    }
+
+    pub(super) fn start(&mut self) -> [String; 2] {
+        let body = json!({"response":self.response(None)});
+        [
+            self.frame("response.created", body.clone()),
+            self.frame("response.in_progress", body),
+        ]
+    }
+
+    pub(super) fn start_text(&mut self, text: String) -> (TextOutput, [String; 2]) {
+        let id = message_id();
+        let output_index = self.output.len();
+        let frames = [
+            self.frame("response.output_item.added", json!({"output_index":output_index,"item":output_item(&id, "in_progress", vec![])})),
+            self.frame("response.content_part.added", json!({"output_index":output_index,"content_index":0,"item_id":id,"part":text_part(&text)})),
+        ];
+        (TextOutput { id, text }, frames)
+    }
+
+    pub(super) fn text_delta(&mut self, id: &str, delta: &str) -> String {
+        self.frame("response.output_text.delta", json!({"output_index":self.output.len(),"content_index":0,"item_id":id,"delta":delta,"logprobs":[]}))
+    }
+
+    fn text_done(&mut self, id: &str, text: &str, status: &str) -> (Value, Vec<String>) {
+        let output_index = self.output.len();
+        let part = text_part(text);
+        let item = output_item(id, status, vec![part.clone()]);
+        let frames = vec![
+            self.frame("response.output_text.done", json!({"output_index":output_index,"content_index":0,"item_id":id,"text":text,"logprobs":[]})),
+            self.frame("response.content_part.done", json!({"output_index":output_index,"content_index":0,"item_id":id,"part":part})),
+        ];
+        (item, frames)
+    }
+
+    fn push_item(&mut self, item: Value) -> String {
+        let output_index = self.output.len();
+        self.output.push(item.clone());
+        self.frame(
+            "response.output_item.done",
+            json!({"output_index":output_index,"item":item}),
+        )
+    }
+
+    pub(super) fn end_text(&mut self, text: TextOutput, finish: Finish) -> Vec<String> {
+        let (item, mut frames) = self.text_done(&text.id, &text.text, finish.item_status());
+        frames.push(self.push_item(item));
+        frames
+    }
+
+    pub(super) fn terminal(&mut self, finish: Finish) -> String {
+        let kind = if finish.incomplete_reason().is_some() {
+            "response.incomplete"
+        } else {
+            "response.completed"
+        };
+        let body = json!({"response":self.response(Some(finish))});
+        self.frame(kind, body)
+    }
+
     fn frame(&mut self, kind: &str, mut payload: Value) -> String {
         payload["type"] = kind.into();
         payload["sequence_number"] = self.sequence.into();
@@ -316,7 +399,7 @@ fn output_item(id: &str, status: &str, content: Vec<Value>) -> Value {
 }
 
 #[derive(Clone, Copy)]
-enum Finish {
+pub(super) enum Finish {
     Complete,
     ToolUse,
     Length,
@@ -349,6 +432,11 @@ impl Finish {
             Self::Refused => Some("content_filter"),
         }
     }
+}
+
+pub(super) struct TextOutput {
+    pub(super) id: String,
+    pub(super) text: String,
 }
 
 #[derive(Default)]
@@ -386,11 +474,7 @@ impl StreamState {
             "message_start" if !self.started => {
                 self.started = true;
                 response.observe_usage(&event["message"]["usage"]);
-                let body = json!({"response":response.response(None)});
-                vec![
-                    response.frame("response.created", body.clone()),
-                    response.frame("response.in_progress", body),
-                ]
+                response.start().into()
             }
             "content_block_start" if self.started && self.active.is_none() => {
                 let part = &event["content_block"];
@@ -398,13 +482,9 @@ impl StreamState {
                 let output_index = response.output.len();
                 let (id, content, frames) = match part["type"].as_str()? {
                     "text" => {
-                        let id = message_id();
                         let text = part["text"].as_str()?.to_owned();
-                        let frames = vec![
-                            response.frame("response.output_item.added", json!({"output_index":output_index,"item":output_item(&id, "in_progress", vec![])})),
-                            response.frame("response.content_part.added", json!({"output_index":output_index,"content_index":0,"item_id":id,"part":text_part(&text)})),
-                        ];
-                        (id, BlockContent::Text(text), frames)
+                        let (TextOutput { id, text }, frames) = response.start_text(text);
+                        (id, BlockContent::Text(text), frames.into())
                     }
                     "tool_use" if response.tool_fields.is_some() => {
                         let call_id = tool_id(&part["id"])?.to_owned();
@@ -449,7 +529,7 @@ impl StreamState {
                     (BlockContent::Text(text), "text_delta") => {
                         let delta = event["delta"]["text"].as_str()?;
                         text.push_str(delta);
-                        vec![response.frame("response.output_text.delta", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"delta":delta,"logprobs":[]}))]
+                        vec![response.text_delta(&block.id, delta)]
                     }
                     (
                         BlockContent::Tool {
@@ -474,15 +554,7 @@ impl StreamState {
                     .filter(|block| Some(block.index) == event["index"].as_u64())?;
                 let output_index = response.output.len();
                 let (item, mut frames) = match block.content {
-                    BlockContent::Text(text) => {
-                        let part = text_part(&text);
-                        let item = output_item(&block.id, "completed", vec![part.clone()]);
-                        let frames = vec![
-                            response.frame("response.output_text.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"text":text,"logprobs":[]})),
-                            response.frame("response.content_part.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"part":part})),
-                        ];
-                        (item, frames)
-                    }
+                    BlockContent::Text(text) => response.text_done(&block.id, &text, "completed"),
                     BlockContent::Tool {
                         call_id,
                         name,
@@ -503,11 +575,7 @@ impl StreamState {
                         )
                     }
                 };
-                response.output.push(item.clone());
-                frames.push(response.frame(
-                    "response.output_item.done",
-                    json!({"output_index":output_index,"item":item}),
-                ));
+                frames.push(response.push_item(item));
                 frames
             }
             "message_delta" if self.started && self.active.is_none() => {
@@ -529,13 +597,7 @@ impl StreamState {
                 {
                     return None;
                 }
-                let kind = if finish.incomplete_reason().is_some() {
-                    "response.incomplete"
-                } else {
-                    "response.completed"
-                };
-                let body = json!({"response":response.response(Some(finish))});
-                return Some((vec![response.frame(kind, body)], true));
+                return Some((vec![response.terminal(finish)], true));
             }
             _ => return None,
         };

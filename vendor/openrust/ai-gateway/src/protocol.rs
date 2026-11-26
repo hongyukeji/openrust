@@ -899,16 +899,30 @@ fn bridged_stream(
     async_stream::stream! {
         let mut events = body.eventsource();
         while let Some(event) = events.next().await {
-            let data = event.ok().and_then(|event| serde_json::from_str::<Value>(&event.data).ok());
-            let Some(data) = data else {
+            let Ok(event) = event else {
                 call.outcome("stream_error");
                 yield Ok(protocol.stream_error());
                 return;
             };
-            call.observe_usage(&data);
-            call.observe_usage(&data["message"]);
-            call.observe_usage(&data["response"]);
-            let Some((frames, terminal)) = state.convert(&data) else {
+            if event.event == "error" {
+                call.outcome("upstream_error");
+                yield Ok(protocol.stream_error());
+                return;
+            }
+            let converted = if event.data == "[DONE]" {
+                state.finish()
+            } else {
+                let Ok(data) = serde_json::from_str::<Value>(&event.data) else {
+                    call.outcome("stream_error");
+                    yield Ok(protocol.stream_error());
+                    return;
+                };
+                call.observe_usage(&data);
+                call.observe_usage(&data["message"]);
+                call.observe_usage(&data["response"]);
+                state.convert(&data)
+            };
+            let Some((frames, terminal)) = converted else {
                 call.outcome("invalid_upstream_response");
                 yield Ok(protocol.stream_error());
                 return;
