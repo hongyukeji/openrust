@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第73簇元素动态调用已验，继续 HTML 恢复。见[验收契约](audits/artisan-tutorial/terminal-element-dispatch-contracts.json)。
+
 - Artisan 第72簇自定义文本及样式修饰器已验，继续元素动态转发。见[验收契约](audits/artisan-tutorial/terminal-style-modifiers-contracts.json)。
 
 - Artisan 第71簇显式样式继承、祖先布局及独立宽度查询已验，继续自定义修饰器。见[验收契约](audits/artisan-tutorial/terminal-style-inheritance-contracts.json)。

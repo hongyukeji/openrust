@@ -90,7 +90,7 @@ pub(super) fn resolve(input: &str) -> Result<Method<'_>, ConsoleError> {
     // 固定方法表保留重载解析边界；方法名忽略 ASCII 大小写，原始标记另行保存。
     for n in (1..=pieces.len()).rev() {
         let method = pieces[..n].join("").to_ascii_lowercase().replace(' ', "");
-        if METHODS.contains(&method.as_str()) {
+        if is_known(&method) {
             return Ok(Method {
                 name: method,
                 args: pieces[n..].iter().map(|p| StyleArgument::new(p)).collect(),
@@ -101,6 +101,10 @@ pub(super) fn resolve(input: &str) -> Result<Method<'_>, ConsoleError> {
         "控制台组件暂不支持此终端样式：{input}"
     )))
 }
+pub(super) fn is_known(name: &str) -> bool {
+    METHODS.contains(&name)
+}
+
 const METHODS: &[&str] = &[
     "__construct",
     "setelement",

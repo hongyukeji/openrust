@@ -25,5 +25,5 @@ mod view_renderer;
 pub use view_renderer::{
     BuiltinComponentViewRenderer, ComponentViewRenderer, StyleArgument, StyleRepository,
     TerminalChild, TerminalContent, TerminalDimensions, TerminalElement, TerminalElementKind,
-    TerminalStyle, TerminalStyleModifiers, TerminalStyles,
+    TerminalElementResult, TerminalStyle, TerminalStyleModifiers, TerminalStyles,
 };

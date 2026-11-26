@@ -104,7 +104,7 @@ impl<'a> TerminalStyles<'a> {
         self.state.get().markers.iter().any(|style| style == name)
     }
 
-    fn change(
+    pub(super) fn change(
         &mut self,
         name: &str,
         args: &[StyleArgument<'_>],

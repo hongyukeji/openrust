@@ -367,7 +367,8 @@
       "terminal_style_properties": "terminal-style-properties-contracts.json",
       "attached_terminal_style": "attached-terminal-style-contracts.json",
       "terminal_style_inheritance": "terminal-style-inheritance-contracts.json",
-      "terminal_style_modifiers": "terminal-style-modifiers-contracts.json"
+      "terminal_style_modifiers": "terminal-style-modifiers-contracts.json",
+      "terminal_element_dispatch": "terminal-element-dispatch-contracts.json"
     },
     {
       "anchor": "tables",
@@ -761,6 +762,14 @@
     "remaining": [
       "动态元素方法转发和一般 HTML 恢复。",
       "Factory 容器构造和其他 Artisan 文档锚点。"
+    ]
+  },
+  "terminal_element_dispatch": {
+    "status": "verified_terminal_element_dynamic_dispatch",
+    "contract": "terminal-element-dispatch-contracts.json",
+    "remaining": [
+      "HTML4 解析恢复及 Factory 容器构造和覆盖。",
+      "Artisan 其余教程锚点继续逐项核对。"
     ]
   }
 }

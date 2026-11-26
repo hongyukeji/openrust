@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_terminal_element_dynamic_dispatch",
+  "bindings": {
+    "TerminalElement": [
+      "call"
+    ],
+    "TerminalElementResult": [
+      "Element",
+      "Value"
+    ]
+  },
+  "source_oracle": "terminal-element-dispatch-oracle.json",
+  "runtime": {
+    "source_dispatch_cases": 34,
+    "framework_targets": 17,
+    "framework_parent_tests": 64,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 222,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "查询返回独立 JSON 值；修改及未知方法返回原元素的可变借用，复用类型化样式方法和布局。",
+    "保留固定方法名称大小写及查询前缀行为，提供明确的 Rust 原生别名，不折叠任意下划线。",
+    "动态调用接受 JSON；样式对象关联和构造使用类型化入口，动态私有方法及错误类型明确返回 ConsoleError。",
+    "验证 Artisan 退出状态及同一 HTTP 服务在失败后继续处理并发调用。"
+  ],
+  "remaining": [
+    "HTML4 解析恢复及 Factory 容器构造和覆盖。",
+    "Artisan 其余教程锚点继续逐项核对。"
+  ]
+}

@@ -944,3 +944,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 24 个固定源码场景验证真实回调参数、宽度计算前后输出、按序执行、内置变换组合、属性替换、父样式及短路错误。同时验证原生重名集合保序。回调统一复用当前独立样式与元素格式管线，默认渲染路径只在提供回调时建立集合。
 
 60 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、219 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续元素动态入口和 HTML 恢复。见 terminal-style-modifiers-contracts.json 与 accepted-terminal-style-modifiers.json。
+
+
+## 73. 终端元素动态调用
+
+34 个固定源码场景验证方法查找、查询返回值、同一元素身份、持久的修改及真实错误。Rust 调用接收 JSON 形态的参数并返回查询值或原元素借用，样式关联与构造继续走类型化入口。
+
+64 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、222 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续 HTML 恢复。见 terminal-element-dispatch-contracts.json 与 accepted-terminal-element-dispatch.json。

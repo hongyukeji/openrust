@@ -1,0 +1,537 @@
+[
+    {
+        "name": "getProperties",
+        "args": [],
+        "result": "array",
+        "value": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "hasStyle",
+        "args": [
+            "none"
+        ],
+        "result": "bool",
+        "value": false,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getLength",
+        "args": [],
+        "result": "int",
+        "value": 5,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getLength",
+        "args": [
+            "<fg=red>中文x<\/>"
+        ],
+        "result": "int",
+        "value": 5,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getInnerWidth",
+        "args": [],
+        "result": "int",
+        "value": 5,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getParentWidth",
+        "args": [
+            []
+        ],
+        "result": "int",
+        "value": 40,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "defaultStyles",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "fontBold",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "<options=bold>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "italic",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "\u001b[3mhello\u001b[0m",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "FOntBold",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "<options=bold>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "GETLength",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "hasSTYLE",
+        "args": [
+            "none"
+        ],
+        "result": "bool",
+        "value": false,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "text",
+        "args": [
+            "red"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "<fg=red>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "red"
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "bg",
+        "args": [
+            "blue"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "<bg=blue>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "w",
+        "args": [
+            12
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "hello       ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 12
+            }
+        }
+    },
+    {
+        "name": "w",
+        "args": [
+            "1\/2"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "hello               ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            }
+        }
+    },
+    {
+        "name": "minW",
+        "args": [
+            3
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "hel",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "minWidth": 3
+            }
+        }
+    },
+    {
+        "name": "ml",
+        "args": [
+            2
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "  hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2
+            }
+        }
+    },
+    {
+        "name": "setStyle",
+        "args": [
+            "marker"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "addStyle",
+        "args": [
+            "font-bold text-yellow"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "<fg=yellow;options=bold>HELLO<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "yellow"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "prepend",
+        "args": [
+            "[x]"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "[x]hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "truncate",
+        "args": [
+            3,
+            "~"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "he~",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "href",
+        "args": [
+            "https:\/\/example.test"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "<href=https:\/\/example.test>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test"
+            ]
+        }
+    },
+    {
+        "name": "format",
+        "args": [
+            "unrelated"
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "with",
+        "args": [
+            {
+                "styles": {
+                    "ml": 2
+                },
+                "options": {
+                    "bold": true
+                }
+            }
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "  <options=bold>hello<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2
+            }
+        }
+    },
+    {
+        "name": "setProperties",
+        "args": [
+            {
+                "isFirstChild": false,
+                "options": {
+                    "bold": true
+                }
+            }
+        ],
+        "result": "identity",
+        "value": null,
+        "markup": "<options=bold>hello<\/>",
+        "error": null,
+        "properties": {
+            "isFirstChild": false,
+            "options": {
+                "bold": true
+            }
+        }
+    },
+    {
+        "name": "unknown",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getUnknown",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "hasUnknown",
+        "args": [],
+        "result": "identity",
+        "value": null,
+        "markup": "hello",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "getMargins",
+        "args": [],
+        "result": null,
+        "value": null,
+        "markup": null,
+        "error": "Error:Call to private method Termwind\\ValueObjects\\Styles::getMargins() from scope Termwind\\Components\\Element",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "list",
+        "args": [
+            "decimal",
+            3
+        ],
+        "result": null,
+        "value": null,
+        "markup": null,
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style list-none cannot be used with Termwind\\Components\\Span",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "borderT",
+        "args": [
+            4
+        ],
+        "result": null,
+        "value": null,
+        "markup": null,
+        "error": "Termwind\\Exceptions\\InvalidStyle:`border-t` can only be used on an \"hr\" element.",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "text",
+        "args": [],
+        "result": null,
+        "value": null,
+        "markup": null,
+        "error": "ArgumentCountError:Too few arguments to function Termwind\\ValueObjects\\Styles::text(), 0 passed in \/r\/Termwind\/src\/Components\/Element.php on line 87 and at least 1 expected",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "name": "w",
+        "args": [
+            true
+        ],
+        "result": null,
+        "value": null,
+        "markup": null,
+        "error": "TypeError:Termwind\\ValueObjects\\Styles::w(): Argument #1 ($width) must be of type string|int, true given, called in \/r\/Termwind\/src\/Components\/Element.php on line 87",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    }
+]

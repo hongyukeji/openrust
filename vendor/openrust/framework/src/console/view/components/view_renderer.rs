@@ -1,7 +1,9 @@
 // 第三方许可见 LICENSE.renderer。
 mod code;
 mod dimensions;
+mod dispatch;
 pub use dimensions::TerminalDimensions;
+pub use dispatch::TerminalElementResult;
 mod dom;
 mod element;
 mod inheritance;

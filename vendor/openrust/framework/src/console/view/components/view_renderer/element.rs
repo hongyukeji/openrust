@@ -208,6 +208,14 @@ impl TerminalElement {
         callback(&mut scope)
     }
 
+    pub(super) fn style_snapshot(&self) -> Result<Style, ConsoleError> {
+        self.styles
+            .style
+            .try_read()
+            .map(|style| style.clone())
+            .ok_or_else(style_busy)
+    }
+
     pub fn get_properties(&self) -> Result<Map<String, Value>, ConsoleError> {
         let style = self.styles.style.try_read().ok_or_else(style_busy)?;
         Ok(style
@@ -333,7 +341,7 @@ impl TerminalElement {
             }
             return Ok(raw(value));
         }
-        let style = self.styles.style.try_read().ok_or_else(style_busy)?.clone();
+        let style = self.style_snapshot()?;
         let properties = style.properties.as_deref().expect("终端元素始终拥有属性");
         let first = properties::format_first(properties)?;
         let layout = super::inheritance::layout(properties)?;

@@ -2719,3 +2719,35 @@ fn register_style_modifiers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Call an element method by name {#terminal-element-dispatch}
+
+Use `TerminalElement::call` with a method name and JSON arguments. A query such as `get_length` returns `TerminalElementResult::Value`. A mutation or an unknown method returns a borrow of the same element, so later calls see the updated styles.
+
+Invalid arguments and private method calls return `ConsoleError`. When supplying a Rust style object, use the typed `TerminalElement::with_styles` constructor.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalElementKind, TerminalElementResult, TerminalStyles, TerminalElement},
+};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_element_dispatch() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:element-dispatch", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut element = TerminalElement::with_styles(
+                TerminalElementKind::Span, "ready", TerminalStyles::new(),
+            );
+            element.call("prepend", &[json!("Result: ")])?;
+            if let TerminalElementResult::Value(length) = element.call("get_length", &[json!("ready")])? {
+                assert_eq!(length, json!(5));
+            }
+            element.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

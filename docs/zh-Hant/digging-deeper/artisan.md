@@ -2719,3 +2719,35 @@ fn register_style_modifiers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 按名稱呼叫元素方法 {#terminal-element-dispatch}
+
+用 `TerminalElement::call` 傳入方法名稱和 JSON 參數。`get_length` 等查詢回傳 `TerminalElementResult::Value`。修改方法和未知方法回傳同一元素的借用，後續呼叫可以讀到更新後的樣式。
+
+參數無效或呼叫私有方法時會回傳 `ConsoleError`。傳入 Rust 樣式物件時，使用型別化的 `TerminalElement::with_styles` 建構入口。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalElementKind, TerminalElementResult, TerminalStyles, TerminalElement},
+};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_element_dispatch() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:element-dispatch", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut element = TerminalElement::with_styles(
+                TerminalElementKind::Span, "ready", TerminalStyles::new(),
+            );
+            element.call("prepend", &[json!("Result: ")])?;
+            if let TerminalElementResult::Value(length) = element.call("get_length", &[json!("ready")])? {
+                assert_eq!(length, json!(5));
+            }
+            element.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
