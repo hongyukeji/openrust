@@ -1,0 +1,46 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "ArtisanStarting": [
+      "NAME",
+      "with_artisan"
+    ],
+    "CommandStarting": [
+      "NAME",
+      "command",
+      "input",
+      "definition"
+    ],
+    "CommandFinished": [
+      "NAME",
+      "command",
+      "input",
+      "definition",
+      "exit_code",
+      "duration",
+      "output"
+    ]
+  },
+  "runtime": {
+    "framework_and_application_parent_tests": 61,
+    "native_artisan_subprocesses": 1,
+    "native_http_requests": 2,
+    "upstream_cli_calls": 11,
+    "upstream_trace_rows": 27,
+    "formal_document_consumers": 255,
+    "browser_checks": 12
+  },
+  "source_oracle": "artisan-events-oracle.json",
+  "symfony_console_and_dispatcher": "7.4.0",
+  "symfony_dispatcher_contracts": "3.6.0",
+  "decisions": [
+    "固定框架启动、真实 Kernel 事件桥和 Symfony Console 运行 11 条命令路径，覆盖正常、非零、异常、缺参、显式及隐式列表、帮助、版本和直接嵌套。",
+    "已解析的真正命令在返回及出错后均派发完成事件；原始操作失败及退出状态保持。参数校验失败不会运行命令体。",
+    "输入输出及异常生命周期保持原程序集的类型和渲染分层。直接子命令复用已激活的自定义注册表，保持调用顺序、信号作用域和外层输出。"
+  ],
+  "remaining": [
+    "Rust 事件携带输入／输出快照。失败解析中只保留已识别参数；输出为对应命令本次已捕获的标准输出，监听者不持有可变输入输出对象。",
+    "异步命令未来体被调用方取消时无命令退出码。运行时未发生完成或失败返回，不派发 CommandFinished。"
+  ]
+}

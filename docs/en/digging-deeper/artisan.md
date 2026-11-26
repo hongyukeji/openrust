@@ -538,6 +538,60 @@ fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()
 }
 ```
 
+### Command Execution Events {#command-execution-events}
+
+Artisan emits `CommandStarting` before a resolved command runs and `CommandFinished` after it returns or fails. Both events contain the canonical command name and the parsed input snapshot. The finish event also has the exit code, duration, and captured standard output. If required input is missing or invalid, the snapshots contain the arguments the parser recognized and the command body is skipped.
+
+This lifecycle applies to CLI execution and direct `Artisan::call` calls. A command invoked through `CommandIo::call`, `call_named`, or `call_silently` runs within the outer command; these helpers leave the outer command’s event pair in place. Listing and help are commands; `--version` displays the framework version directly.
+
+Bind a `CommandLog` instance in your application service provider before registering the listeners.
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{
+    console::events::{CommandFinished, CommandStarting},
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+    support::facades::App,
+};
+
+#[derive(Default)]
+struct CommandLog(Mutex<Vec<(String, Option<i32>)>>);
+
+struct RecordCommands;
+
+impl Listener for RecordCommands {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let entry = event.downcast_ref::<CommandStarting>()
+                .map(|event| (event.command.clone(), None))
+                .or_else(|| event.downcast_ref::<CommandFinished>()
+                    .map(|event| (event.command.clone(), Some(event.exit_code))));
+
+            if let Some(entry) = entry {
+                let log = App::make::<CommandLog>().await.map_err(EventError::Unavailable)?;
+                log.0.lock().unwrap().push(entry);
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn listen_to_commands(registry: &mut ListenerRegistry) -> EventResult<()> {
+    let listener = Arc::new(RecordCommands);
+    registry.listen(CommandStarting::NAME, listener.clone(), Delivery::Sync)?;
+    registry.listen(CommandFinished::NAME, listener, Delivery::Sync)
+}
+```
+
 ## Stub Customization {#stub-customization}
 
 Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for structs, traits, enums, commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.

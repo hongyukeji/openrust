@@ -4,6 +4,8 @@ mod ansi_color_mode;
 mod application;
 mod color;
 mod command;
+mod command_events;
+pub(crate) use command_events::CommandExecution;
 pub(crate) mod command_arguments;
 mod command_input;
 mod command_io;

@@ -1042,3 +1042,10 @@ SQLite 和 MySQL 8.4.13 各三组终端通过，覆盖 HTTP、日志、查询、
 固定框架的真实构造事件先注册动态命令，随后两个实际调用只产生一次启动事件。原生同名事件复用现有应用注册表与 OnceCell，真实 Artisan 子进程与 HTTP 校验动态注册、并发、重试、应用隔离和重入拒绝。Docker 引擎暂不可用时，以项目内构建的同版 PHP 运行固定源码。
 
 57 项框架和应用回归、252 个三语文档示例、12 组浏览器检查、格式和隔离快照严格 Clippy 通过。见 artisan-starting-contracts.json。Events 锚点待下一批。
+
+
+## 87. 命令执行事件边界
+
+固定 Laravel 与 Symfony 真实事件桥执行 11 条命令，逐行核对 CLI、异常、缺参、帮助、列表、版本与直接嵌套。在原生 Kernel 中复用同一注册表直接运行子命令，结束事件保留已退出或已失败的快照。CLI 与 HTTP 实际路径通过，修复了 Debug 嵌套栈溢出及自定义 Kernel 重复派发初始化事件。
+
+61 项框架和应用回归、255 个三语文档示例、12 组浏览器检查、格式和隔离快照严格 Clippy 通过。见 artisan-events-lifecycle-contracts.json。

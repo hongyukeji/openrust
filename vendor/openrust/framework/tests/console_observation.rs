@@ -95,7 +95,8 @@ async fn native_command_events_keep_input_output_exit_code_and_exception_boundar
             "finish:observe:probe:0:success",
             "start:observe:probe:nonzero",
             "finish:observe:probe:7:nonzero",
-            "start:observe:probe:throw"
+            "start:observe:probe:throw",
+            "finish:observe:probe:1:throw"
         ]
     );
 }

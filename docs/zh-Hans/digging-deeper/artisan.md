@@ -538,6 +538,60 @@ fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()
 }
 ```
 
+### 命令执行事件 {#command-execution-events}
+
+Artisan 在已解析的命令运行前派发 `CommandStarting`，并在命令返回或失败后派发 `CommandFinished`。两种事件均包含命令的正式名称和已解析输入快照。结束事件还包含退出码、耗时和捕获的标准输出。缺少必填参数或输入无效时，快照保留解析器已识别的参数，命令体跳过执行。
+
+CLI 和直接 `Artisan::call` 调用都遵循此生命周期。通过 `CommandIo::call`、`call_named` 或 `call_silently` 调用的命令在外层命令内执行，沿用外层的事件对。列表和帮助由命令处理，`--version` 直接显示框架版本。
+
+注册监听器前，先在应用服务提供者中绑定一个 `CommandLog` 实例。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{
+    console::events::{CommandFinished, CommandStarting},
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+    support::facades::App,
+};
+
+#[derive(Default)]
+struct CommandLog(Mutex<Vec<(String, Option<i32>)>>);
+
+struct RecordCommands;
+
+impl Listener for RecordCommands {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let entry = event.downcast_ref::<CommandStarting>()
+                .map(|event| (event.command.clone(), None))
+                .or_else(|| event.downcast_ref::<CommandFinished>()
+                    .map(|event| (event.command.clone(), Some(event.exit_code))));
+
+            if let Some(entry) = entry {
+                let log = App::make::<CommandLog>().await.map_err(EventError::Unavailable)?;
+                log.0.lock().unwrap().push(entry);
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn listen_to_commands(registry: &mut ListenerRegistry) -> EventResult<()> {
+    let listener = Arc::new(RecordCommands);
+    registry.listen(CommandStarting::NAME, listener.clone(), Delivery::Sync)?;
+    registry.listen(CommandFinished::NAME, listener, Delivery::Sync)
+}
+```
+
 ## 自定义生成模板 {#stub-customization}
 
 把生成器模板发布到应用的 `stubs/` 目录。命令会发布结构体、trait、枚举、命令、工厂、迁移、模型、策略、Seeder、功能测试和单元测试模板。编辑发布后的模板即可修改相应生成器下一次生成的内容。

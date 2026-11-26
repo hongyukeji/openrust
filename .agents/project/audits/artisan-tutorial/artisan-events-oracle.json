@@ -1,0 +1,185 @@
+{
+    "trace": [
+        [
+            "artisan",
+            "starting",
+            null,
+            null
+        ],
+        [
+            "start",
+            "event-probe:outer",
+            "good",
+            null
+        ],
+        [
+            "handle",
+            "event-probe:outer",
+            "good",
+            null
+        ],
+        [
+            "finish",
+            "event-probe:outer",
+            "good",
+            0
+        ],
+        [
+            "start",
+            "event-probe:outer",
+            "nonzero",
+            null
+        ],
+        [
+            "handle",
+            "event-probe:outer",
+            "nonzero",
+            null
+        ],
+        [
+            "finish",
+            "event-probe:outer",
+            "nonzero",
+            7
+        ],
+        [
+            "start",
+            "event-probe:outer",
+            "nested",
+            null
+        ],
+        [
+            "handle",
+            "event-probe:outer",
+            "nested",
+            null
+        ],
+        [
+            "handle",
+            "event-probe:child",
+            "nested",
+            null
+        ],
+        [
+            "finish",
+            "event-probe:outer",
+            "nested",
+            0
+        ],
+        [
+            "start",
+            "event-probe:outer",
+            "throw",
+            null
+        ],
+        [
+            "handle",
+            "event-probe:outer",
+            "throw",
+            null
+        ],
+        [
+            "finish",
+            "event-probe:outer",
+            "throw",
+            1
+        ],
+        [
+            "start",
+            "event-probe:dynamic",
+            null,
+            null
+        ],
+        [
+            "handle",
+            "event-probe:dynamic",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "event-probe:dynamic",
+            null,
+            0
+        ],
+        [
+            "start",
+            "list",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "list",
+            null,
+            0
+        ],
+        [
+            "start",
+            "help",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "help",
+            null,
+            0
+        ],
+        [
+            "start",
+            "help",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "help",
+            null,
+            0
+        ],
+        [
+            "start",
+            "event-probe:outer",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "event-probe:outer",
+            null,
+            1
+        ],
+        [
+            "start",
+            "list",
+            null,
+            null
+        ],
+        [
+            "finish",
+            "list",
+            null,
+            0
+        ]
+    ],
+    "statuses": {
+        "event-probe:outer good": 0,
+        "event-probe:outer nonzero": 7,
+        "event-probe:outer nested": 0,
+        "event-probe:outer throw": {
+            "error": "fixture failure",
+            "code": 0
+        },
+        "event-probe:dynamic": 0,
+        "list": 0,
+        "help event-probe:outer": 0,
+        "event-probe:outer --help": 0,
+        "event-probe:outer": {
+            "error": "Not enough arguments (missing: \"value\").",
+            "code": 0
+        },
+        "--version": 0,
+        "": 0
+    }
+}

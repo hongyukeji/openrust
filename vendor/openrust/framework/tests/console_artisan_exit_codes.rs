@@ -115,7 +115,10 @@ async fn implicit_explicit_and_manual_failure_match_source_and_finish_events() {
                     error.to_string().contains("outside manual failure"),
                     "{error}"
                 );
-                assert!(trace.lock().unwrap().is_empty());
+                assert_eq!(
+                    *trace.lock().unwrap(),
+                    [(command.into(), 1, output.stdout.clone())]
+                );
             } else {
                 assert_eq!(
                     *trace.lock().unwrap(),

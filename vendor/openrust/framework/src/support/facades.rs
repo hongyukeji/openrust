@@ -759,6 +759,7 @@ impl Artisan {
             foundation::console::CommandTarget::Name(command),
             crate::console::command_arguments::CommandArguments::Tokens(arguments),
             output.as_output(),
+            crate::console::CommandExecution::Application,
         ))
         .await
     }
@@ -775,6 +776,7 @@ impl Artisan {
             ),
             crate::console::command_arguments::CommandArguments::Tokens(arguments),
             output.as_output(),
+            crate::console::CommandExecution::Application,
         ))
         .await
     }
@@ -789,6 +791,7 @@ impl Artisan {
             foundation::console::CommandTarget::Name(command),
             crate::console::command_arguments::CommandArguments::Named(arguments),
             output.as_output(),
+            crate::console::CommandExecution::Application,
         ))
         .await
     }

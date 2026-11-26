@@ -538,6 +538,60 @@ fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()
 }
 ```
 
+### 命令執行事件 {#command-execution-events}
+
+Artisan 在已解析的命令執行前派送 `CommandStarting`，並在命令返回或失敗後派送 `CommandFinished`。兩種事件均含命令的正式名稱和已解析輸入快照。結束事件也含結束代碼、耗時及擷取的標準輸出。缺少必填參數或輸入無效時，快照保留解析器已辨識的參數，命令本體略過執行。
+
+CLI 和直接 `Artisan::call` 呼叫都遵循此生命週期。透過 `CommandIo::call`、`call_named` 或 `call_silently` 呼叫的命令在外層命令內執行，沿用外層的事件組合。清單和說明由命令處理，`--version` 直接顯示框架版本。
+
+註冊監聽器前，先在應用程式服務提供者中綁定一個 `CommandLog` 實例。
+
+```rust
+use std::sync::{Arc, Mutex};
+use openrust::{
+    console::events::{CommandFinished, CommandStarting},
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+    support::facades::App,
+};
+
+#[derive(Default)]
+struct CommandLog(Mutex<Vec<(String, Option<i32>)>>);
+
+struct RecordCommands;
+
+impl Listener for RecordCommands {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let entry = event.downcast_ref::<CommandStarting>()
+                .map(|event| (event.command.clone(), None))
+                .or_else(|| event.downcast_ref::<CommandFinished>()
+                    .map(|event| (event.command.clone(), Some(event.exit_code))));
+
+            if let Some(entry) = entry {
+                let log = App::make::<CommandLog>().await.map_err(EventError::Unavailable)?;
+                log.0.lock().unwrap().push(entry);
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn listen_to_commands(registry: &mut ListenerRegistry) -> EventResult<()> {
+    let listener = Arc::new(RecordCommands);
+    registry.listen(CommandStarting::NAME, listener.clone(), Delivery::Sync)?;
+    registry.listen(CommandFinished::NAME, listener, Delivery::Sync)
+}
+```
+
 ## 自訂產生樣板 {#stub-customization}
 
 將產生器樣板發佈到應用程式的 `stubs/` 目錄。命令會發佈結構體、trait、列舉、命令、工廠、遷移、模型、策略、Seeder、功能測試和單元測試樣板。編輯已發佈的樣板即可修改對應產生器下一次產生的內容。

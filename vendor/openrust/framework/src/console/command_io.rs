@@ -112,7 +112,12 @@ impl<'a> CommandIo<'a> {
         arguments: &[OsString],
     ) -> Result<i32, ConsoleError> {
         let arguments = self.child_arguments(arguments);
-        crate::support::facades::Artisan::call(command, &arguments, &mut self.output).await
+        Self::call_child(
+            command,
+            super::command_arguments::CommandArguments::Tokens(&arguments),
+            &mut self.output,
+        )
+        .await
     }
 
     /// 按具名参数调用子命令，显式子参数优先于继承的同名选项。
@@ -128,7 +133,12 @@ impl<'a> CommandIo<'a> {
                 .any(|(provided, _)| option_overrides(name, provided))
         });
         merged.extend_from_slice(arguments);
-        crate::support::facades::Artisan::call_named(command, &merged, &mut self.output).await
+        Self::call_child(
+            command,
+            super::command_arguments::CommandArguments::Named(&merged),
+            &mut self.output,
+        )
+        .await
     }
 
     /// 调用子命令并丢弃它的输出，保留退出值。
@@ -138,7 +148,27 @@ impl<'a> CommandIo<'a> {
         arguments: &[OsString],
     ) -> Result<i32, ConsoleError> {
         let arguments = self.child_arguments(arguments);
-        crate::support::facades::Artisan::call_silently(command, &arguments).await
+        Self::call_child(
+            command,
+            super::command_arguments::CommandArguments::Tokens(&arguments),
+            &mut Output::default(),
+        )
+        .await
+    }
+
+    async fn call_child(
+        command: &str,
+        arguments: super::command_arguments::CommandArguments<'_>,
+        output: &mut impl super::AsOutput,
+    ) -> Result<i32, ConsoleError> {
+        use crate::foundation::console::{CommandTarget, call_with_output};
+        Box::pin(call_with_output(
+            CommandTarget::Name(command),
+            arguments,
+            output.as_output(),
+            super::CommandExecution::Child,
+        ))
+        .await
     }
 
     fn inherited_options(&self) -> Vec<(&'static str, Value)> {

@@ -50,6 +50,14 @@ impl Entry {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Invocation<'a> {
+    invoked: &'a str,
+    matches: &'a clap::ArgMatches,
+    input: Option<&'a Input>,
+    execution: super::CommandExecution,
+}
+
 /// Owns the command registry, name resolution, and dispatch.
 #[derive(Clone)]
 pub struct Application {
@@ -462,9 +470,20 @@ impl Application {
         let mut matches = match result {
             Ok(matches) => matches,
             Err(error) if error.use_stderr() => {
-                output
-                    .stderr
-                    .push_str(&localization::argument_error(&error));
+                let message = localization::argument_error(&error);
+                if let Some(command) = command {
+                    let _ = self
+                        .rejected_arguments(
+                            application,
+                            command,
+                            &normalized,
+                            output,
+                            super::CommandExecution::Application,
+                            ConsoleError::new(message.clone()),
+                        )
+                        .await;
+                }
+                output.stderr.push_str(&message);
                 return 1;
             }
             Err(help) if help.kind() == clap::error::ErrorKind::DisplayHelp => {
@@ -478,13 +497,30 @@ impl Application {
                 let flags = || arguments.iter().take_while(|argument| *argument != "--");
                 let decorated = flags().any(|argument| argument == "--ansi")
                     || (output.is_decorated() && !flags().any(|argument| argument == "--no-ansi"));
-                return observe_shortcut(application, "help", || {
-                    output
-                        .stdout
-                        .push_str(&descriptor::help(&target, decorated));
-                    0
-                })
-                .await;
+                let input = help_command::event_matches(command.unwrap_or("list"));
+                return match self
+                    .observe_builtin(
+                        application,
+                        "help",
+                        &input,
+                        output,
+                        super::CommandExecution::Application,
+                        |output| {
+                            output
+                                .stdout
+                                .push_str(&descriptor::help(&target, decorated));
+                            0
+                        },
+                    )
+                    .await
+                {
+                    Ok(code) => code,
+                    Err(error) => {
+                        let code = error.command_exit_code();
+                        application.render_console_exception(output, error).await;
+                        code
+                    }
+                };
             }
             Err(version) => {
                 return observe_shortcut(application, "version", || {
@@ -510,23 +546,29 @@ impl Application {
             self.dispatch(
                 entry,
                 application,
-                (
-                    position
+                Invocation {
+                    invoked: position
                         .and_then(|p| arguments[p].to_str())
                         .unwrap_or(&name),
-                    &matches,
-                    None,
-                ),
+                    matches: &matches,
+                    input: None,
+                    execution: super::CommandExecution::Application,
+                },
                 &syntax,
                 output,
                 shutdown,
             )
             .await
         } else {
-            Ok(observe_shortcut(application, "list", || {
-                list_command::run(self, &syntax, None, output)
-            })
-            .await)
+            self.observe_builtin(
+                application,
+                "list",
+                &matches,
+                output,
+                super::CommandExecution::Application,
+                |output| list_command::run(self, &syntax, None, output),
+            )
+            .await
         };
         let status = match result {
             Ok(status) => status,
@@ -601,7 +643,12 @@ impl Application {
         self.dispatch(
             entry,
             application,
-            (command, input.matches(), Some(input)),
+            Invocation {
+                invoked: command,
+                matches: input.matches(),
+                input: Some(input),
+                execution: super::CommandExecution::Application,
+            },
             &syntax,
             output,
             None,
@@ -628,6 +675,7 @@ impl Application {
         command: &str,
         arguments: super::command_arguments::CommandArguments<'_>,
         output: &mut Output,
+        execution: super::CommandExecution,
     ) -> Result<i32, ConsoleError> {
         let name = self.resolve(command)?;
         let prepared: Vec<OsString>;
@@ -655,17 +703,22 @@ impl Application {
         let mut parsed = match parsed {
             Ok(matches) => matches,
             Err(help) if help.kind() == ErrorKind::DisplayHelp => {
-                if !suppress_stdout() {
-                    let target = syntax.find_subcommand(name).expect("resolved command");
-                    let decorated = flags().any(|argument| argument == "--ansi")
-                        || (output.is_decorated()
-                            && !flags().any(|argument| argument == "--no-ansi"));
-                    output.stdout.push_str(&descriptor::help(
-                        &target.clone().bin_name(format!("artisan {name}")),
-                        decorated,
-                    ));
-                }
-                return Ok(0);
+                let input = help_command::event_matches(name);
+                return self
+                    .observe_builtin(application, "help", &input, output, execution, |output| {
+                        if !suppress_stdout() {
+                            let target = syntax.find_subcommand(name).expect("resolved command");
+                            let decorated = flags().any(|argument| argument == "--ansi")
+                                || (output.is_decorated()
+                                    && !flags().any(|argument| argument == "--no-ansi"));
+                            output.stdout.push_str(&descriptor::help(
+                                &target.clone().bin_name(format!("artisan {name}")),
+                                decorated,
+                            ));
+                        }
+                        0
+                    })
+                    .await;
             }
             Err(version) if version.kind() == ErrorKind::DisplayVersion => {
                 if !suppress_stdout() {
@@ -673,7 +726,21 @@ impl Application {
                 }
                 return Ok(0);
             }
-            Err(error) => return Err(ConsoleError::new(localization::argument_error(&error))),
+            Err(error) => {
+                let normalized = std::iter::once(OsString::from(name))
+                    .chain(arguments.iter().cloned())
+                    .collect::<Vec<_>>();
+                return self
+                    .rejected_arguments(
+                        application,
+                        name,
+                        &normalized,
+                        output,
+                        execution,
+                        ConsoleError::new(localization::argument_error(&error)),
+                    )
+                    .await;
+            }
         };
         let (stdout, stderr) = (output.stdout.len(), output.stderr.len());
         let decorated = (output.is_decorated(), output.progress_is_decorated());
@@ -697,7 +764,12 @@ impl Application {
             .dispatch(
                 &self.commands[name],
                 application,
-                (command, &matches, None),
+                Invocation {
+                    invoked: command,
+                    matches: &matches,
+                    input: None,
+                    execution,
+                },
                 &syntax,
                 output,
                 None,
@@ -738,7 +810,12 @@ impl Application {
         Box::pin(self.dispatch(
             entry,
             application,
-            (name, &matches, None),
+            Invocation {
+                invoked: name,
+                matches: &matches,
+                input: None,
+                execution: super::CommandExecution::Child,
+            },
             syntax,
             &mut Output::default(),
             None,
@@ -750,12 +827,12 @@ impl Application {
         &self,
         entry: &Entry,
         application: &FoundationApplication,
-        invocation: (&str, &clap::ArgMatches, Option<&Input>),
+        invocation: Invocation<'_>,
         syntax: &Syntax,
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
-        let (invoked_name, matches, supplied_input) = invocation;
+        let matches = invocation.matches;
         let (verbosity, suppressed, silent) = (output.verbosity, output.suppressed, output.silent);
         let error_verbosity = output.error_verbosity;
         output.silent |= matches
@@ -828,94 +905,33 @@ impl Application {
             application.container_handle(),
             origin,
             Box::pin(async {
-                let command: &dyn Command = match entry {
-                    Entry::List(_) => {
-                        return Ok(list_command::run(self, syntax, Some(matches), output));
-                    }
-                    Entry::Help(_) => return help_command::run(self, syntax, matches, output),
-                    Entry::Tasks(operation, _) => {
-                        return task_command::run(
-                            self,
+                let execution = if matches!(entry, Entry::Planned(_)) {
+                    super::CommandExecution::Child
+                } else {
+                    invocation.execution
+                };
+                let mut events = super::command_events::CommandEvents::new(
+                    application,
+                    entry.definition(),
+                    output,
+                    execution,
+                )
+                .await?;
+                let result = match events.start(matches).await {
+                    Ok(()) => {
+                        Box::pin(self.execute_entry(
+                            entry,
                             application,
+                            invocation,
                             syntax,
-                            *operation,
-                            matches,
                             output,
-                        )
-                        .await;
+                            shutdown,
+                        ))
+                        .await
                     }
-                    Entry::Planned(definition) => {
-                        return Err(ConsoleError::new(format!(
-                            "Command '{}' is not implemented yet.",
-                            definition.name(),
-                        )));
-                    }
-                    Entry::Closure(command) => command,
-                    Entry::Command(command, _) => command.as_ref(),
+                    Err(error) => Err(error),
                 };
-                let mut parsing = self.parsing_syntax(application.version());
-                parsing.build();
-                let mut input = Input {
-                    syntax: command.definition().syntax.clone(),
-                    parsing_syntax: Arc::new(
-                        parsing
-                            .find_subcommand(command.definition().name())
-                            .expect("已注册命令存在于解析定义")
-                            .clone(),
-                    ),
-                    invoked_name: Some(invoked_name.to_owned()),
-                    matches: matches.clone(),
-                    shutdown: shutdown
-                        .or_else(|| supplied_input.and_then(|input| input.shutdown.clone())),
-                    interaction: supplied_input
-                        .map(|input| input.interaction.shared())
-                        .unwrap_or_default(),
-                    stream: supplied_input.and_then(|input| input.stream.clone()),
-                    helper_set: entry.helper_set().cloned(),
-                    component_dispatch: None,
-                };
-                if output.suppressed
-                    || input.option("no-interaction") == Some(serde_json::Value::Bool(true))
-                {
-                    input.interaction.set(false);
-                }
-                if let Some(prompting) = command.prompting() {
-                    super::prompting::prompt(prompting, application, &mut input, output).await?;
-                }
-                let matches = input.matches();
-                let definition = command.definition();
-                let Some(code) = definition
-                    .isolated
-                    .then(|| matches.get_one::<i32>("isolated").copied())
-                    .flatten()
-                else {
-                    return run_command_with_events(command, application, &mut input, output).await;
-                };
-
-                let name = definition.name();
-                let mut key = format!("framework/command-{name}");
-                let mut lease = Duration::from_secs(3600);
-                if let Some(isolation) = command.isolation() {
-                    if let Some(id) = isolation.isolatable_id(&input)? {
-                        key.push('-');
-                        key.push_str(&id);
-                    }
-                    lease = super::isolation::lease(isolation.isolation_lock_expires_at(&input)?);
-                }
-                let lock_error =
-                    |error| ConsoleError::from_source(super::isolation::LockError(error));
-                let lock = Cache::lock(&key, Some(lease)).map_err(lock_error)?;
-                let Some(lock) = crate::cache::acquire_scoped_lock(lock, None)
-                    .await
-                    .map_err(lock_error)?
-                else {
-                    output.comment(&format!("The [{name}] command is already running."));
-                    return Ok(code);
-                };
-                let result =
-                    run_command_with_events(command, application, &mut input, output).await;
-                let released = lock.release().await.map_err(lock_error);
-                result.and_then(|status| released.map(|_| status))
+                events.finish(matches, output, result).await
             }),
         );
         observation
@@ -924,6 +940,166 @@ impl Application {
                 Err(_) => Outcome::Failed,
             })
             .await
+    }
+    async fn observe_builtin(
+        &self,
+        application: &FoundationApplication,
+        name: &'static str,
+        input: &clap::ArgMatches,
+        output: &mut Output,
+        execution: super::CommandExecution,
+        render: impl FnOnce(&mut Output) -> i32,
+    ) -> Result<i32, ConsoleError> {
+        use crate::foundation::observability::{self, Operation, Outcome};
+        observability::begin(application.container(), Operation::Command { name })
+            .run(
+                async {
+                    let mut events = super::command_events::CommandEvents::new(
+                        application,
+                        self.commands[name].definition(),
+                        output,
+                        execution,
+                    )
+                    .await?;
+                    let result = events.start(input).await.map(|()| render(output));
+                    events.finish(input, output, result).await
+                },
+                |result| match result {
+                    Ok(code) => Outcome::Command(*code),
+                    Err(_) => Outcome::Failed,
+                },
+            )
+            .await
+    }
+
+    async fn rejected_arguments(
+        &self,
+        application: &FoundationApplication,
+        name: &str,
+        arguments: &[OsString],
+        output: &Output,
+        execution: super::CommandExecution,
+        error: ConsoleError,
+    ) -> Result<i32, ConsoleError> {
+        let entry = &self.commands[name];
+        if matches!(entry, Entry::Planned(_)) || matches!(execution, super::CommandExecution::Child)
+        {
+            return Err(error);
+        }
+        // 仅供监听器读取已识别参数；实际命令仍因第一次严格解析失败而停止。
+        let input = self
+            .parsing_syntax(application.version())
+            .ignore_errors(true)
+            .try_get_matches_from(
+                [OsStr::new("artisan")]
+                    .into_iter()
+                    .chain(arguments.iter().map(OsString::as_os_str)),
+            )
+            .ok()
+            .and_then(|mut matches| matches.remove_subcommand())
+            .map(|(_, matches)| matches)
+            .unwrap_or_default();
+        let mut events = super::command_events::CommandEvents::new(
+            application,
+            entry.definition(),
+            output,
+            execution,
+        )
+        .await?;
+        let _ = events.start(&input).await;
+        events.finish(&input, output, Err(error)).await
+    }
+
+    async fn execute_entry(
+        &self,
+        entry: &Entry,
+        application: &FoundationApplication,
+        invocation: Invocation<'_>,
+        syntax: &Syntax,
+        output: &mut Output,
+        shutdown: Option<tokio_util::sync::CancellationToken>,
+    ) -> Result<i32, ConsoleError> {
+        let matches = invocation.matches;
+        let command: &dyn Command = match entry {
+            Entry::List(_) => {
+                return Ok(list_command::run(self, syntax, Some(matches), output));
+            }
+            Entry::Help(_) => return help_command::run(self, syntax, matches, output),
+            Entry::Tasks(operation, _) => {
+                return task_command::run(self, application, syntax, *operation, matches, output)
+                    .await;
+            }
+            Entry::Planned(definition) => {
+                return Err(ConsoleError::new(format!(
+                    "Command '{}' is not implemented yet.",
+                    definition.name(),
+                )));
+            }
+            Entry::Closure(command) => command,
+            Entry::Command(command, _) => command.as_ref(),
+        };
+        let mut parsing = self.parsing_syntax(application.version());
+        parsing.build();
+        let mut input = Input {
+            syntax: command.definition().syntax.clone(),
+            parsing_syntax: Arc::new(
+                parsing
+                    .find_subcommand(command.definition().name())
+                    .expect("已注册命令存在于解析定义")
+                    .clone(),
+            ),
+            invoked_name: Some(invocation.invoked.to_owned()),
+            matches: matches.clone(),
+            shutdown: shutdown
+                .or_else(|| invocation.input.and_then(|input| input.shutdown.clone())),
+            interaction: invocation
+                .input
+                .map(|input| input.interaction.shared())
+                .unwrap_or_default(),
+            stream: invocation.input.and_then(|input| input.stream.clone()),
+            helper_set: entry.helper_set().cloned(),
+            component_dispatch: None,
+        };
+        if output.suppressed
+            || input.option("no-interaction") == Some(serde_json::Value::Bool(true))
+        {
+            input.interaction.set(false);
+        }
+        if let Some(prompting) = command.prompting() {
+            super::prompting::prompt(prompting, application, &mut input, output).await?;
+        }
+        let matches = input.matches();
+        let definition = command.definition();
+        let Some(code) = definition
+            .isolated
+            .then(|| matches.get_one::<i32>("isolated").copied())
+            .flatten()
+        else {
+            return run_command(command, application, &mut input, output).await;
+        };
+
+        let name = definition.name();
+        let mut key = format!("framework/command-{name}");
+        let mut lease = Duration::from_secs(3600);
+        if let Some(isolation) = command.isolation() {
+            if let Some(id) = isolation.isolatable_id(&input)? {
+                key.push('-');
+                key.push_str(&id);
+            }
+            lease = super::isolation::lease(isolation.isolation_lock_expires_at(&input)?);
+        }
+        let lock_error = |error| ConsoleError::from_source(super::isolation::LockError(error));
+        let lock = Cache::lock(&key, Some(lease)).map_err(lock_error)?;
+        let Some(lock) = crate::cache::acquire_scoped_lock(lock, None)
+            .await
+            .map_err(lock_error)?
+        else {
+            output.comment(&format!("The [{name}] command is already running."));
+            return Ok(code);
+        };
+        let result = run_command(command, application, &mut input, output).await;
+        let released = lock.release().await.map_err(lock_error);
+        result.and_then(|status| released.map(|_| status))
     }
 }
 
@@ -938,34 +1114,15 @@ async fn observe_shortcut(
         .await
 }
 
-async fn run_command_with_events(
+async fn run_command(
     command: &dyn Command,
     application: &FoundationApplication,
     input: &mut Input,
     output: &mut Output,
 ) -> Result<i32, ConsoleError> {
     use crate::console::view::components::CommandComponentFactory;
-    use crate::contracts::{container::Container as _, events::Dispatcher as _};
+    use crate::contracts::container::Container as _;
 
-    let events = application
-        .make::<crate::events::Dispatcher>()
-        .await
-        .map_err(|error| ConsoleError::new(error.to_string()))?;
-    let name = command.definition().name().to_owned();
-    events
-        .dispatch(
-            Arc::new(super::events::CommandStarting {
-                command: name.clone(),
-                input: input.matches().clone(),
-                definition: command.definition().syntax.clone(),
-            }),
-            &mut crate::events::EventContext::new(),
-        )
-        .await
-        .map_err(|error| ConsoleError::new(error.to_string()))?;
-    let offset = output.stdout.len();
-    let generation = output.capture_generation;
-    let started = std::time::Instant::now();
     let container = application.container();
     if container.bound::<dyn CommandComponentFactory>() {
         let constructor = container
@@ -987,29 +1144,6 @@ async fn run_command_with_events(
             1
         }
     };
-    let duration = started.elapsed();
-    events
-        .dispatch(
-            Arc::new(super::events::CommandFinished {
-                command: name,
-                input: input.matches().clone(),
-                definition: command.definition().syntax.clone(),
-                exit_code: status,
-                duration,
-                output: if generation == output.capture_generation {
-                    output
-                        .stdout
-                        .get(offset..)
-                        .unwrap_or(&output.stdout)
-                        .to_owned()
-                } else {
-                    output.stdout.clone()
-                },
-            }),
-            &mut crate::events::EventContext::new(),
-        )
-        .await
-        .map_err(|error| ConsoleError::new(error.to_string()))?;
     Ok(status)
 }
 

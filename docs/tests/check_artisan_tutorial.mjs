@@ -112,6 +112,7 @@ try {
                     assert.equal(await page.locator('h2#introduction').count(),1);
                     assert.equal(await page.locator('h2#events').count(),1);
                     assert.equal(await page.locator('h3#artisan-starting-event').count(),1);
+                    assert.equal(await page.locator('h3#command-execution-events').count(),1);
                     assert.equal(await page.locator('h3#laravel-sail').count(),1);
                     assert.equal(await page.locator('h3#customizing-dev-processes').count(),1);
                     assert.equal(await page.locator('h3#filtering-dev-processes').count(),1);

@@ -97,16 +97,53 @@ pub(crate) enum CommandTarget<'a> {
     Type(std::any::TypeId, &'static str),
 }
 
+tokio::task_local! {
+    static CUSTOM_ARTISAN: (Arc<crate::container::Container>, Arc<Artisan>);
+}
+
+fn custom_artisan(application: &Application) -> Option<Arc<Artisan>> {
+    let container = application.container_handle();
+    CUSTOM_ARTISAN
+        .try_with(|(app, artisan)| Arc::ptr_eq(app, &container).then(|| artisan.clone()))
+        .ok()
+        .flatten()
+}
+
+async fn with_custom_artisan<T>(
+    use_default: bool,
+    application: &Application,
+    artisan: &Artisan,
+    invocation: impl Future<Output = T>,
+) -> T {
+    if use_default {
+        invocation.await
+    } else {
+        CUSTOM_ARTISAN
+            .scope(
+                (application.container_handle(), Arc::new(artisan.clone())),
+                invocation,
+            )
+            .await
+    }
+}
+
 pub(crate) async fn call_with_output(
     command: CommandTarget<'_>,
     arguments: crate::console::command_arguments::CommandArguments<'_>,
     mut output: crate::console::OutputReference<'_>,
+    execution: crate::console::CommandExecution,
 ) -> Result<i32, ConsoleError> {
     if let Some(original) = output.command_output() {
-        return call_in_application(command, arguments, original).await;
+        return Box::pin(call_in_application(command, arguments, original, execution)).await;
     }
     let mut buffer = output.command_buffer();
-    let result = call_in_application(command, arguments, &mut buffer).await;
+    let result = Box::pin(call_in_application(
+        command,
+        arguments,
+        &mut buffer,
+        execution,
+    ))
+    .await;
     let replay = output.replay_command_buffer(buffer);
     result.and_then(|code| replay.map(|()| code))
 }
@@ -140,25 +177,29 @@ pub(crate) async fn call_in_application(
     command: CommandTarget<'_>,
     arguments: crate::console::command_arguments::CommandArguments<'_>,
     output: &mut Output,
+    execution: crate::console::CommandExecution,
 ) -> Result<i32, ConsoleError> {
     let mut kernel = current_kernel()?;
     facades::scope(kernel.application.container_handle(), async {
-        kernel
-            .bootstrap_with_environment(None)
-            .await
-            .map_err(|error| ConsoleError::new(error.to_string()))?;
+        let custom = match execution {
+            crate::console::CommandExecution::Child => custom_artisan(&kernel.application),
+            crate::console::CommandExecution::Application => None,
+        };
+        if custom.is_none() {
+            kernel
+                .bootstrap_with_environment(None)
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+        }
         let application = &kernel.application;
+        let artisan = custom.as_deref().unwrap_or(&kernel.artisan);
         let command = match command {
             CommandTarget::Name(name) => name,
-            CommandTarget::Type(id, type_name) => {
-                kernel.artisan.resolve_command_type(id, type_name)?
-            }
+            CommandTarget::Type(id, type_name) => artisan.resolve_command_type(id, type_name)?,
         };
         within_console_lifecycle(
             application,
-            kernel
-                .artisan
-                .call_arguments(application, command, arguments, output),
+            Box::pin(artisan.call_arguments(application, command, arguments, output, execution)),
         )
         .await
     })
@@ -533,9 +574,17 @@ impl console::Kernel for Kernel {
                         .await;
                     return 1;
                 }
-                self.deferred
-                    .scope(self.artisan.handle(&self.application, arguments, output))
-                    .await
+                with_custom_artisan(
+                    self.register_planned,
+                    &self.application,
+                    &self.artisan,
+                    Box::pin(self.deferred.scope(self.artisan.handle(
+                        &self.application,
+                        arguments,
+                        output,
+                    ))),
+                )
+                .await
             },
         ))
     }
@@ -574,9 +623,14 @@ impl console::Kernel for Kernel {
                         &mut self.captured
                     }
                 };
-                within_console_lifecycle(
+                with_custom_artisan(
+                    self.register_planned,
                     &self.application,
-                    self.artisan.call(&self.application, command, input, output),
+                    &self.artisan,
+                    Box::pin(within_console_lifecycle(
+                        &self.application,
+                        self.artisan.call(&self.application, command, input, output),
+                    )),
                 )
                 .await
             },

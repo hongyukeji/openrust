@@ -25,6 +25,12 @@ pub(super) fn command() -> Command {
         )
 }
 
+pub(super) fn event_matches(target: &str) -> ArgMatches {
+    command()
+        .try_get_matches_from(["help", target])
+        .unwrap_or_default()
+}
+
 pub(super) fn run(
     registry: &Application,
     console: &Command,

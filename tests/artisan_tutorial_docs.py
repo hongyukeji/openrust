@@ -638,6 +638,39 @@ async fn formal_artisan_starting_event_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_starting_event{\n'+starting_snippet+starting_checks+'}\n')
 
+    lifecycle_snippet = re.search(r'```rust\n(.*?)```',text.split('{#command-execution-events}',1)[1],re.S).group(1)
+    lifecycle_checks=r'''
+use openrust::{console::{ConsoleError,CommandDefinition,Command,ConsoleFuture,Input,Output},foundation::{Application,configuration::Routing,events::DiscoverEvents},contracts::{container::Container as _,foundation::Application as _},support::facades::{Artisan,Facade as _}};
+struct Report(CommandDefinition);
+impl Command for Report {
+    fn definition(&self) -> &CommandDefinition {&self.0}
+    fn handle<'a>(&'a self, _: &'a Application, _: &'a Input, _: &'a mut Output) -> ConsoleFuture<'a,Result<i32,ConsoleError>> {
+        Box::pin(async move {Ok(9)})
+    }
+}
+fn commands() -> Result<(),ConsoleError> {
+    Artisan::add(Box::new(Report(CommandDefinition::new(clap::Command::new("reports:events")))))
+}
+#[tokio::test]
+async fn formal_command_execution_events_example() {
+    let root=std::env::temp_dir().join(format!("artisan-lifecycle-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=Application::configure(root.clone()).with_events(DiscoverEvents::new(&[listen_to_commands]))
+        .with_routing(Routing::default().commands(commands)).create().unwrap();
+    let log=Arc::new(CommandLog::default());
+    app.container().instance(log.clone()).unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        assert_eq!(Artisan::call_captured("reports:events",&[]).await.unwrap().0,9);
+    }).await;
+    assert_eq!(*log.0.lock().unwrap(), [
+        ("reports:events".into(),None),("reports:events".into(),Some(9))
+    ]);
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_execution_events{\n'+lifecycle_snippet+lifecycle_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

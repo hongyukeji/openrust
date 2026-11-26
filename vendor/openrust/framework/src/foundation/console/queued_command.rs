@@ -116,6 +116,7 @@ impl JobHandler for QueuedCommand {
                 super::CommandTarget::Name(&data.command),
                 crate::console::command_arguments::CommandArguments::Tokens(&arguments),
                 &mut Output::default(),
+                crate::console::CommandExecution::Application,
             )
             .await
             .map_err(|source| QueueError::Execution {
