@@ -5,7 +5,7 @@ use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     foundation::Application,
-    support::facades::Artisan,
+    support::{Date, facades::Artisan, php_float_string},
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -168,16 +168,32 @@ impl Command for TelescopeCommand {
                     output.info("Telescope entries cleared!");
                 }
                 "telescope:prune" => {
-                    let Some(hours) = value("hours")
-                        .and_then(|v| v.parse::<i64>().ok())
-                        .filter(|v| *v >= 0)
-                        .and_then(|v| v.checked_mul(3600))
+                    let Some(retention) = value("hours")
+                        .and_then(|raw| raw.trim_ascii().parse::<f64>().ok())
+                        .filter(|hours| hours.is_finite())
+                        .map(php_float_string)
+                        // Carbon 通过十进制小时字符串构造区间，不接受指数形式的区间。
+                        .filter(|hours| !hours.contains('E'))
+                        .and_then(|hours| hours.parse::<f64>().ok())
+                        .and_then(|hours| {
+                            jiff::SignedDuration::try_from_secs_f64(hours * 3600.).ok()
+                        })
+                        .and_then(|duration| duration.round(jiff::Unit::Microsecond).ok())
                     else {
-                        output.error("The --hours option must be a non-negative integer.");
+                        output.error("--hours 必须是在支持范围内的有限小时数。");
                         return Ok(1);
                     };
-                    let before = jiff::Timestamp::now()
-                        .checked_sub(std::time::Duration::from_secs(hours as u64))
+                    let now = Date::now(None).map_err(error)?;
+                    let before = now
+                        .as_date_time()
+                        .timestamp()
+                        .round(
+                            jiff::TimestampRound::new()
+                                .smallest(jiff::Unit::Microsecond)
+                                .mode(jiff::RoundMode::Floor),
+                        )
+                        .map_err(error)?
+                        .checked_sub(retention)
                         .map_err(error)?;
                     let pruned = repository
                         .prune(before, matches.get_flag("keep-exceptions"))

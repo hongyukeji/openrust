@@ -63,7 +63,7 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 - 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
 - Gate 已覆盖授权入口及同应用嵌套授权。Query 已覆盖核心数据库、分页、模型写入、直接关系读取、关联写入、模型与集合关系加载、多对多中间表和常规 Schema。普通异步包装器、关系变体和驱动特有的 Schema 操作仍待核对。源码重映射的已验范围与部署条件见[发布构建的源码路径重映射](../extension-parity.md#发布构建的源码路径重映射)。EventWatcher 默认忽略框架事件，应用内共享的 ignoreFrameworkEvents 开关已在下节补齐。
 - 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP 客户端记录构建器提供的 multipart 元数据，来源边界见下文。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
-- 命令以普通文本表格及通用字段详情输出，尚未逐项复现上游颜色、相对时间、分类详情布局／batch统计。`--full`、JSON与查询语义已经验证。prune仅接受非负整数小时。
+- 命令以普通文本表格及通用字段详情输出，尚未逐项复现上游颜色、相对时间、分类详情布局／batch统计。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
 - 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
 
 缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
@@ -84,6 +84,12 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 同目录http-browser-final.log覆盖真实服务器桌面／手机授权、防伪、XSS、详情、监控、暂停恢复、自定义路径／域名及disabled；docs-build.log、docs-telescope.log专项12、docs-check_browser.log通用12、docs-check_scope.log导航6均通过。三语正文与生命周期说明同步了Watcher和已缓冲响应的使用及支持限制。全workspace/all-features/all-targets严格Clippy、fmt、API与全部扩展组合见[最终组合记录](../extension-final.md)。
 
 本节关闭公开Watcher、框架事件开关及已知缓冲响应／路由字段的实现缺口。原生UI布局与PHP反射、调用源码过滤、multipart元数据及CLI装饰仍按上节明确支持边界描述，不冒充完整Laravel逐API或像素级等价。没有联系其他对话，没有替代性通用事件／观测内核。
+
+## prune 命令的截止时间
+
+固定 Telescope `PruneCommand::handle` 通过应用时钟计算截止时间。PHP 8.5.12 实际调用该命令、使用固定时钟和可观察的 PrunableRepository，确认默认 24 小时、半小时、小数、负值、可转换的科学计数法和微秒舍入。`--keep-exceptions` 原样传给仓储。非数值和无法转换成 Carbon 区间的值在调用仓储前失败。证据为 `target/tmp/observability-parity/telescope-prune-{hour-options-upstream,fraction-precision-upstream}.log`。 [固定 PruneCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/PruneCommand.php)
+
+Rust 前态忽略应用冻结时间并限制非负整数。当前复用框架应用时钟和 PHP 数值格式，构造带正负号的小时区间并以微秒舍入。真实 Artisan 经自定义仓储核对截止时间、边界输入、异常保留选项和无效输入的退出码。SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际命令验证半小时以前的普通记录被删除，恰在截止时间的记录及受保护的异常保留。自定义仓储、Provider 和存储回归通过，独占 Redis 用例沿用环境条件。隔离快照全仓格式、相关严格 Clippy、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-prune-hour-options-{macos-baseline,macos-final,docs}.log`。
 
 ## 出站 multipart
 

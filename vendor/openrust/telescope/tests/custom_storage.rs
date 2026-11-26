@@ -7,7 +7,7 @@ use openrust_telescope::{
     storage::EntryQueryOptions,
 };
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 #[derive(Default)]
@@ -15,6 +15,7 @@ struct Store {
     writes: AtomicUsize,
     terminations: AtomicUsize,
     initializations: AtomicUsize,
+    pruned: Mutex<Vec<(jiff::Timestamp, bool)>>,
     fail: bool,
 }
 impl ClearableRepository for Store {
@@ -23,8 +24,15 @@ impl ClearableRepository for Store {
     }
 }
 impl PrunableRepository for Store {
-    fn prune(&self, _: jiff::Timestamp, _: bool) -> TelescopeFuture<'_, Result<u64>> {
-        Box::pin(async { Ok(0) })
+    fn prune(
+        &self,
+        before: jiff::Timestamp,
+        keep_exceptions: bool,
+    ) -> TelescopeFuture<'_, Result<u64>> {
+        Box::pin(async move {
+            self.pruned.lock().unwrap().push((before, keep_exceptions));
+            Ok(0)
+        })
     }
 }
 impl EntriesRepository for Store {
@@ -100,6 +108,76 @@ async fn application_can_replace_storage_contract_without_resolving_the_database
     assert!(telescope.store().await.unwrap().is_empty());
     assert_eq!(store.writes.load(Ordering::Relaxed), 1);
     assert_eq!(store.terminations.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn prune_accepts_fractional_hours_and_uses_the_application_clock() {
+    use openrust::{
+        support::{Date, DateTimezone},
+        testing::TestApp,
+    };
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_config(|_, _| {
+                Ok(std::collections::BTreeMap::from([(
+                    "telescope".into(),
+                    serde_json::json!({"driver":"custom"}),
+                )]))
+            })
+    })
+    .unwrap();
+    let store = Arc::new(Store::default());
+    app.app()
+        .container()
+        .instance::<dyn EntriesRepository>(store.clone())
+        .unwrap();
+    app.travel_to(Date::from_utc(
+        "2026-11-26T13:00:00.654321Z".parse().unwrap(),
+        DateTimezone::UTC,
+    ));
+
+    for (arguments, cutoff, keep_exceptions) in [
+        (
+            vec!["telescope:prune"],
+            "2026-11-25T13:00:00.654321Z",
+            false,
+        ),
+        (
+            vec!["telescope:prune", "--hours=.5", "--keep-exceptions"],
+            "2026-11-26T12:30:00.654321Z",
+            true,
+        ),
+        (
+            vec!["telescope:prune", "--hours=-0.5"],
+            "2026-11-26T13:30:00.654321Z",
+            false,
+        ),
+        (
+            vec!["telescope:prune", "--hours=1e-1"],
+            "2026-11-26T12:54:00.654321Z",
+            false,
+        ),
+        (
+            vec!["telescope:prune", "--hours=0.00010000015"],
+            "2026-11-26T13:00:00.294320Z",
+            false,
+        ),
+    ] {
+        app.artisan(arguments).await.assert_successful();
+        assert_eq!(
+            store.pruned.lock().unwrap().pop(),
+            Some((cutoff.parse().unwrap(), keep_exceptions))
+        );
+    }
+
+    for option in ["--hours=NaN", "--hours=INF", "--hours=0.000000077"] {
+        app.artisan(["telescope:prune", option])
+            .await
+            .assert_exit_code(1);
+    }
+    assert!(store.pruned.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

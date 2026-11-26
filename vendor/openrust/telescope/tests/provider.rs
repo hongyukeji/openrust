@@ -2008,6 +2008,52 @@ async fn multipart_media_rewrites_preserve_the_correct_telescope_diagnostic() {
     }
 }
 
+#[tokio::test]
+async fn prune_fractional_hours_updates_real_storage_and_preserves_exceptions() {
+    use openrust::support::{Date, DateTimezone};
+
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.travel_to(Date::from_utc(
+        "2026-11-26T13:00:00Z".parse().unwrap(),
+        DateTimezone::UTC,
+    ));
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let batch = uuid::Uuid::now_v7();
+    let entry = |kind, recorded_at: &str| {
+        let mut entry = IncomingEntry::make(serde_json::Map::new())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(batch);
+        entry.recorded_at = recorded_at.parse().unwrap();
+        entry
+    };
+    let old = entry(EntryType::Log, "2026-11-26T12:29:59Z");
+    let boundary = entry(EntryType::Log, "2026-11-26T12:30:00Z");
+    let exception = entry(EntryType::Exception, "2026-11-26T12:10:00Z")
+        .with_family_hash(Some("prune-test".into()));
+    let [old, boundary, exception] = [old, boundary, exception].map(|entry| {
+        let id = entry.uuid.to_string();
+        (entry, id)
+    });
+    repository
+        .store(&[old.0, boundary.0, exception.0])
+        .await
+        .unwrap();
+
+    app.artisan(["telescope:prune", "--hours=.5", "--keep-exceptions"])
+        .await
+        .assert_successful();
+    assert!(matches!(
+        repository.find(&old.1).await,
+        Err(openrust_telescope::Error::NotFound)
+    ));
+    assert!(repository.find(&boundary.1).await.is_ok());
+    assert!(repository.find(&exception.1).await.is_ok());
+}
+
 const CLIENT_REQUEST_SHAPE: &str = r#"{"empty":{},"list":{"0":"first","1":"second"},"reverse":{"1":{},"0":{"0":"nested"}},"leading":{"01":"value"},"array":[{},{"0":"inner"}]}"#;
 
 fn client_request_shape_handler(
