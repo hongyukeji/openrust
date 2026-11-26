@@ -11,6 +11,8 @@ cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ```
 
+For a standalone macOS release, prefix the Cargo command with `PCRE2_SYS_STATIC=1` to use the locked bundled PCRE2. Check `otool -L release/main` before shipping to catch dependencies on Homebrew paths.
+
 Default translations are compiled into the binary. If your application supplies custom translations in `lang/`, deploy those files with the application.
 
 Copy any website assets into `release/public` and public storage files into `release/storage/app/public`. The welcome page is read at runtime, so deploy it with the binary. Rust configuration and route declarations are compiled into `main`; changing their Rust source requires a rebuild. Runtime environment values and view files do not.

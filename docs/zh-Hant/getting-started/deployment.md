@@ -11,6 +11,8 @@ cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ```
 
+建置 macOS 獨立發佈產物時，在 Cargo 命令前加上 `PCRE2_SYS_STATIC=1`，使用鎖定的內嵌 PCRE2。發佈前用 `otool -L release/main` 檢查是否連結了 Homebrew 路徑下的動態函式庫。
+
 預設翻譯已編入執行檔。應用程式在 `lang/` 中提供自訂翻譯時，請隨應用程式部署這些檔案。
 
 將網站資源複製到 `release/public`，公共儲存檔案複製到 `release/storage/app/public`。歡迎頁在執行時讀取，必須隨二進位檔部署。Rust 設定和路由宣告編譯進 `main`，修改 Rust 原始碼需要重新建置；執行時環境值和視圖檔案不需要。

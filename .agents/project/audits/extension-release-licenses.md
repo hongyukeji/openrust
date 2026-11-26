@@ -14,7 +14,7 @@
 | `x86_64-pc-windows-msvc` | 608 | 608 |
 | `aarch64-pc-windows-msvc` | 607 | 607 |
 
-本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64、Linux AMD64、Windows ARM64 和 Windows x64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
+本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64、Linux AMD64、Windows ARM64、Windows x64 和 macOS ARM64 组合候选制品的实际检查。原生主机覆盖、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
 
 ## 原生 SQLite 制品
 
@@ -91,3 +91,14 @@
 - 同一制品启用 New Relic Provider 后再跑整套，归档与二进制摘要一致。隔离私有网络收集器解码 206 个 Span 和 12 条指标记录，核对服务身份、`GET /api` 状态与路由、请求耗时指标及 `artisan inspire` Span。
 
 实际运行环境为 Windows ARM64 虚机的 x64 兼容层，证据位于本机 `target/tmp/goal-extension-combined-windows-x64/`。原生 Windows x64、Windows Docker Desktop、无 MSVC 工具链的安装、真实 New Relic 租户及目标发布渠道按各自环境复验。
+
+## macOS ARM64 组合候选制品
+
+沿用 `7dd141aac49bafa452f35293d68b45375b36d4ff` 的干净归档。使用本机 ARM64、macOS 27.2.1、Rust 1.94.0、`aarch64-apple-darwin`、`--release --locked --offline --jobs 4 --bin main` 及同一 `standalone` 和九项扩展特性。两次磁盘停线经过项目持锁清理。并发从 1 调至 4 后完成首个构建。
+
+- 默认构建在本机链接 Homebrew 的 `libpcre2-8.0.dylib`，其二进制 SHA-256 为 `fa1e64b6ec2d7b15e5ec48b92a3b17cff6df6282cdbfdebcccc4793240784d21`。用锁定 `pcre2-sys` 的 `PCRE2_SYS_STATIC=1` 重建。解包后 `otool -L` 只列出 macOS 系统库和 Framework，`nm -U` 核对静态 PCRE2 编译及 JIT、SQLite、AWS-LC 和 ring 已定义的符号。SQLite source ID 与锁定的 3.54.1 一致。
+- 归档 SHA-256 为 `20178e3d64854360ab36a2f5aeee230369217146a4f55e6e42839bab77a118a6`，解包二进制为 `87e28497af025b6e2d6edf876f34e99191d3fdae33b205337f29d5963551a17d`。10 个许可文件与源码逐字节一致。Mach-O 为 ARM64 可执行文件，本机链接器临时签名通过 `codesign --verify --strict`。Mach-O 最低版本字段为 11.0，实际运行验证覆盖本机 27.2.1。
+- 从解包目录启动，Artisan 发现九个 Provider 并执行 58 项 SQLite 迁移。配置及路由缓存前后，实际 HTTP `/up`、`/`、`/api` 均返回 200。两个进程分别响应 SIGINT、SIGTERM 并以状态 0 退出。缓存后签名 Reverb 投递通过，独立 Artisan Worker 成功退出且数据库队列为空。
+- 本机隔离 OTLP 收集器解码 206 个 Span 和 12 条指标记录，核对服务名、HTTP 路由及状态、请求耗时指标和独立 `artisan inspire` Span。三语部署指南补齐 Mac 构建选项和动态依赖检查，VitePress 构建以及两种部署前缀下的六个浏览器页面通过。
+
+构建、Mach-O、许可、运行和文档日志保存在本机 `target/tmp/goal-extension-combined-macos/`。Apple Developer ID 签名、公证、其他系统版本和目标分发渠道仍须对应授权和环境。
