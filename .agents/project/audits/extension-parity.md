@@ -712,9 +712,13 @@ Linux 首轮测试假定两次重试事件均发生在第一次成功循环之�
 
 Windows 11 ARM64 对 `f21ba5bcb` 的工作进程实现复跑原生进程矩阵，覆盖空计划、排空等待、快速终止、父端退出、应用处理器、Redis 与文件命令队列。双席位单独在干净配置中调用实际 Artisan，验证了初始监督器状态、两条重试事件、四次原生 `NotADirectory` 异常报告和正常终止。初次探针受前一组测试环境变量和 PowerShell 多行状态匹配影响，隔离环境并聚合输出后重跑通过。证据为 `target/tmp/observability-windows/horizon-worker-multiple-arm64{,-targeted}.log`。
 
-### Horizon 监督循环等待间隔待对齐
+### Horizon 监督循环等待间隔
 
-固定 PHP 的 Master 与 Supervisor 监控入口在初次持久化后等待一秒，再在每轮处理完成后等待下一秒。实际运行固定 `monitor`，以耗时约 1200ms 的循环夹具验证两个等待各约 1000ms。Rust 两个循环目前用 Tokio 固定间隔，首次立即运行，处理耗时超过一秒时可能立即补跑。Rust 的实际 Artisan 测时与等待间隔修复待办，同时验收等待中收到关闭信号的响应。参考探针输出位于 `target/tmp/observability-parity/horizon-monitor-cadence-upstream.log`。 [固定 Master](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php)
+固定 PHP 的 Master 与 Supervisor 监控入口在初次持久化后等待一秒，再在每轮处理完成后等待下一秒。实际运行固定 `monitor`，以耗时约 1200ms 的循环夹具验证两个等待各约 1000ms。Rust 原先使用 Tokio 固定间隔。实际 Artisan 在慢监听器结束后约 8ms（Master）和 6ms（Supervisor）即开始下一轮。本次改为在首轮前和每轮结束后设置新的单调时钟期限，等待中仍处理关停及控制信号。参考探针输出位于 `target/tmp/observability-parity/horizon-monitor-cadence-upstream.log`。 [固定 Master](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php)
+
+macOS 上以真实 Artisan、隔离 Redis 8.10.3 和 1200ms 同步监听器对照。修复后首轮约 1076ms／1028ms，慢监听器结束后的等待约 1007ms／1006ms。两条命令均在等待期间接到 SIGTERM 并正常退出，实际退出早于下一次轮询。证据为 `target/tmp/observability-parity/horizon-monitor-cadence-macos{,-baseline}.log`。
+
+同一 Rust 快照的原生进程与结构化命令矩阵、包默认 32 项、隔离 Redis 23 项、快照全仓格式和包全目标严格 Clippy 通过。三语文档构建、12 项通用浏览器检查及 Horizon 章节的三语桌面和移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-monitor-cadence-{macos,docs,docs-chapter}.log`。本次间隔改动的 Linux／Windows 实机验收仍待补齐。
 
 ### Horizon Windows ARM64 应用装配与条件编译
 

@@ -87,6 +87,8 @@ Register a synchronous listener for `SupervisorLooped::NAME` to observe a Superv
 
 Horizon emits `WorkerProcessRestarting` immediately before replacing an exited worker. The event identifies the supervisor, queue, previous PID when available, and exit code.
 
+The Master and each supervisor wait one second after publishing their initial status before the first poll. Each later poll starts one second after the previous poll finishes.
+
 Each worker slot starts with a one-second cooldown for nonzero exits and process creation errors. When retrying an exited worker after its cooldown expires, Horizon emits `UnableToLaunchProcess` after `WorkerProcessRestarting` and begins a one-minute cooldown. A clean exit can be replaced during a cooldown. If the operating system could not create the process, the slot stays under the same supervisor and `UnableToLaunchProcess` carries no PID or exit code. The supervisor reports the creation error through the application's exception handler and checks the remaining slots on its next poll.
 
 Horizon emits `MasterSupervisorDeployed` after preparing a matching environment's supervision plan. The event reports the master name, environment, and the supervisors scheduled to start.

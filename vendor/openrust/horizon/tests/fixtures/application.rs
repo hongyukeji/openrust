@@ -225,6 +225,39 @@ impl Listener for ProcessEventRecorder {
     }
 }
 
+struct MonitorCadenceRecorder {
+    output: std::path::PathBuf,
+    started_at: std::time::Instant,
+    delayed: std::sync::atomic::AtomicBool,
+}
+
+impl Listener for MonitorCadenceRecorder {
+    fn handle<'a>(
+        &'a self,
+        _: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            use std::io::Write as _;
+            use std::sync::atomic::Ordering;
+            let record = |stage| {
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.output)
+                    .unwrap();
+                writeln!(file, "{stage} {}", self.started_at.elapsed().as_millis()).unwrap();
+            };
+            record("start");
+            if !self.delayed.swap(true, Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(1200)).await;
+            }
+            record("completed");
+            Ok(None)
+        })
+    }
+}
+
 struct LoopDispatchFailure(std::path::PathBuf);
 
 impl Listener for LoopDispatchFailure {
@@ -369,6 +402,19 @@ impl ServiceProvider for ProbeProvider {
                 Delivery::Sync,
             )?;
             dispatcher.listen(MasterSupervisorDeployed::NAME, recorder, Delivery::Sync)?;
+            if let Ok(monitor) = std::env::var("HORIZON_PROBE_LOOP_CADENCE") {
+                let event = match monitor.as_str() {
+                    "master" => MasterSupervisorLooped::NAME,
+                    "supervisor" => SupervisorLooped::NAME,
+                    _ => panic!("unexpected monitor"),
+                };
+                let recorder = Arc::new(MonitorCadenceRecorder {
+                    output: app.base_path().join("cadence.log"),
+                    started_at: std::time::Instant::now(),
+                    delayed: std::sync::atomic::AtomicBool::new(false),
+                });
+                dispatcher.listen(event, recorder, Delivery::Sync)?;
+            }
             if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
                 let listener =
                     Arc::new(LoopDispatchFailure(app.base_path().join("loop-errors.log")));

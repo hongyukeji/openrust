@@ -537,11 +537,11 @@ impl MasterSupervisor {
             }
         }
         started();
-        let mut ticker = tokio::time::interval(Duration::from_secs(1));
+        let mut next_poll = Instant::now() + Duration::from_secs(1);
         let result = loop {
             tokio::select! {
                 _ = shutdown.cancelled() => break Ok(()),
-                _ = ticker.tick() => {},
+                _ = tokio::time::sleep_until(next_poll) => {},
                 paused = control.next() => {
                     if let Err(error) = lease.set_paused(paused).await {
                         break Err(error);
@@ -554,6 +554,7 @@ impl MasterSupervisor {
                 Ok(false) => break Ok(()),
                 Err(error) => break Err(error),
             }
+            next_poll = Instant::now() + Duration::from_secs(1);
         };
         let cleanup = {
             let stop = self.stop(&lease);

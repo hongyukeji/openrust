@@ -415,7 +415,7 @@ impl Supervisor {
             .reservations_paused(Some(&self.id), self.ownership.as_ref())
             .await?;
         self.persist(paused).await?;
-        let mut ticker = tokio::time::interval(Duration::from_secs(1));
+        let mut next_poll = Instant::now() + Duration::from_secs(1);
         #[cfg(windows)]
         let parent_closed = crate::signals::parent_closed(self.parent_shutdown);
         #[cfg(not(windows))]
@@ -432,13 +432,14 @@ impl Supervisor {
                     }
                     continue;
                 },
-                _=ticker.tick()=>{},
+                _=tokio::time::sleep_until(next_poll)=>{},
             }
             match self.tick(&generation, queue.as_deref()).await {
                 Ok(None) => {}
                 Ok(Some(status)) => break Ok(status),
                 Err(error) => break Err(error),
             }
+            next_poll = Instant::now() + Duration::from_secs(1);
         };
         let cleanup = self.stop().await;
         let flushed = if let Some(queue) = queue {
