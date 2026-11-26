@@ -659,6 +659,10 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 非流式工具调用可在首个模型步骤失败时切换。成功收到首步结果后固定连接，已执行工具后的续轮错误按原错误返回。实际 Artisan 和 HTTP 核对首步 503、跨协议续轮、同一个调用 ID、只执行一次工具及续轮 503 后无重放。SQLite 独立进程通过 Artisan 及三种 SSE 暂停，在切换后的连接上恢复审批，覆盖并发决定、编辑、拒绝、过期和跨参与者访问。应用提示词中间件目前保持首选连接，以免自动重放中间件行为。
 
+Anthropic Messages 依固定驱动处理 529 和额度正文。实际 Artisan 和 HTTP 覆盖 529 短等待后同连接成功、无等待时切换 Chat Completions、额度类 400 切换、普通 400 与 401 返回原状态、非 Messages 的 529 保留状态、原生流切换后的结束帧及原始正文脱敏。事件和 SDK 可分别识别 `ProviderOverloaded`、`ProviderInsufficientCredits`，同时保留原 HTTP 状态。
+
+- [固定 Laravel AnthropicGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicGateway.php) · [Anthropic Messages 错误](https://platform.claude.com/docs/en/api/errors)
+
 待补其余供应商错误正文分类、应用中间件的故障转移，以及剩余供应商和入口的逐项验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [供应商与模型列表](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [故障分类和重试](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Concerns/HandlesFailoverErrors.php)

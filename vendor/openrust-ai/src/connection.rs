@@ -423,7 +423,7 @@ impl Connection {
         stream: bool,
         timeout: Option<Duration>,
     ) -> AiResult<Response> {
-        send_with_retry_after(|| self.send(endpoint, body, stream, timeout)).await
+        send_with_retry_after(endpoint, || self.send(endpoint, body, stream, timeout)).await
     }
 
     pub(crate) async fn send(

@@ -176,7 +176,9 @@ fn error_message(error: &AiError) -> String {
         AiError::ModelsNotSupported => "models_not_supported",
         AiError::Transport => "transport",
         AiError::Timeout => "timeout",
-        AiError::ProviderStatus(status) => {
+        AiError::ProviderStatus(status)
+        | AiError::ProviderOverloaded(status)
+        | AiError::ProviderInsufficientCredits(status) => {
             return localization::text(
                 "ai::errors.console.provider_status",
                 &[("status".into(), status.to_string())].into(),

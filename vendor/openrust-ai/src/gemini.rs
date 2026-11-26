@@ -71,7 +71,10 @@ impl GeminiTextProvider {
         body: &Value,
         timeout: Option<Duration>,
     ) -> AiResult<Response> {
-        send_with_retry_after(|| self.relay_model(endpoint, model, body, timeout)).await
+        send_with_retry_after(endpoint, || {
+            self.relay_model(endpoint, model, body, timeout)
+        })
+        .await
     }
 
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {

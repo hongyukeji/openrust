@@ -81,6 +81,8 @@ Connection failures, timeouts, rate limits, insufficient credits, and certain up
 
 For built-in text protocols, the SDK retries the same request once when a rate limit or supported overload response supplies an integer `Retry-After` from 0 to 10 seconds. An exhausted quota or credit response goes directly to failover handling. The retry keeps the original invocation ID and emits a failover event only if the connection changes.
 
+Anthropic Messages can retry or fail over on HTTP 529 and fail over on credit errors recognized by the fixed Laravel baseline. Applications can match `AiError::ProviderOverloaded` or `AiError::ProviderInsufficientCredits` to read the HTTP status. The error omits the upstream body.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

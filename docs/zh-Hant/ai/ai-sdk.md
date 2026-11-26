@@ -81,6 +81,8 @@ let answer = responder.prompt("What can I do next?").await?;
 
 內建文字協定遇到流量限制或指定的過載狀態時，如果上游的 `Retry-After` 是 0 到 10 秒的整數，SDK 會等待後重試目前請求一次。上游回報額度或餘額耗盡時直接依容錯移轉規則處理。切換事件只記錄連線切換，同一連線重試沿用原呼叫 ID。
 
+Anthropic Messages 的 HTTP 529 可觸發重試或切換。Messages 傳回符合固定 Laravel 基線的額度錯誤時也可切換。發生這兩類錯誤時，應用程式可分別比對 `AiError::ProviderOverloaded` 和 `AiError::ProviderInsufficientCredits`，取得 HTTP 狀態。原始錯誤本文不會進入應用程式錯誤。
+
 ### 接入 Responses 閘道 {#responses-gateway}
 
 接入提供 OpenAI Responses 的 Sub2API 執行個體時，使用 `driver: "openai"` 和該執行個體的 v1 基礎位址。SDK 使用 `/models` 探索模型，透過 `/responses` 發出生成請求。設定 `store: false` 可請求上游關閉回應儲存。

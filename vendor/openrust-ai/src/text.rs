@@ -799,22 +799,28 @@ fn schema_format(output: &StructuredOutput<'_>) -> ResponseFormatJsonSchema {
 }
 
 /// 按上游给出的短等待时间重试一次当前文本请求。
-pub(crate) async fn send_with_retry_after<F>(send: impl Fn() -> F) -> AiResult<Response>
+pub(crate) async fn send_with_retry_after<F>(
+    endpoint: TextEndpoint,
+    send: impl Fn() -> F,
+) -> AiResult<Response>
 where
     F: std::future::Future<Output = AiResult<Response>>,
 {
     let response = send().await?;
-    let Some(seconds) = retry_after_seconds(&response) else {
-        return validate(Ok(response));
+    let Some(seconds) = retry_after_seconds(endpoint, &response) else {
+        return validate_text_response(endpoint, response);
     };
     drop(response);
     tokio::time::sleep(Duration::from_secs(seconds)).await;
-    validate(Ok(send().await?))
+    validate_text_response(endpoint, send().await?)
 }
 
-fn retry_after_seconds(response: &Response) -> Option<u64> {
+fn retry_after_seconds(endpoint: TextEndpoint, response: &Response) -> Option<u64> {
     let status = response.status().as_u16();
-    if status != 429 && !crate::error::provider_overloaded(status) {
+    if status != 429
+        && !crate::error::provider_overloaded(status)
+        && !(endpoint == TextEndpoint::Messages && status == 529)
+    {
         return None;
     }
     let header = response
@@ -830,6 +836,36 @@ fn retry_after_seconds(response: &Response) -> Option<u64> {
         return None;
     }
     Some(seconds)
+}
+
+fn validate_text_response(endpoint: TextEndpoint, response: Response) -> AiResult<Response> {
+    if endpoint == TextEndpoint::Messages && (response.client_error() || response.server_error()) {
+        let status = response.status().as_u16();
+        if status == 529 {
+            return Err(AiError::ProviderOverloaded(status));
+        }
+        if !matches!(status, 401 | 402 | 429)
+            && !crate::error::provider_overloaded(status)
+            && let Ok(body) = response.json::<Value>()
+            && let Some(message) = body["error"]["message"].as_str()
+        {
+            let message = message.to_ascii_lowercase();
+            if [
+                "credit balance",
+                "insufficient",
+                "quota exceeded",
+                "exceeded your current quota",
+                "billing",
+                "usage limit",
+            ]
+            .into_iter()
+            .any(|pattern| message.contains(pattern))
+            {
+                return Err(AiError::ProviderInsufficientCredits(status));
+            }
+        }
+    }
+    validate(Ok(response))
 }
 
 fn insufficient_credits(response: &Response) -> bool {
