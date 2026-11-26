@@ -521,7 +521,7 @@ fn flag(row: &Row, key: &str) -> DatabaseResult<bool> {
     }
 }
 
-fn fingerprint(value: &impl Serialize) -> String {
+pub(crate) fn fingerprint(value: &impl Serialize) -> String {
     format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(value).expect("供应商用量证据可序列化"))

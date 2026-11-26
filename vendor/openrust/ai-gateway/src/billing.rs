@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::usage::Settlement;
 
+pub(crate) mod adjustments;
+
 pub(crate) const TABLE: &str = "ai_gateway_charges";
 pub(crate) const COLUMNS: [&str; 7] = [
     "ai_gateway_charges.attempt_id",
@@ -466,6 +468,19 @@ pub(crate) struct ChargeRecord {
     state: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) actual: Option<crate::reconciliation::ActualCost>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    adjustments: Option<adjustments::Summary>,
+}
+
+impl ChargeRecord {
+    pub(crate) fn attach_adjustments(&mut self, rows: &[Row]) -> DatabaseResult<()> {
+        let base = self
+            .actual
+            .as_ref()
+            .map_or(self.amount.as_deref(), |actual| actual.amount.as_deref());
+        self.adjustments = adjustments::summarize(rows, base)?;
+        Ok(())
+    }
 }
 
 pub(crate) fn decode(row: &Row) -> DatabaseResult<ChargeRecord> {
@@ -487,5 +502,6 @@ pub(crate) fn decode(row: &Row) -> DatabaseResult<ChargeRecord> {
         amount: optional_text("amount")?,
         state: text("state")?,
         actual: None,
+        adjustments: None,
     })
 }

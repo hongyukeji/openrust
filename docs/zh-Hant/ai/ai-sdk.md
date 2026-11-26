@@ -308,6 +308,24 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 帳單分成多個檔案時，加入 `"page": {"number": 1, "total": 3}`，各檔案的來源、帳單 ID、版本、UTC 帳期與 `complete` 一致。用同一個指令依任意順序匯入各檔案。可透過 `billing:report` 的 `pagination.received_pages` 找出缺頁。閘道在收到全部頁面後合併帳單並記錄證據。所有分頁提交完畢且聲明 `complete: false` 時，仍按部分帳單處理。
 
+### 借項與貸項調整 {#billing-adjustments}
+
+執行 `./artisan ai:gateway:billing:adjust adjustment.json --actor=operator`，為已結算帳目追加借項或貸項。`direction: "cost"` 用於上游成本，`"receivable"` 用於下游應收。使用原帳目幣別，`reference` 填寫支持憑據或行號。若依據是已完整匯入的帳單，可附上該帳單的 `report_id`。
+
+```json
+{
+  "attempt_id": "01J9GVMJMGV80VGEX9TEXA8ETB",
+  "direction": "receivable",
+  "kind": "credit",
+  "currency": "USD",
+  "amount": "0.05",
+  "reference": "credit-memo-42",
+  "reason": "Approved correction"
+}
+```
+
+原始費率、金額與證據均保留。`usage:list --billing` 中的 `adjustments` 顯示借項、貸項、淨額及稽核明細。以同一次嘗試、相同方向與憑據編號提交相同內容可安全重試。原金額仍待確認時，淨額維持待核對。彙總帳單使用匯入時可確認的淨額。
+
 ### 分組每日貨幣預算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。

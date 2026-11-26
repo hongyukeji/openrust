@@ -308,6 +308,24 @@ Run `./artisan ai:gateway:billing:report <report-id>` to read the saved entries,
 
 For a statement split across files, include `"page": {"number": 1, "total": 3}` and keep the source, statement ID, revision, UTC window and `complete` value identical across files. Run the same import command for each file, in any order. Use `billing:report` and its `pagination.received_pages` field to find missing pages. The gateway assembles the statement and records its evidence after all pages arrive. A complete set of pages declared with `complete: false` stays a partial statement.
 
+### Debit and credit adjustments {#billing-adjustments}
+
+Run `./artisan ai:gateway:billing:adjust adjustment.json --actor=operator` to add a debit or credit to a finalized charge. Use `direction: "cost"` for upstream expense or `"receivable"` for a downstream charge. Use the charge currency. The reference identifies the supporting document or line. When the supporting evidence is a complete imported statement, its `report_id` can be included.
+
+```json
+{
+  "attempt_id": "01J9GVMJMGV80VGEX9TEXA8ETB",
+  "direction": "receivable",
+  "kind": "credit",
+  "currency": "USD",
+  "amount": "0.05",
+  "reference": "credit-memo-42",
+  "reason": "Approved correction"
+}
+```
+
+The original rate, amount and evidence remain available. `usage:list --billing` displays `adjustments` with debits, credits, net amount and audit entries. Submit the same attempt, direction and reference with the same contents to retry safely. If the original amount still needs confirmation, the net stays pending. Aggregate comparisons use the net available when the statement is imported.
+
 ### Daily group billing budget {#billing-budget}
 
 In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.

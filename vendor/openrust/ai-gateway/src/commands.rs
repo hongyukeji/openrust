@@ -123,6 +123,39 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }),
     )?;
     Artisan::command_with(
+        "ai:gateway:billing:adjust {file : 费用调整 JSON 文件} {--actor= : 审计操作者}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let path = argument(input, "file")
+                    .ok_or_else(|| ConsoleError::new("请指定费用调整文件"))?;
+                let actor = argument(input, "actor")
+                    .filter(|actor| !actor.is_empty())
+                    .ok_or_else(|| ConsoleError::new("请用 --actor 指定审计操作者"))?;
+                let file = std::fs::File::open(path)
+                    .map_err(|_| ConsoleError::new("无法读取费用调整文件"))?;
+                let adjustment = serde_json::from_reader(std::io::BufReader::new(file))
+                    .map_err(|_| ConsoleError::new("费用调整 JSON 格式无效"))?;
+                let result = store
+                    .apply_adjustment(adjustment, actor.into())
+                    .await
+                    .map_err(|error| match error {
+                        openrust::database::DatabaseError::InvalidQuery(reason) => {
+                            ConsoleError::new(reason)
+                        }
+                        _ => ConsoleError::new("无法写入网关费用调整"),
+                    })?;
+                write_json(output, json!(result))?;
+                Ok(0)
+            })
+        }),
+    )?;
+    Artisan::command_with(
         "ai:gateway:billing:report {id : 导入返回的供应商账单 ID}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {

@@ -20,6 +20,8 @@ mod aggregate_costs;
 #[path = "../database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs"]
 mod aggregate_costs_migration;
 mod billing;
+#[path = "../database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs"]
+mod billing_adjustments_migration;
 #[path = "../database/migrations/2026_11_26_000006_create_ai_gateway_charges_table.rs"]
 mod billing_migration;
 mod budget;
@@ -89,6 +91,8 @@ const AGGREGATE_COSTS_MIGRATION: &str =
     "database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs";
 const COST_PAGES_MIGRATION: &str =
     "database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs";
+const BILLING_ADJUSTMENTS_MIGRATION: &str =
+    "database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs";
 static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
@@ -133,6 +137,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs",
         &cost_pages_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs",
+        &billing_adjustments_migration::MIGRATION,
     ),
 ];
 
@@ -213,6 +221,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         COST_PAGES_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs"),
+                    ),
+                    (
+                        BILLING_ADJUSTMENTS_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

@@ -122,7 +122,7 @@ async fn recorded(
         )
         .r#where("ai_gateway_usage.dispatch_started_at", ">=", window.0)
         .r#where("ai_gateway_usage.dispatch_started_at", "<", window.1);
-    let mut rows = with_evidence(query, connection)?
+    let mut rows = billing::adjustments::with_adjustments(with_evidence(query, connection)?)
         .order_by("ai_gateway_usage.id", "asc")
         .cursor();
     let mut attempt_rows = Vec::<Row>::new();
@@ -159,8 +159,12 @@ fn count_attempt(
         amount = actual.amount;
     }
     let entry = result.entry((provider, currency)).or_default();
-    if let Some(amount) = amount {
-        entry.amount = entry.amount.add(Amount::ledger(&amount)?)?;
+    let value = match billing::adjustments::summarize(rows, amount.as_deref())? {
+        Some(adjustments) => adjustments.net(),
+        None => amount.as_deref().map(Amount::ledger).transpose()?,
+    };
+    if let Some(value) = value {
+        entry.amount = entry.amount.add(value)?;
         entry.priced += 1;
     } else {
         entry.pending += 1;

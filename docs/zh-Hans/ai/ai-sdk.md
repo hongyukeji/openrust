@@ -308,6 +308,24 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 账单分成多个文件时，加入 `"page": {"number": 1, "total": 3}`，各文件的来源、账单 ID、版本、UTC 账期和 `complete` 保持一致。用同一命令导入各文件，顺序不限。可通过 `billing:report` 的 `pagination.received_pages` 找出缺页。网关在全部页收到后合并账单并记录证据。所有分页提交完毕且声明 `complete: false` 时，仍按部分账单处理。
 
+### 借项与贷项调整 {#billing-adjustments}
+
+运行 `./artisan ai:gateway:billing:adjust adjustment.json --actor=operator`，为已结算账目追加借项或贷项。`direction: "cost"` 用于上游成本，`"receivable"` 用于下游应收。使用原账目币种，`reference` 填支持凭据或行号。若依据是已完整导入的账单，可附上该账单的 `report_id`。
+
+```json
+{
+  "attempt_id": "01J9GVMJMGV80VGEX9TEXA8ETB",
+  "direction": "receivable",
+  "kind": "credit",
+  "currency": "USD",
+  "amount": "0.05",
+  "reference": "credit-memo-42",
+  "reason": "Approved correction"
+}
+```
+
+原始费率、金额和证据均保留。`usage:list --billing` 中的 `adjustments` 展示借项、贷项、净额和审计明细。以同一次尝试、同一方向及凭据编号提交相同内容可安全重试。原金额仍待确认时，净额保持待核对。汇总账单使用导入时可确认的净额。
+
 ### 分组每日货币预算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。

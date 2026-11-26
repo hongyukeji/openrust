@@ -393,6 +393,14 @@ impl UsageStore {
         crate::reconciliation::import(&self.connection, report, actor).await
     }
 
+    pub(crate) async fn apply_adjustment(
+        &self,
+        input: billing::adjustments::Input,
+        actor: String,
+    ) -> DatabaseResult<billing::adjustments::Applied> {
+        billing::adjustments::post(&self.connection, input, actor).await
+    }
+
     pub(crate) async fn cost_report(
         &self,
         id: String,
@@ -656,15 +664,21 @@ impl UsageStore {
             )
             .select(["usage_page.*"])
             .add_select(billing::COLUMNS);
-        let rows = reconciliation::with_evidence(query, &self.connection)?
-            .order_by_desc("usage_page.id")
-            .order_by("ai_gateway_charges.direction", "asc")
-            .get()
-            .await?;
+        let rows = billing::adjustments::with_adjustments(reconciliation::with_evidence(
+            query,
+            &self.connection,
+        )?)
+        .order_by_desc("usage_page.id")
+        .order_by("ai_gateway_charges.direction", "asc")
+        .get()
+        .await?;
         let mut actual = reconciliation::actual_costs(&rows)?;
         let mut usage = Vec::<UsageRecord>::new();
         let mut charges = Vec::<ChargeRecord>::new();
-        for row in &rows {
+        for chunk in rows.chunk_by(|left, right| {
+            left.get("id") == right.get("id") && left.get("direction") == right.get("direction")
+        }) {
+            let row = &chunk[0];
             let id = super::managed_keys::text(row, "id")?;
             if usage.last().is_none_or(|record| record.id != id) {
                 usage.push(decode(row)?);
@@ -672,17 +686,12 @@ impl UsageStore {
             if matches!(row.get("attempt_id"), Some(Value::Null)) {
                 continue;
             }
-            let direction = super::managed_keys::text(row, "direction")?;
-            if charges
-                .last()
-                .is_none_or(|charge| charge.attempt_id != id || charge.direction != direction)
-            {
-                let mut charge = billing::decode(row)?;
-                if charge.direction == "cost" {
-                    charge.actual = actual.remove(&id);
-                }
-                charges.push(charge);
+            let mut charge = billing::decode(row)?;
+            if charge.direction == "cost" {
+                charge.actual = actual.remove(&id);
             }
+            charge.attach_adjustments(chunk)?;
+            charges.push(charge);
         }
         Ok((usage, Some(charges)))
     }
