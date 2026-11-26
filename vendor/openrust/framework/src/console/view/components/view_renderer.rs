@@ -2,6 +2,7 @@
 mod dimensions;
 mod dom;
 mod layout;
+mod lists;
 mod palette;
 mod style;
 mod style_methods;

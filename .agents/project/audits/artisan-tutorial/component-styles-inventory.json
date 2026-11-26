@@ -6,7 +6,8 @@
     "component-render-contracts.json",
     "component-palette-contracts.json",
     "component-sizing-contracts.json",
-    "component-style-methods-contracts.json"
+    "component-style-methods-contracts.json",
+    "component-list-elements-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1314,8 +1315,10 @@
     ]
   },
   "remaining": [
-    "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+    "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
     "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
   ],
-  "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes."
+  "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes.",
+  "list_border_backend": "list and borderT verified through owning generic component renderer with actual li/ul/ol/hr element checks; not an export of standalone dependency Styles."
 }

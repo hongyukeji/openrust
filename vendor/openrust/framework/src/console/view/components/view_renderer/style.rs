@@ -16,6 +16,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 #[derive(Clone, Default)]
 pub(super) struct Style {
+    pub(super) element: &'static str,
     pub(super) display: &'static str,
     pub(super) margin: [usize; 4],
     pub(super) padding: [usize; 4],
@@ -44,6 +45,16 @@ fn error(value: &str) -> ConsoleError {
 }
 pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
     let mut s = Style {
+        element: match node.tag() {
+            "ul" => "ul",
+            "ol" => "ol",
+            "li" => "li",
+            "dl" => "dl",
+            "dt" => "dt",
+            "dd" => "dd",
+            "hr" => "hr",
+            _ => "generic",
+        },
         display: match node.tag() {
             "span" | "strong" | "b" | "i" | "em" | "u" | "s" | "a" | "br" => "inline",
             _ => "block",
@@ -51,7 +62,7 @@ pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
         ..Default::default()
     };
     match node.tag() {
-        "table" | "code" | "pre" | "ul" | "ol" | "li" | "dl" | "dt" | "dd" | "hr" => {
+        "table" | "code" | "pre" => {
             return Err(error(node.tag()));
         }
         "p" => {
@@ -93,12 +104,22 @@ fn mark(s: &mut Style, value: &str) {
     }
     s.flex = s.markers.iter().any(|m| m == "flex-1");
 }
-fn apply(s: &mut Style, input: &str, tag: &str, depth: usize) -> Result<(), ConsoleError> {
+pub(super) fn apply(
+    s: &mut Style,
+    input: &str,
+    tag: &str,
+    depth: usize,
+) -> Result<(), ConsoleError> {
     if depth > 256 {
         return Err(ConsoleError::new("组件样式递归超出范围"));
     }
     let defaults = match tag {
         "p" => "block my-1",
+        "ul" => "block list-disc",
+        "ol" => "block list-decimal",
+        "dt" => "block font-bold",
+        "dd" => "block ml-4",
+        "hr" => "block border-t",
         "span" | "strong" | "b" | "i" | "em" | "u" | "s" | "a" | "br" => "",
         _ => "block",
     };
@@ -198,6 +219,36 @@ fn apply(s: &mut Style, input: &str, tag: &str, depth: usize) -> Result<(), Cons
                 let value = m.text(0)?;
                 if !value.is_empty() && value != "0" {
                     s.href = Some(value.to_owned());
+                }
+            }
+            "bordert" => {
+                if s.element != "hr" {
+                    return Err(ConsoleError::new("分隔线样式只能用于hr元素"));
+                }
+                if let Some(arg) = m.args.first() {
+                    arg.integer()?;
+                }
+                if !s.modifiers.contains(&0) {
+                    s.modifiers.push(0);
+                }
+            }
+            "list" => {
+                let kind = m.text(0)?;
+                let index = m.args.get(1).map_or(Ok(0), Argument::integer)?;
+                if !matches!(s.element, "ul" | "ol" | "li") {
+                    return Err(ConsoleError::new("列表样式只能用于ul、ol或li元素"));
+                }
+                if s.element == "li" {
+                    let prefix = match kind {
+                        "square" => Some("▪ ".to_owned()),
+                        "disc" => Some("• ".to_owned()),
+                        "decimal" => Some(format!("{index}. ")),
+                        _ => None,
+                    };
+                    if let Some(prefix) = prefix {
+                        s.prepend = prefix;
+                        transform(s, "prepend");
+                    }
                 }
             }
             "setstyle" => mark(s, m.text(0)?),
@@ -359,7 +410,24 @@ pub(super) fn format(
         }
     }
     for code in &s.modifiers {
-        text = format!("\x1b[{code}m{text}\x1b[0m");
+        if *code == 0 {
+            let width = visible_width(&text);
+            let width = if width == 0 {
+                usize::try_from(
+                    dimensions::parent_width(parent, viewport)?
+                        - s.margin[1] as i64
+                        - s.margin[3] as i64,
+                )
+                .ok()
+                .filter(|n| *n <= 1_000_000)
+                .ok_or_else(|| ConsoleError::new("分隔线宽度超出范围"))?
+            } else {
+                width
+            };
+            text = "─".repeat(width);
+        } else {
+            text = format!("\x1b[{code}m{text}\x1b[0m");
+        }
     }
     if s.display == "hidden" {
         return Ok(String::new());

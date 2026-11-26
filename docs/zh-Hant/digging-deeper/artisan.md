@@ -2120,7 +2120,7 @@ fn register_component_sizes() -> Result<(), ConsoleError> {
 
 樣式方法名按 ASCII 大小寫不敏感分派：`W-1/2` 和 `FONT-BOLD` 可用。佈局標記仍保留原始類名語義，例如修改 `flex-1` 大小寫或加回應式前綴，不會建立該精確標記。數字類參數先轉整數，再檢查目標參數型別，所以 `prepend-1` 回傳錯誤，不會靜默轉成文字。`font-normal` 明確關閉繼承的粗體，`<b>` 標籤則在類樣式之後設定自身粗體。
 
-預設文字管線不代表已提供渲染依賴的獨立樣式物件或自訂樣式／顏色倉庫。表格、程式碼和列表等專用元素仍不屬於已實作的 HTML 子集。
+預設文字管線不代表已提供渲染依賴的獨立樣式物件或自訂樣式／顏色倉庫。表格和程式碼等專用元素仍不屬於已實作的 HTML 子集。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2144,6 +2144,39 @@ fn register_component_text() -> Result<(), ConsoleError> {
             component.set_view_compiler(Some(Box::new(TextCompiler)));
             component.render_view("text", json!({}))?;
             component.render_view("short", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### 列表、定義與分隔線 {#component-list-elements}
+
+`ul`／`ol` 的直接子元素使用 `li`；文字節點保留，但不佔編號。無序列表預設圓點，可用 `list-square`／`list-none`。有序列表只給實際編號項遞增，所以範例輸出 `1. First` 和 `2. Second`，跳過項不帶編號。標記檢查使用原始類名。父列表在建構時附加樣式，會重新套用子項預設的 block；子項已有文字變換仍保留首次登記的執行順序。
+
+`dl` 接受 `dt` 和 `dd`，預設術語粗體、定義左邊距四欄。無效的直接子元素回傳錯誤。`hr` 在寬度處理後產生邊框：`w-12` 輸出十二個線字元；內容寬度為零時，後續邊框階段仍可能填滿繼承寬度。`border-t` 的數字參數不設定粗細。表格、程式碼與預格式渲染器、自訂樣式／顏色倉庫仍是獨立未完成能力。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct ListCompiler;
+impl ComponentViewCompiler for ListCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "list" => Ok("<div><ul><li>Alpha</li><li>Beta</li></ul><ol><li>First</li><li class='list-none'>Skipped</li><li>Second</li></ol><dl><dt>Term</dt><dd>Definition</dd></dl><hr class='w-12'></div>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_lists() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:lists", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(ListCompiler)));
+            component.render_view("list", json!({}))?;
             Ok(0)
         })
     }))?;

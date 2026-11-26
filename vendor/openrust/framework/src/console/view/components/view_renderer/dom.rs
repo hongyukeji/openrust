@@ -165,3 +165,39 @@ impl TreeSink for Sink {
 pub(super) fn parse(html: &str) -> Vec<Node> {
     html5ever::parse_document(Sink(RefCell::new(vec![Node::empty()])), Default::default()).one(html)
 }
+
+/// 列表范围内按固定 HTML4 自动结束规则提升后续节点；其余恢复差异单列。
+pub(super) fn recover_lists(nodes: &mut [Node]) {
+    for id in 0..nodes.len() {
+        let closes: &[&str] = match nodes[id].tag() {
+            "dl" => &["li", "form"],
+            "dt" => &["dl"],
+            "ol" => &["form"],
+            "ul" => &["address", "form", "menu", "pre"],
+            _ => continue,
+        };
+        let Some(position) = nodes[id]
+            .children
+            .iter()
+            .position(|child| closes.contains(&nodes[*child].tag()))
+        else {
+            continue;
+        };
+        let Some(parent) = nodes[id].parent else {
+            continue;
+        };
+        let Some(after) = nodes[parent]
+            .children
+            .iter()
+            .position(|child| *child == id)
+            .map(|n| n + 1)
+        else {
+            continue;
+        };
+        let moved = nodes[id].children.split_off(position);
+        for child in &moved {
+            nodes[*child].parent = Some(parent);
+        }
+        nodes[parent].children.splice(after..after, moved);
+    }
+}

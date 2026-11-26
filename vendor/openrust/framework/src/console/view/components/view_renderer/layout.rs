@@ -1,7 +1,7 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::{
     dom::{self, Node},
-    style,
+    lists, style,
     tree::Prepared,
 };
 use crate::console::{ConsoleError, Terminal};
@@ -69,6 +69,7 @@ fn prepare(
     }
     // 转换子节点后构造当前元素，与默认布局的构造和错误顺序一致。
     let style = style::classes(node)?;
+    lists::prepare_children(node.tag(), &style, &mut children)?;
     Ok(Prepared {
         style: Some(style),
         children,
@@ -85,7 +86,8 @@ pub(super) fn render(html: &str) -> Result<String, ConsoleError> {
     if !TAG.is_match(html) {
         return Ok(html.to_owned());
     }
-    let nodes = dom::parse(html.trim());
+    let mut nodes = dom::parse(html.trim());
+    dom::recover_lists(&mut nodes);
     let body = nodes
         .iter()
         .position(|n| n.tag() == "body")

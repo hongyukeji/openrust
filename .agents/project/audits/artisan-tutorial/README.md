@@ -782,3 +782,16 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 初轮编译遗漏颜色错误插值变量，已修；初轮CLI夹具沿用上一单元“分母”错误文案，定位后仅修夹具为真实文本参数错误，不屏蔽产品错误。两轮失败日志保留，不计通过。扩展到边距/内距分数截断后按源扣边距，全部重新验收。先独立快照验收，再逐路径检查根工作区仍等于基线才回写13路径，保留其他在途内容。构建沿现有缓存与TMPDIR，未触及磁盘停线；无数据库/持久服务，来源容器--rm、HTTP/Artisan/浏览器正常退出。
 
 此簇不关闭全终端SDK：table/code/pre/list/dl/hr专用元素、样式/颜色仓库、独立公开Styles/Element/Style/Repository对象、HTML恢复差异、Factory容器覆盖及Helper/HelperSet/Time继续。来源方法表里对象/数组参数或非Styles返回值不能作为有效标量类字符串，不用no-op伪装支持。证据和最终SHA见accepted-component-style-methods.json；只本地提交、不推送。
+
+
+## 55. 列表、定义与分隔线专用装配（2026-11-26）
+
+54已本地提交f9d67ea5222d20af99aba43b0aa1efb8150e606b，未推送。固定Termwind::ul/ol/li/dl/dt/dd/hr、对应组件默认样式和Styles::list/borderT逐项核对；不把剥标签文本当作这些组件已支持。复用已有Style/Prepared/原输出，新增直接子元素装配与列表类型检查。ul square/none/disc原标记优先级、ol list-none不占编号、原始文本不编号、嵌套及class覆盖均实测。父列表追加样式会重新应用li block默认，list-none不会撤销已有prepend；保持源顺序。dt默认粗体、dd默认左4列；hr在宽度后生成线字符，width=0后仍可填继承宽度，border-t数字参数不设置粗细。
+
+首轮真实源对照发现HTML4/5差异：dl内直接li被libxml移到dl外，不能当作InvalidChild。已读取实际PHP镜像LIBXML_DOTTED_VERSION=2.13.9，并对照官方固定HTMLparser.c htmlStartClose/htmlAutoClose（https://raw.githubusercontent.com/GNOME/libxml2/v2.13.9/HTMLparser.c）。原生继续现有成熟HTML5 parser，仅补列表相关结束规则的arena节点提升，补dl/li/form、dt/dl、ol/form、ul/address/form/menu的嵌套和错误时机反例。ul/pre规则已接入，但其8个源消费者要等pre专用渲染器，不计本批通过；保存在component-list-pre-pending.json，下一簇接着验。没有复制C解析器或宣称通用HTML4等价。
+
+最终2992真实来源（264错误）在20/80列、ANSI开关、Raw/Normal核对；六框架目标23父测试、5真实Artisan/17HTTP含失败恢复12并发/5PTY ioctl20列、168直接提取三语文档消费者、12浏览器与严格workspace/all-targets Clippy、格式全部通过。source使用真实HandleExceptions，弃用日志单独省略，不把warning成功算通过。第一次HTTP并发失败是私有夹具URL保留上一单元normal视图，已修为dl并实际重跑，不修改预期绕过失败。原generic样式/尺寸/调色/渲染/编译回归保持通过。日志中的辅助ignore均由父实际执行，不额外计独立通过。
+
+第二次测试启动前守卫触及32GB线并持锁清理全项目编译profile，实际释放71,406,161,920字节，可用103,690,067,968字节；源码/WIP/依赖下载/日志/锁/数据库保留，随后正常并发重建验收，无手工解锁或删除工作树。两份已提交且无锁的53/54私有索引回收1,333,096字节，共享索引/patch/验收记录保留。先隔离验收，再核对根12路径基线回写；Source容器--rm、HTTP/PTY/浏览器全部收尾，无数据库或持久服务变更。
+
+仍继续table/code/pre、自定义样式/颜色仓库、独立Styles/Element/Style/Repository公开对象、通用恢复、Factory容器覆盖及Helper/Time；列表默认HTML绑定已验不重开，不据此关闭整章。命令与最终SHA见accepted-component-list-elements.json。本地提交，不推送。

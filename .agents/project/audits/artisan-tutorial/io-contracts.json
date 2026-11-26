@@ -2128,7 +2128,8 @@
     "声明索引仅用于盘点，不是实现或验收证据。",
     "对应公开类型、参数、默认值及真实消费者验收后逐项更新。",
     "表格／进度条及问答继承入口按本章实际承诺另行核对，不把通用回调当专用接口。",
-    "54: Component generic style dispatch, original markers, ordered text transformations and explicit bold=false verified; full terminal extension SDK/Factory container override remain open. See component-style-methods-contracts.json."
+    "54: Component generic style dispatch, original markers, ordered text transformations and explicit bold=false verified; full terminal extension SDK/Factory container override remain open. See component-style-methods-contracts.json.",
+    "55: default ul/ol/li/dl/dt/dd/hr rendering and list auto-close subset verified; table/code/pre, custom style/color repositories and remaining SDK still open. See component-list-elements-contracts.json."
   ],
   "native_adaptations": [
     {

@@ -1,0 +1,44 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "libxml_source_version": "2.13.9",
+  "status": "verified_default_list_definition_rule_rendering_general_parser_and_specialized_code_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer",
+  "bindings": {
+    "HtmlRenderer ul/ol/li/dl/dt/dd/hr": "style::classes defaults plus lists::prepare_children and existing Prepared",
+    "Termwind ul/ol/dl constructor callbacks": "direct child validation, original marker checks, numbered-entry-only increment and default reapplication",
+    "Styles::list/borderT": "style::apply keyed prepend and post-width border modifier",
+    "libxml list auto-close pairs": "dom::recover_lists; explicit supported-list subset only"
+  },
+  "source_oracle": {
+    "file": "component-list-elements-oracle.json",
+    "cases": 2992,
+    "errors": 264,
+    "warning_policy": "real HandleExceptions, only deprecation logging omitted"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 168,
+    "browser_checks": 12
+  },
+  "scope": [
+    "ul/ol直接li或原始文本；无效子元素报错，list-none跳过编号，ul square/none/disc与ol decimal原标记优先级和大小写；嵌套列表及class覆盖顺序。",
+    "父列表给子项追加样式会重置li默认block，保留已有文本变换顺序与实际prefix覆盖；list-none不撤销先前prepend。",
+    "dl限定dt/dd，dt默认bold与显式normal，dd默认ml-4及覆盖；原始文本保留。",
+    "hr默认block/border-t在宽度和文本变换后生成字符，0/分数/边距/内距/颜色/hidden/零分母/非法类型及style modifier先后。参数border-t-3不改变粗细。",
+    "按2.13.9真实htmlStartClose和htmlAutoClose规则对dl->li/form、dt->dl、ol->form、ul->address/form/menu/pre提升节点，已验除pre专用渲染阻塞项；不冒称全HTML4解析器。"
+  ],
+  "adaptations": [
+    "保持已有成熟HTML5 parser和arena，针对当前列表范围做DOM恢复适配，不重造解析器或依赖PHP运行时。",
+    "复用现有Style::apply/Prepared/trim_text/visible_width和原输出格式器，不新增ANSI或输出通道，不改具体组件快路径、公开API或数据格式。",
+    "继续1,000,000尺寸/填充及256深度边界；规则只处理已建树的直接关闭位置，全HTML4恢复仍待核对。",
+    "旧v0.x无对应控制台HTML渲染可复用，沿51-54调研与现行机制；许可保留。"
+  ],
+  "remaining": [
+    "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

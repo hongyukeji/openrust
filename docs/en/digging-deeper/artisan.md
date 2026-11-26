@@ -2120,7 +2120,7 @@ A flexible item first renders and caches its nested content; changing the item's
 
 Style method names use ASCII case-insensitive dispatch: `W-1/2` and `FONT-BOLD` work. The original class string remains significant for layout markers such as `flex-1`; changing its case or adding a responsive prefix does not create that exact marker. Numeric class arguments are converted to integers before checking the destination parameter type. Thus `prepend-1` returns an error rather than silently converting a number into text. `font-normal` explicitly disables inherited bold, while a `<b>` tag applies its own bold style after classes.
 
-The built-in text path does not expose the renderer dependency's standalone style objects or custom style/color repository. Specialized table, code and list elements remain outside the implemented HTML subset.
+The built-in text path does not expose the renderer dependency's standalone style objects or custom style/color repository. Specialized table and code elements remain outside the implemented HTML subset.
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2144,6 +2144,39 @@ fn register_component_text() -> Result<(), ConsoleError> {
             component.set_view_compiler(Some(Box::new(TextCompiler)));
             component.render_view("text", json!({}))?;
             component.render_view("short", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### Lists, definitions and rules {#component-list-elements}
+
+Use `ul` / `ol` with direct `li` children; text nodes are retained without taking a number. Unordered lists default to bullets and accept `list-square` / `list-none`. Ordered lists count only numbered entries, so the example renders `1. First` and `2. Second`; the skipped entry has no number. Marker checks use the original class names. A parent list appends styles during construction, reapplying the item's default block style; an item's pre-existing text transformations still keep their original execution order.
+
+A `dl` accepts `dt` and `dd` elements, with bold terms and a four-column left margin for definitions by default. Invalid direct child elements return an error. `hr` applies its border after width processing: `w-12` produces twelve rule characters. A zero content width can still fill the inherited width at this later border stage. The numeric `border-t` argument does not set thickness. Table, code and preformatted renderers and custom style/color repositories remain separate unfinished capabilities.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct ListCompiler;
+impl ComponentViewCompiler for ListCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "list" => Ok("<div><ul><li>Alpha</li><li>Beta</li></ul><ol><li>First</li><li class='list-none'>Skipped</li><li>Second</li></ol><dl><dt>Term</dt><dd>Definition</dd></dl><hr class='w-12'></div>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_lists() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:lists", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(ListCompiler)));
+            component.render_view("list", json!({}))?;
             Ok(0)
         })
     }))?;

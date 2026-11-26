@@ -1,0 +1,67 @@
+{
+  "base": "f9d67ea5222d20af99aba43b0aa1efb8150e606b",
+  "contract": "component-list-elements-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-lists-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-lists-site.log",
+    "target/tmp/artisan-tutorial-20261125/component-lists-pty-results.json"
+  ],
+  "test_results": [
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 168 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s"
+  ],
+  "source_oracle": {
+    "file": "component-list-elements-oracle.json",
+    "cases": 2992,
+    "errors": 264,
+    "warning_policy": "real HandleExceptions, only deprecation logging omitted"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 168,
+    "browser_checks": 12
+  },
+  "failed_attempts_not_counted": [
+    "component-lists-first.log: real HTML4 dl/li recovery difference, fixed plus source extensions",
+    "component-lists-second.log: private parallel HTTP fixture still requested previous normal view, fixed"
+  ],
+  "cleanup": {
+    "deleted_only_obsolete_private_indexes": [
+      {
+        "path": "target/tmp/artisan-tutorial-20261125/component-sizing-commit.index",
+        "commit": "afc0c21da3556210aeeb4b151d5cf1ef02c78d3c",
+        "bytes": 665944,
+        "sha256": "1d3c430c9c128516d5eb9f2896ac612ea9aa53e14deaa19f2ed74f0792d3ab29"
+      },
+      {
+        "path": "target/tmp/artisan-tutorial-20261125/component-methods-commit.index",
+        "commit": "f9d67ea5222d20af99aba43b0aa1efb8150e606b",
+        "bytes": 667152,
+        "sha256": "41299e34437e666ef98aeef73452361444aa3ded407264a1e0d68eca8732b985"
+      }
+    ],
+    "retained": [
+      "shared index",
+      "source",
+      "logs",
+      "accepted records",
+      "downloads",
+      "database",
+      "profiles not at stop line"
+    ],
+    "released_bytes": 1333096
+  },
+  "remaining": [
+    "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "pushed": false
+}

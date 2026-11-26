@@ -357,7 +357,8 @@
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+        "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+        "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
         "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
       ]
     },
@@ -542,7 +543,8 @@
     "status": "verified_typed_factory_and_command_io_original_style_binding",
     "contract": "factory-typed-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -550,7 +552,8 @@
     "status": "verified_builtin_dynamic_factory_dispatch_native_parameters",
     "contract": "factory-dispatch-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -558,7 +561,8 @@
     "status": "verified_compiled_custom_component_construction_registry_and_application_ownership",
     "contract": "factory-registry-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -566,7 +570,8 @@
     "status": "verified_component_owned_construction_mutate_and_question_scope",
     "contract": "component-core-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -574,7 +579,8 @@
     "status": "verified_owned_component_compile_four_embedded_templates_and_per_instance_override",
     "contract": "component-compile-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -582,7 +588,8 @@
     "status": "partial_render_view_dispatch_default_catalog_and_listed_markup_styles_verified_terminal_sdk_pending",
     "contract": "component-render-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -590,7 +597,8 @@
     "status": "verified_preset_palette_and_responsive_existing_styles_terminal_sdk_partial",
     "contract": "component-palette-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -598,7 +606,8 @@
     "status": "verified_default_sizing_justification_and_prepared_content_full_style_dispatch_pending",
     "contract": "component-sizing-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -606,7 +615,17 @@
     "status": "verified_generic_style_method_dispatch_and_text_mutators_specialized_types_pending",
     "contract": "component-style-methods-contracts.json",
     "remaining": [
-      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+    ]
+  },
+  "component_list_elements": {
+    "status": "verified_default_list_definition_rule_rendering_general_parser_and_specialized_code_pending",
+    "contract": "component-list-elements-contracts.json",
+    "remaining": [
+      "终端SDK继续table/code/pre专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "已保存ul内pre导致自动结束的8来源场景，恢复规则已接入，待pre渲染器接通后验收，不能计本批通过；记录target/tmp/artisan-tutorial-20261125/component-list-pre-pending.json。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   }
