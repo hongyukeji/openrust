@@ -123,6 +123,39 @@ def main():
                             process.communicate()
         print('PASS: structured pause, continue, restart, scale, balance and draining termination with exit status')
 
+        loop_events = root / 'loop-errors.log'
+        restart_events = root / 'restart-events.jsonl'
+        process_reports = root / 'process-reports.log'
+        first_event = len(restart_events.read_text().splitlines()) if restart_events.exists() else 0
+        failed_directory = root / 'missing-worker-directory'
+        failure_arguments = arguments + ['--min-processes=2', f'--directory={failed_directory}']
+        failure_env = dict(env, HORIZON_PROBE_FAIL_LOOP_DISPATCH='1', HORIZON_PROBE_RECORD_PROCESS_REPORTS='1')
+        with subprocess.Popen(failure_arguments, env=failure_env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True) as process:
+            try:
+                initial = until(state)
+                assert initial['status'] == 'running' and initial['workers'] == [], initial
+                until(lambda: recorded(loop_events, 'SupervisorLooped'))
+                events = [json.loads(row) for row in restart_events.read_text().splitlines()[first_event:]]
+                assert [(event['name'], event['queue'], event['pid'], event['exit_code']) for event in events] == [
+                    ('UnableToLaunchProcess', 'first', None, None),
+                    ('UnableToLaunchProcess', 'second', None, None),
+                ], events
+                assert process_reports.read_text().splitlines() == ['NotFound'] * 4
+                push('Terminate', [])
+                stdout, stderr = process.communicate(timeout=15)
+                assert process.returncode == 0, (process.returncode, stdout, stderr)
+                assert not state()
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.communicate(timeout=12)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.communicate()
+        print('PASS: initial Supervisor state, separate failed Worker start reports and next-loop continuation')
+
 
 if __name__ == '__main__':
     main()

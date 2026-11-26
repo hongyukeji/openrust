@@ -696,6 +696,15 @@ Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续
 
 Linux ARM64 以 `3515bafe8` 的进程范围源码重新构建 Release。首轮因触及 32 GB 停线中断，清理后确认原构建容器退出，再用 Rust 1.94.0、单作业完成优化构建。Linux 7.0.14、Debian glibc 2.36、独占 Redis 8.10.3 上，原生 Worker、孤儿清理、完整进程及 HTTP 矩阵均通过。两条一分钟路径均实际等待到期，分别验证异常退出补位及缺失工作目录恢复，最后关闭 Redis 并验证进程回收。证据为 `target/tmp/horizon-linux/worker-spawn-release.log`。Windows ARM64 结果见下节。
 
+
+### Horizon 监督循环的多席位创建失败顺序
+
+固定 PHP 8.5.12 通过实际 `Supervisor::loop`、`ProcessPool::monitor`、`WorkerProcess` 与 Symfony Process 8.0.5 验证两席位。不存在的工作目录触发真实创建错误。首个席位失败后本轮只报告该错误。下轮会跳过仍在冷却的席位并检查第二个席位。首个席位再次失败时，即使第二个目录已恢复也推迟到下一轮启动。创建失败的轮次不会持久化本轮状态或派发 `SupervisorLooped`。证据为 `target/tmp/observability-parity/horizon-worker-multiple-upstream.log`。
+
+Rust 原先在两个席位都未达到再次尝试期限时已经派发 `SupervisorLooped`。使用真实 `horizon:supervisor` 和隔离 Redis 8.10.3 复现，第一次循环事件前的 `UnableToLaunchProcess` 清单为空。现在在监控开始时先发布初始状态，各席位保留原冷却。进程创建错误交给应用异常处理器并结束当轮检查，下一轮继续。公开命令验收核对 Redis 初始状态、两队列事件顺序、原生进程 I/O 错误进入报告回调及正常退出。macOS 的此项和原有六条结构化命令均通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-rust-baseline.log` 与 `target/tmp/observability-parity/horizon-worker-multiple-macos.log`。
+
+同一 macOS 快照的原生进程矩阵通过，包括异常退出补位、一分钟冷却、工作目录恢复、命令与信号排空、实际 HTTP 和授权。包默认 32 项及隔离 Redis 8.10.3 的 23 项通过，快照全仓格式和包全目标严格 Clippy 通过。三语站点、12 组通用浏览器检查及 Horizon 章节的三语桌面与移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos,macos-redis,docs,docs-browser,docs-chapter}.log`。Linux／Windows 的本次监督循环改动以及最终部署组合继续验收。
+
 ### Horizon Windows ARM64 应用装配与条件编译
 
 Windows 11 ARM64 虚机的 Parallels 共享目录在 Rust 写归档时返回错误 87。构建切换到镜像位于项目临时目录的独立 NTFS 盘，并在本次命令的 PATH 中接入虚机已有的 ARM64 Clang 19.1.5 和 CMake。Rust 1.94.0 的原生目标为 `aarch64-pc-windows-msvc`。

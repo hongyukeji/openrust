@@ -410,6 +410,11 @@ impl Supervisor {
         }
         let generation = self.repository.generation().await?;
         let mut control = crate::signals::ControlSignals::new()?;
+        let paused = self
+            .repository
+            .reservations_paused(Some(&self.id), self.ownership.as_ref())
+            .await?;
+        self.persist(paused).await?;
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
         #[cfg(windows)]
         let parent_closed = crate::signals::parent_closed(self.parent_shutdown);
@@ -591,10 +596,31 @@ impl Supervisor {
             }
             for option in options.values() {
                 for queue in option.pools() {
-                    self.monitor_workers(&queue, option).await?;
+                    if !self.monitor_workers(&queue, option).await? {
+                        return Ok(None);
+                    }
                 }
             }
         }
+        self.persist(paused).await?;
+        let event = SupervisorLooped::new(self, paused);
+        if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
+            let _ = openrust::support::facades::Log::warning(
+                &format!("Horizon supervisor loop listener failed: {error}"),
+                &Default::default(),
+            );
+        }
+        // 自定义监听器可能提前终止派发，进程仍须检查内存。
+        crate::MonitorSupervisorMemory::check(&event)
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        if event.memory_check.exceeded() {
+            return Err(Error::MemoryLimitExceeded);
+        }
+        Ok(None)
+    }
+
+    async fn persist(&self, paused: bool) -> Result<()> {
         let workers: Vec<_> = self
             .pools
             .values()
@@ -636,22 +662,7 @@ impl Supervisor {
         });
         self.repository
             .publish_supervisor(&self.id, &status, self.ownership.as_ref())
-            .await?;
-        let event = SupervisorLooped::new(self, paused);
-        if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
-            let _ = openrust::support::facades::Log::warning(
-                &format!("Horizon supervisor loop listener failed: {error}"),
-                &Default::default(),
-            );
-        }
-        // 自定义监听器可能提前终止派发，进程仍须检查内存。
-        crate::MonitorSupervisorMemory::check(&event)
             .await
-            .map_err(|_| Error::Unavailable)?;
-        if event.memory_check.exceeded() {
-            return Err(Error::MemoryLimitExceeded);
-        }
-        Ok(None)
     }
 
     async fn process_queued_command(&mut self, item: crate::QueuedCommand) -> Result<Option<i32>> {
@@ -813,7 +824,7 @@ impl Supervisor {
         Ok(process)
     }
 
-    async fn monitor_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
+    async fn monitor_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<bool> {
         for index in 0..self.pools[queue].workers.len() {
             let worker = &self.pools[queue].workers[index];
             if !worker.needs_launch() {
@@ -821,20 +832,19 @@ impl Supervisor {
             }
             let process = self.prepare_worker(queue, options)?;
             let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
-            match worker.launch(process).await {
-                Ok(()) => {}
-                Err(error) => {
-                    let _ = openrust::support::facades::Log::warning(
-                        &format!(
-                            "Horizon 无法为监督器 {} 的队列 {queue} 创建 Worker 进程: {error}",
-                            self.id
-                        ),
-                        &Default::default(),
-                    );
+            if let Err(error) = worker.launch(process).await {
+                let message = format!(
+                    "Horizon 无法为监督器 {} 的队列 {queue} 创建 Worker 进程: {error}",
+                    self.id
+                );
+                if openrust::support::report(error).await.is_err() {
+                    let _ = openrust::support::facades::Log::warning(&message, &Default::default());
                 }
+                // 本轮结束，下次轮询继续检查冷却和后续席位。
+                return Ok(false);
             }
         }
-        Ok(())
+        Ok(true)
     }
     async fn stop(&mut self) -> Result<()> {
         let deadline = Instant::now()

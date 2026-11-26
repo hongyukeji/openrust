@@ -401,9 +401,26 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
         providers.swap(0, 1);
     }
+    let process_reports = Path::new(&base).join("process-reports.log");
     Ok(Application::configure(base.into())
         .with_config(config)
         .with_providers(providers)
+        .with_exceptions(move |exceptions| {
+            if std::env::var_os("HORIZON_PROBE_RECORD_PROCESS_REPORTS").is_some() {
+                exceptions.report(move |error: &openrust::process::Error| {
+                    use std::io::Write as _;
+                    if let openrust::process::Error::Io(source) = error {
+                        let mut report = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(&process_reports)
+                            .unwrap();
+                        writeln!(report, "{:?}", source.kind()).unwrap();
+                    }
+                    openrust::foundation::configuration::ReportDecision::Continue
+                });
+            }
+        })
         .with_routing(Routing::default().web(routes))
         .create()?)
 }
