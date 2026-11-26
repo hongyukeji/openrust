@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     error::Error,
     ffi::OsString,
+    future::Future,
     io::{self, Write as _},
     path::{Path, PathBuf},
     sync::{
@@ -828,6 +829,11 @@ impl Application {
             }
             middleware
         })
+    }
+
+    /// 为异步操作装配本应用的容器和 Facade 作用域。
+    pub fn scope<F: Future>(&self, future: F) -> impl Future<Output = F::Output> {
+        crate::support::facades::scope(self.container_handle(), future)
     }
 
     pub(crate) fn container_handle(&self) -> Arc<Container> {

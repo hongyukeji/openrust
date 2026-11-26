@@ -147,3 +147,9 @@ HTTP Kernel 和 TCP 上游覆盖全命中、部分命中、顺序、重复输入
 HTTP Kernel 和独立 Artisan／HTTP 进程经真实 TCP 上游模拟验证四种连接、认证、线协议、用量及索引。Bedrock、Collection 便利入口、Reranking Fake 及真实供应商验收仍待对应批次。
 
 - [Cohere v2](https://docs.cohere.com/v2/reference/rerank) · [Jina AI](https://jina.ai/reranker/) · [Voyage AI](https://docs.voyageai.com/reference/reranker-api) · [OpenRouter](https://openrouter.ai/docs/api/api-reference/rerank/create-rerank)
+
+## AI-03 OpenAI Agent 流式工具循环
+
+OpenAI Responses 和兼容 Chat Completions 的 `StepTextGateway::stream_text_step` 复用已有协议请求、SSE 传输及具名工具。第一个 HTTP 请求在 SDK 返回流前建立。流式文本先到达消费者；工具须等上游结束帧及完整对象参数后执行。复用非流式工具的参数校验、重复 ID 检查、工具白名单和最大步骤限制。结果按原 ID 带回模型。SDK SSE、Vercel 和 AG-UI 输出工具事件，后两种汇总实际报告的步骤用量。
+
+HTTP 响应体在请求作用域结束后才消费。流式 Tool 通过框架 `Application::scope` 在所属应用作用域内执行，可正常使用 Validator。请求需要的业务身份由应用在构造工具时显式携带。包测试覆盖真实 TCP 两协议、无结束帧不执行和 UI 事件；独立 Artisan 与 HTTP 验证真实校验、首段文本提前、工具回送和最终用量。Claude／Gemini 流式工具及流式中间件留在相应后续批次。

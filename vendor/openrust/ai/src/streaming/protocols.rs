@@ -56,6 +56,17 @@ impl StreamProtocol for VercelDataProtocol {
                         StreamEventData::TextEnd { message_id } => {
                             yield payload(json!({"type":"text-end","id":message_id}));
                         }
+                        StreamEventData::ToolCall { call } => {
+                            yield payload(json!({"type":"tool-input-available","toolCallId":call.id,"toolName":call.name,"input":call.arguments}));
+                        }
+                        StreamEventData::ToolResult { result } => {
+                            let data = if result.failed {
+                                json!({"type":"tool-output-error","toolCallId":result.id,"errorText":result.result})
+                            } else {
+                                json!({"type":"tool-output-available","toolCallId":result.id,"output":result.result})
+                            };
+                            yield payload(data);
+                        }
                         StreamEventData::StreamEnd { reason, usage } => record_completion(&mut completion, reason, usage),
                     },
                     Err(_) => {
@@ -127,6 +138,14 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                         }
                         StreamEventData::TextEnd { message_id } => {
                             yield payload(json!({"type":"TEXT_MESSAGE_END","messageId":message_id}));
+                        }
+                        StreamEventData::ToolCall { call } => {
+                            yield payload(json!({"type":"TOOL_CALL_START","toolCallId":call.id,"toolCallName":call.name}));
+                            yield payload(json!({"type":"TOOL_CALL_ARGS","toolCallId":call.id,"delta":serde_json::to_string(&call.arguments).expect("参数为 JSON 对象")}));
+                            yield payload(json!({"type":"TOOL_CALL_END","toolCallId":call.id}));
+                        }
+                        StreamEventData::ToolResult { result } => {
+                            yield payload(json!({"type":"TOOL_CALL_RESULT","messageId":event.id,"toolCallId":result.id,"content":result.result,"role":"tool"}));
                         }
                         StreamEventData::StreamEnd { reason, usage } => record_completion(&mut completion, reason, usage),
                     },

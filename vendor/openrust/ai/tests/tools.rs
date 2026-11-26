@@ -74,11 +74,25 @@ async fn native_fixture(
     auth_value: &'static str,
     replies: Vec<Value>,
 ) -> (String, JoinHandle<Vec<Value>>) {
+    let replies = replies
+        .into_iter()
+        .map(|value| ("application/json", value.to_string()))
+        .collect();
+    http_fixture(version, path, auth_header, auth_value, replies).await
+}
+
+async fn http_fixture(
+    version: &'static str,
+    path: &'static str,
+    auth_header: &'static str,
+    auth_value: &'static str,
+    replies: Vec<(&'static str, String)>,
+) -> (String, JoinHandle<Vec<Value>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/{}", listener.local_addr().unwrap(), version);
     let server = tokio::spawn(async move {
         let mut requests = Vec::new();
-        for response in replies {
+        for (content_type, payload) in replies {
             let (socket, _) = timeout(Duration::from_secs(5), listener.accept())
                 .await
                 .unwrap()
@@ -107,9 +121,8 @@ async fn native_fixture(
             let mut body = vec![0; size];
             socket.read_exact(&mut body).await.unwrap();
             requests.push(serde_json::from_slice(&body).unwrap());
-            let payload = response.to_string();
             let header = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 payload.len()
             );
             socket.get_mut().write_all(header.as_bytes()).await.unwrap();
@@ -405,5 +418,169 @@ async fn agent_middleware_controls_each_step_without_replaying_disabled_tools() 
         requests[2]["messages"].as_array().unwrap().last().unwrap()["tool_call_id"],
         "should_not_run"
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestResult {
+    let events = |values: Vec<Value>, chat: bool| {
+        let mut text: String = values
+            .iter()
+            .map(|event| format!("data: {event}\n\n"))
+            .collect();
+        if chat {
+            text.push_str("data: [DONE]\n\n");
+        }
+        ("text/event-stream", text)
+    };
+    let chat = vec![
+        events(
+            vec![
+                json!({"choices":[{"delta":{"content":"Checking "},"finish_reason":null}]}),
+                json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function","function":{"name":"lookup","arguments":"{\"sku\":"}}]},"finish_reason":null}]}),
+                json!({"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"demo\"}"}}]},"finish_reason":"tool_calls"}]}),
+                json!({"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":1}}),
+            ],
+            true,
+        ),
+        events(
+            vec![
+                json!({"choices":[{"delta":{"content":"four remaining"},"finish_reason":"stop"}]}),
+                json!({"choices":[],"usage":{"prompt_tokens":6,"completion_tokens":2}}),
+            ],
+            true,
+        ),
+        // 具备完整参数但缺少终止帧，应在执行工具前终止。
+        events(
+            vec![
+                json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function","function":{"name":"lookup","arguments":"{\"sku\":\"demo\"}"}}]},"finish_reason":"tool_calls"}]}),
+            ],
+            false,
+        ),
+    ];
+    let responses = vec![
+        events(
+            vec![
+                json!({"type":"response.output_text.delta","delta":"Checking "}),
+                json!({"type":"response.completed","response":{"status":"completed","output":[
+                {"type":"message","content":[{"type":"output_text","text":"Checking "}]},
+                {"type":"function_call","call_id":"call_fixture","name":"lookup","arguments":"{\"sku\":\"demo\"}"}
+            ],"usage":{"input_tokens":5,"output_tokens":1}}}),
+            ],
+            false,
+        ),
+        events(
+            vec![
+                json!({"type":"response.output_text.delta","delta":"four remaining"}),
+                json!({"type":"response.completed","response":{"status":"completed","output":[
+                {"type":"message","content":[{"type":"output_text","text":"four remaining"}]}
+            ],"usage":{"input_tokens":6,"output_tokens":2}}}),
+            ],
+            false,
+        ),
+    ];
+    let (chat, chat_calls) = http_fixture(
+        "v1",
+        "chat/completions",
+        "authorization",
+        "Bearer fixture-key",
+        chat,
+    )
+    .await;
+    let (responses, response_calls) = http_fixture(
+        "v1",
+        "responses",
+        "authorization",
+        "Bearer fixture-key",
+        responses,
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/chat-stream-tools", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let response = agent("")
+                        .with_tools(vec![tool])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap();
+                    Ok::<_, HttpError>(response.using_vercel_data_protocol(None).to_response())
+                })?;
+                Route::get("/responses-stream-tools", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let response = agent("")
+                        .with_tools(vec![tool])
+                        .stream_with(
+                            "Check demo.",
+                            PromptOptions {
+                                provider: Some("openai"),
+                                ..PromptOptions::default()
+                            },
+                        )
+                        .await
+                        .unwrap();
+                    Ok::<_, HttpError>(
+                        response
+                            .using_agent_user_interaction_protocol(None, None)
+                            .to_response(),
+                    )
+                })?;
+                Route::get("/interrupted-tool-stream", || async {
+                    use futures_util::StreamExt;
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let mut response = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap()
+                        .into_stream();
+                    assert!(response.next().await.unwrap().is_ok());
+                    assert!(matches!(
+                        response.next().await,
+                        Some(Err(openrust_ai::AiError::InvalidResponse))
+                    ));
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 0);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=deepseek\nDEEPSEEK_URL={chat}\nDEEPSEEK_MODEL=chat\nDEEPSEEK_API_KEY=fixture-key\nOPENAI_URL={responses}\nOPENAI_MODEL=response\nOPENAI_API_KEY=fixture-key\n"
+        ),
+    )?;
+    let chat = app.get("/chat-stream-tools").await?;
+    assert_eq!(chat.status(), StatusCode::OK);
+    let chat_body = std::str::from_utf8(chat.streamed_content())?;
+    assert!(chat_body.contains("\"type\":\"tool-input-available\""));
+    assert!(chat_body.contains("\"type\":\"tool-output-available\""));
+    assert!(chat_body.contains("four remaining") && chat_body.contains("\"totalTokens\":14"));
+    let responses = app.get("/responses-stream-tools").await?;
+    assert_eq!(responses.status(), StatusCode::OK);
+    let response_body = std::str::from_utf8(responses.streamed_content())?;
+    assert!(
+        response_body.contains("TOOL_CALL_START") && response_body.contains("TOOL_CALL_RESULT")
+    );
+    assert!(
+        response_body.contains("four remaining") && response_body.contains("\"totalTokens\":14")
+    );
+    assert_eq!(
+        app.get("/interrupted-tool-stream").await?.status(),
+        StatusCode::OK
+    );
+    let chat = chat_calls.await?;
+    assert_eq!(chat[0]["stream_options"]["include_usage"], true);
+    assert_eq!(chat[1]["messages"][2]["tool_call_id"], "call_fixture");
+    assert_eq!(
+        serde_json::from_str::<Value>(chat[1]["messages"][2]["content"].as_str().unwrap())?["quantity"],
+        4
+    );
+    let responses = response_calls.await?;
+    assert_eq!(responses[1]["input"][2]["call_id"], "call_fixture");
+    assert_eq!(responses[1]["input"][3]["call_id"], "call_fixture");
+    assert_eq!(responses[1]["input"][3]["type"], "function_call_output");
     Ok(())
 }

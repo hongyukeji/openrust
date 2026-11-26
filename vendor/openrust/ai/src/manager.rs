@@ -439,23 +439,24 @@ impl AiManager {
         if !agent.middleware().is_empty() {
             return Err(AiError::StreamingMiddlewareNotSupported);
         }
-        if !agent.tools().is_empty() {
-            return Err(AiError::ToolsNotSupported);
-        }
+        let tools = agent.tools();
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
-        provider
-            .stream(AgentPrompt {
-                text: TextPrompt {
-                    instructions: agent.instructions(),
-                    prompt,
-                    model,
-                    timeout: options.timeout,
-                },
-                messages: agent.messages(),
-                structured_output,
-            })
-            .await
+        let request = AgentPrompt {
+            text: TextPrompt {
+                instructions: agent.instructions(),
+                prompt,
+                model,
+                timeout: options.timeout,
+            },
+            messages: agent.messages(),
+            structured_output,
+        };
+        if tools.is_empty() {
+            provider.stream(request).await
+        } else {
+            crate::tool_stream::stream(provider.clone(), request, tools, agent.max_steps()).await
+        }
     }
 }
 

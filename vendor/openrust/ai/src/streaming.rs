@@ -12,7 +12,10 @@ use openrust::{
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{AgentResponse, AiError, AiResult, TextEndpoint, Usage, text::transport_error};
+use crate::{
+    AgentResponse, AiError, AiResult, TextEndpoint, ToolCall, ToolResult, Usage,
+    text::transport_error,
+};
 
 mod protocols;
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
@@ -35,6 +38,8 @@ pub enum StreamEventData {
     TextStart { message_id: String },
     TextDelta { message_id: String, delta: String },
     TextEnd { message_id: String },
+    ToolCall { call: ToolCall },
+    ToolResult { result: ToolResult },
     StreamEnd { reason: String, usage: Usage },
 }
 
@@ -44,6 +49,13 @@ pub struct StreamableAgentResponse {
 }
 
 impl StreamableAgentResponse {
+    pub(crate) fn from_events(events: AgentEventStream) -> Self {
+        Self {
+            events,
+            protocol: None,
+        }
+    }
+
     pub fn into_stream(self) -> AgentEventStream {
         self.events
     }
@@ -183,7 +195,7 @@ pub(crate) fn is_event_stream(response: &openrust::http::client::Response) -> bo
         .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/event-stream"))
 }
 
-fn event(invocation: &str, data: StreamEventData) -> StreamEvent {
+pub(crate) fn event(invocation: &str, data: StreamEventData) -> StreamEvent {
     StreamEvent {
         id: Str::ulid().to_string(),
         invocation_id: invocation.into(),

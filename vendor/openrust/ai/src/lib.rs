@@ -33,6 +33,8 @@ mod streaming;
 mod structured;
 mod text;
 mod tool_protocol;
+mod tool_stream;
+mod tool_stream_protocol;
 mod tools;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
@@ -62,8 +64,8 @@ pub use structured::{
 };
 pub use text::{AgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage};
 pub use tools::{
-    StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition, ToolRequest, ToolResult,
-    ToolStep,
+    StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,
+    ToolRequest, ToolResult, ToolStep,
 };
 
 pub struct AiServiceProvider;

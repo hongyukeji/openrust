@@ -109,7 +109,7 @@ let response = agent("回答前先查目錄。")
 let answer = response.text;
 ```
 
-工具呼叫支援 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的非串流請求。Claude 和 Gemini 會收到原始模型內容及工具結果，讓供應商核對簽章。Agent 用原呼叫 ID 把結果送回模型，並在回應中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步驟數。最後一個步驟提出的工具呼叫會記錄為失敗結果，工具不會執行。
+工具呼叫支援 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的非串流請求。Claude 和 Gemini 會收到原始模型內容及工具結果，讓供應商核對簽章。OpenAI 和 OpenAI 相容連線也支援在 `Agent::stream()` 中使用工具。SDK 即時送出文字，在下一次模型呼叫前送出完整的工具呼叫及結果。預設 SSE、Vercel UI 和 AG-UI 都提供對應的工具事件。Agent 用原呼叫 ID 把結果送回模型，並在回應中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步驟數。最後一個步驟提出的工具呼叫會記錄為失敗結果，工具不會執行。
 
 ## 產生 Agent 或工具 {#generators}
 

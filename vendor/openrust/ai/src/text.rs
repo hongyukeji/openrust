@@ -25,8 +25,8 @@ use serde_json::Value;
 
 use crate::{
     AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
-    RerankingProvider, StepResponse, StepTextGateway, StreamableAgentResponse, StructuredOutput,
-    ToolCall, ToolDefinition, ToolResult, ToolStep,
+    RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
+    StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
@@ -424,6 +424,29 @@ impl TextProvider for OpenAiTextProvider {
     }
 }
 
+impl OpenAiTextProvider {
+    fn tool_payload(
+        &self,
+        prompt: &AgentPrompt<'_>,
+        tools: &[ToolDefinition],
+        history: &[ToolStep],
+        stream: bool,
+    ) -> AiResult<Value> {
+        match self.protocol {
+            OpenAiProtocol::ChatCompletions => {
+                let body = serde_json::to_value(Self::chat_body(prompt, stream))
+                    .map_err(|_| AiError::InvalidSchema)?;
+                crate::tool_protocol::chat_request(body, tools, history)
+            }
+            OpenAiProtocol::Responses => {
+                let body = serde_json::to_value(self.responses_body(prompt, stream))
+                    .map_err(|_| AiError::InvalidSchema)?;
+                crate::tool_protocol::responses_request(body, tools, history)
+            }
+        }
+    }
+}
+
 impl StepTextGateway for OpenAiTextProvider {
     fn generate_text_step<'a>(
         &'a self,
@@ -432,20 +455,7 @@ impl StepTextGateway for OpenAiTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            use crate::tool_protocol;
-
-            let payload = match self.protocol {
-                OpenAiProtocol::ChatCompletions => {
-                    let body = serde_json::to_value(Self::chat_body(prompt, false))
-                        .map_err(|_| AiError::InvalidSchema)?;
-                    tool_protocol::chat_request(body, tools, history)?
-                }
-                OpenAiProtocol::Responses => {
-                    let body = serde_json::to_value(self.responses_body(prompt, false))
-                        .map_err(|_| AiError::InvalidSchema)?;
-                    tool_protocol::responses_request(body, tools, history)?
-                }
-            };
+            let payload = self.tool_payload(prompt, tools, history, false)?;
             let response = validate(Ok(self
                 .connection
                 .send(
@@ -459,9 +469,33 @@ impl StepTextGateway for OpenAiTextProvider {
                 .json::<Value>()
                 .map_err(|_| AiError::InvalidResponse)?;
             match self.protocol {
-                OpenAiProtocol::ChatCompletions => tool_protocol::chat_step(response),
-                OpenAiProtocol::Responses => tool_protocol::responses_step(response),
+                OpenAiProtocol::ChatCompletions => crate::tool_protocol::chat_step(response),
+                OpenAiProtocol::Responses => crate::tool_protocol::responses_step(response),
             }
+        })
+    }
+    fn stream_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        Box::pin(async move {
+            let payload = self.tool_payload(prompt, tools, history, true)?;
+            let response = validate(Ok(self
+                .connection
+                .send(
+                    self.protocol.endpoint(),
+                    &payload,
+                    true,
+                    prompt.text.timeout,
+                )
+                .await?))?;
+            if !crate::streaming::is_event_stream(&response) {
+                return Err(AiError::InvalidResponse);
+            }
+            let stream = response.into_stream().map_err(transport_error)?;
+            Ok(crate::tool_stream_protocol::openai(self.protocol, stream))
         })
     }
 }

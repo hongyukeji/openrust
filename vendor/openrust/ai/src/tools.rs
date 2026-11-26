@@ -1,8 +1,10 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
+    pin::Pin,
     sync::Arc,
 };
 
+use futures_util::Stream;
 use openrust::{
     http::HttpFuture,
     json_schema::{JsonSchemaTypeFactory, Type, types::ObjectType},
@@ -95,6 +97,16 @@ pub struct StepResponse {
     pub provider_content: Option<Value>,
 }
 
+pub enum StepEvent {
+    TextDelta(String),
+    Finished {
+        response: StepResponse,
+        reason: String,
+    },
+}
+
+pub type StepEventStream = Pin<Box<dyn Stream<Item = AiResult<StepEvent>> + Send>>;
+
 /// 实现一次生成步骤的协议适配器。
 pub trait StepTextGateway: Send + Sync {
     fn generate_text_step<'a>(
@@ -103,6 +115,14 @@ pub trait StepTextGateway: Send + Sync {
         tools: &'a [ToolDefinition],
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>>;
+    fn stream_text_step<'a>(
+        &'a self,
+        _: &'a AgentPrompt<'a>,
+        _: &'a [ToolDefinition],
+        _: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        Box::pin(async { Err(AiError::ToolsNotSupported) })
+    }
 }
 
 pub(crate) async fn run(
@@ -112,29 +132,8 @@ pub(crate) async fn run(
     max_steps: Option<usize>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
 ) -> AiResult<AgentResponse> {
-    let default_steps = tools.len().saturating_mul(3).div_ceil(2).min(25);
-    let max_steps = max_steps.unwrap_or(default_steps).max(1);
-    let mut definitions = Vec::with_capacity(tools.len());
-    let mut names = BTreeMap::new();
-    for tool in &tools {
-        let name = tool.name();
-        if name.is_empty()
-            || name.len() > 64
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-            || names.insert(name, tool).is_some()
-        {
-            return Err(AiError::InvalidTools);
-        }
-        definitions.push(ToolDefinition {
-            name: name.into(),
-            description: tool.description().into(),
-            schema: Type::from(tool.schema(JsonSchemaTypeFactory))
-                .to_array()
-                .map_err(|_| AiError::InvalidSchema)?,
-        });
-    }
+    let max_steps = step_limit(tools.len(), max_steps);
+    let (definitions, tools) = prepare(tools)?;
 
     let invocation_id = Str::ulid().to_string();
     let mut history = Vec::new();
@@ -166,32 +165,14 @@ pub(crate) async fn run(
             totals.prompt_tokens = sum(previous.prompt_tokens, totals.prompt_tokens);
             totals.completion_tokens = sum(previous.completion_tokens, totals.completion_tokens);
         }
-        for call in &response.tool_calls {
-            if call.id.trim().is_empty() || !seen.insert(call.id.clone()) {
-                return Err(AiError::InvalidResponse);
-            }
-        }
-        let mut results = Vec::with_capacity(response.tool_calls.len());
-        for call in &response.tool_calls {
-            let output = match names.get(call.name.as_str()) {
-                _ if step == max_steps => Err("已达到 Agent 的最大步骤数"),
-                Some(tool) if allowed.contains(&call.name) => tool
-                    .handle(ToolRequest {
-                        call,
-                        invocation_id: &Str::ulid().to_string(),
-                    })
-                    .await
-                    .map_err(|_| "工具执行失败"),
-                _ => Err("该步骤未启用该工具"),
-            };
-            let failed = output.is_err();
-            results.push(ToolResult {
-                id: call.id.clone(),
-                name: call.name.clone(),
-                result: output.unwrap_or_else(str::to_owned),
-                failed,
-            });
-        }
+        validate_calls(&response.tool_calls, &mut seen)?;
+        let results = execute(
+            &response.tool_calls,
+            &tools,
+            Some(&allowed),
+            step == max_steps,
+        )
+        .await;
         let finished = response.tool_calls.is_empty() || step == max_steps;
         history.push(ToolStep {
             text: response.text.clone(),
@@ -221,6 +202,77 @@ pub(crate) async fn run(
         usage = Some(totals);
     }
     Err(AiError::InvalidResponse)
+}
+
+pub(crate) type ToolHandlers = BTreeMap<String, Arc<dyn Tool>>;
+
+pub(crate) fn step_limit(count: usize, requested: Option<usize>) -> usize {
+    let default_steps = count.saturating_mul(3).div_ceil(2).min(25);
+    requested.unwrap_or(default_steps).max(1)
+}
+
+pub(crate) fn prepare(tools: Vec<Arc<dyn Tool>>) -> AiResult<(Vec<ToolDefinition>, ToolHandlers)> {
+    let mut definitions = Vec::with_capacity(tools.len());
+    let mut handlers = BTreeMap::new();
+    for tool in tools {
+        let name = tool.name();
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            || handlers.contains_key(name)
+        {
+            return Err(AiError::InvalidTools);
+        }
+        definitions.push(ToolDefinition {
+            name: name.into(),
+            description: tool.description().into(),
+            schema: Type::from(tool.schema(JsonSchemaTypeFactory))
+                .to_array()
+                .map_err(|_| AiError::InvalidSchema)?,
+        });
+        handlers.insert(name.into(), tool);
+    }
+    Ok((definitions, handlers))
+}
+
+pub(crate) fn validate_calls(calls: &[ToolCall], seen: &mut HashSet<String>) -> AiResult<()> {
+    for call in calls {
+        if call.id.trim().is_empty() || !seen.insert(call.id.clone()) {
+            return Err(AiError::InvalidResponse);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) async fn execute(
+    calls: &[ToolCall],
+    tools: &ToolHandlers,
+    allowed: Option<&BTreeSet<String>>,
+    final_step: bool,
+) -> Vec<ToolResult> {
+    let mut results = Vec::with_capacity(calls.len());
+    for call in calls {
+        let output = match tools.get(&call.name) {
+            _ if final_step => Err("已达到 Agent 的最大步骤数"),
+            Some(tool) if allowed.is_none_or(|names| names.contains(&call.name)) => tool
+                .handle(ToolRequest {
+                    call,
+                    invocation_id: &Str::ulid().to_string(),
+                })
+                .await
+                .map_err(|_| "工具执行失败"),
+            _ => Err("该步骤未启用该工具"),
+        };
+        results.push(ToolResult {
+            id: call.id.clone(),
+            name: call.name.clone(),
+            failed: output.is_err(),
+            result: output.unwrap_or_else(str::to_owned),
+        });
+    }
+    results
 }
 
 fn sum(first: Option<u64>, second: Option<u64>) -> Option<u64> {
