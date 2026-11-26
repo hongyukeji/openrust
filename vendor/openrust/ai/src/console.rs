@@ -7,6 +7,8 @@ use serde_json::json;
 
 use crate::{Agent, Ai, PromptOptions, agent};
 
+mod select_model;
+
 pub(crate) fn register() -> Result<(), ConsoleError> {
     Artisan::add(Box::new(Models {
         definition: CommandDefinition::from_signature(
@@ -17,7 +19,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         definition: CommandDefinition::from_signature(
             "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID}",
         )?,
-    }))
+    }))?;
+    select_model::register()
 }
 
 struct Models {

@@ -20,7 +20,7 @@
 
 ## DSH 式模型目录与试调用
 
-`Ai::models`、`artisan ai:models {provider?} {--json}` 与 `artisan ai:prompt {prompt} {--provider=} {--model=}` 已接通 OpenAI 系列兼容端点。按原始 ID 合并 `models.text.default`、`models.text.ids` 和上游目录，保留配置／发现来源和上游明确返回的输入／输出类型。目录失败时结果附带错误，手填值仍可选择。独立 Artisan 加本地协议服务验收带代理前缀的 GET 目录、Bearer 鉴权、字符串模型 ID 及实际试调用。包测试额外覆盖重复项、大小写和目录 404。待补其他原生协议的分页、交互确认保存与更完整的目录元数据。
+`Ai::models`、`artisan ai:models {provider?} {--json}` 与 `artisan ai:prompt {prompt} {--provider=} {--model=}` 已接通 OpenAI 系列兼容端点。按原始 ID 合并 `models.text.default`、`models.text.ids` 和上游目录，保留配置／发现来源和上游明确返回的输入／输出类型。目录失败时结果附带错误，手填值仍可选择。独立 Artisan 加本地协议服务验收带代理前缀的 GET 目录、Bearer 鉴权、字符串模型 ID 及实际试调用。包测试额外覆盖重复项、大小写和目录 404。Anthropic 与 Gemini 分页及交互保存已分别在后续批次验收。更完整的能力目录元数据仍待核对。
 
 ## AI-02 两种文本 SSE 协议
 
@@ -61,3 +61,9 @@ SDK 的 `gemini` 连接支持 `Agent::prompt`、`stream` 与 `Ai::models`，使�
 `Embeddings::r#for`、`PendingEmbeddingsGeneration`、`EmbeddingProvider`、`AiManager::embedding_provider` 和 `EmbeddingsResponse` 已支持批量文本。默认连接由 `ai.default_for_embeddings` 选择，默认模型使用命名连接的 `models.embeddings.default`。显式 Provider、模型、维数和超时可逐次覆盖。OpenAI 原生连接支持此能力，兼容驱动须由应用配置该连接的 Embeddings 能力。用固定 `async-openai` 的请求类型和项目 HTTP 工厂调用，以真实索引恢复输入顺序，拒绝重复索引、数量与维数不一致及非有限向量值。
 
 网关 `POST /v1/embeddings` 支持独立下游 Key、公开模型映射、请求用量和同协议 JSON。模型可配置 `endpoints`，从而只发布对应端点。正常 HTTP Kernel 与本地协议服务验证 SDK 批量向量、维数、重复索引反例，网关验证授权、端点限制、同协议请求和真实用量。独立应用进程及 Artisan 验证配置、路由和外部 HTTP。缓存、Fake、排队、其他驱动、向量数据库桥，以及排序与分类仍是 AI-05 的开放项。
+
+## DSH 式选择与确认保存
+
+`artisan ai:select-model [provider] [--model=...] [--save] [--default]` 复用当前默认连接、已有凭证清单、模型目录与 Artisan 交互。用户可选择已发现或手填的模型。无 `--save` 不写入。保存调用框架 `EnvironmentFile`，可一并保存模型和 `AI_PROVIDER`，保留已有条目与注释、拒绝覆盖生效的进程环境，并提示刷新配置缓存。已存在的文件使用快照冲突检测。首次创建使用框架的安全创建及编码路径。
+
+独立 Artisan 进程加伪终端与本地 HTTP 模型服务验收选择、拒绝、确认、进程覆盖、全新应用的环境文件，以及新进程默认模型生效后的 HTTP 上游调用。应用内测试覆盖 `.env.testing` 的落点。通过这一命令保存的是当前连接的模型设置，供应商 Key 及 URL 沿用应用配置，后续仍需 DSH 客户端连接验收。
