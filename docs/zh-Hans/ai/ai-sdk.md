@@ -440,6 +440,8 @@ HTTP 上传使用 `FileUpload::from_upload`，内存字节使用 `from_bytes`，
 
 Gemini 返回类似 `files/policy` 的资源名。`Files::get` 和 `Files::delete` 也接受短 ID。上传后用 `refresh()` 检查状态是否为 `ACTIVE`，分页时原样传回令牌。Gemini 驱动支持上传与元数据操作，应用后续需要读取上传原件时，将原件保存在 Storage。
 
+通过共享网关调用时，用相应协议的原生格式提交内联附件。供应商账号下的文件 ID 可在 SDK 中通过创建文件的连接使用。
+
 ## 向量仓库 {#vector-stores}
 
 用 `AI_STORE_PROVIDER` 选择向量仓库的具名连接，也可沿用 AI 默认连接。OpenAI、Azure OpenAI 与 Gemini File Search 原生支持。自定义 OpenAI 兼容端点可设置 `stores: true`，同一连接支持文件上传时再启用 `files: true`。

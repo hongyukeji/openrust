@@ -187,6 +187,9 @@ async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
         json!({"store":true}),
         json!({"previous_response_id":"resp_other"}),
         json!({"input":[{"type":"item_reference","id":"item_other"}]}),
+        json!({"input":[{"role":"user","content":[{"type":"input_file","file_id":"file_other"}]}]}),
+        json!({"input":[{"role":"user","content":[{"type":"input_image","file_id":"file_other"}]}]}),
+        json!({"input":[{"type":"function_call_output","call_id":"call_demo","output":[{"type":"input_file","file_id":"file_other"}]}]}),
         json!({"tools":[{"type":"file_search","vector_store_ids":["vs_other"]}]}),
         json!({"tools":[{"type":"web_search"}]}),
         json!({"tools":[{"type":"namespace","name":"scoped","tools":[{"type":"file_search","vector_store_ids":["vs_other"]}]}]}),
@@ -194,6 +197,23 @@ async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
         let mut state = state;
         state["model"] = "public-responses".into();
         let response = send(&mut app, "/v1/responses", general, Some(state)).await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.json::<Value>()?["error"]["code"],
+            "unsupported_state"
+        );
+    }
+    for content in [
+        json!({"role":"user","content":[{"type":"file","file":{"file_id":"file_other"}}]}),
+        json!({"role":"assistant","content":null,"audio":{"id":"audio_other"}}),
+    ] {
+        let response = send(
+            &mut app,
+            "/v1/chat/completions",
+            limited,
+            Some(json!({"model":"public-chat","messages":[content]})),
+        )
+        .await?;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
             response.json::<Value>()?["error"]["code"],

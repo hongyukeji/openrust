@@ -160,3 +160,9 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 独立 WebSocket、HTTP 和 Artisan 验证原生 Responses 与 Chat-only 上游的续接、同轮工具结果、过期响应 ID、不同连接／模型／通道、超长或不支持的续接输入、权限撤销、断流及记录。两个包测试、严格 Clippy、三语构建、十二组浏览器及导航通过。当前验证串行文本和客户端函数。上游 WebSocket、预热、并行通道、分叉、推理与附件续接单列。
 
 - [Responses WebSocket 续接](https://developers.openai.com/api/docs/guides/websocket-mode#continue-with-incremental-inputs)
+
+## GW-03 共享凭证的附件与音频资源
+
+保留原生 OpenAI、Anthropic 的内联附件线路。请求引用由上游账号持有的文件、持久音频、消息或容器时，在出站前返回协议错误。覆盖 Responses 请求和函数结果的嵌套附件、Chat Completions 文件及续接音频、Messages 文件和容器。Responses 输入计数沿用原有的错误类型。
+
+独立 HTTP 与本地 TCP 上游验证另一个账号的文件 ID 拒绝、OpenAI 两种协议和 Anthropic 内联附件的字节继续出站。两个包测试及严格 Clippy、三语构建、十二组浏览器与完整导航通过。带租户授权的网关资源分配和 Gemini 远程文件引用留待后续验收。

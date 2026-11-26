@@ -24,6 +24,7 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod resources;
 mod usage_summary;
 mod websocket;
 
@@ -482,10 +483,15 @@ async fn relay(
         }) || ["previous_response_id", "conversation", "prompt"]
             .iter()
             .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
-            || data
-                .get("input")
-                .and_then(Value::as_array)
-                .is_some_and(|items| items.iter().any(|item| item["type"] == "item_reference"))
+            || data.get("input").is_some_and(|input| {
+                if endpoint == TextEndpoint::Responses {
+                    resources::openai_references(input)
+                } else {
+                    input.as_array().is_some_and(|items| {
+                        items.iter().any(|item| item["type"] == "item_reference")
+                    })
+                }
+            })
         {
             return protocol.error(
                 StatusCode::BAD_REQUEST,
@@ -524,15 +530,30 @@ async fn relay(
             data.insert("store".into(), Value::Bool(false));
         }
     }
-    if matches!(protocol, Protocol::Anthropic)
-        && ["container", "mcp_servers"]
-            .iter()
-            .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+    if endpoint == TextEndpoint::ChatCompletions
+        && data
+            .get("messages")
+            .is_some_and(resources::openai_references)
     {
         return protocol.error(
             StatusCode::BAD_REQUEST,
             "unsupported_state",
-            "此端点仅支持无状态请求",
+            "Chat Completions 仅接收内联文件及音频",
+        );
+    }
+    if matches!(protocol, Protocol::Anthropic)
+        && (["container", "mcp_servers"]
+            .iter()
+            .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+            || ["messages", "system"].iter().any(|field| {
+                data.get(*field)
+                    .is_some_and(resources::anthropic_references)
+            }))
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "此端点仅支持无状态请求及内联附件",
         );
     }
     if matches!(protocol, Protocol::Gemini)

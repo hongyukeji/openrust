@@ -440,6 +440,8 @@ Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory dat
 
 Gemini returns a resource name such as `files/policy`. You can pass the resource name or its short ID to `Files::get` and `Files::delete`. Use `refresh()` to check for `ACTIVE` after upload, and pass the pagination token back unchanged. The Gemini adapter covers upload and metadata operations. Keep the uploaded original in Storage if the application needs to read it later.
 
+When calling the shared gateway, send inline attachments using the endpoint’s native format. File IDs from an upstream account can be used through the SDK with the connection that created them.
+
 ## Vector stores {#vector-stores}
 
 Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI, Azure OpenAI, and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
