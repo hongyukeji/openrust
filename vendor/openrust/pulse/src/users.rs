@@ -21,12 +21,39 @@ pub struct User {
     pub avatar: Option<String>,
 }
 
-fn missing_user(key: &str) -> User {
-    User {
-        name: format!("ID: {key}"),
-        extra: Some(String::new()),
-        avatar: Some(DEFAULT_AVATAR.into()),
+impl User {
+    /// 从账户字段生成用量面板资料，显式补充信息和头像优先。
+    pub fn from_profile(
+        name: impl Into<String>,
+        email: Option<String>,
+        extra: Option<String>,
+        avatar: Option<String>,
+    ) -> Self {
+        let avatar = avatar.unwrap_or_else(|| {
+            let Some(email) = email.as_deref().filter(|email| !matches!(*email, "" | "0")) else {
+                return DEFAULT_AVATAR.into();
+            };
+            // PHP 的 strtolower 和 trim 只处理这里的默认 ASCII 字节。
+            let normalized = email
+                .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
+                .to_ascii_lowercase();
+            use sha2::{Digest, Sha256};
+            let hash: String = Sha256::digest(normalized.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            format!("https://gravatar.com/avatar/{hash}?d=mp")
+        });
+        Self {
+            name: name.into(),
+            extra: Some(extra.or(email).unwrap_or_default()),
+            avatar: Some(avatar),
+        }
     }
+}
+
+fn missing_user(key: &str) -> User {
+    User::from_profile(format!("ID: {key}"), None, None, None)
 }
 /// Resolves metric identifiers and dashboard user details in the active application.
 pub trait ResolvesUsers: Send + Sync {
@@ -73,30 +100,13 @@ impl Users {
                     _ => None,
                 }))
         };
-        use sha2::{Digest, Sha256};
-        let email = text("email")?;
-        let avatar = text("avatar")?.unwrap_or_else(|| {
-            let email = email.as_deref().filter(|email| !matches!(*email, "" | "0"));
-            match email {
-                Some(email) => {
-                    // PHP 的 strtolower 和 trim 只处理这里的默认 ASCII 字节。
-                    let normalized = email
-                        .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
-                        .to_ascii_lowercase();
-                    let hash: String = Sha256::digest(normalized.as_bytes())
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect();
-                    format!("https://gravatar.com/avatar/{hash}?d=mp")
-                }
-                None => DEFAULT_AVATAR.into(),
-            }
-        });
-        Ok(User {
-            name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.get_auth_identifier())),
-            extra: Some(email.unwrap_or_default()),
-            avatar: Some(avatar),
-        })
+        let name = text("name")?.unwrap_or_else(|| format!("ID: {}", user.get_auth_identifier()));
+        Ok(User::from_profile(
+            name,
+            text("email")?,
+            None,
+            text("avatar")?,
+        ))
     }
 }
 impl ResolvesUsers for Users {

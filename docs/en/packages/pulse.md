@@ -104,6 +104,8 @@ Usage metrics read identities already resolved by native authentication. Run aut
 
 `report(class, location).await` dispatches a native `ExceptionReported` event. `rescue(future)` returns `None` on an error and invokes the configured handler; the default handler is silent. The deprecated `users` bulk callback receives an identifier slice and returns a map keyed by identifier; new code should use `user` or `ResolvesUsers`. Native application scopes select the container automatically, so there is no `set_container` operation.
 
+Callbacks registered with `Pulse::users` can call `User::from_profile(name, email, extra, avatar)` to keep email separate from explicit secondary text and avatar.
+
 ## Commands {#commands}
 
 ```sh

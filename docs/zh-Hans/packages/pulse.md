@@ -102,6 +102,8 @@ let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 
 用量记录读取原生认证已经解析的用户。先运行认证中间件或 `Auth::user(request).await?`；队列投递可用 `remember_user` 明确关联操作者。用量卡片显示姓名和补充信息，头像按需加载。默认认证 Provider 提供姓名、邮箱和头像。找不到用户时显示 ID 和占位头像。有邮箱但没有头像时，Pulse 使用 Gravatar 哈希。`Pulse::user` 定制字段，或在扩展启动前绑定 `ResolvesUsers` 自定义用户键与加载行为。Eloquent 认证 Provider 根据主键一次查询多个用户资料，通用 Provider 继续按 ID 逐个加载。
 
+`Pulse::users` 的回调可用 `User::from_profile(name, email, extra, avatar)` 单独提供邮箱、补充信息和头像。
+
 ## 命令 {#commands}
 
 ```sh

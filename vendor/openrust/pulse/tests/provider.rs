@@ -2692,6 +2692,69 @@ async fn legacy_bulk_users_remain_application_scoped_and_reject_field_overrides(
 }
 
 #[tokio::test]
+async fn legacy_usage_resolves_email_separately_from_explicit_display_fields() {
+    use openrust_pulse::User;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_database_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let pulse = app.app().make::<Pulse>().await.unwrap();
+    let email = " \tMIXED@Example.Test\t";
+    pulse.users(move |keys| {
+        Ok(keys
+            .iter()
+            .filter_map(|key| {
+                let (name, email, extra, avatar) = match key.as_str() {
+                    "1" => ("Email only", email, None, None),
+                    "2" => ("Extra override", email, Some("Operations"), None),
+                    "3" => ("Blank override", email, Some(""), Some("")),
+                    "4" => ("Zero email", "0", None, None),
+                    _ => return None,
+                };
+                Some((
+                    key.clone(),
+                    User::from_profile(
+                        name,
+                        Some(email.into()),
+                        extra.map(str::to_owned),
+                        avatar.map(str::to_owned),
+                    ),
+                ))
+            })
+            .collect())
+    });
+    for id in ["1", "2", "3", "4", "5"] {
+        pulse.record("user_request", id, None, None).await.count();
+    }
+    assert_eq!(pulse.ingest().await, 5);
+    let response = app.get("/pulse/api/metrics?cards=requests").await.unwrap();
+    response.assert_ok();
+    let data: serde_json::Value = response.json().unwrap();
+    let rows = data["requests"].as_array().unwrap();
+    let email_avatar = "https://gravatar.com/avatar/b5c06a7db4d01a9f46b2c98ba9fb67c4d100663d8f20f44930f7e04fd13c75b5?d=mp";
+    let default_avatar = "https://gravatar.com/avatar?d=mp";
+    for (key, name, extra, avatar) in [
+        ("1", "Email only", email, email_avatar),
+        ("2", "Extra override", "Operations", email_avatar),
+        ("3", "Blank override", "", ""),
+        ("4", "Zero email", "0", default_avatar),
+        ("5", "ID: 5", "", default_avatar),
+    ] {
+        let row = rows.iter().find(|row| row["key"] == key).unwrap();
+        assert_eq!(
+            row["user"],
+            json!({"name":name,"extra":extra,"avatar":avatar})
+        );
+    }
+}
+
+#[tokio::test]
 async fn dashboard_server_cache_holds_matching_heartbeats_and_graphs_until_refresh() {
     use openrust::contracts::foundation::Application as _;
 

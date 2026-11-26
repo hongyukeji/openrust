@@ -128,7 +128,9 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 Rust 前态的授权 HTTP 返回空补充信息为 JSON `null`，改为与固定上游一致的空字符串并得到正确头像。真实认证 Provider 与用量聚合通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13 七组资料。移动和桌面 Chrome 验证头像可解码、按需加载、补充资料作为文本渲染，原有筛选与轮询仍通过。头像占位请求由浏览器内合成响应返回，使用假资料。Pulse Provider 28 项、Telescope Provider 33 项、相关格式、Pulse 全目标严格 Clippy 和三语文档的 6 个视口通过。日志为 `target/tmp/observability-parity/pulse-user-display-{baseline,macos-retry,docs}.log`。
 
-固定 PHP 从 Eloquent Provider 用 `findMany` 在一条 SQLite 查询中读取多个模型。真实原生授权 HTTP 的旧实现为四个指标键执行四条用户查询，现经 Eloquent Provider 的模型主键查询合并为一条。SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证 `1` 和 `01` 返回同一用户、未知用户显示 ID。通用 Provider 继续逐个按 ID 读取。框架认证与扩展契约合计 11 项、Pulse Provider 29 项、Telescope Provider 33 项、快照格式、相关严格 Clippy 和三语文档桌面及移动检查通过。证据为 `target/tmp/observability-parity/pulse-eloquent-users-{upstream,baseline,verified-retry,docs}.log`。旧版回调单独提供邮箱的契约继续核对。
+固定 PHP 从 Eloquent Provider 用 `findMany` 在一条 SQLite 查询中读取多个模型。真实原生授权 HTTP 的旧实现为四个指标键执行四条用户查询，现经 Eloquent Provider 的模型主键查询合并为一条。SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证 `1` 和 `01` 返回同一用户、未知用户显示 ID。通用 Provider 继续逐个按 ID 读取。框架认证与扩展契约合计 11 项、Pulse Provider 29 项、Telescope Provider 33 项、快照格式、相关严格 Clippy 和三语文档桌面及移动检查通过。证据为 `target/tmp/observability-parity/pulse-eloquent-users-{upstream,baseline,verified-retry,docs}.log`。
+
+旧版 `Pulse::users` 回调现在可用 `User::from_profile` 分开提供邮箱、补充信息和头像，并与默认认证资料复用格式转换。固定 PHP 验证仅邮箱、补充信息覆盖、空值覆盖、文本零邮箱及未找到用户五组。Rust 的实际授权 HTTP 在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 得到相同结果。直接返回的原生 `User` 字段仍由回调决定。Pulse Provider 30 项、Telescope Provider 33 项、快照格式、严格 Clippy 和三语文档桌面及移动 6 组通过。证据为 `target/tmp/observability-parity/pulse-legacy-user-profile-{upstream,macos,docs}.log`。
 
 ### 首屏卡片的延迟加载与隔离
 
