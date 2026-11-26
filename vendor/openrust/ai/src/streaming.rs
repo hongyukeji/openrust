@@ -354,7 +354,9 @@ impl TextEndpoint {
             | Self::CountMessageTokens
             | Self::GeminiCountTokens
             | Self::GeminiGenerateContent
-            | Self::Embeddings => Err(AiError::StreamingNotSupported),
+            | Self::Embeddings
+            | Self::ImagesGenerations
+            | Self::ImagesEdits => Err(AiError::StreamingNotSupported),
         }
     }
 }

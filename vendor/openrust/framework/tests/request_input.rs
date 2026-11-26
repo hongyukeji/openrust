@@ -1000,6 +1000,7 @@ fn normalized_input(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                 "query": request.query(None)?,
                 "raw_query": request.uri().query(),
                 "raw_body": text,
+                "raw_form": request.raw_form_fields().await?,
                 "upload_text": upload.map(|file| String::from_utf8_lossy(file.get().as_ref()).into_owned()),
             }),
         )
@@ -1090,6 +1091,7 @@ async fn real_http_normalizes_input_bags_and_keeps_application_exceptions_separa
     .await;
     let value: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(value["input"]["name"], "Ada");
+    assert_eq!(value["raw_form"], json!({"name":"  Ada  "}));
     assert_eq!(value["upload_text"], "  file  ");
     assert_eq!(value["raw_body"], std::str::from_utf8(multipart).unwrap());
 

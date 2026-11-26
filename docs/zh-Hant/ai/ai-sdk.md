@@ -149,6 +149,22 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 在 Codex 中設定 Responses 連線，填入閘道基礎 URL（例如 `https://your-app.example/v1`）及下游 Key，並以公開別名作為模型。原生 Responses 上游支援用戶端工具命名空間。若要使用上游網頁搜尋，在公開模型設定 `"server_tools": ["web_search"]`。模型未啟用網頁搜尋時，在 Codex 用戶端設定使用 `web_search = "disabled"`。
 
+### 閘道圖片生成與編輯 {#gateway-images}
+
+在 `ai_gateway.models` 發布圖片模型時，明確列出 `images/generations` 與 `images/edits`。沿用 Key 或群組授權公開模型名稱。上游可用 OpenAI 連線，或在 `models.images` 設定圖片能力的 OpenAI 相容連線。
+
+```json
+{
+  "catalog-image": {
+    "provider": "openai",
+    "model": "gpt-image-1",
+    "endpoints": ["images/generations", "images/edits"]
+  }
+}
+```
+
+`POST /v1/images/generations` 接收 JSON，`POST /v1/images/edits` 接收 JSON 或 multipart。表單可傳單個 `image` 或有序 `image[]`，以及選用的 `mask`。JSON 參照可用連結或內嵌資料，共享閘道憑證下無法參照供應商檔案 ID。`stream: true` 透過 SSE 回傳局部及最終圖片。閘道記錄上游回報的用量，每個圖片呼叫只向上游傳送一次。設定了文字輸出 Token 配額的群組須透過另一個群組使用圖片模型。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

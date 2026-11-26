@@ -169,7 +169,7 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 9] = [
+const ENDPOINTS: [TextEndpoint; 11] = [
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -179,6 +179,8 @@ const ENDPOINTS: [TextEndpoint; 9] = [
     TextEndpoint::GeminiStreamGenerateContent,
     TextEndpoint::GeminiCountTokens,
     TextEndpoint::Embeddings,
+    TextEndpoint::ImagesGenerations,
+    TextEndpoint::ImagesEdits,
 ];
 
 pub(crate) struct Target {
@@ -350,9 +352,12 @@ impl Gateway {
                         })
                     })
                     .filter(|endpoint| {
-                        model.endpoints.as_ref().is_none_or(|configured| {
-                            configured.iter().any(|path| path == endpoint.path())
-                        })
+                        model
+                            .endpoints
+                            .as_ref()
+                            .map_or(!endpoint.is_image(), |configured| {
+                                configured.iter().any(|path| path == endpoint.path())
+                            })
                     })
                     .collect();
                 if endpoints.is_empty()

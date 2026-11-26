@@ -149,6 +149,22 @@ Add an optional `codex` object to a public model mapping to set its display name
 
 Set a Responses provider for Codex with the gateway base URL, such as `https://your-app.example/v1`, and the downstream Key. Use a published alias as the model. Native Responses upstreams can receive client tool namespaces. For upstream web search, allow `"server_tools": ["web_search"]` on the public model. Set `web_search = "disabled"` in the Codex client configuration when the model has no web search enabled.
 
+### Gateway image generation and editing {#gateway-images}
+
+Publish an image model in `ai_gateway.models` with explicit `images/generations` and `images/edits` endpoints. Authorize its public name in the usual Key or group configuration. Use an OpenAI connection or an OpenAI-compatible connection with image support configured under `models.images`.
+
+```json
+{
+  "catalog-image": {
+    "provider": "openai",
+    "model": "gpt-image-1",
+    "endpoints": ["images/generations", "images/edits"]
+  }
+}
+```
+
+Use `POST /v1/images/generations` with JSON and `POST /v1/images/edits` with JSON or multipart. Multipart accepts `image` or an ordered `image[]` list and an optional `mask`. Use inline URLs or data for JSON references. Provider file IDs are unavailable through shared gateway credentials. `stream: true` relays partial and completed SSE images. The gateway records upstream-reported usage and sends each image request upstream once. Groups with text output-token quotas need a separate group for images.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

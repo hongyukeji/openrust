@@ -24,6 +24,7 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod image_upload;
 mod resources;
 mod usage_summary;
 mod websocket;
@@ -56,6 +57,8 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/models/{model}", model)?;
     router.post("/chat/completions", chat_completions)?;
     router.post("/embeddings", embeddings)?;
+    router.post("/images/generations", images_generations)?;
+    router.post("/images/edits", images_edits)?;
     router.post("/messages/count_tokens", count_message_tokens)?;
     responses_routes(router)
 }
@@ -172,6 +175,8 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::Responses,
                     TextEndpoint::CountResponseTokens,
                     TextEndpoint::Embeddings,
+                    TextEndpoint::ImagesGenerations,
+                    TextEndpoint::ImagesEdits,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -247,6 +252,14 @@ fn websocket(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn count_response_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::CountResponseTokens, None))
+}
+
+fn images_generations(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::ImagesGenerations, None))
+}
+
+fn images_edits(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::ImagesEdits, None))
 }
 
 fn embeddings(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -411,26 +424,37 @@ async fn relay(
         Err(response) => return response,
     };
     let key = key.as_ref();
-    let body = match request.body_bytes().await {
-        Ok(body) => body,
-        Err(HttpError::PayloadTooLarge) => {
+    let (mut data, mut uploads) = if endpoint == TextEndpoint::ImagesEdits
+        && image_upload::is_multipart(request)
+    {
+        match image_upload::parse(request).await {
+            Ok((data, parts)) => (data, Some(parts)),
+            Err(HttpError::PayloadTooLarge) => return request_too_large(protocol),
+            Err(_) => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_multipart",
+                    "图片编辑需要有效的 multipart 图片和字段",
+                );
+            }
+        }
+    } else {
+        let body = match request.body_bytes().await {
+            Ok(body) => body,
+            Err(HttpError::PayloadTooLarge) => return request_too_large(protocol),
+            Err(_) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_json", "无法读取请求正文");
+            }
+        };
+        // 协议正文保留提示词和工具参数原文，绕开应用对 JSON 输入的清理。
+        let Ok(Value::Object(data)) = serde_json::from_slice(&body) else {
             return protocol.error(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "request_too_large",
-                "请求正文超出大小限制",
+                StatusCode::BAD_REQUEST,
+                "invalid_json",
+                "请求正文必须是 JSON 对象",
             );
-        }
-        Err(_) => {
-            return protocol.error(StatusCode::BAD_REQUEST, "invalid_json", "无法读取请求正文");
-        }
-    };
-    // 协议正文保留提示词和工具参数原文，绕开应用对 JSON 输入的清理。
-    let Ok(Value::Object(mut data)) = serde_json::from_slice(&body) else {
-        return protocol.error(
-            StatusCode::BAD_REQUEST,
-            "invalid_json",
-            "请求正文必须是 JSON 对象",
-        );
+        };
+        (data, None)
     };
     let Some(name) = path_model.or_else(|| {
         data.get("model")
@@ -454,11 +478,23 @@ async fn relay(
             "该模型不支持此端点",
         );
     }
+    if endpoint.is_image()
+        && (data.get("file_id").is_some_and(|value| !value.is_null())
+            || data.values().any(resources::image_file_references))
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "图片端点仅接收当前请求内的图片引用",
+        );
+    }
     let streaming = if matches!(protocol, Protocol::Gemini) {
         endpoint == TextEndpoint::GeminiStreamGenerateContent
     } else {
         match data.get("stream") {
             None | Some(Value::Bool(false) | Value::Null) => false,
+            Some(Value::String(value)) if uploads.is_some() && value == "false" => false,
+            Some(Value::String(value)) if uploads.is_some() && value == "true" => true,
             Some(Value::Bool(true))
                 if !endpoint.is_counting() && endpoint != TextEndpoint::Embeddings =>
             {
@@ -577,9 +613,10 @@ async fn relay(
             "Gemini 模型由路径选择，暂不支持嵌套请求或上游缓存资源",
         );
     }
-    let may_replay = data
-        .get("tools")
-        .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
+    let may_replay = !endpoint.is_image()
+        && data
+            .get("tools")
+            .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
         && !includes_tool_history(&data)
         && data.get("store") != Some(&Value::Bool(true));
     let request_id = Str::ulid().to_string();
@@ -718,7 +755,16 @@ async fn relay(
         if let Some(affinity) = &affinity {
             call.bind_affinity(affinity.clone(), target.affinity_key.clone());
         }
-        match request_upstream(target, upstream_endpoint, payload, protocol, &mut call).await {
+        match request_upstream(
+            target,
+            upstream_endpoint,
+            payload,
+            uploads.take(),
+            protocol,
+            &mut call,
+        )
+        .await
+        {
             Ok(upstream) => {
                 return respond(upstream, name, endpoint, streaming, protocol, bridge, call).await;
             }
@@ -869,6 +915,14 @@ async fn admit(key: &Key, protocol: Protocol) -> Result<Option<Response>, HttpEr
     }
 }
 
+fn request_too_large(protocol: Protocol) -> HttpResult {
+    protocol.error(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "request_too_large",
+        "请求正文超出大小限制",
+    )
+}
+
 struct UpstreamFailure {
     retryable: bool,
     pause_until: Option<i64>,
@@ -879,10 +933,15 @@ async fn request_upstream(
     target: &Target,
     endpoint: TextEndpoint,
     data: Value,
+    uploads: Option<Vec<(String, client::Part)>>,
     protocol: Protocol,
     call: &mut Call,
 ) -> Result<client::Response, UpstreamFailure> {
-    let upstream = match target.provider.relay(endpoint, data).await {
+    let dispatched = match uploads {
+        Some(parts) => target.provider.relay_multipart(endpoint, data, parts).await,
+        None => target.provider.relay(endpoint, data).await,
+    };
+    let upstream = match dispatched {
         Ok(response) => response,
         Err(error) => {
             let (status, outcome, code, message) = match error {
@@ -1061,7 +1120,7 @@ async fn stream(
                 return;
             };
             if event.data == "[DONE]" {
-                if endpoint == TextEndpoint::Responses && !terminal {
+                if (endpoint == TextEndpoint::Responses || endpoint.is_image()) && !terminal {
                     call.outcome("incomplete_stream");
                     call.settle().await;
                     yield Ok(protocol.stream_error());
@@ -1084,7 +1143,11 @@ async fn stream(
                 yield Ok(protocol.stream_error());
                 return;
             }
-            terminal |= matches!(data["type"].as_str(), Some("response.completed" | "response.incomplete" | "message_stop"));
+            terminal |= match endpoint {
+                TextEndpoint::ImagesGenerations => data["type"] == "image_generation.completed",
+                TextEndpoint::ImagesEdits => data["type"] == "image_edit.completed",
+                _ => matches!(data["type"].as_str(), Some("response.completed" | "response.incomplete" | "message_stop")),
+            };
             if matches!(protocol, Protocol::Gemini) {
                 terminal |= data["candidates"][0]["finishReason"].as_str().is_some_and(|reason| reason != "FINISH_REASON_UNSPECIFIED")
                     || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");

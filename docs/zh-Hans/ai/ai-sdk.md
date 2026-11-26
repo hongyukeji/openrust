@@ -149,6 +149,22 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 在 Codex 中配置 Responses 连接，填写网关基础 URL（例如 `https://your-app.example/v1`）和下游 Key，并用公开别名作为模型。原生 Responses 上游支持客户端工具命名空间。要使用上游网页搜索，在公开模型上设置 `"server_tools": ["web_search"]`。模型未启用网页搜索时，在 Codex 客户端配置中使用 `web_search = "disabled"`。
 
+### 网关图片生成与编辑 {#gateway-images}
+
+在 `ai_gateway.models` 发布图片模型时，显式列出 `images/generations` 和 `images/edits`。沿用 Key 或分组授权公开模型名。上游可选 OpenAI 连接，或在 `models.images` 配置图片能力的 OpenAI 兼容连接。
+
+```json
+{
+  "catalog-image": {
+    "provider": "openai",
+    "model": "gpt-image-1",
+    "endpoints": ["images/generations", "images/edits"]
+  }
+}
+```
+
+`POST /v1/images/generations` 接收 JSON，`POST /v1/images/edits` 接收 JSON 或 multipart。表单可传单个 `image` 或有序 `image[]`，以及可选的 `mask`。JSON 引用可用链接或内联数据，共享网关凭证下无法引用供应商文件 ID。`stream: true` 通过 SSE 返回局部和最终图片。网关记录上游报告的用量，每个图片调用只向上游发送一次。配置了文本输出 Token 配额的分组需通过单独分组使用图片模型。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

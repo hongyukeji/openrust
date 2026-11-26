@@ -32,6 +32,16 @@ pub(super) fn anthropic_references(value: &Value) -> bool {
     }
 }
 
+pub(super) fn image_file_references(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(image_file_references),
+        Value::Object(item) => {
+            present(&value["file_id"]) || item.values().any(image_file_references)
+        }
+        _ => false,
+    }
+}
+
 fn present(value: &Value) -> bool {
     !value.is_null()
 }

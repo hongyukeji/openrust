@@ -21,7 +21,7 @@ use openrust::{
     config::Environment,
     http::{
         HttpFuture,
-        client::{self, Factory, Response},
+        client::{self, Factory, Part, Response},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -192,6 +192,15 @@ pub trait TextProvider: Send + Sync {
     fn relay(&self, _endpoint: TextEndpoint, _body: Value) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
     }
+
+    fn relay_multipart(
+        &self,
+        _endpoint: TextEndpoint,
+        _body: Value,
+        _parts: Vec<(String, Part)>,
+    ) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -202,6 +211,8 @@ pub enum TextEndpoint {
     Messages,
     CountMessageTokens,
     Embeddings,
+    ImagesGenerations,
+    ImagesEdits,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
     GeminiCountTokens,
@@ -216,10 +227,16 @@ impl TextEndpoint {
             Self::Messages => "messages",
             Self::CountMessageTokens => "messages/count_tokens",
             Self::Embeddings => "embeddings",
+            Self::ImagesGenerations => "images/generations",
+            Self::ImagesEdits => "images/edits",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
             Self::GeminiCountTokens => "countTokens",
         }
+    }
+
+    pub const fn is_image(self) -> bool {
+        matches!(self, Self::ImagesGenerations | Self::ImagesEdits)
     }
 
     pub const fn is_counting(self) -> bool {
@@ -569,6 +586,10 @@ impl TextProvider for OpenAiTextProvider {
                 matches!(self.protocol, OpenAiProtocol::Responses)
                     || self.connection.embeddings_configured()
             }
+            TextEndpoint::ImagesGenerations | TextEndpoint::ImagesEdits => {
+                matches!(self.protocol, OpenAiProtocol::Responses)
+                    || self.connection.images_configured()
+            }
             TextEndpoint::CountResponseTokens => matches!(self.protocol, OpenAiProtocol::Responses),
             TextEndpoint::ChatCompletions => true,
             _ => self.protocol.endpoint() == endpoint,
@@ -584,6 +605,30 @@ impl TextProvider for OpenAiTextProvider {
                 && endpoint != TextEndpoint::Embeddings
                 && body.get("stream").and_then(Value::as_bool) == Some(true);
             self.connection.send(endpoint, &body, stream, None).await
+        })
+    }
+
+    fn relay_multipart(
+        &self,
+        endpoint: TextEndpoint,
+        body: Value,
+        parts: Vec<(String, Part)>,
+    ) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async move {
+            if endpoint != TextEndpoint::ImagesEdits || !self.supports_endpoint(endpoint) {
+                return Err(AiError::EndpointNotSupported);
+            }
+            let mut request = self.connection.request(None)?.as_multipart();
+            if body["stream"].as_str() == Some("true") {
+                request = request.stream();
+            }
+            for (field, part) in parts {
+                request = request.attach(field, part);
+            }
+            request
+                .post(endpoint.path(), &body)
+                .await
+                .map_err(transport_error)
         })
     }
 

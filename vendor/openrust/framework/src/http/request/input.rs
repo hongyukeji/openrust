@@ -116,6 +116,11 @@ impl Request {
         Ok(value)
     }
 
+    /// 读取原始表单字段，保留正文的值，供需要转发协议内容的端点使用。
+    pub async fn raw_form_fields(&mut self) -> Result<&Value, HttpError> {
+        Ok(&self.payload().await?.fields)
+    }
+
     /// Returns already-decoded input for diagnostics without polling the request body.
     pub fn input_snapshot(&self) -> Option<Value> {
         let query = self.query(None).ok().flatten().unwrap_or_else(empty);
