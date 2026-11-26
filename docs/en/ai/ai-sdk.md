@@ -252,3 +252,21 @@ let transcript = Transcription::from_storage(&path, None).await?.language("en").
 Use `Audio::of(text)` or the `ToAudio` extension on a string. Set the voice with `voice()`, `male()` or `female()` and select MP3, WAV, Opus, AAC, FLAC or PCM output. Save the bytes to the configured Storage disk with `store` or `store_as`.
 
 Use `Transcription::from_storage` for recordings on a disk, or `from_path`, `from_upload` or `from_bytes` for local input. Call `language()` when the language is known. To get speaker labels and timed segments, enable `diarize(true)` and select a model that supports it. Responses include the text and upstream usage when reported. OpenAI-compatible connections can enable either capability with `models.audio` or `models.transcription`.
+
+## Classification {#classification}
+
+Set `AI_CLASSIFICATION_PROVIDER=openai` and set `OPENAI_CLASSIFICATION_MODEL` to a model that supports Decisions. A compatible connection can enable the same protocol with `models.classification`.
+
+```rust
+use openrust_ai::{Classification, classification::{Boolean, Choice}};
+
+let result = Classification::of("The item arrived damaged")?
+    .question("eligible", Boolean::new("Is this a return request?"))
+    .question("category", Choice::new("Choose a category", ["return", "other"]))
+    .classify()
+    .await?;
+
+let category = result.answer("category");
+```
+
+Classification accepts text, a JSON object or a JSON array. Add keyed `Boolean`, `Choice` or `Score` questions. You can supply inline images with `attachments()`. Responses expose typed answers, explicit refusals, and the token counts reported by the provider.

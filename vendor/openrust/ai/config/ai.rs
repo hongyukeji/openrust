@@ -33,6 +33,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     openai["models"]["transcription"] =
         json!({"default": env.get_utf8("OPENAI_TRANSCRIPTION_MODEL")?});
 
+    openai["models"]["classification"] =
+        json!({"default": env.get_utf8("OPENAI_CLASSIFICATION_MODEL")?});
+
     let mut openrouter = provider(
         "openai-compatible",
         "OPENROUTER_URL",
@@ -56,7 +59,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "default_for_transcription": env.get_utf8("AI_TRANSCRIPTION_PROVIDER")?,
         "default_for_embeddings": env.get_utf8("AI_EMBEDDINGS_PROVIDER")?,
         "default_for_reranking": env.get_utf8("AI_RERANKING_PROVIDER")?,
-        "default_for_classification": null,
+        "default_for_classification": env.get_utf8("AI_CLASSIFICATION_PROVIDER")?,
         "caching": {
             "embeddings": {
                 "cache": false,

@@ -203,3 +203,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 包测试覆盖标准转录及说话人区分、真实 WAV、用量两种分支、磁盘读取、上传类型探测和异常分段。独立 Artisan 通过本地协议上游生成 WAV 并落盘，独立 HTTP 进程上传同一文件，验证字节、认证、语言、说话人与计费秒数。实测格式为 WAV。其他媒体格式、非 OpenAI 供应商、媒体 Fake、排队、流式转录及正式供应商凭证验收仍待对应批次。
 
 - [OpenAI Speech](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create) · [OpenAI Transcription](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create)
+
+## AI-05 OpenAI Decisions 分类
+
+`Classification::of` 接收文本、JSON 对象或数组。提供具名 `Boolean`、`Choice` 和 `Score` 问题、单次覆盖连接和模型、超时及内联图片。使用固定 Laravel 的 OpenAI Decisions 请求形状，布尔标准折入谓词说明。结果保留类型、概率、置信度、分级说明、拒答、来源模型和上游报告的输入、缓存及推理 Token。未声明的答案、重复键和无效概率返回错误。
+
+包测试覆盖全部问题类型、内联 PNG、模型覆盖与异常响应，独立 Artisan 和 HTTP 以默认或显式模型调用正常 SDK 入口。上游为真实 TCP 的 OpenAI 协议模拟，兼容端点可通过连接配置选择。TypeSafe、OpenRouter、Gemini、Stringable／Collection 便利入口、分类 Fake 和供应商实机待后续。
+
+- [Laravel 固定 OpenAI Classification Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiClassificationGateway.php) · [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)

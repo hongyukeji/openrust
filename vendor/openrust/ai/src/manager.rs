@@ -298,7 +298,7 @@ impl AiManager {
         self.embeddings_fake.read().unwrap().clone()
     }
 
-    fn media_provider_name(&self, name: Option<&str>, field: &'static str) -> AiResult<String> {
+    fn provider_name_for(&self, name: Option<&str>, field: &'static str) -> AiResult<String> {
         if let Some(name) = name {
             return Ok(name.into());
         }
@@ -310,14 +310,14 @@ impl AiManager {
     }
 
     pub fn image_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
-        let name = self.media_provider_name(name, "default_for_images")?;
+        let name = self.provider_name_for(name, "default_for_images")?;
         self.text_provider(Some(&name))?
             .image_provider()
             .ok_or(AiError::ImagesNotSupported)
     }
 
     pub fn audio_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::AudioProvider>> {
-        let name = self.media_provider_name(name, "default_for_audio")?;
+        let name = self.provider_name_for(name, "default_for_audio")?;
         self.text_provider(Some(&name))?
             .audio_provider()
             .ok_or(AiError::AudioNotSupported)
@@ -327,10 +327,20 @@ impl AiManager {
         &self,
         name: Option<&str>,
     ) -> AiResult<Arc<dyn crate::TranscriptionProvider>> {
-        let name = self.media_provider_name(name, "default_for_transcription")?;
+        let name = self.provider_name_for(name, "default_for_transcription")?;
         self.text_provider(Some(&name))?
             .transcription_provider()
             .ok_or(AiError::TranscriptionNotSupported)
+    }
+
+    pub fn classification_provider(
+        &self,
+        name: Option<&str>,
+    ) -> AiResult<Arc<dyn crate::ClassificationProvider>> {
+        let name = self.provider_name_for(name, "default_for_classification")?;
+        self.text_provider(Some(&name))?
+            .classification_provider()
+            .ok_or(AiError::ClassificationNotSupported)
     }
 
     pub fn reranking_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {

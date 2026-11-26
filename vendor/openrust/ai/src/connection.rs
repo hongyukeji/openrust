@@ -21,6 +21,7 @@ struct Models {
     images: Option<DefaultModel>,
     audio: Option<DefaultModel>,
     transcription: Option<DefaultModel>,
+    classification: Option<DefaultModel>,
 }
 
 #[derive(Default, Deserialize)]
@@ -224,6 +225,20 @@ impl Connection {
         self.config
             .models
             .transcription
+            .as_ref()
+            .and_then(|model| model.default.as_deref())
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
+    }
+
+    pub(crate) fn classification_configured(&self) -> bool {
+        self.config.models.classification.is_some()
+    }
+
+    pub(crate) fn default_classification_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .classification
             .as_ref()
             .and_then(|model| model.default.as_deref())
             .filter(|model| !model.trim().is_empty())

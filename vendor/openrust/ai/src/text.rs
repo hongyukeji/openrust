@@ -28,6 +28,7 @@ use crate::{
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
     audio::{AudioProvider, OpenAiAudioProvider},
+    classification::{ClassificationProvider, OpenAiClassificationProvider},
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     image::{ImageProvider, OpenAiImageProvider},
@@ -136,6 +137,10 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {
+        None
+    }
+
+    fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {
         None
     }
 
@@ -402,6 +407,15 @@ impl TextProvider for OpenAiTextProvider {
             .then(|| {
                 Arc::new(OpenAiImageProvider(self.connection.clone())) as Arc<dyn ImageProvider>
             })
+    }
+
+    fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {
+        (matches!(self.protocol, OpenAiProtocol::Responses)
+            || self.connection.classification_configured())
+        .then(|| {
+            Arc::new(OpenAiClassificationProvider(self.connection.clone()))
+                as Arc<dyn ClassificationProvider>
+        })
     }
 
     fn reranking_provider(&self) -> Option<Arc<dyn RerankingProvider>> {

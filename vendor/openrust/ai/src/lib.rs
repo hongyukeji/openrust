@@ -13,6 +13,7 @@ use openrust::{
 mod agent;
 mod anthropic;
 mod audio;
+pub mod classification;
 #[path = "../config/ai.rs"]
 mod configuration;
 mod connection;
@@ -50,6 +51,10 @@ pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use audio::{
     Audio, AudioFormat, AudioPrompt, AudioProvider, AudioResponse, AudioVoice,
     PendingAudioGeneration, ToAudio,
+};
+pub use classification::{
+    Classification, ClassificationPrompt, ClassificationProvider, ClassificationResponse,
+    ClassificationUsage, PendingClassification,
 };
 pub use configuration::load as default_config;
 pub use conversation_store::{

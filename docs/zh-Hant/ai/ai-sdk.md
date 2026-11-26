@@ -252,3 +252,21 @@ let transcript = Transcription::from_storage(&path, None).await?.language("en").
 使用 `Audio::of(text)`，或匯入 `ToAudio` 在字串上呼叫 `to_audio()`。透過 `voice()`、`male()` 或 `female()` 選擇音色，支援 MP3、WAV、Opus、AAC、FLAC 和 PCM 輸出。用 `store` 或 `store_as` 將位元組寫入應用程式的 Storage 磁碟。
 
 已儲存於磁碟的錄音用 `Transcription::from_storage` 載入，也可用 `from_path`、`from_upload` 或 `from_bytes` 讀取本機輸入。已知語言時設定 `language()`。需要說話者和分段時間時，使用 `diarize(true)` 並選擇支援此功能的模型。回應包含文字與上游實際回報的用量。OpenAI 相容連線可透過 `models.audio` 或 `models.transcription` 啟用相應能力。
+
+## 分類 {#classification}
+
+設定 `AI_CLASSIFICATION_PROVIDER=openai`，並將 `OPENAI_CLASSIFICATION_MODEL` 設為支援 Decisions 的模型。實作同一協定的相容連線可透過 `models.classification` 啟用分類。
+
+```rust
+use openrust_ai::{Classification, classification::{Boolean, Choice}};
+
+let result = Classification::of("The item arrived damaged")?
+    .question("eligible", Boolean::new("Is this a return request?"))
+    .question("category", Choice::new("Choose a category", ["return", "other"]))
+    .classify()
+    .await?;
+
+let category = result.answer("category");
+```
+
+分類輸入可為文字、JSON 物件或 JSON 陣列。為問題指定鍵，使用 `Boolean`、`Choice` 或 `Score` 宣告問題類型，也可用 `attachments()` 加入內嵌圖片。回應包含型別化答案、明確的拒答狀態，以及上游實際回報的 Token 數。

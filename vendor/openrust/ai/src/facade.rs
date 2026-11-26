@@ -76,6 +76,12 @@ impl Ai {
         Self::manager()?.image_provider(name)
     }
 
+    pub fn classification_provider(
+        name: Option<&str>,
+    ) -> AiResult<Arc<dyn crate::ClassificationProvider>> {
+        Self::manager()?.classification_provider(name)
+    }
+
     pub fn reranking_provider(name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
         Self::manager()?.reranking_provider(name)
     }
