@@ -53,7 +53,7 @@ Use `stream.each(|event| { inspect(event); true }).await?` to visit events and k
 
 Register `stream.then(callback)` to receive a `StreamedAgentResponse` when consumption completes. It carries the combined text and usage, tool calls and results, and original events. A stream that pauses for approval also includes its saved approval batch. Register a callback after a complete `each` visit to receive the result immediately.
 
-Read `result.response.steps` in the callback for each step’s text, public reasoning, citations, tool calls and results. The provider and model come from the corresponding stream start event. Each completed step carries its reported usage and finish reason. A step paused for approval carries its tool calls with `tool_calls` as the finish reason and unknown usage.
+Read `result.response.steps` in the callback for each step’s text, public reasoning, citations, tool calls and results. Each step carries the model, usage, and finish reason reported by the provider. If the provider leaves the model unspecified, the step uses the model from its start event. A step paused for approval includes its tool calls and any reported usage. The response uses the last step’s model and includes reported usage from the paused step.
 
 OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets. Tool continuations keep the citations from every model step in emission order.
 

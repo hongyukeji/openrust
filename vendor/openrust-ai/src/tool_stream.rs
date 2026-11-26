@@ -12,7 +12,7 @@ use crate::{
     approval_turn::ApprovalSession,
     events::StepObservation,
     messages::OwnedPrompt,
-    streaming::{TextMessages, event},
+    streaming::{StreamMetadata, TextMessages, event},
     tools,
 };
 
@@ -83,6 +83,8 @@ pub(crate) fn response(
         agent,
     } = prepared;
     let invocation_id = run.invocation_id.clone();
+    let metadata = StreamMetadata::default();
+    let observed = metadata.clone();
     let stream = async_stream::try_stream! {
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
@@ -142,6 +144,7 @@ pub(crate) fn response(
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
+            observed.record(completed.model.clone(), completed.usage.clone(), completed.finish_reason);
             let plan = || tools::plan_execution(
                 &completed.tool_calls, &registered, None, step == max_steps, None,
             );
@@ -189,7 +192,7 @@ pub(crate) fn response(
             upstream = in_tool_scope(application.as_deref(), locale.as_deref(), open).await??;
         }
     };
-    StreamableAgentResponse::from_events(Box::pin(stream))
+    StreamableAgentResponse::from_events(Box::pin(stream)).with_step_metadata(metadata)
 }
 
 async fn stream_step(

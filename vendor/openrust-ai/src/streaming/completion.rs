@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use futures_util::StreamExt;
 use openrust::{
@@ -37,6 +40,7 @@ impl StreamedAgentResponse {
     pub(super) fn from_events(
         events: Vec<StreamEvent>,
         conversation_id: Option<String>,
+        metadata: Option<&StreamMetadata>,
     ) -> Option<Self> {
         let invocation_id = events.first()?.invocation_id.clone();
         let (conversation_id, pending_approvals) = match &events.last()?.data {
@@ -93,6 +97,17 @@ impl StreamedAgentResponse {
         response.reasoning = collect_reasoning(&events);
         response.usage = usage.unwrap_or_default();
         response.steps = collect_steps(&events);
+        if let Some(metadata) = metadata {
+            metadata.apply(&mut response.steps);
+            if let Some((first, remaining)) = response.steps.split_first() {
+                response
+                    .model
+                    .clone_from(&remaining.last().unwrap_or(first).model);
+                response.usage = remaining.iter().fold(first.usage.clone(), |total, step| {
+                    step.usage.clone().combine(&total)
+                });
+            }
+        }
         Some(Self {
             invocation_id,
             response,
@@ -100,6 +115,44 @@ impl StreamedAgentResponse {
             conversation_id,
             pending_approvals,
         })
+    }
+}
+
+/// 供完成回调读取上游终帧的元数据，流的对外事件仍按原协议交付。
+#[derive(Clone, Default)]
+pub(crate) struct StreamMetadata(Arc<Mutex<Vec<StepMetadata>>>);
+
+struct StepMetadata {
+    model: Option<String>,
+    usage: Usage,
+    finish_reason: FinishReason,
+}
+
+impl StreamMetadata {
+    pub(crate) fn record(&self, model: Option<String>, usage: Usage, finish_reason: FinishReason) {
+        self.0
+            .lock()
+            .expect("模型步骤元数据锁中毒")
+            .push(StepMetadata {
+                model,
+                usage,
+                finish_reason,
+            });
+    }
+
+    pub(super) fn apply(&self, steps: &mut [Step]) {
+        let observed = self.0.lock().expect("模型步骤元数据锁中毒");
+        for (step, meta) in steps.iter_mut().zip(observed.iter()) {
+            if let Some(model) = &meta.model
+                && !model.trim().is_empty()
+            {
+                step.model.clone_from(model);
+            }
+            step.usage.clone_from(&meta.usage);
+            if meta.finish_reason != FinishReason::Unknown {
+                step.finish_reason = meta.finish_reason;
+            }
+        }
     }
 }
 
@@ -237,11 +290,17 @@ impl CompletionCallbacks {
         !self.retains_events() && self.failed.is_none()
     }
 
-    pub(super) async fn notify(self, events: Vec<StreamEvent>, conversation_id: Option<String>) {
+    pub(super) async fn notify(
+        self,
+        events: Vec<StreamEvent>,
+        conversation_id: Option<String>,
+        metadata: Option<&StreamMetadata>,
+    ) {
         if !self.retains_events() {
             return;
         }
-        let Some(response) = StreamedAgentResponse::from_events(events, conversation_id) else {
+        let Some(response) = StreamedAgentResponse::from_events(events, conversation_id, metadata)
+        else {
             return;
         };
         let notify = async move {
@@ -270,6 +329,7 @@ impl CompletionCallbacks {
         self,
         mut source: AgentEventStream,
         conversation_id: Option<String>,
+        metadata: Option<StreamMetadata>,
     ) -> AgentEventStream {
         Box::pin(async_stream::stream! {
             let mut completion = Some(self);
@@ -282,7 +342,7 @@ impl CompletionCallbacks {
                         if matches!(event.data, StreamEventData::ToolApprovalRequest { .. })
                             && let Some(callbacks) = completion.take()
                         {
-                            callbacks.notify(std::mem::take(&mut events), conversation_id.clone()).await;
+                            callbacks.notify(std::mem::take(&mut events), conversation_id.clone(), metadata.as_ref()).await;
                         }
                     },
                     Err(error) => {
@@ -296,7 +356,7 @@ impl CompletionCallbacks {
                 yield result;
             }
             if let Some(callbacks) = completion {
-                callbacks.notify(events, conversation_id).await;
+                callbacks.notify(events, conversation_id, metadata.as_ref()).await;
             }
         })
     }

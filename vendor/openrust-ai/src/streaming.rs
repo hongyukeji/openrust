@@ -26,6 +26,7 @@ mod completion;
 mod protocols;
 mod reasoning;
 pub use citations::UrlCitation;
+pub(crate) use completion::StreamMetadata;
 pub use completion::StreamedAgentResponse;
 use completion::{CompletionCallbacks, StreamStep};
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
@@ -97,6 +98,7 @@ pub struct StreamableAgentResponse {
     inspection_complete: bool,
     completion: CompletionCallbacks,
     conversation_id: Option<String>,
+    metadata: Option<StreamMetadata>,
     protocol: Option<Box<dyn StreamProtocol>>,
 }
 
@@ -116,6 +118,7 @@ impl StreamableAgentResponse {
             inspection_complete: false,
             completion: CompletionCallbacks::default(),
             conversation_id: None,
+            metadata: None,
             protocol: None,
         }
     }
@@ -127,6 +130,11 @@ impl StreamableAgentResponse {
         Ok(self)
     }
 
+    pub(crate) fn with_step_metadata(mut self, metadata: StreamMetadata) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+
     pub(crate) fn observe_step(mut self, observation: crate::events::StepObservation) -> Self {
         let Ok(app) = App::get_facade_root() else {
             return self;
@@ -135,6 +143,7 @@ impl StreamableAgentResponse {
             return self;
         }
         let mut upstream = self.events;
+        let metadata = self.metadata.clone();
         self.events = Box::pin(async_stream::stream! {
             let mut step = observation.wants_response().then(StreamStep::default);
             let mut observation = Some(observation);
@@ -148,7 +157,11 @@ impl StreamableAgentResponse {
                             && let Some(observation) = observation.take()
                             && let Some(step) = step.take()
                         {
-                            app.scope(observation.complete(|_| step.finish())).await;
+                            let mut step = step.finish();
+                            if let Some(metadata) = &metadata {
+                                metadata.apply(std::slice::from_mut(&mut step));
+                            }
+                            app.scope(observation.complete(|_| step)).await;
                         }
                     }
                     Err(error) => {
@@ -217,7 +230,8 @@ impl StreamableAgentResponse {
         if self.completion.is_empty() {
             events
         } else {
-            self.completion.stream(events, self.conversation_id)
+            self.completion
+                .stream(events, self.conversation_id, self.metadata)
         }
     }
 
@@ -246,7 +260,11 @@ impl StreamableAgentResponse {
         self.inspection_complete = true;
         if !self.completion.is_empty() {
             std::mem::take(&mut self.completion)
-                .notify(self.inspected.clone(), self.conversation_id.clone())
+                .notify(
+                    self.inspected.clone(),
+                    self.conversation_id.clone(),
+                    self.metadata.as_ref(),
+                )
                 .await;
         }
         Ok(self)
@@ -258,6 +276,7 @@ impl StreamableAgentResponse {
             if let Some(response) = StreamedAgentResponse::from_events(
                 self.inspected.clone(),
                 self.conversation_id.clone(),
+                self.metadata.as_ref(),
             ) {
                 callback(&response);
             }
@@ -358,12 +377,15 @@ impl StreamableAgentResponse {
     ) -> Self {
         let invocation =
             crate::request_context::invocation_id().unwrap_or_else(|| Str::ulid().to_string());
+        let metadata = StreamMetadata::default();
+        let observed = metadata.clone();
         let events = async_stream::try_stream! {
             let mut source = stream.eventsource();
             let mut messages = TextMessages::default();
             let mut reasoning = TextMessages::default();
             let mut cited_urls = HashSet::new();
             let mut started = false;
+            let mut resolved_model = None;
             let mut reason = None;
             let mut usage = Usage::default();
             while let Some(frame) = source.next().await {
@@ -372,11 +394,14 @@ impl StreamableAgentResponse {
                     _ => AiError::InvalidResponse,
                 })?.data;
                 let part = protocol.decode(&data)?;
+                if let Some(model) = part.model {
+                    resolved_model = Some(model);
+                }
                 if !started {
                     started = true;
                     yield event(&invocation, StreamEventData::StreamStart {
                         provider: provider.clone(),
-                        model: part.model.unwrap_or_else(|| requested_model.clone()),
+                        model: resolved_model.clone().unwrap_or_else(|| requested_model.clone()),
                     });
                 }
                 if let Some(delta) = part.delta.filter(|delta| !delta.is_empty()) {
@@ -421,9 +446,10 @@ impl StreamableAgentResponse {
                 TextEndpoint::GeminiStreamGenerateContent => usage.include_reasoning_output(),
                 _ => usage,
             };
+            observed.record(resolved_model, usage.clone(), crate::FinishReason::from_wire(Some(&reason)));
             yield event(&invocation, StreamEventData::StreamEnd { reason, usage });
         };
-        Self::from_events(Box::pin(events))
+        Self::from_events(Box::pin(events)).with_step_metadata(metadata)
     }
 }
 
