@@ -85,3 +85,13 @@ OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 的 Rust 消
 原生端点优先。模型发布到 OpenAI Responses 连接时，可通过 Anthropic Messages 调用纯文本；规则仍使用同一 Key 和模型端点约束。对照固定 Sub2API 的 `apicompat/anthropic_to_responses.go`、`responses_to_anthropic.go`，处理指令、消息角色、采样与 Token 上限、普通和 SSE 生命周期、公开模型及拒答／截断。双向转换保留上游报告的输入、输出、缓存读写计数，并按各协议的包含关系投影。网关日志保留原上游生成用量，起始 SSE 帧的协议初始值不参与计量。
 
 包测试及独立 HTTP 进程通过两个协议的本地模拟验收反向转换，覆盖首段到达后上游才继续发送、最终事件和用量。Artisan 验证同一发布配置下的 Messages 路由。工具、文件、结构化和持久状态跨协议仍按能力表分批实施。
+
+## GW-03 有序上游回退
+
+已发布模型可通过 `fallbacks` 追加备用 Provider 和真实模型。每次尝试按同一公开模型、独立下游 Key 权限、端点约束及目标协议重新解析。请求限额按下游请求扣一次。无状态生成在连接失败、超时、上游 408／429／5xx 等条件下可发给下一目标。常规 4xx、要求持久化或携带工具的请求、或收到成功响应后的 SSE 错误不会重放。每个上游尝试记录自己的连接、模型、状态和实际用量，并共享请求 ID。
+
+HTTP Kernel 与多个实际 TCP 模拟上游验证非流式和流式回退、400 短路、已有输出的流中断、工具请求不重放及限额只扣一次。独立 Artisan 加外部 HTTP 验证发布配置、上游凭证隔离及回退顺序。账号池冷却、组权限和计量归 GW-04。
+
+## GW-01 官方 Sub2API 进程当前证据
+
+已下载并按 GitHub 发布记录中的 SHA-256 校验 Sub2API `v0.2.25` Darwin ARM64 发行包。二进制自报编译修订 `348997267d756eab5729bb6b78a275a15d18796a`。在回环隔离环境使用 PostgreSQL 18.7、Redis 8、临时管理员及模拟协议上游，已启动并登录。创建分组返回 HTTP `423 ADMIN_COMPLIANCE_ACK_REQUIRED`，要求管理员确认 `v2026.06.10` 的合规承诺。配置真实分组、API Key 和 OpenRust 请求链路仍待经确认的验收实例，当前网关测试是协议模拟。

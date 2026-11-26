@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, io, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    io,
+    sync::Arc,
+};
 
 use openrust::{config::Environment, container::ServiceKey, log::Logger, support::facades::Facade};
 use openrust_ai::{AiManager, TextEndpoint, TextProvider};
@@ -19,9 +23,17 @@ struct Configuration {
 
 #[derive(Deserialize)]
 struct ModelConfiguration {
+    #[serde(flatten)]
+    primary: TargetConfiguration,
+    endpoints: Option<Vec<String>>,
+    #[serde(default)]
+    fallbacks: Vec<TargetConfiguration>,
+}
+
+#[derive(Deserialize)]
+struct TargetConfiguration {
     provider: String,
     model: String,
-    endpoints: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -49,18 +61,34 @@ const ENDPOINTS: [TextEndpoint; 8] = [
     TextEndpoint::Embeddings,
 ];
 
-pub(crate) struct Model {
+pub(crate) struct Target {
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
+}
+
+pub(crate) struct Model {
+    targets: Vec<Target>,
     endpoints: Vec<TextEndpoint>,
 }
 
 impl Model {
     pub(crate) fn upstream_endpoint(&self, endpoint: TextEndpoint) -> Option<TextEndpoint> {
-        if !self.endpoints.contains(&endpoint) {
-            return None;
-        }
-        resolve_endpoint(self.provider.as_ref(), endpoint)
+        self.targets_for(endpoint)
+            .next()
+            .map(|(_, upstream)| upstream)
+    }
+
+    pub(crate) fn targets_for(
+        &self,
+        endpoint: TextEndpoint,
+    ) -> impl Iterator<Item = (&Target, TextEndpoint)> {
+        self.targets
+            .iter()
+            .filter(move |_| self.endpoints.contains(&endpoint))
+            .filter_map(move |target| {
+                resolve_endpoint(target.provider.as_ref(), endpoint)
+                    .map(|upstream| (target, upstream))
+            })
     }
 }
 
@@ -111,15 +139,33 @@ impl Gateway {
             .models
             .into_iter()
             .map(|(name, model)| {
-                if name.trim().is_empty() || model.model.trim().is_empty() {
-                    return Err(invalid("ai_gateway.models 的模型名称不能为空"));
+                if name.trim().is_empty() {
+                    return Err(invalid("ai_gateway.models 的公开模型名称不能为空"));
                 }
-                let provider = ai
-                    .text_provider(Some(&model.provider))
-                    .map_err(|_| invalid(format!("公开模型 {name} 的上游连接无效")))?;
+                let mut seen = HashSet::new();
+                let mut targets = Vec::new();
+                for target in std::iter::once(model.primary).chain(model.fallbacks) {
+                    if target.model.trim().is_empty() {
+                        return Err(invalid(format!("公开模型 {name} 的上游模型名称不能为空")));
+                    }
+                    if !seen.insert((target.provider.clone(), target.model.clone())) {
+                        return Err(invalid(format!("公开模型 {name} 的上游目标重复")));
+                    }
+                    let provider = ai
+                        .text_provider(Some(&target.provider))
+                        .map_err(|_| invalid(format!("公开模型 {name} 的上游连接无效")))?;
+                    targets.push(Target {
+                        provider,
+                        upstream_model: target.model,
+                    });
+                }
                 let endpoints: Vec<_> = ENDPOINTS
                     .into_iter()
-                    .filter(|endpoint| resolve_endpoint(provider.as_ref(), *endpoint).is_some())
+                    .filter(|endpoint| {
+                        targets.iter().any(|target| {
+                            resolve_endpoint(target.provider.as_ref(), *endpoint).is_some()
+                        })
+                    })
                     .filter(|endpoint| {
                         model.endpoints.as_ref().is_none_or(|configured| {
                             configured.iter().any(|path| path == endpoint.path())
@@ -136,14 +182,7 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
-                Ok((
-                    name,
-                    Model {
-                        provider,
-                        upstream_model: model.model,
-                        endpoints,
-                    },
-                ))
+                Ok((name, Model { targets, endpoints }))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 
@@ -197,17 +236,19 @@ impl Gateway {
         &self,
         key: &Key,
         name: &str,
-        model: &Model,
-        endpoint: TextEndpoint,
-        upstream_endpoint: TextEndpoint,
+        target: &Target,
+        endpoints: (TextEndpoint, TextEndpoint),
+        request_id: &str,
     ) -> Call {
+        let (endpoint, upstream_endpoint) = endpoints;
         Call {
             logger: self.logger.clone(),
             context: [
                 ("key".into(), json!(key.name)),
+                ("request_id".into(), json!(request_id)),
                 ("model".into(), json!(name)),
-                ("upstream_model".into(), json!(model.upstream_model)),
-                ("provider".into(), json!(model.provider.name())),
+                ("upstream_model".into(), json!(target.upstream_model)),
+                ("provider".into(), json!(target.provider.name())),
                 ("endpoint".into(), json!(endpoint.path())),
                 ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
                 ("input_tokens".into(), Value::Null),

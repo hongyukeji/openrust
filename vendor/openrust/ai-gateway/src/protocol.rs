@@ -6,14 +6,17 @@ use http::{HeaderMap, HeaderValue, header};
 use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode, client},
     routing::{RouteGroup, RoutingError},
-    support::facades::{Facade, RateLimiter, Route},
+    support::{
+        Str,
+        facades::{Facade, RateLimiter, Route},
+    },
 };
 use openrust_ai::{AiError, TextEndpoint};
 use serde_json::{Value, json};
 
 use crate::{
     compatibility::Bridge,
-    gateway::{Call, Gateway},
+    gateway::{Call, Gateway, Key, Target},
 };
 
 type HttpResult = Result<Response, HttpError>;
@@ -324,13 +327,13 @@ async fn relay(
     else {
         return protocol.error(StatusCode::NOT_FOUND, "model_not_found", "模型不可用");
     };
-    let Some(upstream_endpoint) = model.upstream_endpoint(endpoint) else {
+    if model.upstream_endpoint(endpoint).is_none() {
         return protocol.error(
             StatusCode::BAD_REQUEST,
             "unsupported_endpoint",
             "该模型不支持此端点",
         );
-    };
+    }
     let streaming = if matches!(protocol, Protocol::Gemini) {
         endpoint == TextEndpoint::GeminiStreamGenerateContent
     } else {
@@ -412,77 +415,168 @@ async fn relay(
             "Gemini 模型由路径选择，暂不支持嵌套请求或上游缓存资源",
         );
     }
-    data.insert("model".into(), json!(model.upstream_model));
-    let bridge = Bridge::between(endpoint, upstream_endpoint);
-    let data = if let Some(bridge) = bridge {
-        match bridge.request(data) {
-            Ok(data) => data,
-            Err(message) => {
-                return protocol.error(StatusCode::BAD_REQUEST, "unsupported_conversion", message);
+    let may_replay = data
+        .get("tools")
+        .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
+        && data.get("store") != Some(&Value::Bool(true));
+    let request_id = Str::ulid().to_string();
+    let mut admitted = false;
+    let mut failure = None;
+    let mut conversion_error = None;
+    let mut targets = model.targets_for(endpoint).peekable();
+    while let Some((target, upstream_endpoint)) = targets.next() {
+        let mut payload = if targets.peek().is_some() {
+            data.clone()
+        } else {
+            std::mem::take(&mut data)
+        };
+        payload.insert("model".into(), json!(target.upstream_model));
+        let bridge = Bridge::between(endpoint, upstream_endpoint);
+        let payload = if let Some(bridge) = bridge {
+            match bridge.request(payload) {
+                Ok(payload) => payload,
+                Err(message) => {
+                    conversion_error = Some(message);
+                    continue;
+                }
             }
+        } else {
+            Value::Object(payload)
+        };
+        if !admitted {
+            if let Some(response) = admit(key, protocol).await? {
+                return Ok(response);
+            }
+            admitted = true;
         }
-    } else {
-        Value::Object(data)
-    };
-    if let Some(limit) = key.requests_per_minute {
-        let limiter = RateLimiter::get_facade_root()?;
-        match limiter
-            .reserve(&format!("ai-gateway:{}", key.name), limit, 60)
-            .await
-        {
-            Ok(Some(seconds)) => {
-                return protocol
-                    .error(
-                        StatusCode::TOO_MANY_REQUESTS,
-                        "rate_limit_exceeded",
-                        "已达到每分钟请求限额",
-                    )
-                    .map(|response| {
-                        response.header(header::RETRY_AFTER, HeaderValue::from(seconds))
-                    });
+        let mut call = gateway.usage(
+            key,
+            &name,
+            target,
+            (endpoint, upstream_endpoint),
+            &request_id,
+        );
+        match request_upstream(target, upstream_endpoint, payload, protocol, &mut call).await {
+            Ok(upstream) => {
+                return respond(upstream, name, endpoint, streaming, protocol, bridge, call);
             }
-            Ok(None) => {}
-            Err(_) => {
-                return protocol.error(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "rate_limit_unavailable",
-                    "限流服务暂不可用",
-                );
-            }
+            Err(rejected) if rejected.retryable && may_replay => failure = Some(rejected.response),
+            Err(rejected) => return rejected.response,
         }
     }
-    let mut call = gateway.usage(key, &name, model, endpoint, upstream_endpoint);
-    let upstream = match model.provider.relay(upstream_endpoint, data).await {
+    failure.unwrap_or_else(|| {
+        protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_conversion",
+            conversion_error.unwrap_or("没有支持此请求的上游连接"),
+        )
+    })
+}
+
+async fn admit(key: &Key, protocol: Protocol) -> Result<Option<Response>, HttpError> {
+    let Some(limit) = key.requests_per_minute else {
+        return Ok(None);
+    };
+    let limiter = RateLimiter::get_facade_root()?;
+    match limiter
+        .reserve(&format!("ai-gateway:{}", key.name), limit, 60)
+        .await
+    {
+        Ok(Some(seconds)) => protocol
+            .error(
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limit_exceeded",
+                "已达到每分钟请求限额",
+            )
+            .map(|response| Some(response.header(header::RETRY_AFTER, HeaderValue::from(seconds)))),
+        Ok(None) => Ok(None),
+        Err(_) => protocol
+            .error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "rate_limit_unavailable",
+                "限流服务暂不可用",
+            )
+            .map(Some),
+    }
+}
+
+struct UpstreamFailure {
+    retryable: bool,
+    response: HttpResult,
+}
+
+async fn request_upstream(
+    target: &Target,
+    endpoint: TextEndpoint,
+    data: Value,
+    protocol: Protocol,
+    call: &mut Call,
+) -> Result<client::Response, UpstreamFailure> {
+    let upstream = match target.provider.relay(endpoint, data).await {
         Ok(response) => response,
-        Err(AiError::Timeout) => {
-            call.outcome("timeout");
-            call.status(StatusCode::GATEWAY_TIMEOUT);
-            return protocol.error(
-                StatusCode::GATEWAY_TIMEOUT,
-                "upstream_timeout",
-                "上游请求超时",
-            );
-        }
-        Err(_) => {
-            call.outcome("upstream_error");
-            call.status(StatusCode::BAD_GATEWAY);
-            return protocol.error(StatusCode::BAD_GATEWAY, "upstream_error", "上游连接失败");
+        Err(error) => {
+            let (status, outcome, code, message) = match error {
+                AiError::Timeout => (
+                    StatusCode::GATEWAY_TIMEOUT,
+                    "timeout",
+                    "upstream_timeout",
+                    "上游请求超时",
+                ),
+                _ => (
+                    StatusCode::BAD_GATEWAY,
+                    "upstream_error",
+                    "upstream_error",
+                    "上游连接失败",
+                ),
+            };
+            call.outcome(outcome);
+            call.status(status);
+            return Err(UpstreamFailure {
+                retryable: matches!(
+                    error,
+                    AiError::Timeout | AiError::Transport | AiError::MissingCredential
+                ),
+                response: protocol.error(status, code, message),
+            });
         }
     };
     let status = upstream.status();
     call.status(status);
-    let headers = downstream_headers(upstream.headers());
-    if !status.is_success() {
-        call.outcome("upstream_error");
-        let status = if status.is_client_error() || status.is_server_error() {
-            status
-        } else {
-            StatusCode::BAD_GATEWAY
-        };
-        return protocol
-            .error(status, "upstream_error", "上游拒绝或未能处理该请求")
-            .map(|response| response.with_headers(headers));
+    if status.is_success() {
+        return Ok(upstream);
     }
+    call.outcome("upstream_error");
+    let retryable = status.is_server_error()
+        || matches!(
+            status,
+            StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_MANY_REQUESTS
+        );
+    let status = if status.is_client_error() || status.is_server_error() {
+        status
+    } else {
+        StatusCode::BAD_GATEWAY
+    };
+    let headers = downstream_headers(upstream.headers());
+    let response = protocol
+        .error(status, "upstream_error", "上游拒绝或未能处理该请求")
+        .map(|response| response.with_headers(headers));
+    Err(UpstreamFailure {
+        retryable,
+        response,
+    })
+}
+
+fn respond(
+    upstream: client::Response,
+    name: String,
+    endpoint: TextEndpoint,
+    streaming: bool,
+    protocol: Protocol,
+    bridge: Option<Bridge>,
+    mut call: Call,
+) -> HttpResult {
+    let status = upstream.status();
+    let headers = downstream_headers(upstream.headers());
     if streaming {
         return stream(upstream, headers, name, call, protocol, bridge);
     }
