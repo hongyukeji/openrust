@@ -441,6 +441,28 @@ async fn formal_exit_codes_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_exit_codes{\n'+exit_codes_snippet+exit_codes_checks+'}\n')
 
+    command_type_snippet=re.search(r'```rust\n(.*?)```',text.split('{#command-structure}',1)[1],re.S).group(1)
+    command_type_checks=r'''
+#[tokio::test]
+async fn formal_command_type_example() {
+    use openrust::support::facades::{App, Facade as _};
+    let root = std::env::temp_dir().join(format!("artisan-command-type-{}-{}", std::process::id(), module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = configure_commands(Application::configure(root.clone())).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let mut output = Output::default();
+        assert_eq!(report_from_handler("Ada", &mut output).await.unwrap(),0);
+        assert_eq!(output.stdout,"Report ready for Ada\n");
+        let mut help = Output::default();
+        assert_eq!(Artisan::call("reports:send", &["--help".into(),"--no-ansi".into()],&mut help).await.unwrap(),0);
+        assert!(help.stdout.contains("Send a report"));
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_command_type{\n'+command_type_snippet+command_type_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

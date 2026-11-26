@@ -39,8 +39,13 @@
     },
     {
       "anchor": "writing-commands",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-command-type-contracts.json",
+        "accepted-artisan-command-type.json",
+        "console_artisan_command_type",
+        "formal_command_type_example"
+      ]
     },
     {
       "anchor": "generating-commands",
@@ -53,8 +58,13 @@
     },
     {
       "anchor": "command-structure",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-command-type-contracts.json",
+        "accepted-artisan-command-type.json",
+        "console_artisan_command_type",
+        "formal_command_type_example"
+      ]
     },
     {
       "anchor": "exit-codes",
@@ -454,19 +464,24 @@
     },
     {
       "anchor": "registering-commands",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
         "console_registry_lifecycle",
         "registry-oracle.json",
         "accepted-registry.json",
-        "artisan-command-discovery-contracts.json"
-      ],
-      "remaining": "编译目录发现、旧手动注册和实际运行已验。继续类型及容器解析、注册类入口与消费者。"
+        "artisan-command-discovery-contracts.json",
+        "artisan-command-type-contracts.json",
+        "accepted-artisan-command-type.json",
+        "console_artisan_command_type",
+        "formal_command_type_example"
+      ]
     },
     {
       "anchor": "programmatically-executing-commands",
       "status": "pending_public_contract_review",
-      "evidence": [],
+      "evidence": [
+        "artisan-command-type-contracts.json"
+      ],
       "remaining": [
         "核对Artisan.call输出缓冲参数的任意OutputInterface／分区实际消费者；不要用Raw Output现有签名假定已实现。"
       ]
@@ -810,5 +825,13 @@
     "status": "verified_tutorial_scope",
     "contract": "artisan-exit-codes-contracts.json",
     "remaining": []
+  },
+  "artisan_command_type": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-command-type-contracts.json",
+    "remaining": [
+      "程序调用的完整命令字符串、具名数组和布尔参数、输出接口及嵌套子命令仍按后续各节验收。",
+      "默认目录发现保持构建期模块清单。应用需要利用具体类型的代码通过显式定义模块和容器绑定登记。"
+    ]
   }
 }

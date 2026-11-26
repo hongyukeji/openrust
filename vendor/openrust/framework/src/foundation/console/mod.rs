@@ -1,6 +1,7 @@
 //! Artisan lifecycle for a bootstrapped application.
 
 mod channel_list_command;
+pub(crate) mod command_types;
 pub(super) mod config_cache_command;
 mod configuration_command;
 mod console_make_command;
@@ -91,8 +92,13 @@ pub(super) fn bind_application(application: &Arc<ApplicationState>) {
         .expect("Artisan application is initially unbound");
 }
 
+pub(crate) enum CommandTarget<'a> {
+    Name(&'a str),
+    Type(std::any::TypeId, &'static str),
+}
+
 pub(crate) async fn call_in_application(
-    command: &str,
+    command: CommandTarget<'_>,
     arguments: &[OsString],
     output: &mut Output,
 ) -> Result<i32, ConsoleError> {
@@ -107,6 +113,12 @@ pub(crate) async fn call_in_application(
             .await
             .map_err(|error| ConsoleError::new(error.to_string()))?;
         let application = &kernel.application;
+        let command = match command {
+            CommandTarget::Name(name) => name,
+            CommandTarget::Type(id, type_name) => {
+                kernel.artisan.resolve_command_type(id, type_name)?
+            }
+        };
         within_console_lifecycle(
             application,
             kernel
@@ -185,7 +197,7 @@ impl Kernel {
     }
     async fn bootstrap_commands(&mut self) -> Result<(), ConsoleError> {
         if !self.register_planned || self.command_registration.is_some() {
-            return self.register_commands_once();
+            return self.register_configured_commands().await;
         }
         let application = self
             .application
@@ -195,7 +207,7 @@ impl Kernel {
         let registered = application
             .commands
             .get_or_try_init(|| async {
-                self.register_commands_once()?;
+                self.register_configured_commands().await?;
                 Ok::<_, ConsoleError>(RegisteredCommands {
                     artisan: self.artisan.clone(),
                     has_scheduled_tasks: self.has_scheduled_tasks,
@@ -207,7 +219,30 @@ impl Kernel {
         self.command_registration = Some(Ok(()));
         Ok(())
     }
-    fn register_commands_once(&mut self) -> Result<(), ConsoleError> {
+    async fn register_configured_commands(&mut self) -> Result<(), ConsoleError> {
+        let mut commands = Vec::new();
+        if self.command_registration.is_none()
+            && self
+                .application
+                .shared
+                .container
+                .bound::<command_types::CommandTypeCatalog>()
+        {
+            let catalog = self
+                .application
+                .make::<command_types::CommandTypeCatalog>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            for entry in &catalog.0 {
+                commands.push(entry.resolve(&self.application).await?);
+            }
+        }
+        self.register_commands_once(commands)
+    }
+    fn register_commands_once(
+        &mut self,
+        commands: Vec<command_types::ResolvedCommandType>,
+    ) -> Result<(), ConsoleError> {
         self.command_registration
             .get_or_insert_with(|| {
                 if self.register_planned {
@@ -278,6 +313,10 @@ impl Kernel {
                         facades::Artisan::register(&mut self.artisan, register)?;
                     }
                     (self.application.shared.commands)(&mut self.artisan)?;
+                    for entry in commands {
+                        self.artisan
+                            .add_resolved_command_type(entry.id, entry.command)?;
+                    }
                     if let Some(register) = self.application.shared.command_routes {
                         facades::Artisan::register(&mut self.artisan, register)?;
                     }

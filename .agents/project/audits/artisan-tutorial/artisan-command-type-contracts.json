@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "ApplicationBuilder": [
+      "with_command::<C>"
+    ],
+    "CommandDefinition": [
+      "from_signature",
+      "with_description"
+    ],
+    "Command": [
+      "definition",
+      "handle"
+    ],
+    "Artisan": [
+      "call_type::<C>"
+    ]
+  },
+  "source_oracle": "artisan-command-type-oracle.json",
+  "runtime": {
+    "source_command_type_cases": 6,
+    "test_targets": 6,
+    "framework_parent_tests": 19,
+    "new_artisan_processes": 2,
+    "new_http_requests": 12,
+    "formal_document_consumers": 234,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "对照 ApplicationBuilder::withCommands、Kernel::addCommands、Console Application::resolve/resolveCommands 及真实具名与类型调用。",
+    "Rust 通过编译期命令类型和实际应用容器绑定构建实例，重复类型幂等；支持异步 Provider 构建并纳入现有应用一次装配。",
+    "名称与 TypeId 查询命中同一控制台条目。固定 PHP 按类调用会为读取命令名增加一次构造，Rust 通过类型索引读取已注册名称，保留行为及实例状态。",
+    "同一 CommandDefinition 声明签名和描述，供真实参数解析及 help/list。命令体从同应用容器解析服务。",
+    "未配置类型与已配置缺依赖给出不同错误，均不输出半成品。"
+  ],
+  "remaining": [
+    "程序调用的完整命令字符串、具名数组和布尔参数、输出接口及嵌套子命令仍按后续各节验收。",
+    "默认目录发现保持构建期模块清单。应用需要利用具体类型的代码通过显式定义模块和容器绑定登记。"
+  ]
+}

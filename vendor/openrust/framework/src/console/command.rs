@@ -53,6 +53,13 @@ impl CommandDefinition {
         self
     }
 
+    /// 为命令定义提供 list 和 help 读取的描述。
+    pub fn with_description(mut self, description: impl Into<clap::builder::StyledStr>) -> Self {
+        let syntax = Arc::make_mut(&mut self.syntax);
+        *syntax = std::mem::take(syntax).about(description);
+        self
+    }
+
     pub fn name(&self) -> &str {
         self.syntax.get_name()
     }
@@ -129,8 +136,7 @@ impl ClosureCommand {
 
     /// Sets the command description shown by Artisan help and list.
     pub fn purpose(&mut self, description: &'static str) -> &mut Self {
-        let syntax = self.definition.syntax.as_ref().clone().about(description);
-        self.definition = CommandDefinition::new(syntax);
+        self.definition = self.definition.clone().with_description(description);
         self
     }
 }

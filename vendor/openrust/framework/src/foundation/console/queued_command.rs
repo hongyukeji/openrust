@@ -80,11 +80,15 @@ impl JobHandler for QueuedCommand {
                 .map_err(|_| QueueError::InvalidPayload)?;
             let arguments: Vec<OsString> = data.arguments.into_iter().map(OsString::from).collect();
             // the framework acknowledges a returned status and retries only on an execution error.
-            super::call_in_application(&data.command, &arguments, &mut Output::default())
-                .await
-                .map_err(|source| QueueError::Execution {
-                    source: std::sync::Arc::new(source),
-                })?;
+            super::call_in_application(
+                super::CommandTarget::Name(&data.command),
+                &arguments,
+                &mut Output::default(),
+            )
+            .await
+            .map_err(|source| QueueError::Execution {
+                source: std::sync::Arc::new(source),
+            })?;
             Ok(())
         })
     }

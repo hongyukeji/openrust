@@ -31,6 +31,7 @@ pub struct ApplicationBuilder {
     channels: Option<ChannelRoutes>,
     middleware_configurators: Vec<MiddlewareConfigurator>,
     commands: CommandRegistrar,
+    command_types: Vec<crate::foundation::console::command_types::CommandType>,
     grpc: Option<grpc::Registrar>,
     exceptions: Option<Exceptions>,
     runners: Option<RunnerRegistrar>,
@@ -51,6 +52,7 @@ impl ApplicationBuilder {
             channels: None,
             middleware_configurators: Vec::new(),
             commands: |_| Ok(()),
+            command_types: Vec::new(),
             grpc: None,
             exceptions: None,
             runners: None,
@@ -227,6 +229,19 @@ impl ApplicationBuilder {
         self
     }
 
+    /// 通过应用容器构造并注册命令类型，复用同一应用的实际命令实例。
+    pub fn with_command<C: crate::console::Command + 'static>(mut self) -> Self {
+        let command = crate::foundation::console::command_types::CommandType::of::<C>();
+        if !self
+            .command_types
+            .iter()
+            .any(|entry| entry.id == command.id)
+        {
+            self.command_types.push(command);
+        }
+        self
+    }
+
     /// Configures exception rendering for the HTTP kernel.
     pub fn with_exceptions(mut self, configure: impl FnOnce(&mut Exceptions)) -> Self {
         configure(self.exceptions.get_or_insert_with(Exceptions::default));
@@ -280,6 +295,11 @@ impl ApplicationBuilder {
             .expect("调度配置锁中毒") = self.schedule_configurators;
         let _ = application.shared.package_manifest.set(self.packages);
         let container = &application.shared.container;
+        if !self.command_types.is_empty() {
+            container.instance(Arc::new(
+                crate::foundation::console::command_types::CommandTypeCatalog(self.command_types),
+            ))?;
+        }
         if let Some(entries) = self.migrations {
             container.instance(Arc::new(MigrationRegistry(entries)))?;
         }

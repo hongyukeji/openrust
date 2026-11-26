@@ -1,4 +1,5 @@
 use std::{
+    any::TypeId,
     collections::BTreeMap,
     ffi::{OsStr, OsString},
     io::{self, IsTerminal as _},
@@ -53,6 +54,7 @@ impl Entry {
 #[derive(Clone)]
 pub struct Application {
     commands: BTreeMap<String, Entry>,
+    command_types: BTreeMap<TypeId, String>,
     helper_set: Arc<OnceLock<HelperSet>>,
 }
 
@@ -60,6 +62,7 @@ impl Default for Application {
     fn default() -> Self {
         let mut console = Self {
             commands: BTreeMap::new(),
+            command_types: BTreeMap::new(),
             helper_set: Arc::default(),
         };
         for entry in [
@@ -102,6 +105,32 @@ impl Application {
         let helpers = self.get_helper_set();
         self.add(Entry::Command(Arc::from(command), helpers))
             .map(|_| ())
+    }
+
+    pub(crate) fn add_resolved_command_type(
+        &mut self,
+        id: TypeId,
+        command: Arc<dyn Command>,
+    ) -> Result<(), ConsoleError> {
+        let name = command.definition().name().to_owned();
+        if self.command_types.contains_key(&id) {
+            return Err(ConsoleError::new(format!("命令类型已注册：{name}")));
+        }
+        let helpers = self.get_helper_set();
+        self.add(Entry::Command(command, helpers))?;
+        self.command_types.insert(id, name);
+        Ok(())
+    }
+
+    pub(crate) fn resolve_command_type(
+        &self,
+        id: TypeId,
+        type_name: &str,
+    ) -> Result<&str, ConsoleError> {
+        self.command_types
+            .get(&id)
+            .map(String::as_str)
+            .ok_or_else(|| ConsoleError::new(format!("未注册命令类型：{type_name}")))
     }
 
     pub fn get_command_helper_set(&self, name: &str) -> Result<Option<HelperSet>, ConsoleError> {

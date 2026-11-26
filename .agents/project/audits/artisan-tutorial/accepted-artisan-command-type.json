@@ -1,0 +1,34 @@
+{
+  "base": "6be5e458a1b0ccf77a6f5c294a9246f8fdc9a6b9",
+  "contract": "artisan-command-type-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.38s",
+    "test result: ok. 234 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.83s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s"
+  ],
+  "runtime": {
+    "source_command_type_cases": 6,
+    "test_targets": 6,
+    "framework_parent_tests": 19,
+    "new_artisan_processes": 2,
+    "new_http_requests": 12,
+    "formal_document_consumers": 234,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-command-type-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-type-consumers.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-type-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-type-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-type-source.json"
+  ],
+  "unaccepted_attempts": [],
+  "remaining": [
+    "程序调用的完整命令字符串、具名数组和布尔参数、输出接口及嵌套子命令仍按后续各节验收。",
+    "默认目录发现保持构建期模块清单。应用需要利用具体类型的代码通过显式定义模块和容器绑定登记。"
+  ],
+  "pushed": false
+}

@@ -213,6 +213,10 @@ SMTP selection checks connectivity, TLS and authentication using the existing SM
 
 Use `--env=acceptance` to initialize `.env.acceptance`; the same environment is forwarded to configuration clearing, key generation and migrations, leaving `.env` unchanged.
 
+## Writing Commands {#writing-commands}
+
+Use `make:command` for a new command file. Define its arguments and options before adding its business logic.
+
 ## Generating Commands {#generating-commands}
 
 A destructive command can call `openrust::console::confirm_to_proceed(production, input.matches())?` and proceed only when it returns `true`. Set `production` from the application environment or the command’s confirmation condition. The shared localized prompt defaults to refusal; non-interactive input refuses, and a declared `--force` flag bypasses confirmation.
@@ -243,6 +247,81 @@ Add `--test` to create a feature test along with the command.
 The test goes to `tests/feature/console/commands/send_report_test.rs`. Nested command names keep their subdirectories. Declare the test module and run it through Cargo using the [test setup](../testing/getting-started.md#creating-tests). The template starts with the same health check as `make:test`. Add assertions for your command to the generated test.
 
 `--force` allows both generated files to be replaced. If test generation fails after the command is created, Artisan exits with status 1 and keeps the command file. Resolve the reported error and run `./artisan make:test Console/Commands/SendReportTest` to create the test separately.
+
+## Command Structure {#command-structure}
+
+A command type implements `Command`. Build its definition with `CommandDefinition::from_signature` and `with_description`. Artisan uses that same definition to parse input and show help. The `handle` method can resolve typed dependencies through the application container.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    contracts::{container::Container, foundation::Application as _},
+    foundation::{Application, configuration::ApplicationBuilder},
+    support::{ProviderResult, ServiceProvider, facades::Artisan},
+};
+
+struct Reporter;
+
+impl Reporter {
+    fn report(&self, user: &str) -> String {
+        format!("Report ready for {user}")
+    }
+}
+
+struct SendReport(CommandDefinition);
+
+impl Command for SendReport {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self, app: &'a Application, input: &'a Input, output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let reporter = app.make::<Reporter>().await.map_err(ConsoleError::from_source)?;
+            let Some(user) = input.argument("user") else {
+                return input.fail("A user is required.");
+            };
+            input.io(output).line(&reporter.report(user.as_str().unwrap_or_default()))?;
+            Ok(0)
+        })
+    }
+}
+
+struct ReportProvider;
+
+impl ServiceProvider for ReportProvider {
+    fn register<'a>(
+        &'a mut self, app: &'a Application,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ProviderResult> + Send + 'a>> {
+        Box::pin(async move {
+            app.container().instance(Arc::new(Reporter))?;
+            let definition = CommandDefinition::from_signature("reports:send {user}")?
+                .with_description("Send a report");
+            app.container().bind::<SendReport, _>(move |_| {
+                Ok(Arc::new(SendReport(definition.clone())))
+            })?;
+            Ok(())
+        })
+    }
+}
+
+fn configure_commands(builder: ApplicationBuilder) -> ApplicationBuilder {
+    builder.with_providers(vec![Box::new(ReportProvider)]).with_command::<SendReport>()
+}
+
+async fn report_from_handler(user: &str, output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_type::<SendReport>(&[user.into(), "--no-ansi".into()], output).await
+}
+```
+
+## Registering Commands {#registering-commands}
+
+The build discovers default command files and any extra directories listed in `COMMANDS`. To register a type from another module, bind it in a provider and add `with_command::<Type>()` to the application builder. Multiple calls register multiple types. `with_commands` still accepts an explicit registrar.
+
+Artisan resolves a bound type during console registration and uses its same instance for future calls in that application. Call it by signature name or use `Artisan::call_type::<Type>`. Type-based calls reuse the registered instance when finding its name.
 
 ## Stub Customization {#stub-customization}
 

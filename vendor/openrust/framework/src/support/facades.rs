@@ -756,7 +756,25 @@ impl Artisan {
         output: &mut Output,
     ) -> Result<i32, ConsoleError> {
         Box::pin(foundation::console::call_in_application(
-            command, arguments, output,
+            foundation::console::CommandTarget::Name(command),
+            arguments,
+            output,
+        ))
+        .await
+    }
+
+    /// 通过已注册的具体命令类型调用同一 Artisan 实例。
+    pub async fn call_type<C: crate::console::Command + 'static>(
+        arguments: &[OsString],
+        output: &mut Output,
+    ) -> Result<i32, ConsoleError> {
+        Box::pin(foundation::console::call_in_application(
+            foundation::console::CommandTarget::Type(
+                std::any::TypeId::of::<C>(),
+                std::any::type_name::<C>(),
+            ),
+            arguments,
+            output,
         ))
         .await
     }

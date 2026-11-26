@@ -213,6 +213,10 @@ Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生
 
 使用 `--env=acceptance` 初始化 `.env.acceptance`；清理配置、生成密钥和迁移步骤使用同一环境，不修改 `.env`。
 
+## 编写命令 {#writing-commands}
+
+用 `make:command` 生成命令文件。先定义参数和选项，再实现业务逻辑。
+
 ## 生成命令 {#generating-commands}
 
 破坏性命令可调用 `openrust::console::confirm_to_proceed(production, input.matches())?`，仅在返回 `true` 时继续。`production` 由应用环境或命令确认条件决定。复用的多语提示默认拒绝，非交互输入拒绝；命令声明的 `--force` 可跳过确认。
@@ -243,6 +247,81 @@ Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生
 测试写入 `tests/feature/console/commands/send_report_test.rs`，嵌套命令保留原有子目录。按[测试接线](../testing/getting-started.md#creating-tests)声明模块后，用 Cargo 运行。模板沿用 `make:test` 的健康检查，可在生成的测试中加入命令断言。
 
 `--force` 允许替换两个生成文件。命令生成后若测试生成失败，Artisan 以状态码 1 退出并保留命令文件。解决报错后，运行 `./artisan make:test Console/Commands/SendReportTest` 单独生成测试。
+
+## 命令结构 {#command-structure}
+
+命令类型实现 `Command`。用 `CommandDefinition::from_signature` 和 `with_description` 声明。Artisan 使用同一份定义解析输入和显示帮助。`handle` 方法可通过应用容器解析类型化依赖。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    contracts::{container::Container, foundation::Application as _},
+    foundation::{Application, configuration::ApplicationBuilder},
+    support::{ProviderResult, ServiceProvider, facades::Artisan},
+};
+
+struct Reporter;
+
+impl Reporter {
+    fn report(&self, user: &str) -> String {
+        format!("Report ready for {user}")
+    }
+}
+
+struct SendReport(CommandDefinition);
+
+impl Command for SendReport {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self, app: &'a Application, input: &'a Input, output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let reporter = app.make::<Reporter>().await.map_err(ConsoleError::from_source)?;
+            let Some(user) = input.argument("user") else {
+                return input.fail("A user is required.");
+            };
+            input.io(output).line(&reporter.report(user.as_str().unwrap_or_default()))?;
+            Ok(0)
+        })
+    }
+}
+
+struct ReportProvider;
+
+impl ServiceProvider for ReportProvider {
+    fn register<'a>(
+        &'a mut self, app: &'a Application,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ProviderResult> + Send + 'a>> {
+        Box::pin(async move {
+            app.container().instance(Arc::new(Reporter))?;
+            let definition = CommandDefinition::from_signature("reports:send {user}")?
+                .with_description("Send a report");
+            app.container().bind::<SendReport, _>(move |_| {
+                Ok(Arc::new(SendReport(definition.clone())))
+            })?;
+            Ok(())
+        })
+    }
+}
+
+fn configure_commands(builder: ApplicationBuilder) -> ApplicationBuilder {
+    builder.with_providers(vec![Box::new(ReportProvider)]).with_command::<SendReport>()
+}
+
+async fn report_from_handler(user: &str, output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_type::<SendReport>(&[user.into(), "--no-ansi".into()], output).await
+}
+```
+
+## 注册命令 {#registering-commands}
+
+构建时发现默认目录和 `COMMANDS` 指定的额外目录。注册其他模块中的类型时，在 Provider 中绑定该类型，然后在应用构建器调用 `with_command::<Type>()`。可多次调用以登记多个类型。`with_commands` 同样支持显式注册函数。
+
+Artisan 在控制台装配时从容器解析类型，之后同一应用复用该命令实例。可按签名名称调用，也可用 `Artisan::call_type::<Type>`。按类型调用会使用已注册实例对应的名称。
 
 ## 自定义生成模板 {#stub-customization}
 
