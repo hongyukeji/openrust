@@ -441,6 +441,24 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
     use openrust_pulse::{Entry, Pulse};
 
     fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        if request.uri().path().ends_with("/graph") {
+            return Box::pin(async {
+                let graph = openrust_pulse::facades::Pulse::graph_bytes(
+                    &["cache_miss".into()],
+                    "count",
+                    3600,
+                )
+                .await?;
+                let summary = graph
+                    .into_iter()
+                    .map(|(key, series)| {
+                        let counts = &series["cache_miss"];
+                        (key, counts.len(), counts.values().flatten().sum::<f64>())
+                    })
+                    .collect::<Vec<_>>();
+                Response::json(openrust::http::StatusCode::OK, summary)
+            });
+        }
         let key = match request.uri().path().rsplit('/').next() {
             Some("first") => "é",
             Some("second") => "ê",
@@ -480,6 +498,7 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
                 Route::get("/binary-group/first", probe)?;
                 Route::get("/binary-group/second", probe)?;
                 Route::get("/binary-group/valid", probe)?;
+                Route::get("/binary-group/graph", probe)?;
                 Ok(())
             }))
     })
@@ -564,7 +583,7 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
             let first = vec![b'X', 0xc3, b'X', 0xa9, b'X'];
             let second = vec![b'X', 0xc3, b'X', 0xaa, b'X'];
             assert_eq!(rows.len(), 3);
-            for (row, raw) in rows.iter().zip([first, second]) {
+            for (row, raw) in rows.iter().zip([first.clone(), second.clone()]) {
                 let hash = format!("{:x}", md5::compute(&raw));
                 assert_eq!(row.get("key"), Some(&Value::Bytes(raw)));
                 assert_eq!(row.get("key_hash"), Some(&Value::from(hash)));
@@ -589,6 +608,18 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
                     .all(|row| row["cache_miss"].as_f64() == Some(1.0))
             );
             assert!(errors.lock().unwrap().is_empty());
+            let response = app.get("/api/binary-group/graph").await.unwrap();
+            response.assert_ok();
+            let graph: Vec<(Vec<u8>, usize, f64)> =
+                serde_json::from_slice(response.body()).unwrap();
+            assert_eq!(
+                graph,
+                [
+                    (b"XvXaXlXiXdX".to_vec(), 60, 1.0),
+                    (first, 60, 1.0),
+                    (second, 60, 1.0),
+                ]
+            );
         }
         "mysql" if non_strict => {
             assert_eq!(rows.len(), 3);

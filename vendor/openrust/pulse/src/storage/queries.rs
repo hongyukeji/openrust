@@ -5,7 +5,9 @@ use indexmap::IndexMap;
 use openrust::database::{Row, Value as Sql, query::Builder};
 use std::collections::BTreeMap;
 
-pub type Graph = BTreeMap<String, IndexMap<String, IndexMap<String, Option<f64>>>>;
+type GraphSeries = IndexMap<String, IndexMap<String, Option<f64>>>;
+pub type Graph = BTreeMap<String, GraphSeries>;
+pub type ByteGraph = BTreeMap<Vec<u8>, GraphSeries>;
 fn validate(aggregate: &str) -> Result<()> {
     if ["count", "min", "max", "sum", "avg"].contains(&aggregate) {
         Ok(())
@@ -37,6 +39,32 @@ impl DatabaseStorage {
         )
     }
     pub async fn graph(&self, types: &[String], aggregate: &str, interval: i64) -> Result<Graph> {
+        self.graph_with_keys(types, aggregate, interval, |row| text(row, "key"))
+            .await
+    }
+
+    /// 按原始键读取图表序列，保留字节不同的分组。
+    pub async fn graph_bytes(
+        &self,
+        types: &[String],
+        aggregate: &str,
+        interval: i64,
+    ) -> Result<ByteGraph> {
+        self.graph_with_keys(types, aggregate, interval, |row| match row.get("key") {
+            Some(Sql::Text(value)) => Ok(value.as_bytes().to_vec()),
+            Some(Sql::Bytes(value)) => Ok(value.clone()),
+            _ => Err(Error::StateUnavailable),
+        })
+        .await
+    }
+
+    async fn graph_with_keys<K: Ord>(
+        &self,
+        types: &[String],
+        aggregate: &str,
+        interval: i64,
+        key: impl Fn(&Row) -> Result<K>,
+    ) -> Result<BTreeMap<K, GraphSeries>> {
         validate(aggregate)?;
         let (period, _, _) = self.interval(interval)?;
         let now = (self.clock)();
@@ -58,9 +86,9 @@ impl DatabaseStorage {
         }
         let structure: IndexMap<_, _> =
             types.iter().map(|t| (t.clone(), padding.clone())).collect();
-        let mut graph: Graph = BTreeMap::new();
+        let mut graph = BTreeMap::new();
         for row in rows {
-            let key = text(&row, "key")?;
+            let key = key(&row)?;
             let r#type = text(&row, "type")?;
             let bucket = row
                 .get("bucket")

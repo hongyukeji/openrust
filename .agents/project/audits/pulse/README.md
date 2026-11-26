@@ -104,7 +104,7 @@ Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redi
 
 #### 含字节键的通用 Graph 与 Value
 
-固定 PHP 8.5.12、Redis 8.10.3 与 SQLite 通过实际 Ingest 和 DatabaseStorage 核对。Graph 把两个原始字节键各保留为独立序列，均包含 60 个桶和一次计数。直接序列化 Graph 到 JSON 报 `JSON_ERROR_UTF8`。Value 的同键覆盖按提交顺序保留最后一项，即使其时间戳更小，按原始字节键查询也能命中。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-values-upstream.log`。Rust 的公开 Graph 键和 Value 键仍为文本，字节读取与写入待接通，呈现时不能合并显示相同的原始键。
+固定 PHP 8.5.12、Redis 8.10.3 与 SQLite 通过实际 Ingest 和 DatabaseStorage 核对。Graph 把两个原始字节键各保留为独立序列，均包含 60 个桶和一次计数。直接序列化 Graph 到 JSON 报 `JSON_ERROR_UTF8`。Value 的同键覆盖按提交顺序保留最后一项，即使其时间戳更小，按原始字节键查询也能命中。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-values-upstream.log`。Rust 的文本 Graph API 维持 UTF-8 键契约。新增公开 `Pulse::graph_bytes`、Facade 和存储入口，复用原有按键排序、补齐及聚合查询，按原始字节独立返回各序列。自定义文本 Storage 的默认实现可转为字节；内置 DatabaseStorage 直接读取 SQLite 的原始字节。macOS 真实缓存 HTTP 后从另一个路由调用 Facade，确认两个原始键和合法文本对照在各自序列内都有 60 桶及一次计数，并按字节顺序返回。缓存、存储、快照格式、相关严格 Clippy 与三语文档构建和桌面／移动验证通过。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-{macos,docs}.log`。Value 的字节键读写及本次 Graph 平台矩阵继续验收。
 
 ## SlowJobs 任务尝试计时
 

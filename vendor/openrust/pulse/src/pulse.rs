@@ -554,6 +554,15 @@ impl Pulse {
         self.ignore(self.storage.graph(types, aggregate, interval))
             .await
     }
+    pub async fn graph_bytes(
+        &self,
+        types: &[String],
+        aggregate: &str,
+        interval: i64,
+    ) -> Result<crate::storage::ByteGraph> {
+        self.ignore(self.storage.graph_bytes(types, aggregate, interval))
+            .await
+    }
     pub async fn aggregate(
         &self,
         r#type: &str,

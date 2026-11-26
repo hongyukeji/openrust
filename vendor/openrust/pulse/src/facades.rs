@@ -144,6 +144,15 @@ impl Pulse {
     ) -> crate::Result<crate::storage::Graph> {
         Self::manager()?.graph(types, aggregate, interval).await
     }
+    pub async fn graph_bytes(
+        types: &[String],
+        aggregate: &str,
+        interval: i64,
+    ) -> crate::Result<crate::storage::ByteGraph> {
+        Self::manager()?
+            .graph_bytes(types, aggregate, interval)
+            .await
+    }
     pub async fn aggregate(
         r#type: &str,
         aggregates: &[String],

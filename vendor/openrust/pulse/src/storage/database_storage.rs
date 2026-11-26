@@ -382,6 +382,14 @@ impl super::Storage for DatabaseStorage {
     ) -> crate::PulseFuture<'a, super::Graph> {
         Box::pin(self.graph(types, aggregate, interval))
     }
+    fn graph_bytes<'a>(
+        &'a self,
+        types: &'a [String],
+        aggregate: &'a str,
+        interval: i64,
+    ) -> crate::PulseFuture<'a, super::ByteGraph> {
+        Box::pin(self.graph_bytes(types, aggregate, interval))
+    }
     fn aggregate<'a>(
         &'a self,
         r#type: &'a str,

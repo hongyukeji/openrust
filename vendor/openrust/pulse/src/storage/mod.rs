@@ -1,7 +1,7 @@
 mod database_storage;
 mod queries;
 pub use database_storage::DatabaseStorage;
-pub use queries::Graph;
+pub use queries::{ByteGraph, Graph};
 
 pub trait Storage: Send + Sync {
     fn values<'a>(
@@ -15,6 +15,22 @@ pub trait Storage: Send + Sync {
         aggregate: &'a str,
         interval: i64,
     ) -> crate::PulseFuture<'a, Graph>;
+    /// 读取以原始字节键索引的图表。仅支持文本键的存储可沿用默认实现。
+    fn graph_bytes<'a>(
+        &'a self,
+        types: &'a [String],
+        aggregate: &'a str,
+        interval: i64,
+    ) -> crate::PulseFuture<'a, ByteGraph> {
+        Box::pin(async move {
+            Ok(self
+                .graph(types, aggregate, interval)
+                .await?
+                .into_iter()
+                .map(|(key, series)| (key.into_bytes(), series))
+                .collect())
+        })
+    }
     fn aggregate<'a>(
         &'a self,
         r#type: &'a str,
