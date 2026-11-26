@@ -1,24 +1,29 @@
 use std::fmt;
 
-use crate::localization;
+use crate::{AgentResponse, localization};
 
 pub type AiResult<T> = Result<T, AiError>;
 
 pub(crate) enum ProviderAttemptError {
     BeforeCommit(AiError),
     Committed(AiError),
+    CommittedWithSteps(AiError, Box<AgentResponse>),
 }
 
 impl ProviderAttemptError {
     pub(crate) fn error(&self) -> &AiError {
         match self {
-            Self::BeforeCommit(error) | Self::Committed(error) => error,
+            Self::BeforeCommit(error)
+            | Self::Committed(error)
+            | Self::CommittedWithSteps(error, _) => error,
         }
     }
 
     pub(crate) fn into_error(self) -> AiError {
         match self {
-            Self::BeforeCommit(error) | Self::Committed(error) => error,
+            Self::BeforeCommit(error)
+            | Self::Committed(error)
+            | Self::CommittedWithSteps(error, _) => error,
         }
     }
 }

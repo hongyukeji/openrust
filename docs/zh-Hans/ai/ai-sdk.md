@@ -476,7 +476,7 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 继续会话时传入已认证参与者的类型和 ID。`for_user(&user)` 可直接为认证用户开启会话。`continue_last_conversation(participant)` 寻找该参与者与同一 Agent 类型的上一会话，没有历史时开启新会话。
 
-SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息。工具步骤完成后如果 SDK 收到流式错误，会保留已完成步骤并将助手消息标为 `failed`。首个工具步骤完成前的流式错误不会写入新消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
+SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息。工具步骤完成后如果上游请求出错，SDK 会保留已完成步骤并将助手消息标为 `failed`。首个工具步骤完成前的上游错误不会写入新消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
 默认数据库存储为新会话生成标题，使用成功连接的经济型文本模型。标题 Agent 最多读取首条提示词的 500 个显示列。可在 `config/ai.rs` 将 `conversations.generate_title` 设为 `false`，或设置 `AI_CONVERSATIONS_GENERATE_TITLE=false`，直接采用 50 个显示列的预览。标题生成失败时使用 100 个显示列的预览。Agent Fake 可通过 `ConversationTitleAgent::fake` 指定标题。
 

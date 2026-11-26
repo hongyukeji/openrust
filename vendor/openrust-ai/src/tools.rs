@@ -97,7 +97,7 @@ pub struct ToolDefinition {
     pub schema: Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ToolStep {
     pub text: Option<String>,
     pub calls: Vec<ToolCall>,
@@ -209,7 +209,7 @@ pub trait StepTextGateway: Send + Sync {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct ToolRun {
     pub(crate) invocation_id: String,
     pub(crate) history: Vec<ToolStep>,
@@ -310,7 +310,9 @@ pub(crate) async fn run(
 ) -> Result<AgentResponse, ProviderAttemptError> {
     let max_steps = step_limit(tools.len(), max_steps);
     let (definitions, tools) = prepare(tools)?;
-    ToolRun::new(max_steps)
+    let mut run = ToolRun::new(max_steps);
+    let model = prompt.text.model;
+    let outcome = run
         .generate(
             provider,
             prompt,
@@ -319,7 +321,20 @@ pub(crate) async fn run(
             &middleware,
             approvals,
         )
-        .await
+        .await;
+    match outcome {
+        Err(error)
+            if !matches!(error.error(), AiError::ApprovalPaused(_))
+                && run.history.iter().any(|step| !step.results.is_empty()) =>
+        {
+            let partial = run.completed_response(provider, model)?;
+            Err(ProviderAttemptError::CommittedWithSteps(
+                error.into_error(),
+                Box::new(partial),
+            ))
+        }
+        outcome => outcome,
+    }
 }
 
 impl ToolRun {
@@ -432,7 +447,7 @@ impl ToolRun {
     }
 
     async fn generate(
-        mut self,
+        &mut self,
         provider: &dyn TextProvider,
         prompt: AgentPrompt<'_>,
         definitions: &[ToolDefinition],
@@ -471,6 +486,7 @@ impl ToolRun {
             if plan.requires_approval() {
                 let approval = plan.for_pause();
                 let pending = self
+                    .clone()
                     .pause(approvals, provider, prompt, generated, approval)
                     .await?;
                 return Err(AiError::ApprovalPaused(pending).into());
@@ -487,61 +503,72 @@ impl ToolRun {
             }
             self.add_step(response, results, generated.requested_model);
             if finished {
-                let replay_scope = provider
-                    .step_text_gateway()
-                    .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
-                let steps: Vec<_> =
-                    self.history
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, step)| {
-                            let model = step.model.unwrap_or_else(|| prompt.text.model.into());
-                            let provider_replay = self.requested_models[index].as_deref().and_then(
-                                |requested_model| {
-                                    crate::provider_replay::ProviderReplay::capture(
-                                        replay_scope.as_deref(),
-                                        requested_model,
-                                        step.provider_content
-                                            .as_ref()
-                                            .filter(|_| !step.calls.is_empty()),
-                                    )
-                                },
-                            );
-                            Step {
-                                text: step.text.unwrap_or_default(),
-                                tool_calls: step.calls,
-                                tool_results: step.results,
-                                finish_reason: step.finish_reason,
-                                usage: step.usage,
-                                provider: provider.name().into(),
-                                model,
-                                citations: step.citations,
-                                reasoning: step.reasoning,
-                                provider_replay,
-                            }
-                        })
-                        .collect();
-                let last = steps.last().ok_or(AiError::InvalidResponse)?;
-                return Ok(AgentResponse {
-                    text: last.text.clone(),
-                    reasoning: last.reasoning.clone(),
-                    usage: self.usage.unwrap_or_default(),
-                    provider: last.provider.clone(),
-                    model: last.model.clone(),
-                    citations: last.citations.clone(),
-                    tool_calls: steps
-                        .iter()
-                        .flat_map(|step| step.tool_calls.iter().cloned())
-                        .collect(),
-                    tool_results: steps
-                        .iter()
-                        .flat_map(|step| step.tool_results.iter().cloned())
-                        .collect(),
-                    steps,
-                });
+                return self
+                    .completed_response(provider, prompt.text.model)
+                    .map_err(Into::into);
             }
         }
         Err(AiError::InvalidResponse.into())
+    }
+
+    fn completed_response(
+        &mut self,
+        provider: &dyn TextProvider,
+        fallback_model: &str,
+    ) -> AiResult<AgentResponse> {
+        let replay_scope = provider
+            .step_text_gateway()
+            .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
+        let steps: Vec<_> = std::mem::take(&mut self.history)
+            .into_iter()
+            .enumerate()
+            .map(|(index, step)| {
+                let model = step.model.unwrap_or_else(|| fallback_model.into());
+                let provider_replay = self
+                    .requested_models
+                    .get(index)
+                    .and_then(Option::as_deref)
+                    .and_then(|requested_model| {
+                        crate::provider_replay::ProviderReplay::capture(
+                            replay_scope.as_deref(),
+                            requested_model,
+                            step.provider_content
+                                .as_ref()
+                                .filter(|_| !step.calls.is_empty()),
+                        )
+                    });
+                Step {
+                    text: step.text.unwrap_or_default(),
+                    tool_calls: step.calls,
+                    tool_results: step.results,
+                    finish_reason: step.finish_reason,
+                    usage: step.usage,
+                    provider: provider.name().into(),
+                    model,
+                    citations: step.citations,
+                    reasoning: step.reasoning,
+                    provider_replay,
+                }
+            })
+            .collect();
+        let last = steps.last().ok_or(AiError::InvalidResponse)?;
+        Ok(AgentResponse {
+            text: last.text.clone(),
+            reasoning: last.reasoning.clone(),
+            usage: self.usage.take().unwrap_or_default(),
+            provider: last.provider.clone(),
+            model: last.model.clone(),
+            citations: last.citations.clone(),
+            tool_calls: steps
+                .iter()
+                .flat_map(|step| step.tool_calls.iter().cloned())
+                .collect(),
+            tool_results: steps
+                .iter()
+                .flat_map(|step| step.tool_results.iter().cloned())
+                .collect(),
+            steps,
+        })
     }
 }
 

@@ -663,6 +663,7 @@ impl AiManager {
     ) -> AiResult<AgentResponse> {
         self.prompt_in_session(agent, prompt, options, structured_output, messages, None)
             .await
+            .map_err(ProviderAttemptError::into_error)
     }
 
     pub(crate) async fn prompt_in_session<A: Agent>(
@@ -673,13 +674,13 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
         approvals: Option<&crate::approval_turn::ApprovalSession>,
-    ) -> AiResult<AgentResponse> {
+    ) -> Result<AgentResponse, ProviderAttemptError> {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
         let choice = agent.tool_choice();
         if prompt.trim().is_empty() && attachments.is_empty() {
-            return Err(AiError::InvalidPrompt);
+            return Err(AiError::InvalidPrompt.into());
         }
         crate::attachments::validate_prompt_attachments(attachments, messages)?;
         let request = AgentPrompt {
@@ -891,7 +892,8 @@ impl AiManager {
                         ))
                     },
                 )
-                .await?;
+                .await
+                .map_err(ProviderAttemptError::into_error)?;
             Ok(response.observe_attempt(attempt))
         } else {
             let max_steps = agent.max_steps();
@@ -930,7 +932,8 @@ impl AiManager {
                         ))
                     },
                 )
-                .await?;
+                .await
+                .map_err(ProviderAttemptError::into_error)?;
             Ok(crate::tool_stream::response(prepared, approvals).observe_attempt(attempt))
         }
     }
@@ -947,7 +950,7 @@ impl AiManager {
             Option<&'a crate::approval_turn::ApprovalSession>,
             bool,
         ) -> HttpFuture<'a, Result<T, ProviderAttemptError>>,
-    ) -> AiResult<T> {
+    ) -> Result<T, ProviderAttemptError> {
         let invocation_id = Str::ulid().to_string();
         if let Some(fake) = self.text_fake::<A>() {
             let name = options
@@ -988,8 +991,7 @@ impl AiManager {
                 Some(std::any::type_name::<A>()),
                 send(&provider, attempt, approvals, false),
             )
-            .await
-            .map_err(ProviderAttemptError::into_error);
+            .await;
         }
         let targets = agent.providers();
         let mut next = targets.iter().skip(1).peekable();
@@ -1031,7 +1033,7 @@ impl AiManager {
                     name = Some(&target.provider);
                     requested_model = target.model.as_deref();
                 }
-                result => return result.map_err(ProviderAttemptError::into_error),
+                result => return result,
             }
         }
     }

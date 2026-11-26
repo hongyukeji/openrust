@@ -1,6 +1,9 @@
 use std::{any::type_name, sync::Arc};
 
-use openrust::{contracts::auth::Authenticatable, support::Str};
+use openrust::{
+    contracts::auth::Authenticatable,
+    support::{Str, facades::Log},
+};
 
 use crate::{
     Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
@@ -11,6 +14,7 @@ use crate::{
     approval_turn::ApprovalSession,
     conversation_store::TurnPersistence,
     conversation_stream,
+    error::ProviderAttemptError,
     structured::schema_for,
     tools::ApprovalCheckpoint,
 };
@@ -175,6 +179,26 @@ impl ConversationTurn {
         }
     }
 
+    async fn buffered_outcome(
+        &self,
+        prompt: &str,
+        outcome: Result<AgentResponse, ProviderAttemptError>,
+    ) -> AiResult<AgentResponse> {
+        match outcome {
+            Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
+                if self
+                    .persist_turn(prompt, &partial, None, ConversationMessageStatus::Failed)
+                    .await
+                    .is_err()
+                {
+                    let _ = Log::warning("AI 会话的已完成工具步骤保存失败", &Default::default());
+                }
+                Err(error)
+            }
+            outcome => outcome.map_err(ProviderAttemptError::into_error),
+        }
+    }
+
     fn approval_scope(&self) -> ApprovalScope<'_> {
         ApprovalScope {
             conversation_id: &self.id,
@@ -227,9 +251,10 @@ impl<A: Agent> PendingConversation<'_, A> {
     ) -> AiResult<ConversationResponse> {
         let manager = Ai::manager()?;
         let (turn, history) = self.prepare(&manager, prompt).await?;
-        let response = manager
-            .prompt_with_history(self.agent, prompt, options, None, &history)
-            .await?;
+        let outcome = manager
+            .prompt_in_session(self.agent, prompt, options, None, &history, None)
+            .await;
+        let response = turn.buffered_outcome(prompt, outcome).await?;
         turn.persist(prompt, &response).await?;
         Ok(turn.reply(response))
     }
@@ -252,6 +277,7 @@ impl<A: Agent> PendingConversation<'_, A> {
                 session.as_ref(),
             )
             .await;
+        let outcome = turn.buffered_outcome(prompt, outcome).await;
         resolve_approval_turn(turn, prompt, outcome, None).await
     }
 
@@ -510,9 +536,10 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
         };
         let manager = Ai::manager()?;
         let (turn, history) = self.prepare(&manager, prompt).await?;
-        let response = manager
-            .prompt_with_history(self.agent, prompt, options, Some(schema), &history)
-            .await?;
+        let outcome = manager
+            .prompt_in_session(self.agent, prompt, options, Some(schema), &history, None)
+            .await;
+        let response = turn.buffered_outcome(prompt, outcome).await?;
         let response = StructuredAgentResponse::parse(response)?;
         turn.persist(prompt, &response.response).await?;
         Ok(turn.reply(response))
