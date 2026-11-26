@@ -166,4 +166,6 @@ macOS 上真实 Artisan SQLite Worker 经过 40 毫秒的处理前监听器，�
 
 固定 PHP 在会退出的超时路径结束进程。Rust 的嵌入式 Artisan 可以只返回退出码，使应用及 Recorder 实例继续运行。前态保留了这类尚未结算尝试，测试向同一个 Recorder 重放超时事件所携带的尝试标识，错误地产生一条慢任务记录。
 
-Rust 将时间戳清理挂到所属 Worker 尝试已有的延迟回调集合。集合执行或丢弃时清理该代标记，保留首个正常终止事件的计时。相同标识的新尝试拥有独立标记。真实 SQLite、PostgreSQL 18.7、MySQL 8.4.13 上分别验证退出型超时保留队列任务并清除时间戳，以及可重试超时正确记录释放和后续成功两次。两个 Worker 回归、默认 Provider、隔离快照格式及所涉严格 Clippy 通过。证据为 `target/tmp/observability-parity/pulse-worker-timeout-{baseline,final}.log`。其他目标平台和非数据库队列驱动的专项继续验收。 [固定 Laravel Worker](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Worker.php#L326-L368)
+Rust 将时间戳清理挂到所属 Worker 尝试已有的延迟回调集合。集合执行或丢弃时清理该代标记，保留首个正常终止事件的计时。相同标识的新尝试拥有独立标记。真实 SQLite、PostgreSQL 18.7、MySQL 8.4.13 上分别验证退出型超时保留队列任务并清除时间戳，以及可重试超时正确记录释放和后续成功两次。两个 Worker 回归、默认 Provider、隔离快照格式及所涉严格 Clippy 通过。证据为 `target/tmp/observability-parity/pulse-worker-timeout-{baseline,final}.log`。 [固定 Laravel Worker](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Worker.php#L326-L368)
+
+同一原生 Artisan 入口另外使用独占 Redis 8.10.3 队列及 SQLite 指标存储，两个 Worker 用例均通过。验收通过当前驱动的队列大小确认超时保留和正常清空。三种数据库队列组合同时重跑通过。证据为 `target/tmp/observability-parity/pulse-worker-timeout-queue-matrix.log`。其他目标平台与外部队列驱动继续验收。

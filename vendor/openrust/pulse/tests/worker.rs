@@ -82,13 +82,27 @@ impl Listener for JobPreflight {
 
 async fn worker_application(
     values: Arc<Mutex<Vec<Value>>>,
-) -> (TestApp, openrust::database::Connection) {
-    let mut app = TestApp::create(move |builder| builder.with_config(|root, _| Ok([
+) -> (TestApp, openrust::database::Connection, &'static str) {
+    let driver = worker_queue_driver();
+    let mut app = TestApp::create(move |builder| builder.with_config(|root, _| {
+        let driver = worker_queue_driver();
+        let mut database = json!({"default":"test","connections":{"test":worker_database(root)}});
+        if driver == "redis" {
+            database["redis"] = json!({
+                "client":"redis",
+                "options":{"prefix":format!("pulse_worker_{:x}:", fastrand::u64(..))},
+                "default":{"url":std::env::var("OPENRUST_TEST_REDIS_URL").expect("独占 Redis 连接")}
+            });
+        }
+        Ok([
         ("pulse".into(),json!({"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}},"recorders":{"Queues":{"sample_rate":1},"SlowJobs":{"threshold":0},"Exceptions":{},"Servers":false}})),
-        ("database".into(), json!({"default":"test","connections":{"test":worker_database(root)}})),
+        ("database".into(), database),
         ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
-        ("queue".into(), json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90}},"failed":{"driver":"null"}})),
-    ].into())).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values })])).unwrap();
+        ("queue".into(), json!({"default":driver,"connections":{
+            "database":{"driver":"database","table":"jobs","queue":"default","retry_after":90},
+            "redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}
+        },"failed":{"driver":"null"}})),
+    ].into())}).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values })])).unwrap();
     std::fs::write(app.root().join("worker.sqlite"), []).unwrap();
     app.boot().await.unwrap();
     app.app()
@@ -104,23 +118,34 @@ async fn worker_application(
         .unwrap()
         .connection(None)
         .unwrap();
-    connection
-        .get_schema_builder()
-        .create("jobs", |table| {
-            table.id();
-            table.string("queue", 255).index();
-            table.long_text("payload");
-            table.unsigned_integer("attempts");
-            table.unsigned_big_integer("reserved_at").nullable();
-            table.unsigned_big_integer("available_at");
-            table.unsigned_big_integer("created_at");
-        })
-        .await
-        .unwrap();
+    if driver == "database" {
+        connection
+            .get_schema_builder()
+            .create("jobs", |table| {
+                table.id();
+                table.string("queue", 255).index();
+                table.long_text("payload");
+                table.unsigned_integer("attempts");
+                table.unsigned_big_integer("reserved_at").nullable();
+                table.unsigned_big_integer("available_at");
+                table.unsigned_big_integer("created_at");
+            })
+            .await
+            .unwrap();
+    }
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
-    (app, connection)
+    (app, connection, driver)
+}
+
+fn worker_queue_driver() -> &'static str {
+    if std::env::var("PULSE_TEST_WORKER_QUEUE").as_deref() == Ok("redis") {
+        assert_eq!(std::env::var("OPENRUST_REQUIRE_REDIS").as_deref(), Ok("1"));
+        "redis"
+    } else {
+        "database"
+    }
 }
 
 fn worker_database(root: &std::path::Path) -> Value {
@@ -146,7 +171,7 @@ fn worker_database(root: &std::path::Path) -> Value {
 #[tokio::test]
 async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buffer() {
     let values = Arc::new(Mutex::new(Vec::new()));
-    let (mut app, connection) = worker_application(values.clone()).await;
+    let (mut app, connection, driver) = worker_application(values.clone()).await;
     let queue = app.app().make::<QueueManager>().await.unwrap();
     for fail in [false, true, false, false] {
         queue
@@ -170,7 +195,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         .unwrap();
     app.artisan([
         "queue:work",
-        "database",
+        driver,
         "--stop-when-empty",
         "--sleep=0",
         "--memory=0",
@@ -181,7 +206,8 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         *values.lock().unwrap(),
         [false, true, false, false, true, false].map(|fails| json!(fails))
     );
-    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 0);
+    let transport = queue.connection(Some(driver)).unwrap();
+    assert_eq!(transport.size(None).await.unwrap(), 0);
     assert_eq!(
         connection
             .table("pulse_entries")
@@ -253,7 +279,7 @@ impl Listener for TimeoutProbe {
 #[tokio::test]
 async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
     use openrust::contracts::foundation::Application as _;
-    let (mut app, connection) = worker_application(Arc::default()).await;
+    let (mut app, connection, driver) = worker_application(Arc::default()).await;
     let probe = Arc::new(TimeoutProbe::default());
     app.app()
         .make::<Dispatcher>()
@@ -272,7 +298,7 @@ async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
         .unwrap();
     app.artisan([
         "queue:work",
-        "database",
+        driver,
         "--timeout=1",
         "--tries=3",
         "--sleep=0",
@@ -286,7 +312,8 @@ async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
         .unwrap()
         .take()
         .expect("真实 Worker 未派发超时事件");
-    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 1);
+    let transport = queue.connection(Some(driver)).unwrap();
+    assert_eq!(transport.size(None).await.unwrap(), 1);
     let pulse = app.app().make::<openrust_pulse::Pulse>().await.unwrap();
     let slow = pulse
         .recorders()
@@ -329,7 +356,7 @@ async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
         .unwrap();
     app.artisan([
         "queue:work",
-        "database",
+        driver,
         "--timeout=1",
         "--tries=3",
         "--sleep=0",
@@ -347,5 +374,5 @@ async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
             .unwrap(),
         2
     );
-    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 1);
+    assert_eq!(transport.size(None).await.unwrap(), 1);
 }
