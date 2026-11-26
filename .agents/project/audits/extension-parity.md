@@ -36,6 +36,8 @@ macOS 从完整归档 `1d5388cdff898cf78974d12be9a3c88d648ff084` 验证锁定依
 
 macOS ARM64 从完整归档 `af5a3b36a9852d42bff5c601ba57d26d2f287be2` 用 Rust 1.94.0 和默认 Release 配置构建三个扩展同时启用的根应用。实际 Mach-O ARM64 发布程序完成包发现、配置缓存及迁移，Pulse 心跳和 Telescope 命令写入并读回 SQLite，Horizon 状态命令连接隔离 Redis 8.10.3。首轮触及磁盘停线后安全退出，清理完成后以相同提交重新构建。证据为 `target/tmp/observability-parity/observability-exact-release-macos{,-retry}.log`。后续源码及目标部署组合仍按发布快照验收。
 
+更新的 macOS ARM64 完整归档 `66b69e10523bba34cb58ea92dc31bab3c74fd82a` 包含 Pulse 用户资料、Eloquent 批量查询和旧版回调格式转换。用 Rust 1.94.0、锁定依赖及默认 Release 配置生成 Mach-O ARM64 根应用，SHA-256 为 `f83a1bb8298ad2a715284d00c8a16132895ce60a41d3b62394f9e446b15c44dc`。同一程序完成包发现、配置缓存和 SQLite 迁移，分别读取一条 Pulse 系统指标和一条 Telescope 命令，并在隔离 Redis 8.10.3 返回空的 Horizon 进程状态。首次触及磁盘停线，恢复空间后以相同提交复跑通过。证据为 `target/tmp/observability-parity/observability-macos-release-66b69e105{,-retry}.log`。此后提交及正式部署组合仍按交付快照复验。
+
 ### Windows ARM64 三扩展根应用优化构建
 
 Windows 11 ARM64 虚机从完整归档 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0` 用 Rust 1.94.0、`aarch64-pc-windows-msvc`、默认 Release 配置和锁定依赖构建。根二进制启用 `horizon,pulse,telescope`，PE 架构为 ARM64，SHA-256 为 `7bc187c9e8602ce0648984b6ff9dc6fc7d14f81179e8e27a49a2a7a3f64a367d`。
