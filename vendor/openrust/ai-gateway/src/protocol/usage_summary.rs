@@ -1,9 +1,15 @@
 use super::{Gateway, HttpFuture, HttpResult, Protocol, Request, Response, StatusCode, authorize};
 use http::{HeaderValue, header};
-use openrust::support::facades::Facade;
+use openrust::support::{
+    DateTimezone,
+    facades::{Date, Facade},
+};
 use serde_json::{Value, json};
 
-use crate::usage::UsageStore;
+use crate::{
+    managed_keys::now,
+    usage::{DAY, UsageStore},
+};
 
 pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
@@ -36,7 +42,13 @@ pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
                 "days 必须为 1 至 90 的整数",
             );
         };
-        let Ok((total, daily)) = store.key_summary(&key.usage_owner(), days).await else {
+        let now = now();
+        let start = utc_date(request, "start_date").unwrap_or(now - 30 * DAY);
+        let end = utc_date(request, "end_date").map_or(now + 1, |date| date + DAY);
+        let Ok(summary) = store
+            .key_summary(&key.usage_owner(), days, start..end)
+            .await
+        else {
             return protocol.error(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "usage_unavailable",
@@ -54,8 +66,9 @@ pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             json!({
                 "mode": mode,
                 "isValid": true,
-                "usage": {"today": UsageStore::today(&daily), "total": total},
-                "daily_usage": daily,
+                "usage": {"today": UsageStore::today(&summary.daily), "total": summary.total},
+                "daily_usage": summary.daily,
+                "model_stats": summary.models,
                 "requests_per_minute": key.requests_per_minute,
                 "group_output_quota": quota.map(|quota| json!({
                     "output_tokens_per_day": quota.output_tokens_per_day,
@@ -67,4 +80,13 @@ pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             response.header(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))
         })
     })
+}
+
+fn utc_date(request: &Request, field: &str) -> Option<i64> {
+    let Value::String(text) = request.query(field).ok()?? else {
+        return None;
+    };
+    let date =
+        Date::create_from_format("!Y-m-d", text.as_str(), Some(DateTimezone::UTC)).ok()??;
+    (date.format("Y-m-d").ok()? == text).then(|| date.as_date_time().timestamp().as_second())
 }

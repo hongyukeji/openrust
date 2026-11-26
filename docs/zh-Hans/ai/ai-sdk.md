@@ -178,6 +178,8 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 使用发起模型调用的 Key，以 Bearer 或 `x-api-key` 鉴权请求 `GET /v1/usage?days=7`。返回该 Key 当日、累计以及按 UTC 日期汇总的用量。`days` 可设为 1 至 90。回退只计为一次请求，同时按实际出站次数统计尝试。缺失的 Token 数保持 `null`。
 
+`model_stats` 返回当前 Key 最近 30 天按公开模型名汇总的用量。可用 `start_date` 和 `end_date` 指定 `YYYY-MM-DD` 格式的 UTC 日期，包含首尾两天。省略或无法解析的日期使用相应默认值，此范围仅影响 `model_stats`。
+
 托管 Key 轮换后保留历史。替换环境 Key 后，新凭证开始累积自己的历史。运维可通过 Artisan 账本查询早期记录和上游明细。
 
 ### 分组输出 Token 配额 {#gateway-output-quota}

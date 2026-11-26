@@ -178,6 +178,8 @@ A request cannot be sent upstream until its attempt is recorded. The gateway set
 
 With the same Key used for generation, call `GET /v1/usage?days=7` using Bearer or `x-api-key` authentication. The response includes today's totals, lifetime totals, and a daily series in UTC for that Key. Set `days` from 1 to 90. Retries count once as a request and separately as attempts. Missing token counts remain `null`.
 
+`model_stats` reports the Key’s usage by public model name over the last 30 days. Set `start_date` and `end_date` to UTC dates in `YYYY-MM-DD` format to choose another range. Both dates are inclusive. Missing or invalid dates use the corresponding default. This range applies only to `model_stats`.
+
 Managed Keys retain their usage history after rotation. Replacing an environment Key starts a new history for its new credential. The operator's Artisan ledger includes earlier attempts and upstream details.
 
 ### Group output-token quotas {#gateway-output-quota}

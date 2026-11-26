@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use openrust::{
     database::{
         Connection, DatabaseError, DatabaseResult, Row, Value,
@@ -36,7 +38,7 @@ const COLUMNS: [&str; 19] = [
     "finished_at",
 ];
 
-const DAY: i64 = 86_400;
+pub(crate) const DAY: i64 = 86_400;
 const DAY_START: &str = "started_at - (started_at % 86400)";
 const ROLLUP: &str = "
     COUNT(DISTINCT request_id) AS requests, COUNT(*) AS attempts,
@@ -84,6 +86,19 @@ pub(crate) struct DailyUsage {
     date: String,
     #[serde(flatten)]
     totals: UsageTotals,
+}
+
+#[derive(Serialize)]
+pub(crate) struct ModelUsage {
+    pub(crate) model: String,
+    #[serde(flatten)]
+    totals: UsageTotals,
+}
+
+pub(crate) struct KeyUsageSummary {
+    pub(crate) total: UsageTotals,
+    pub(crate) daily: Vec<DailyUsage>,
+    pub(crate) models: Vec<ModelUsage>,
 }
 
 #[derive(Clone)]
@@ -221,30 +236,64 @@ impl UsageStore {
         &self,
         owner: &UsageOwner<'_>,
         days: u8,
-    ) -> DatabaseResult<(UsageTotals, Vec<DailyUsage>)> {
+        model_window: Range<i64>,
+    ) -> DatabaseResult<KeyUsageSummary> {
         let scope = || owner.filter(self.connection.table(TABLE).use_write_pdo());
         let today = now().div_euclid(DAY) * DAY;
         let start = today - i64::from(days - 1) * DAY;
+        let (model_group, null_model) = match self.connection.get_driver_name() {
+            "mysql" | "mariadb" => ("model, CAST(model AS BINARY)", "NULL"),
+            "pgsql" => ("model, model COLLATE \"C\"", "NULL"),
+            "sqlite" => ("model, CAST(model AS BLOB)", "NULL"),
+            "sqlsrv" => (
+                "model, CONVERT(VARBINARY(512), model)",
+                "CAST(NULL AS NVARCHAR(255))",
+            ),
+            _ => ("model", "NULL"),
+        };
         let mut recent = scope()
             .r#where("started_at", ">=", start)
             .r#where("started_at", "<", today + DAY)
-            .select_raw(&format!("{DAY_START} AS day_start, {ROLLUP}"), Vec::new())
+            .select_raw(
+                &format!("{DAY_START} AS day_start, {null_model} AS model, {ROLLUP}"),
+                Vec::new(),
+            )
             .group_by_raw(DAY_START, Vec::new());
+        let mut models = scope()
+            .r#where("started_at", ">=", model_window.start)
+            .r#where("started_at", "<", model_window.end)
+            .select_raw(&format!("NULL AS day_start, model, {ROLLUP}"), Vec::new())
+            .group_by_raw(model_group, Vec::new());
         let rows = scope()
-            .select_raw(&format!("NULL AS day_start, {ROLLUP}"), Vec::new())
+            .select_raw(
+                &format!("NULL AS day_start, {null_model} AS model, {ROLLUP}"),
+                Vec::new(),
+            )
             .union_all(&mut recent)?
+            .union_all(&mut models)?
             .get()
             .await?;
         let mut total = None;
         let mut buckets = std::collections::BTreeMap::new();
+        let mut models = Vec::new();
         for row in rows {
             let totals = UsageTotals::from_row(&row)?;
-            if let Some(start) = super::managed_keys::integer(&row, "day_start")? {
-                buckets.insert(start, totals);
-            } else {
-                total = Some(totals);
+            match row.get("model") {
+                Some(Value::Text(model)) => models.push(ModelUsage {
+                    model: model.clone(),
+                    totals,
+                }),
+                Some(Value::Null) => {
+                    if let Some(start) = super::managed_keys::integer(&row, "day_start")? {
+                        buckets.insert(start, totals);
+                    } else {
+                        total = Some(totals);
+                    }
+                }
+                _ => return Err(DatabaseError::InvalidScalar),
             }
         }
+        models.sort_unstable_by(|left, right| left.model.cmp(&right.model));
         let mut daily = Vec::with_capacity(usize::from(days));
         for offset in 0..days {
             let day = start + i64::from(offset) * DAY;
@@ -256,7 +305,11 @@ impl UsageStore {
                 totals: buckets.remove(&day).unwrap_or_default(),
             });
         }
-        Ok((total.ok_or(DatabaseError::InvalidScalar)?, daily))
+        Ok(KeyUsageSummary {
+            total: total.ok_or(DatabaseError::InvalidScalar)?,
+            daily,
+            models,
+        })
     }
 
     pub(crate) fn today(daily: &[DailyUsage]) -> Option<&UsageTotals> {

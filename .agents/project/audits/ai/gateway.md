@@ -30,7 +30,7 @@
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06／GW-03／04 待逐操作核对，音色资源要求所属校验。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
-| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合与 UTC 日序列。货币计量、`/v1/sub2api/billing` 及固定上游的模型范围统计字段待核对。 |
+| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。货币计量、`/v1/sub2api/billing` 待核对。 |
 
 ## 兼容路径与账号类型
 
@@ -188,3 +188,11 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 `/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。搜索与 Realtime Calls 仍待后续验收。
 
 - [Sub2API 固定基线路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L408)
+
+## GW-04 每个 Key 的模型用量
+
+`GET /v1/usage` 的 `model_stats` 汇总当前 Key 最近 30 天的公开模型用量。`start_date` 和 `end_date` 以 UTC 日期指定包含首尾两天的范围。缺失或不可解析的日期使用相应默认值。`days` 仍控制日序列，累计字段仍覆盖完整账本。累计、日序列和模型汇总共用一次数据库语句快照。模型名按精确大小写区分。
+
+SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本地协议上游验证。用例涵盖未报告用量、一次请求两次尝试、起止同日、旧时段无结果、大小写别名、其他 Key 隔离、轮换后历史归属、撤销和同名静态 Key 换凭证。三语文档构建与根路径及 `/docs/` 导航验收通过。
+
+- [固定 Sub2API Usage 与日期范围实现](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler.go#L1616)
