@@ -20,11 +20,13 @@ try{
   assert.equal(await page.locator('.card').count(),10);
   assert.equal(await page.locator('progress').count(),5);
   assert.equal(await page.locator('svg').count(),3);
-  for (const [name, value, unit] of [[/^CPU history for /, 25, '%'], [/^Memory history for /, 2048, ' MiB']]) {
+  for (const [name, value, unit, samples] of [[/^CPU history for /, 25, '%', 2], [/^Memory history for /, 2048, ' MiB', 1]]) {
    const graph=page.getByRole('img',{name});
    assert(await graph.isVisible());
-   assert.match(await graph.locator('path').getAttribute('d'), /^M [\d.]+ [\d.]+ h 0\.01$/);
-   const target=graph.locator('rect');
+   const path=await graph.locator('path').getAttribute('d');
+   assert.equal(path.match(/M [\d.]+ [\d.]+ h 0\.01/g).length,samples);
+   assert.equal(await graph.locator('rect').count(),samples);
+   const target=graph.locator('rect').last();
    await target.hover();
    const tooltip=await target.locator('title').textContent();
    const measurement=await page.evaluate(value=>value.toLocaleString(),value);
@@ -81,13 +83,42 @@ try{
  assert.equal((await polling.goto(base+'/operations/pulse')).status(),200);
  await polling.locator('#status').filter({hasText:'Updated'}).waitFor();
  assert.equal(polls,1);
+ const graph=polling.getByRole('img',{name:/^CPU history for /});
+ const reading=polling.locator('[data-server-trend="cpu:acceptance"] + output');
+ const oldGraph=await graph.elementHandle();
+ await graph.focus();
+ assert.match(await reading.textContent(), /25%$/);
+ await graph.press('ArrowLeft');
+ assert.match(await reading.textContent(), /13%$/);
  await polling.clock.runFor(4999);
  assert.equal(polls,1);
  const automatic=polling.waitForResponse(r=>r.url().includes('/api/metrics'));
  await polling.clock.runFor(1);
  assert.equal((await automatic).status(),200);
  assert.equal(polls,2);
+ await polling.waitForFunction(element=>!element.isConnected,oldGraph);
+ assert(await graph.evaluate(element=>element===document.activeElement));
+ assert.match(await reading.textContent(), /13%$/);
+ await graph.press('End');
+ assert.match(await reading.textContent(), /25%$/);
+ await graph.press('Escape');
+ assert(await reading.isHidden());
  console.log('native Pulse dashboard: initial request and five-second automatic refresh PASS');
+ console.log('native Pulse dashboard: keyboard explanation and focus survive refresh PASS');
  await polling.close();
  await context.close();
+
+ const touch=await browser.newContext({hasTouch:true,isMobile:true,viewport:{width:375,height:812},
+  extraHTTPHeaders:{'x-test-operator':'operator'}});
+ const phone=await touch.newPage();
+ assert.equal((await phone.goto(base+'/operations/pulse')).status(),200);
+ const touchGraph=phone.getByRole('img',{name:/^CPU history for /});
+ const touchReading=phone.locator('[data-server-trend="cpu:acceptance"] + output');
+ await touchGraph.locator('rect').first().tap();
+ assert(await touchReading.isVisible());
+ assert.match(await touchReading.textContent(), /13%$/);
+ await touchGraph.locator('rect').last().tap();
+ assert.match(await touchReading.textContent(), /25%$/);
+ console.log('native Pulse dashboard: taps read individual samples PASS');
+ await touch.close();
 }finally{await browser.close()}

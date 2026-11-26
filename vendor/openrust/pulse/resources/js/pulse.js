@@ -40,7 +40,8 @@ function updateOption(parameter, value) {
 }
 function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof text==='object'&&text!==null?(text.name??JSON.stringify(text)):String(text??'—');return e}
 function meter(card,label,used,total){const item=document.createElement('div');item.className='reading';item.append(cell('p',label));const bar=document.createElement('progress');bar.max=100;bar.value=total>0?Math.min(100,used/total*100):0;bar.setAttribute('aria-label',label);item.append(bar);card.append(item)}
-function serverTrend(card, label, readings, limit, unit) {
+const selectedServerReadings = new Map();
+function serverTrend(card, key, label, readings, limit, unit) {
     const buckets = Object.entries(readings ?? {});
     if (!(limit > 0)) return;
     const namespace = 'http://www.w3.org/2000/svg';
@@ -50,6 +51,8 @@ function serverTrend(card, label, readings, limit, unit) {
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', label);
+    svg.setAttribute('tabindex', '0');
+    svg.dataset.serverTrend = key;
     const commands = [];
     const samples = [];
     buckets.forEach(([timestamp, value], index) => {
@@ -72,7 +75,11 @@ function serverTrend(card, label, readings, limit, unit) {
     line.setAttribute('stroke-linecap', 'round');
     line.setAttribute('vector-effect', 'non-scaling-stroke');
     svg.append(line);
-    for (const [index, {timestamp, value, x}] of samples.entries()) {
+    const detail = document.createElement('output');
+    detail.className = 'server-reading';
+    detail.hidden = true;
+    let active = -1;
+    const targets = samples.map(({timestamp, value, x}, index) => {
         const left = index === 0 ? 0 : (samples[index - 1].x + x) / 2;
         const right = index === samples.length - 1 ? 600 : (x + samples[index + 1].x) / 2;
         const target = document.createElementNS(namespace, 'rect');
@@ -86,8 +93,42 @@ function serverTrend(card, label, readings, limit, unit) {
         title.textContent = `${date.toLocaleString(undefined, {timeZoneName: 'short'})} · ${value.toLocaleString()}${unit}`;
         target.append(title);
         svg.append(target);
+        target.addEventListener('pointerup', event => {
+            if (event.pointerType !== 'mouse') selectReading(index);
+        });
+        return {target, text: title.textContent};
+    });
+    function selectReading(index) {
+        targets[active]?.target.removeAttribute('data-selected');
+        active = index;
+        detail.hidden = index < 0;
+        detail.textContent = targets[index]?.text ?? '';
+        if (index < 0) {
+            selectedServerReadings.delete(key);
+        } else {
+            selectedServerReadings.set(key, samples[index].timestamp);
+            targets[index].target.setAttribute('data-selected', '');
+        }
     }
-    card.append(svg);
+    selectReading(samples.findIndex(sample => sample.timestamp === selectedServerReadings.get(key)));
+    svg.addEventListener('focus', () => {
+        if (active < 0) selectReading(samples.length - 1);
+    });
+    svg.addEventListener('keydown', event => {
+        const last = samples.length - 1;
+        let index;
+        switch (event.key) {
+            case 'ArrowLeft': index = active < 0 ? last : Math.max(0, active - 1); break;
+            case 'ArrowRight': index = Math.min(last, active + 1); break;
+            case 'Home': index = 0; break;
+            case 'End': index = last; break;
+            case 'Escape': index = -1; break;
+            default: return;
+        }
+        event.preventDefault();
+        selectReading(index);
+    });
+    card.append(svg, detail);
 }
 function serverSize(megabytes, precision = 0) {
     const digits = 10 ** precision;
@@ -113,9 +154,9 @@ function servers(card, values, graphs) {
         card.append(cell('small', `${status} · Last reported ${new Date(Number(row.timestamp) * 1000).toLocaleString()}`));
         const series = Object.hasOwn(graphs, row.key) ? graphs[row.key] : undefined;
         meter(card, `CPU · ${data.cpu}%`, Number(data.cpu), 100);
-        serverTrend(card, `CPU history for ${data.name}`, series?.cpu, 100, '%');
+        serverTrend(card, `cpu:${row.key}`, `CPU history for ${data.name}`, series?.cpu, 100, '%');
         meter(card, `Memory · ${serverSize(data.memory_used, 1)} / ${serverSize(data.memory_total, 1)}`, Number(data.memory_used), Number(data.memory_total));
-        serverTrend(card, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total), ' MiB');
+        serverTrend(card, `memory:${row.key}`, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total), ' MiB');
         for (const disk of data.storage ?? []) {
             meter(card, `${disk.directory} · ${serverSize(disk.used)} / ${serverSize(disk.total)}`, Number(disk.used), Number(disk.total));
         }
@@ -179,6 +220,7 @@ function renderCache(card, rows, {hits, misses, sample_rate: rate}) {
     if (rows.length > 100) card.append(cell('small', 'Limited to 100 entries'));
 }
 function render(data) {
+    const focusedTrend = document.activeElement?.dataset.serverTrend;
     main.replaceChildren();
     for (const [name, title] of Object.entries(names)) {
         const card = document.createElement('section');
@@ -210,6 +252,12 @@ function render(data) {
         }
         main.append(card);
     }
+    const trends = new Map(Array.from(main.querySelectorAll('[data-server-trend]'),
+        trend => [trend.dataset.serverTrend, trend]));
+    for (const key of selectedServerReadings.keys()) {
+        if (!trends.has(key)) selectedServerReadings.delete(key);
+    }
+    trends.get(focusedTrend)?.focus({preventScroll: true});
 }
 let activeRefresh;
 async function refresh() {
