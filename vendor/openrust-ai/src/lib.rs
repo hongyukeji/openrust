@@ -32,6 +32,7 @@ mod conversation_stream;
 mod conversation_title;
 mod conversations;
 mod database_embeddings;
+mod eleven;
 mod embedding_cache;
 mod embeddings;
 mod error;

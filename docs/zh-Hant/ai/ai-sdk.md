@@ -944,6 +944,8 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 Gemini 透過原生 Interactions API 合成語音和轉錄音訊。合成設定 `AI_AUDIO_PROVIDER=gemini` 和 `GEMINI_AUDIO_MODEL`，轉錄設定 `AI_TRANSCRIPTION_PROVIDER=gemini` 和 `GEMINI_TRANSCRIPTION_MODEL`。兩者皆使用 `GEMINI_API_KEY`，可用 `GEMINI_URL` 覆寫連線位址。語音預設回傳 WAV，也可明確選擇 PCM。上游舊版回傳裸 PCM 時，SDK 可封裝為 WAV。專用轉錄模型依詞級時間戳記合併同一說話者的片段。通用 Gemini 模型透過相同入口回傳文字或含時間戳記的片段。
 
+使用 ElevenLabs 時，設定 `ELEVENLABS_API_KEY`，透過 `AI_AUDIO_PROVIDER` 或 `AI_TRANSCRIPTION_PROVIDER` 選用 `eleven`，再用 `ELEVENLABS_AUDIO_MODEL` 或 `ELEVENLABS_TRANSCRIPTION_MODEL` 選擇模型。預設位址是 `https://api.elevenlabs.io/v1`，可用 `ELEVENLABS_URL` 覆寫。執行 `./artisan ai:models eleven` 查看模型。合成支援 MP3、WAV、Opus 和 PCM，可用 `voice()` 指定 ElevenLabs 音色 ID。啟用說話者區分後，轉錄回傳含時間戳記的詞及上游回報的說話者 ID。
+
 在應用測試作用域內呼叫 `Audio::fake([])?` 或 `Transcription::fake(["測試轉錄".into()])?`。用 `fake_with` 依請求產生替身回應。預設語音替身傳回佔位位元組。測試需要播放或轉錄該音訊時，透過 `AudioResponse::from_bytes` 提供有效的音訊樣本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 檢查呼叫。對傳回的替身呼叫 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在回應序列耗盡時回報錯誤。
 
 ### 排入佇列處理媒體請求 {#queued-audio}

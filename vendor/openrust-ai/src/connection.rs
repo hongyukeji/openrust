@@ -110,6 +110,7 @@ pub(crate) enum Authorization {
     ApiKey,
     Anthropic,
     Gemini,
+    ElevenLabs,
 }
 
 pub(crate) struct Connection {
@@ -197,6 +198,7 @@ impl Connection {
                 Authorization::ApiKey => Some("api-key"),
                 Authorization::Anthropic => Some("x-api-key"),
                 Authorization::Gemini => Some("x-goog-api-key"),
+                Authorization::ElevenLabs => Some("xi-api-key"),
             };
             request = if let Some(name) = api_key_header {
                 let mut value: http::HeaderValue = token

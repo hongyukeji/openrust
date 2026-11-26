@@ -25,6 +25,7 @@ use crate::{
         HttpDecisionsProvider, RecordedClassification,
     },
     connection::{Authorization, Connection},
+    eleven::ElevenLabsProvider,
     error::ProviderAttemptError,
     gemini::GeminiTextProvider,
     media_queue::{AudioQueueCallbacks, ImageQueueCallbacks, TranscriptionQueueCallbacks},
@@ -156,6 +157,18 @@ impl AiManager {
                     environment.clone(),
                     http.clone(),
                     Authorization::Bearer,
+                )?))))
+            });
+        }
+        {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend("eleven", move |config| {
+                Ok(Arc::new(ElevenLabsProvider(Arc::new(Connection::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                    Authorization::ElevenLabs,
                 )?))))
             });
         }

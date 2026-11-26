@@ -169,6 +169,15 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
             "ollama": ollama,
+            "eleven": {
+                "driver": "eleven",
+                "url": env.get_utf8("ELEVENLABS_URL")?.unwrap_or("https://api.elevenlabs.io/v1"),
+                "key_env": "ELEVENLABS_API_KEY",
+                "models": {
+                    "audio": {"default": env.get_utf8("ELEVENLABS_AUDIO_MODEL")?},
+                    "transcription": {"default": env.get_utf8("ELEVENLABS_TRANSCRIPTION_MODEL")?},
+                },
+            },
             "mistral": mistral,
             "azure": azure,
             "openrouter": openrouter,

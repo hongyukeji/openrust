@@ -195,6 +195,13 @@ impl TranscriptionAudio {
         &self.content
     }
 
+    pub(crate) fn multipart_part(&self, filename: String) -> AiResult<Part> {
+        Part::stream_with_length(self.content.clone(), self.content.len() as u64)
+            .file_name(filename)
+            .mime_str(self.mime_type())
+            .map_err(|_| AiError::InvalidAudio)
+    }
+
     pub fn mime_type(&self) -> &'static str {
         self.mime_type
     }
@@ -434,13 +441,9 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                 }
                 fields
             };
-            let file = Part::stream_with_length(
-                prompt.audio.content.clone(),
-                prompt.audio.content.len() as u64,
-            )
-            .file_name(format!("audio.{}", prompt.audio.extension))
-            .mime_str(prompt.audio.mime_type())
-            .map_err(|_| AiError::InvalidAudio)?;
+            let file = prompt
+                .audio
+                .multipart_part(format!("audio.{}", prompt.audio.extension))?;
             let response = self
                 .connection
                 .request(Some(prompt.timeout))?

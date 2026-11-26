@@ -686,6 +686,14 @@ AI-06 接通同一 Mistral 连接的语音合成和音频转录。语音沿用�
 
 - [Google Gemini 语音合成](https://aistudio.google.com/docs/speech-generation) · [Google Gemini 音频转录](https://aistudio.google.com/docs/transcribe) · [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php)
 
+### ElevenLabs 原生语音与转录
+
+`eleven` 连接沿用固定 Laravel 的 `xi-api-key`、音色映射、音频二进制输出和 multipart 转录。合成支持 MP3、WAV、Opus 和 PCM。转录发送语言与说话人参数，保留上游报告的语言、时长和有时间戳的词，无时间戳的词仍包含在完整转录中。模型目录合并远端模型和已配置模型，只标注目录明确报告的能力。
+
+独立 Artisan、HTTP 在本地协议服务验证模型目录、代理路径、原生鉴权、音色及模型覆盖、四种真实编码音频、私有 Storage 读写、原始 multipart 字节、说话人和无时间戳词、缺失用量及错误格式。20 项 SDK 回归、严格 Clippy 和三语站点通过。ElevenLabs 官方账户实机仍待联调。
+
+- [固定 Laravel ElevenLabs Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/ElevenLabsGateway.php) · [ElevenLabs 语音 API](https://elevenlabs.io/docs/api-reference/text-to-speech/convert) · [ElevenLabs 转录 API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。
