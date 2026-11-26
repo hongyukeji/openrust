@@ -122,7 +122,10 @@ fn application(root: &Path, candidates: Option<Vec<&'static str>>) -> Applicatio
                 middleware.set_locale(&candidates).unwrap();
             }
         })
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create()
         .unwrap()
 }
@@ -230,7 +233,10 @@ async fn discovery_uses_selected_language_root_and_provider_registered_sources()
         .with_middleware(|middleware| {
             middleware.locale_using(|_| Ok(Some("ja".into())));
         })
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut selected = Kernel::new(app);
@@ -256,7 +262,10 @@ async fn failed_explicit_configuration_retains_automatic_discovery() {
         .with_middleware(|middleware| {
             assert!(middleware.set_locale(&["zh_CN"]).is_err());
         })
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut selected = Kernel::new(app);
@@ -281,7 +290,10 @@ fn configured_application(
         .with_middleware(move |middleware| {
             if let Some(candidates) = explicit { middleware.set_locale(&candidates).unwrap(); }
         })
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create().unwrap()
 }
 

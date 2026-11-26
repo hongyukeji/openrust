@@ -175,7 +175,8 @@ async fn sdk_image_generation_edits_and_storage_use_the_public_entry_points()
                         Err(AiError::InvalidResponse)
                     ));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

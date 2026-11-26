@@ -72,7 +72,8 @@ async fn fixture() -> TestApp {
             })
             .with_routing(Routing::default().web(|| {
                 Route::get("/failure", fail)?;
-                Route::get("/replace-in-request", swap_and_fail)
+                Route::get("/replace-in-request", swap_and_fail)?;
+                Ok(())
             }))
     })
     .unwrap();
@@ -245,7 +246,10 @@ async fn runtime_renderers_and_response_hooks_are_used_by_real_http() {
 }
 #[tokio::test]
 async fn runtime_json_policy_and_log_context_change_the_existing_handler() {
-    let mut app=TestApp::create(|builder|builder.with_config(|_,_|Ok([("app".into(),serde_json::json!({"env":"testing"})),("logging".into(),serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":"storage/logs/runtime.log","level":"debug"}}}))].into())).with_routing(Routing::default().web(||Route::get("/failure",fail)))).unwrap();
+    let mut app=TestApp::create(|builder|builder.with_config(|_,_|Ok([("app".into(),serde_json::json!({"env":"testing"})),("logging".into(),serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":"storage/logs/runtime.log","level":"debug"}}}))].into())).with_routing(Routing::default().web(||{
+        Route::get("/failure",fail)?;
+        Ok(())
+    }))).unwrap();
     app.boot().await.unwrap();
     App::set_facade_application(Some(app.app()), async {
         Exceptions::level::<DomainFailure>(openrust::log::Level::Warning).unwrap();

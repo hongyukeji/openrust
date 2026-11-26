@@ -179,7 +179,8 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                     assert_eq!(error, AiError::ProviderStatus(429));
                     assert!(!error.to_string().contains("secret service response"));
                     Response::json(StatusCode::OK, json!({"verified": true}))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -258,7 +259,8 @@ async fn fake_and_manager_are_application_local() -> TestResult {
                         Err(error) => panic!("{error}"),
                     };
                     Response::json(StatusCode::OK, json!({"result": value, "faked": faked}))
-                })
+                })?;
+                Ok(())
             }))
     };
     let mut first = TestApp::create(configure)?;
@@ -489,7 +491,8 @@ async fn responses_stream_is_exposed_as_laravel_sse() -> TestResult {
                         .await
                         .unwrap()
                         .to_response()
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -582,7 +585,8 @@ async fn structured_prompt_sends_nested_schema_and_rejects_invalid_results() -> 
                         .await
                         .unwrap();
                     Response::json(StatusCode::OK, response)
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

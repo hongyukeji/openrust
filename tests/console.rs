@@ -353,7 +353,8 @@ fn facades_keep_concurrent_applications_isolated() {
                             .with("version", "test")
                             .with("repository", Application::REPOSITORY)
                             .with("language", "en")
-                    })
+                    })?;
+                    Ok(())
                 },
                 || {
                     ArtisanFacade::command("probe", |output| output.comment("first"))?
@@ -375,7 +376,8 @@ fn facades_keep_concurrent_applications_isolated() {
                             .with("version", "test")
                             .with("repository", Application::REPOSITORY)
                             .with("language", "en")
-                    })
+                    })?;
+                    Ok(())
                 },
                 || {
                     ArtisanFacade::command("probe", |output| output.comment("second"))?
@@ -454,9 +456,10 @@ fn check_facade_application(
 async fn facade_registration_errors_reach_the_kernel() {
     let base = std::env::current_dir().unwrap();
     let app = Application::configure(base.clone())
-        .with_routing(
-            Routing::default().web(|| Route::get("/items/{id?}/{id?}", || view("welcome"))),
-        )
+        .with_routing(Routing::default().web(|| {
+            Route::get("/items/{id?}/{id?}", || view("welcome"))?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut http = http::Kernel::new(app);

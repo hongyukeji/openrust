@@ -149,7 +149,8 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
                     assert_eq!(models.models[1].id, "second");
                     assert!(models.models[0].configured && models.models[0].discovered);
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

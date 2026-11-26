@@ -56,7 +56,8 @@ async fn kernel(trusted: &'static [&'static str], headers: u8) -> (tempfile::Tem
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/", inspect)?;
-            Route::get("/slow", slow)
+            Route::get("/slow", slow)?;
+            Ok(())
         }))
         .create()
         .unwrap();

@@ -474,7 +474,10 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
             )]
             .into())
         })
-        .with_routing(Routing::default().api(|| Route::get("/gate-event", probe)))
+        .with_routing(Routing::default().api(|| {
+            Route::get("/gate-event", probe)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

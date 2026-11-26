@@ -104,7 +104,8 @@ async fn context_protects_errors_and_cancellation_then_releases_the_next_executi
             ("telescope".into(),telescope),
         ]))
     }).with_providers(vec![Box::new(TelescopeServiceProvider)])
-      .with_routing(Routing::default().api(|| { Route::get("/context/{token}",sensitive)?;Route::get("/cancel",cancel)?;Route::get("/ordinary",ordinary) }))).unwrap();
+      .with_routing(Routing::default().api(|| { Route::get("/context/{token}",sensitive)?;Route::get("/cancel",cancel)?;Route::get("/ordinary",ordinary)?;
+      Ok(()) }))).unwrap();
     std::fs::File::create(app.root().join("telescope.sqlite")).unwrap();
     app.artisan(["migrate", "--force"])
         .await

@@ -208,8 +208,10 @@ async fn http_app() -> TestApp {
     let mut app = TestApp::create(|b| {
         b.with_config(|_, _| Ok([("app".into(), json!({"timezone":"UTC"}))].into()))
             .with_routing(
-                openrust::foundation::configuration::Routing::default()
-                    .web(|| openrust::support::facades::Route::get("/macro", macro_endpoint)),
+                openrust::foundation::configuration::Routing::default().web(|| {
+                    openrust::support::facades::Route::get("/macro", macro_endpoint)?;
+                    Ok(())
+                }),
             )
     })
     .unwrap();

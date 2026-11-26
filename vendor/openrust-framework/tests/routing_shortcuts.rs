@@ -159,7 +159,8 @@ fn not_found(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 fn api_routes() -> Result<(), RoutingError> {
-    Route::fallback(not_found)
+    Route::fallback(not_found)?;
+    Ok(())
 }
 
 struct Views;

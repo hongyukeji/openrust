@@ -230,7 +230,10 @@ async fn main() -> ExitCode {
             ])
             .with_commands(commands)
             .with_migrations(migrations::entries())
-            .with_routing(Routing::default().api(|| Route::get("/localization/{action}", http)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/localization/{action}", http)?;
+                Ok(())
+            }))
             .create()
             .map_err(Into::into)
     })

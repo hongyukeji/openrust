@@ -169,7 +169,8 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
                         Err(AiError::InvalidResponse)
                     ));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

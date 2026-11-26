@@ -142,7 +142,8 @@ async fn on_demand_providers_rebuild_and_expire_with_the_application_scope()
                         Err(AiError::ProviderNotConfigured)
                     ));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

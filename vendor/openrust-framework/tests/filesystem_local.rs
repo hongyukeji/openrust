@@ -409,7 +409,8 @@ async fn application_scope_and_public_mount_work_over_http() {
                 Route::static_disk("public")?;
                 Route::get("/write", write)?;
                 Route::post("/upload", upload)?;
-                Route::get("/download/{file}", download)
+                Route::get("/download/{file}", download)?;
+                Ok(())
             }))
             .create()
             .unwrap();

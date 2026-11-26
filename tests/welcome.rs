@@ -204,7 +204,8 @@ impl Root {
                                 "Origin, accept-language".parse().unwrap(),
                             )
                         })?;
-                        Route::get("/switch", switched_locale)
+                        Route::get("/switch", switched_locale)?;
+                        Ok(())
                     })
                     .api(api::register),
             )

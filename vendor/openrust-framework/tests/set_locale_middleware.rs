@@ -228,7 +228,10 @@ async fn default_stack_detects_languages_without_application_registration() {
 async fn minimal_applications_without_locale_configuration_still_render() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -877,7 +880,10 @@ async fn callback_source_errors_are_visible_to_registered_exception_renderers() 
                 ))
             });
         })
-        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/", inspect)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

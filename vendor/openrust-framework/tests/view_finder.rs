@@ -735,7 +735,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         .with("text", text)
                         .with("payload", serde_json::json!({"text": text}))
                 })?;
-                Route::get("/broken", || view("broken"))
+                Route::get("/broken", || view("broken"))?;
+                Ok(())
             }))
             .create()
             .unwrap();

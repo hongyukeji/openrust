@@ -29,7 +29,8 @@ async fn app() -> TestApp {
  ("app".into(),json!({"env":"testing"})),
  ("logging".into(),json!({"default":"single","channels":{"single":{"driver":"single","path":"context.jsonl","formatter":"json"}}})),
  ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"cached"}}})),
- ].into())).with_routing(Routing::default().web(||{Route::get("/context/{id}",context_route)?;Route::get("/lazy",lazy_context_route)?;Route::get("/loaned",loaned_context_route)?;Route::get("/report-lazy",report_lazy_route)?;Route::get("/lazy-failure",lazy_failure_route)}))).unwrap();
+ ].into())).with_routing(Routing::default().web(||{Route::get("/context/{id}",context_route)?;Route::get("/lazy",lazy_context_route)?;Route::get("/loaned",loaned_context_route)?;Route::get("/report-lazy",report_lazy_route)?;Route::get("/lazy-failure",lazy_failure_route)?;
+ Ok(())}))).unwrap();
     app.boot().await.unwrap();
     app
 }

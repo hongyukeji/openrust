@@ -111,7 +111,8 @@ async fn fixture() -> TestResult<TestApp> {
             .with_commands(commands)
             .with_routing(Routing::default().web(|| {
                 Route::get("/lookup", lookup)?;
-                Route::get("/install-spy", install_inside_scope)
+                Route::get("/install-spy", install_inside_scope)?;
+                Ok(())
             }))
     })?;
     app.instance::<dyn Lookup>(Arc::new(Catalog)).await?;

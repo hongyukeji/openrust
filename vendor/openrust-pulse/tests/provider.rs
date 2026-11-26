@@ -145,7 +145,10 @@ async fn request_recorders_include_termination_and_nested_deferred_work() {
             .with_middleware(|middleware| {
                 middleware.append_terminable(Arc::new(SlowTermination));
             })
-            .with_routing(Routing::default().api(|| Route::get("/terminal", failed_after_defer)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/terminal", failed_after_defer)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.artisan(["migrate", "--force"])
@@ -313,7 +316,10 @@ async fn request_recorders_apply_dashboard_path_filters_to_native_metrics() {
                 Ok(values)
             })
             .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
-            .with_routing(Routing::default().web(|| Route::get("/operations/pulse-report", report)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/operations/pulse-report", report)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.artisan(["migrate", "--force"])
@@ -561,7 +567,8 @@ async fn dashboard_rechecks_a_browser_session_after_sign_out() {
 
     fn session_routes() -> Result<(), RoutingError> {
         Route::get("/fixture/sign-in", sign_in)?;
-        Route::get("/fixture/sign-out", sign_out)
+        Route::get("/fixture/sign-out", sign_out)?;
+        Ok(())
     }
 
     fn request(path: &str, cookie: &str) -> http::Request<Body> {
@@ -749,7 +756,8 @@ async fn queued_artisan_recorders_filter_by_display_name() {
                 Routing::default()
                     .api(|| {
                         Route::get("/queue-commands", enqueue)?;
-                        Route::get("/queue-chain", enqueue_chain)
+                        Route::get("/queue-chain", enqueue_chain)?;
+                        Ok(())
                     })
                     .commands(|| {
                         Artisan::command("pulse-probe:ignored", |_| {})?;
@@ -1834,7 +1842,10 @@ async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_c
         builder
             .with_config(recorder_config)
             .with_providers(vec![Box::new(PulseServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/report", report)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/report", report)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.app()
@@ -1928,7 +1939,8 @@ async fn exceptions_group_failed_blade_responses_by_original_view_and_error() {
             .with_providers(vec![Box::new(PulseServiceProvider)])
             .with_routing(Routing::default().api(|| {
                 Route::get("/broken", failing_view)?;
-                Route::get("/outer", failing_view)
+                Route::get("/outer", failing_view)?;
+                Ok(())
             }))
     })
     .unwrap();
@@ -2039,7 +2051,8 @@ async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reportin
                 Route::get("/reported", report)?;
                 Route::get("/propagated", report)?;
                 Route::get("/transported-report", report)?;
-                Route::get("/pulse-report", report)
+                Route::get("/pulse-report", report)?;
+                Ok(())
             }))
     })
     .unwrap();
@@ -2294,7 +2307,10 @@ async fn slow_outgoing_records_retry_attempts_failures_and_sanitized_direct_call
         builder
             .with_config(recorder_config)
             .with_providers(vec![Box::new(PulseServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/outgoing", outgoing_attempts)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/outgoing", outgoing_attempts)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.artisan(["migrate", "--force"])

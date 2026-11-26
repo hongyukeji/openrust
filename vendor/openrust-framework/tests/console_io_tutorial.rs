@@ -274,7 +274,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             .await
             .unwrap();
         output.stdout
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn default_output_methods_and_inline_styles_match_fixed_php_vectors() {

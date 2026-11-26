@@ -36,6 +36,30 @@ impl MiddlewareEntry {
     }
 }
 
+impl From<String> for MiddlewareEntry {
+    fn from(name: String) -> Self {
+        Self::named(name)
+    }
+}
+
+impl From<&str> for MiddlewareEntry {
+    fn from(name: &str) -> Self {
+        Self::named(name)
+    }
+}
+
+impl<M: Middleware + 'static> From<Arc<M>> for MiddlewareEntry {
+    fn from(middleware: Arc<M>) -> Self {
+        Self::Instance(middleware)
+    }
+}
+
+impl From<Arc<dyn Middleware>> for MiddlewareEntry {
+    fn from(middleware: Arc<dyn Middleware>) -> Self {
+        Self::Instance(middleware)
+    }
+}
+
 pub(crate) type MiddlewareStack = Vec<Arc<dyn Middleware>>;
 
 #[derive(Clone)]

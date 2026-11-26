@@ -404,7 +404,10 @@ async fn model_search_paginates_through_the_http_entry_point() {
                 }),
             )]))
         })
-        .with_routing(Routing::default().web(|| Route::get("/search", endpoint)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/search", endpoint)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

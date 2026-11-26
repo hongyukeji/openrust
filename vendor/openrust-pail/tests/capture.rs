@@ -194,7 +194,8 @@ impl JobHandler for Job {
 }
 
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/capture/{id}", capture_http)
+    Route::get("/capture/{id}", capture_http)?;
+    Ok(())
 }
 fn capture_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {

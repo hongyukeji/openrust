@@ -227,7 +227,8 @@ async fn actual_http_uses_the_registered_macro_with_request_specific_nonce() {
             })
             .with_routing(Routing::default().web(|| {
                 Route::get("/macro", page)?;
-                Route::get("/macro-view", page_view)
+                Route::get("/macro-view", page_view)?;
+                Ok(())
             }))
     })
     .unwrap();

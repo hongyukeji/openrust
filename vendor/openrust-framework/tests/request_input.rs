@@ -14,7 +14,7 @@ use openrust::{
         Response, ResponseMacro, StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
     },
     routing::{
-        ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
+        ControllerDispatcher, ResourceAction, ResourceController, Router, RoutingError,
     },
     support::{
         BackedEnum, ProviderResult, ServiceProvider,
@@ -740,31 +740,31 @@ async fn start_with(
             Route::r#match(&[Method::POST], "/dated-values", dated_values)?;
             Route::r#match(&[Method::POST], "/intervals", interval_values)?;
             Route::resource("photos", photo_resource())?;
-            Route::api_resource(
-                "api/albums.photos",
-                photo_resource()
-                    .shallow()
-                    .except(&[ResourceAction::Destroy])
-                    .parameters(&[("photos", "image")])
-                    .names(&[(ResourceAction::Show, "pictures.read")])
-                    .scoped(&[("image", "slug")])
-                    .configure(|action, route| {
+            Route::prefix("api").group(|| {
+                Route::api_resource(
+                    "albums.photos",
+                    photo_resource().configure(|action, route| {
                         if matches!(action, ResourceAction::Show | ResourceAction::Update) {
                             route.where_number("image")?;
                         }
                         Ok(())
                     }),
-            )?;
+                )?
+                .shallow()
+                .except(&[ResourceAction::Destroy])
+                .parameters(&[("photos", "image")])
+                .names(&[(ResourceAction::Show, "pictures.read")])
+                .scoped(&[("image", "slug")]);
+                Ok(())
+            })?;
             Route::singleton("profile", photo_resource())?;
-            Route::api_singleton(
-                "api/albums.thumbnail",
-                photo_resource()
-                    .creatable()
-                    .shallow()
-                    .parameters(&[("albums", "photo")])
-                    .scoped(&[("photo", "slug")]),
-            )?;
-            Route::singleton("preferences", photo_resource().destroyable())?;
+            Route::api_singleton("api/albums.thumbnail", photo_resource())?
+                .creatable()
+                .shallow()
+                .parameters(&[("albums", "photo")])
+                .scoped(&[("photo", "slug")])
+                .register()?;
+            Route::singleton("preferences", photo_resource())?.destroyable();
             Route::get("/stream.json", stream_json)?;
             Route::get("/stream.events", event_stream)?;
             Route::get("/stream.download", stream_download)?;
@@ -781,10 +781,9 @@ async fn start_with(
             ] {
                 Route::get(path, binary_file)?;
             }
-            Route::get_with("/file-cached", binary_file, |route| {
-                route.middleware_name("cache.headers:private;max_age=60;etag=release");
-                Ok(())
-            })?;
+            Route::get("/file-cached", binary_file)?
+                .name("file.cached")?
+                .middleware("cache.headers:private;max_age=60;etag=release")?;
             for path in [
                 "/response.jsonp",
                 "/response.md",
@@ -793,19 +792,17 @@ async fn start_with(
             ] {
                 Route::get(path, response_factory)?;
             }
-            Route::group(
-                RouteGroup::default().middleware_name(
-                    "cache.headers:public;max_age=2628000;etag;last_modified=1704067200",
-                ),
-                |router| {
-                    router.r#match(
+            Route::name("cache.")
+                .middleware("cache.headers:public;max_age=2628000;etag;last_modified=1704067200")
+                .group(|| {
+                    Route::r#match(
                         &[Method::GET, Method::HEAD, Method::POST],
                         "/cacheable",
                         cache_response,
-                    )?;
+                    )?
+                    .name("show")?;
                     Ok(())
-                },
-            )?;
+                })?;
             Route::get_with("/cache-date", cache_response, |route| {
                 route.middleware_name("cache.headers:last_modified=2024-01-01 00:00:00 UTC");
                 Ok(())
@@ -891,7 +888,8 @@ async fn start_with(
                 "/responsable/controller/{slug}",
                 ControllerDispatcher::new(EchoController::contextual),
             )?;
-            Route::get("/stream", stream)
+            Route::get("/stream", stream)?;
+            Ok(())
         }))
         .create()
         .unwrap();

@@ -323,7 +323,10 @@ async fn main() -> ExitCode {
             .with_migrations(migrations::entries())
             .with_routing(
                 Routing::default()
-                    .api(|| Route::get("/translate/{action}", route))
+                    .api(|| {
+                        Route::get("/translate/{action}", route)?;
+                        Ok(())
+                    })
                     .health("/up"),
             )
             .create()

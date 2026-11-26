@@ -179,7 +179,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             0
         );
         output.stdout
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn real_http_and_independent_artisan_keep_global_options_and_mutations_consistent() {

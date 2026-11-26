@@ -614,7 +614,8 @@ fn fixture_routes() -> Result<(), openrust::routing::RoutingError> {
 
     openrust::support::facades::Route::get("/old-input", old_input)?;
     openrust::support::facades::Route::post("/forget-fingerprint", forget_fingerprint)?;
-    openrust::support::facades::Route::post("/expired-verification", expired_verification)
+    openrust::support::facades::Route::post("/expired-verification", expired_verification)?;
+    Ok(())
 }
 fn old_input(
     request: &mut openrust::http::Request,

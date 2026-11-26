@@ -89,7 +89,8 @@ async fn vercel_and_agent_ui_stream_text_tokens_and_mask_failures() -> TestResul
                             Some("run".into()),
                         )
                         .to_response()
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

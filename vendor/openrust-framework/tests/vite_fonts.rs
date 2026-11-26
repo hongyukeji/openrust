@@ -141,7 +141,10 @@ async fn blade_and_facade_share_preload_deduplication_and_each_request_gets_its_
             )]
             .into())
         })
-        .with_routing(Routing::default().web(|| Route::get("/fonts", page)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/fonts", page)?;
+            Ok(())
+        }))
     })
     .unwrap();
     manifest(app.root(), "build/fonts-manifest.json", &fixture());

@@ -169,7 +169,8 @@ async fn embeddings_cache_batches_partial_hits_and_separates_rebuilt_providers()
                         assert_eq!(result.usage.prompt_tokens, Some(1));
                     }
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

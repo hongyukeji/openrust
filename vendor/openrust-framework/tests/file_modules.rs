@@ -277,7 +277,8 @@ async fn actual_http_and_artisan_share_compiled_registration_and_inclusion_but_n
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/module", module_http)?;
-            Route::get("/module-error", missing_module_http)
+            Route::get("/module-error", missing_module_http)?;
+            Ok(())
         }))
     })
     .unwrap();

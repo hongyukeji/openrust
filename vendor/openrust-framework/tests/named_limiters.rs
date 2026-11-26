@@ -61,7 +61,8 @@ fn show(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/uploads/{tenant}", show)
+    Route::get("/uploads/{tenant}", show)?;
+    Ok(())
 }
 
 async fn transport(

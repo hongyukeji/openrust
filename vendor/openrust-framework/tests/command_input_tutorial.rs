@@ -217,7 +217,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             0
         );
         output.stdout
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn real_http_and_independent_artisan_use_dates_enums_arrays_and_scalar_casts() {

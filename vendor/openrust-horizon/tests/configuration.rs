@@ -111,13 +111,19 @@ async fn master_names_use_a_process_token_and_an_application_local_resolver() {
     let mut custom_app = TestApp::create(|builder| {
         builder
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/master-name", custom)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/master-name", custom)?;
+                Ok(())
+            }))
     })
     .unwrap();
     let mut default_app = TestApp::create(|builder| {
         builder
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/master-name", standard)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/master-name", standard)?;
+                Ok(())
+            }))
     })
     .unwrap();
 

@@ -232,9 +232,10 @@ async fn redirect_origin_uses_the_effective_trusted_proxy_origin() {
                 .trust_proxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
-        .with_routing(
-            Routing::default().web(|| Route::get("/redirect-origin/{mode}", redirect_same_origin)),
-        )
+        .with_routing(Routing::default().web(|| {
+            Route::get("/redirect-origin/{mode}", redirect_same_origin)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -1008,7 +1009,8 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
             Route::get("/back", back)?;
             Route::get("/flash", read_flash)?;
             Route::get("/flash-token", flash_token)?;
-            Route::post("/flash/{mode}", flash_redirect)
+            Route::post("/flash/{mode}", flash_redirect)?;
+            Ok(())
         }))
         .create()
         .unwrap();

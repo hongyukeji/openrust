@@ -196,7 +196,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
                 source: Box::new(source),
             })?;
         Ok::<_, openrust::http::HttpError>(output.stdout)
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn generic_registration_prompts_missing_fields_and_preserves_isolation_and_hooks() {

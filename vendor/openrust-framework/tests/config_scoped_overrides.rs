@@ -106,7 +106,8 @@ fn test_app() -> TestApp {
             .with_routing(Routing::default().web(|| {
                 Route::get("/replace", replace)?;
                 Route::get("/arrays", arrays)?;
-                Route::get("/mixed-arrays", mixed_arrays)
+                Route::get("/mixed-arrays", mixed_arrays)?;
+                Ok(())
             }))
     })
     .unwrap()

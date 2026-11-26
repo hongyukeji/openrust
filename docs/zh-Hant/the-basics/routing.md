@@ -4,7 +4,7 @@
 
 預設應用已預留並註冊 `routes/api.rs` 與 `config/api.rs`，撰寫一般 API 不需要 Sanctum。需要 API 驗證時再執行 `./artisan install:api`，安裝 Sanctum 並向未修改的空 API 骨架加入受保護的 `/user`。既有業務路由預設保留，只有明確使用 `--force` 才覆寫；保留自訂路由檔案時，手動加入受保護入口。在 `routes/api.rs` 中定義 API 路由。應用程式從 `config/api.rs` 載入 `api.prefix`，並套用 `api` 中介軟體群組。未設定 `API_PREFIX` 時，前綴預設為 `/api`。在 `.env` 中設定 `API_PREFIX=api/admin` 可掛載至 `/api/admin`，設定 `API_PREFIX=` 可省略前綴。在 `with_routing` 中明確呼叫 `Routing::api_prefix(...)` 時，以該呼叫為準。 重複安裝時保留既有的 `config/api.rs`，包括使用 `--force` 時。
 
-在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。GET 路由需要命名、模型繫結或路由層級中介軟體時，可使用 `Route::get_with`。
+在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。註冊後可鏈式呼叫 `name`、`model` 和 `middleware` 等設定方法。
 
 `{id}` 表示必填參數。在末尾參數加上 `?` 即可省略，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 讀取符合的值。省略參數時傳回 `None`，也可以用路由的 `defaults` 提供字串預設值。參數後面還有必填參數或固定文字時，仍須提供該參數。
 
@@ -16,12 +16,12 @@
 
 ## HTTP 方法
 
-單一方法使用 `get`、`post`、`put`、`patch`、`delete`、`options` 或 `query`。`Route` 和 `Router` 均提供這些入口；`get` 同時接受 HEAD。`Router` 回傳可變路由物件，可繼續設定名稱、中介軟體、約束和預設值；Facade 宣告回傳 `Result<(), RoutingError>`。
+單一方法使用 `get`、`post`、`put`、`patch`、`delete`、`options` 或 `query`。`Route` 和 `Router` 均提供這些入口，`get` 同時接受 HEAD。門面傳回可在目前註冊範圍內設定路由的控制代碼。在註冊回呼中，每筆宣告以 `?;` 結束，最後傳回 `Ok(())`。
 
 ```rust
 use openrust::{http::Method, support::facades::Route};
 
-Route::get("/users", UserController::index)?;
+Route::get("/users", UserController::index)?.name("users.index")?;
 Route::post("/users", UserController::store)?;
 Route::put("/users/{id}", UserController::replace)?;
 Route::patch("/users/{id}", UserController::update)?;
@@ -52,7 +52,7 @@ Route::view("/hello/{name}", "welcome", ViewRouteOptions {
 
 範本放在 `resources/views`，例如 `welcome.blade.html`。路徑與網域擷取參數覆蓋 `data` 的同名值，隨後執行檢視建立器與組合器。用 `ViewRouteOptions` 的 `status` 和 `headers` 設定自訂回應。PHP 中在狀態參數位置傳標頭陣列的寫法，改用明確的 `headers` 欄位。參數名稱不要使用 `view`、`data`、`status` 或 `headers`。目前路由預設值只承載字串，不支援透過 `Route::defaults` 任意修改這四項型別化檢視設定；繫結模型物件也不會自動轉換為檢視資料。
 
-`Router::view` 傳回可變路由。Facade 宣告使用 `Route::view_with(uri, view, options, |route| { route.name("welcome"); Ok(()) })`，在註冊借用範圍內設定路由。繪製使用目前應用程式的檢視工廠與中介軟體。範本不存在或建立器／組合器失敗時，沿用一般 HTTP 例外管線。
+用 `Route::view(uri, view, options)?.name("welcome")?;` 為檢視路由命名。 繪製使用目前應用程式的檢視工廠與中介軟體。範本不存在或建立器／組合器失敗時，沿用一般 HTTP 例外管線。
 
 ## 後備路由
 
@@ -66,7 +66,7 @@ Route::fallback(NotFoundController::show)?;
 
 一般路由始終優先，即使後備路由先宣告。多個後備路由可符合時按註冊順序選擇；同一方法、網域與註冊路徑的後宣告覆蓋先宣告。未符合的 POST 在後備路由符合其路徑時傳回 405 和 `Allow: GET, HEAD`；自動 OPTIONS 傳回 200。後備路由也是已註冊路由，優先於下文的靜態檔案掛載。
 
-Facade 需要設定時使用 `Route::fallback_with(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.set_fallback(false)` 取消標記。路由快取保持該優先順序。
+用 `Route::fallback(handler)?.name("missing")?;` 為備援路由命名。 `Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.set_fallback(false)` 取消標記。路由快取保持該優先順序。
 
 
 處理器可以明確傳回另一條命名路由的回應。`respond_with_route` 使用同一個請求 URI 重新綁定目標路由、執行其路由中介軟體，並取代請求的目前路由參數與名稱；不會產生重新導向，也不會將請求 URI 改成目標路徑。
@@ -82,7 +82,7 @@ fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 }
 ```
 
-先按上文用 `fallback_with` 登記 `missing`，再將 `show_missing` 登記為處理器。Rust 明確借用可變請求；HTTP 核心透過應用容器提供共用的執行期路由器，每個請求保留獨立路由狀態。名稱不存在時傳回錯誤，渲染為 HTTP 500。直接使用 `Router` 時也提供同名方法。執行期路由器在 HTTP 啟動後可解析；路由註冊仍使用註冊作用域。
+先按上文用 `Route::fallback(...)?.name("missing")?` 登記 `missing`，再將 `show_missing` 登記為處理器。Rust 明確借用可變請求；HTTP 核心透過應用容器提供共用的執行期路由器，每個請求保留獨立路由狀態。名稱不存在時傳回錯誤，渲染為 HTTP 500。直接使用 `Router` 時也提供同名方法。執行期路由器在 HTTP 啟動後可解析；路由註冊仍使用註冊作用域。
 
 ## 掛載靜態目錄
 
@@ -151,26 +151,22 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 
 群組共用 URI 前綴、名稱前綴、網域、中介層和限制。限定網域的路由應先於相同路徑的不限網域路由註冊。網域與路徑的預留位置都可透過 `request.route` 讀取。
 
-群組閉包接收一個可變的 Rust 路由器，可用它設定已註冊的路由。GET 路由同時接受 HEAD，自動 OPTIONS 依比對的路徑和網域回傳允許的方法。
+鏈式設定路由群組，在群組回呼內使用門面宣告路由。GET 路由接受 HEAD，自動 OPTIONS 傳回相符路徑與網域所允許的方法。
 
 ```rust
-use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route, view::view};
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register() -> Result<(), RoutingError> {
-    Route::group(
-        RouteGroup::new()
-            .domain("{tenant}.example.test")
-            .prefix("admin")
-            .name("admin.")
-            .r#where("id", "[0-9]+")?,
-        |router| {
-            router
-                .get("/reports/{id?}", || view("welcome"))?
-                .name("reports.show")
-                .defaults("id", "1");
+    Route::domain("{tenant}.example.test")
+        .prefix("admin")
+        .name("admin.")
+        .r#where("id", "[0-9]+")?
+        .group(|| {
+            Route::get("/reports/{id?}", || view("welcome"))?
+                .name("reports.show")?
+                .defaults("id", "1")?;
             Ok(())
-        },
-    )
+        })
 }
 ```
 

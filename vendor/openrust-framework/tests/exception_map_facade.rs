@@ -50,7 +50,10 @@ fn fail(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 async fn app() -> TestApp {
     let mut app = TestApp::create(|b| {
-        b.with_routing(Routing::default().web(|| Route::get("/failure", fail)))
+        b.with_routing(Routing::default().web(|| {
+            Route::get("/failure", fail)?;
+            Ok(())
+        }))
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -306,9 +309,13 @@ async fn native_dump_control_is_not_transformed_by_error_mapping_with_or_without
     fn dump(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async { Err(HttpError::DumpAndDie("dump-control".into())) })
     }
-    let mut app =
-        TestApp::create(|b| b.with_routing(Routing::default().web(|| Route::get("/dump", dump))))
-            .unwrap();
+    let mut app = TestApp::create(|b| {
+        b.with_routing(Routing::default().web(|| {
+            Route::get("/dump", dump)?;
+            Ok(())
+        }))
+    })
+    .unwrap();
     app.boot().await.unwrap();
     App::set_facade_application(Some(app.app()), async {
         Exceptions::map::<HttpError, Final>(|_| panic!("原生调试控制不应进入异常映射")).unwrap();

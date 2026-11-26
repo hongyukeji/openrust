@@ -289,7 +289,8 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             Route::get("/mixed-translation", mixed_translation)?;
             Route::get("/register-runtime-lines", register_runtime_lines)?;
             Route::get("/load-external-lines", load_external_lines)?;
-            Route::get("/default", default_locale)
+            Route::get("/default", default_locale)?;
+            Ok(())
         }))
         .create()
         .unwrap();

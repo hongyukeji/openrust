@@ -193,7 +193,8 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
 }
 fn routes() -> Result<(), RoutingError> {
     Route::get("/timing/{id}", timing)?;
-    Route::get("/failure/{id}", failure)
+    Route::get("/failure/{id}", failure)?;
+    Ok(())
 }
 fn commands() -> Result<(), openrust::console::ConsoleError> {
     Artisan::command("timing:log", |_| {

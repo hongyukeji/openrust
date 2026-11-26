@@ -101,7 +101,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             .await
             .unwrap();
         output.stdout
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn facade_calls_reuse_command_instances_and_failed_calls_keep_the_same_instance() {

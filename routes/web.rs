@@ -5,12 +5,11 @@ use crate::app::http::controllers::{
 };
 
 pub(crate) fn register() -> Result<(), RoutingError> {
-    Route::get_with("/", HomeController::index, |route| {
-        route.name("home");
-        Ok(())
-    })?;
+    Route::get("/", HomeController::index)?.name("home")?;
     Route::post("/locale", LocaleController::store)?;
+
     Route::static_disk("web")?;
     Route::static_disk("public")?;
+
     Ok(())
 }

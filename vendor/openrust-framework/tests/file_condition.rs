@@ -324,7 +324,8 @@ async fn actual_http_and_artisan_execute_or_skip_file_operations_and_report_sele
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/conditional", conditional_http)?;
-            Route::get("/conditional-error", conditional_failure)
+            Route::get("/conditional-error", conditional_failure)?;
+            Ok(())
         }))
     })
     .unwrap();

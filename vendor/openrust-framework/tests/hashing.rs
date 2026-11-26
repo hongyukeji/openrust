@@ -361,7 +361,10 @@ async fn custom_hash_driver_resolves_its_own_application_over_http() {
         let app = Application::configure(path.to_path_buf())
             .with_config(config)
             .with_providers(vec![Box::new(HashDriver(selected))])
-            .with_routing(Routing::default().web(|| Route::get("/hash", hash)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/hash", hash)?;
+                Ok(())
+            }))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(app);

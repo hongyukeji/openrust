@@ -61,7 +61,8 @@ async fn app() -> TestApp {
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/failure", fail)?;
-            Route::get("/invalid", invalid)
+            Route::get("/invalid", invalid)?;
+            Ok(())
         }))
     })
     .unwrap();

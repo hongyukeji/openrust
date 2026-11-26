@@ -96,6 +96,8 @@ Route::get(
 
 Register conventional routes with `Route::resource("photos", controller)` or `Route::api_resource("photos", controller)`. Create the `ResourceController` descriptor with typed method pointers such as `.action(ResourceAction::Index, PhotosController::index)`. Supply each selected action. The resource route names follow `photos.index` and `photos.show`, and the collection and member URLs follow conventions. API resources omit the create and edit form routes by default. An explicit `only` can select those actions.
 
+Chain `only`, `except`, `names`, and other resource options after registration. The resource is registered at the end of the statement. Use `.register()?` to complete registration explicitly and propagate registration errors at that point.
+
 Use `only` and `except` to select actions, `names` to override route names, and `parameters` to override wildcard names. Dot-separated resources such as `albums.photos` register nested paths. `shallow` keeps collection routes nested and exposes member routes under `photos/{photo}`. `scoped` sets route binding fields. Use the descriptor's `configure` method to attach middleware or typed bindings to individual routes.
 
 To register resource controllers together, wrap each resource name and typed controller descriptor with `ResourceRegistration::new`. The batch accepts different controller types and registers them in the order you supply.
@@ -131,7 +133,7 @@ Route::resource("projects.notes", controller)?;
 Use `shallow` when the child identifier suffices for member actions. Collection routes keep the parent path and member routes use `/comments/{comment}`.
 
 ```rust
-Route::resource("photos.comments", controller.shallow())?;
+Route::resource("photos.comments", controller)?.shallow();
 ```
 
 ### Naming Resource Routes {#restful-naming-resource-routes}

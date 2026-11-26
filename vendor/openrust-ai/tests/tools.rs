@@ -199,7 +199,8 @@ async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
                     assert_eq!(tool.0.load(Ordering::Relaxed), 0);
                     assert!(response.tool_results[0].failed);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -322,7 +323,8 @@ async fn sdk_tools_roundtrip_through_anthropic_and_gemini() -> TestResult {
                 Route::get("/gemini", || async {
                     check_tools("gemini").await;
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -453,7 +455,8 @@ async fn agent_middleware_controls_each_step_without_replaying_disabled_tools() 
                     );
                     assert!(steps.iter().all(|(_, id)| *id == steps[0].1));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -598,7 +601,8 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
                     ));
                     assert_eq!(tool.0.load(Ordering::Relaxed), 0);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -716,7 +720,8 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
                     assert!(interrupted);
                     assert_eq!(tool.0.load(Ordering::Relaxed), 0);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -829,7 +834,8 @@ async fn sdk_tools_fail_over_before_execution_and_never_replay() -> TestResult {
                     assert_eq!(results, 1);
                     assert_eq!(tool.0.load(Ordering::Relaxed), 1);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

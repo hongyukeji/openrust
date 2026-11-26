@@ -518,7 +518,8 @@ async fn public_file_calls_share_one_service_across_http_and_artisan_and_render_
             })
             .with_routing(Routing::default().web(|| {
                 Route::get("/file", file_http)?;
-                Route::get("/file-error", file_http_failure)
+                Route::get("/file-error", file_http_failure)?;
+                Ok(())
             }))
     })
     .unwrap();

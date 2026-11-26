@@ -155,7 +155,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             .unwrap();
         assert_eq!(status, 0);
         output.stdout
-    })
+    })?;
+    Ok(())
 }
 #[tokio::test]
 async fn actual_http_calls_and_independent_artisan_preserve_inputs_exit_help_and_app_isolation() {

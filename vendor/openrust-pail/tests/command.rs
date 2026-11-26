@@ -73,7 +73,8 @@ fn config(_: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, Config
     ]))
 }
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/probe", probe)
+    Route::get("/probe", probe)?;
+    Ok(())
 }
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {

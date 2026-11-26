@@ -368,7 +368,10 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
                 openrust::support::facades::Route::get("/", probe)?;
                 Ok(())
             })
-            .api(|| Route::get("/probe", probe));
+            .api(|| {
+                Route::get("/probe", probe)?;
+                Ok(())
+            });
         let routing = match explicit {
             Some(prefix) => routing.api_prefix(prefix),
             None => routing,

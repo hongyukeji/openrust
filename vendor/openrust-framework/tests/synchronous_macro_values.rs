@@ -109,8 +109,10 @@ fn endpoint(
 async fn real_http_can_use_owned_non_send_values_during_synchronous_macro_calls() {
     let mut app = TestApp::create(|b| {
         b.with_routing(
-            openrust::foundation::configuration::Routing::default()
-                .web(|| openrust::support::facades::Route::get("/sync-macros", endpoint)),
+            openrust::foundation::configuration::Routing::default().web(|| {
+                openrust::support::facades::Route::get("/sync-macros", endpoint)?;
+                Ok(())
+            }),
         )
     })
     .unwrap();

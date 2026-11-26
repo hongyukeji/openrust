@@ -248,8 +248,14 @@ async fn declared_route_sources_get_their_framework_groups() {
         })
         .with_routing(
             Routing::default()
-                .web(|| openrust::support::facades::Route::get("/page", explicit))
-                .api(|| openrust::support::facades::Route::get("/page", explicit))
+                .web(|| {
+                    openrust::support::facades::Route::get("/page", explicit)?;
+                    Ok(())
+                })
+                .api(|| {
+                    openrust::support::facades::Route::get("/page", explicit)?;
+                    Ok(())
+                })
                 .health("/up"),
         )
         .create()
@@ -279,7 +285,10 @@ async fn api_prefix_can_be_overridden_without_changing_the_middleware_group() {
             })
             .with_routing(
                 Routing::default()
-                    .api(|| openrust::support::facades::Route::get("/page", explicit))
+                    .api(|| {
+                        openrust::support::facades::Route::get("/page", explicit)?;
+                        Ok(())
+                    })
                     .api_prefix(prefix),
             )
             .create()

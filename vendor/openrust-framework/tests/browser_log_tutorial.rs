@@ -27,7 +27,8 @@ fn config(
     ]))
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    Route::get("/{kind}/{id}", page)
+    Route::get("/{kind}/{id}", page)?;
+    Ok(())
 }
 fn page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {

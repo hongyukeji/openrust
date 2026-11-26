@@ -174,7 +174,8 @@ fn missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn routes() -> Result<(), RoutingError> {
     Route::get("/filters", read)?;
-    Route::get("/missing", missing)
+    Route::get("/missing", missing)?;
+    Ok(())
 }
 fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool) -> Application {
     let owned = counts.clone();

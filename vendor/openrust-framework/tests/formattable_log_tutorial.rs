@@ -161,7 +161,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/log", || {
         openrust::support::facades::Log::info("http", &LogContext::new()).unwrap();
         "ok"
-    })
+    })?;
+    Ok(())
 }
 fn commands() -> Result<(), openrust::console::ConsoleError> {
     openrust::support::facades::Artisan::command("logs:formattable", |_| {

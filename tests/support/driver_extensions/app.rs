@@ -162,7 +162,10 @@ async fn main() -> ExitCode {
             .with_commands(commands)
             .with_routing(
                 Routing::default()
-                    .web(|| Route::get("/drivers", http))
+                    .web(|| {
+                        Route::get("/drivers", http)?;
+                        Ok(())
+                    })
                     .api(|| {
                         #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
                         moderation_callbacks::routes()?;

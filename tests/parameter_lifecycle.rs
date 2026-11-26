@@ -156,7 +156,8 @@ fn read(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn routes() -> Result<(), RoutingError> {
     Route::get("/parameters", read)?;
-    Route::get("/invalid", read)
+    Route::get("/invalid", read)?;
+    Ok(())
 }
 fn application(root: &Root, name: &'static str) -> Application {
     Application::configure(root.0.clone())

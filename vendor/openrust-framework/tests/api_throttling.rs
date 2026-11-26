@@ -106,7 +106,8 @@ fn api() -> Result<(), RoutingError> {
 }
 
 fn web() -> Result<(), RoutingError> {
-    Route::get("/web", empty)
+    Route::get("/web", empty)?;
+    Ok(())
 }
 
 async fn transport(

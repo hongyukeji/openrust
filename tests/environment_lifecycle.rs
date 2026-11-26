@@ -191,7 +191,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/environment", read)?;
     Route::get("/bad", bad)?;
     Route::get("/fix", fix)?;
-    Route::get("/binding", read_binding)
+    Route::get("/binding", read_binding)?;
+    Ok(())
 }
 fn application(root: &Root, name: &'static str) -> Application {
     Application::configure(root.0.clone())

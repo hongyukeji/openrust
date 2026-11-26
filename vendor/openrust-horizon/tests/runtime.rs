@@ -374,7 +374,10 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
         builder
             .with_config(config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/claim", compete)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/claim", compete)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -2274,7 +2277,8 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
                 Horizon::silence::<AuditListener>().unwrap();
                 Horizon::silence::<QuietJob>().unwrap();
                 register_tags();
-                Route::get("/classify", dispatch)
+                Route::get("/classify", dispatch)?;
+                Ok(())
             }))
     })
     .unwrap();
@@ -3527,7 +3531,8 @@ async fn redis_chain_publishes_successor_events_at_atomic_queue_boundary() {
             .with_providers(vec![Box::new(HorizonServiceProvider)])
             .with_routing(Routing::default().api(|| {
                 transport_routes()?;
-                Route::get("/dispatch-chain", dispatch_chain)
+                Route::get("/dispatch-chain", dispatch_chain)?;
+                Ok(())
             }))
     })
     .unwrap();

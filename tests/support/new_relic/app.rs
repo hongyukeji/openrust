@@ -448,7 +448,10 @@ async fn main() -> ExitCode {
             .with_providers(vec![Box::new(FixtureProvider)])
             .with_commands(commands)
             .with_migrations(migrations::entries())
-            .with_routing(Routing::default().api(|| Route::get("/probe/{id}", probe)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/probe/{id}", probe)?;
+                Ok(())
+            }))
             .create()
             .map_err(Into::into)
     })

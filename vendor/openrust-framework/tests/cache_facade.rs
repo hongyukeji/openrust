@@ -317,7 +317,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     })?;
     Route::get("/macro-isolated", || async {
         Ok::<_, HttpError>(json!(Cache::has_macro("isolated").map_err(http_error)?))
-    })
+    })?;
+    Ok(())
 }
 
 async fn kernel(label: &str) -> (tempfile::TempDir, Kernel) {

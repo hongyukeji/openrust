@@ -144,7 +144,8 @@ async fn sdk_and_gateway_embeddings_validate_and_preserve_input_order() -> TestR
                         .unwrap_err();
                     assert_eq!(invalid, AiError::InvalidResponse);
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

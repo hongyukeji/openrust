@@ -48,7 +48,10 @@ impl Root {
     }
     async fn kernel(&self) -> Kernel {
         let application = Application::configure(self.0.clone())
-            .with_routing(Routing::default().web(|| Route::get("/test", render)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/test", render)?;
+                Ok(())
+            }))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);

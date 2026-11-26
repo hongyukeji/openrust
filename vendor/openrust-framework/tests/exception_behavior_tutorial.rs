@@ -114,7 +114,8 @@ fn fail(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    Route::get("/failure/{kind}", fail)
+    Route::get("/failure/{kind}", fail)?;
+    Ok(())
 }
 async fn transport(
     axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,

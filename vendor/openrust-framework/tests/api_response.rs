@@ -138,7 +138,8 @@ async fn routes_return_models_and_collections_as_json_over_http() {
                     ("name".into(), "example".into()),
                     ("private".into(), "private-serialization-sentinel".into()),
                 ]))
-            })
+            })?;
+            Ok(())
         }))
         .create()
         .unwrap();
@@ -219,7 +220,8 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
             Route::get("/collection/nonfinite", || {
                 ApiResponse::success(Collection::make([f64::INFINITY]))
             })?;
-            Route::get("/unserializable", || ApiResponse::success(Unserializable))
+            Route::get("/unserializable", || ApiResponse::success(Unserializable))?;
+            Ok(())
         }))
         .create()
         .unwrap();

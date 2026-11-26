@@ -42,7 +42,10 @@ fn application(path: PathBuf) -> Application {
             config.get_mut("session").unwrap()["driver"] = "array".into();
             Ok(config)
         })
-        .with_routing(Routing::default().web(|| Route::get("/cache", cache_http)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/cache", cache_http)?;
+            Ok(())
+        }))
         .create()
         .unwrap()
 }

@@ -247,7 +247,8 @@ fn register() -> Result<(), RoutingError> {
         &[openrust::http::Method::GET, openrust::http::Method::POST],
         "/session/{action}",
         route,
-    )
+    )?;
+    Ok(())
 }
 
 fn register_blocked() -> Result<(), RoutingError> {

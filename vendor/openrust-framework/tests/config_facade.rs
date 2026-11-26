@@ -91,7 +91,10 @@ async fn config_is_available_in_http_route_handlers() {
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(|_, _| Ok([("app".into(), json!({"name": "HTTP application"}))].into()))
-            .with_routing(Routing::default().web(|| Route::get("/config", handler)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/config", handler)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.get("/config")

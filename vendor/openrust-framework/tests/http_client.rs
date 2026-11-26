@@ -531,7 +531,10 @@ async fn facade_resolves_the_factory_for_each_serving_application() {
 
     async fn start(side: &str) -> (String, tokio::task::JoinHandle<()>) {
         let application = Application::configure(std::env::temp_dir())
-            .with_routing(Routing::default().web(|| Route::get("/upstream", upstream)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/upstream", upstream)?;
+                Ok(())
+            }))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);

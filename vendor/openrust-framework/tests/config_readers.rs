@@ -375,7 +375,8 @@ async fn real_http_uses_strict_and_lazy_defaults_and_reports_existing_wrong_type
         .with_routing(
             openrust::foundation::configuration::Routing::default().web(|| {
                 openrust::support::facades::Route::get("/configuration", configured_endpoint)?;
-                openrust::support::facades::Route::get("/invalid", invalid_endpoint)
+                openrust::support::facades::Route::get("/invalid", invalid_endpoint)?;
+                Ok(())
             }),
         )
     })

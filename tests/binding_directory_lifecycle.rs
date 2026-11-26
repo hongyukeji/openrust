@@ -156,7 +156,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/directory", read)?;
     Route::get("/reset", reset)?;
     Route::get("/current", current)?;
-    Route::get("/remove-current", remove_current)
+    Route::get("/remove-current", remove_current)?;
+    Ok(())
 }
 
 fn current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

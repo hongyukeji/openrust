@@ -146,7 +146,10 @@ async fn browser_prefetch_page_is_generated_by_the_real_http_kernel() {
     let mut app=TestApp::create(|builder| {
         builder.with_config(|_,_| {
             Ok([("app".into(),json!({"env":"testing","url":std::env::var("OPENRUST_PREFETCH_ORIGIN").unwrap(),"public_path":std::env::var("OPENRUST_PREFETCH_PUBLIC").unwrap()}))].into())
-        }).with_routing(Routing::default().web(||Route::get("/prefetch",page)))
+        }).with_routing(Routing::default().web(||{
+            Route::get("/prefetch",page)?;
+            Ok(())
+        }))
     }).unwrap();
     fs::create_dir_all(app.root().join("resources/views")).unwrap();
     fs::write(app.root().join("resources/views/prefetch.blade.html"),"<!doctype html><html><head>@vite('resources/js/app.js')</head><body>prefetch</body></html>").unwrap();

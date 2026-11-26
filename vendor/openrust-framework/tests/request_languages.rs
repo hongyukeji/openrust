@@ -231,7 +231,10 @@ async fn actual_kernel_consumers_negotiate_without_changing_application_locale()
                 )]
                 .into())
             })
-            .with_routing(Routing::default().web(|| Route::get("/languages", inspect)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/languages", inspect)?;
+                Ok(())
+            }))
     })
     .unwrap();
     let response = app

@@ -150,7 +150,8 @@ async fn kernel() -> (tempfile::TempDir, Kernel) {
                 assert!(std::sync::Arc::ptr_eq(&facade, &typed));
                 assert!(std::sync::Arc::ptr_eq(&facade, &named));
                 facade.view("card", ViewData::new(), StatusCode::OK, headers()).await
-            })
+            })?;
+            Ok(())
         }))
         .create().unwrap();
     let mut kernel = Kernel::new(app);

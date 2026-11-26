@@ -1,6 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
-
-use crate::contracts::http::Middleware;
+use std::collections::HashMap;
 
 use super::{MiddlewareEntry, RoutingError, route_pattern::constraint};
 
@@ -18,6 +16,14 @@ pub struct RouteGroup {
 impl RouteGroup {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 在组作用域内使用路由门面登记路由。
+    pub fn group(
+        self,
+        register: impl FnOnce() -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
+        crate::support::facades::register_group(self, register)
     }
 
     pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
@@ -41,8 +47,8 @@ impl RouteGroup {
         Ok(self)
     }
 
-    pub fn middleware(mut self, middleware: Arc<dyn Middleware>) -> Self {
-        self.middleware.push(MiddlewareEntry::Instance(middleware));
+    pub fn middleware(mut self, middleware: impl Into<MiddlewareEntry>) -> Self {
+        self.middleware.push(middleware.into());
         self
     }
 
@@ -51,8 +57,7 @@ impl RouteGroup {
         self
     }
 
-    pub fn middleware_name(mut self, name: impl Into<String>) -> Self {
-        self.middleware.push(MiddlewareEntry::named(name));
-        self
+    pub fn middleware_name(self, name: impl Into<String>) -> Self {
+        self.middleware(MiddlewareEntry::named(name))
     }
 }

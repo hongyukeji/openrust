@@ -118,7 +118,8 @@ fn commands() -> Result<(), ConsoleError> {
     ))))
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::get("/preparation", handler)
+    openrust::support::facades::Route::get("/preparation", handler)?;
+    Ok(())
 }
 fn handler(
     _: &mut openrust::http::Request,

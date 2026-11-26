@@ -524,7 +524,8 @@ async fn actual_http_observes_the_same_isolatable_command_lock() {
             .await
             .unwrap()
             .to_string()
-        })
+        })?;
+        Ok(())
     }
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("fixture.json"),serde_json::to_vec(&json!({"app":{"env":"testing"},"cache":{"default":"file","stores":{"file":{"driver":"file","path":"data","lock_path":"locks"}}},"logging":{"default":"null","channels":{"null":{"driver":"null"}}}})).unwrap()).unwrap();

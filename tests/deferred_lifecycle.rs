@@ -133,7 +133,8 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn web() -> Result<(), RoutingError> {
     Route::get("/concurrent", concurrent_facade_read)?;
-    Route::get("/deferred", read)
+    Route::get("/deferred", read)?;
+    Ok(())
 }
 struct ProbeCommand(CommandDefinition);
 impl Command for ProbeCommand {
@@ -820,7 +821,8 @@ fn load_from_event(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
 
 fn event_routes() -> Result<(), RoutingError> {
     Route::get("/event", load_from_event)?;
-    Route::get("/service", read)
+    Route::get("/service", read)?;
+    Ok(())
 }
 
 fn signal_provider(

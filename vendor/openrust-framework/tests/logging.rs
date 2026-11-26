@@ -715,7 +715,8 @@ fn config(root: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
 
 fn routes() -> Result<(), RoutingError> {
     Route::get("/exception/{id}", log_exception)?;
-    Route::get("/log/{id}", record)
+    Route::get("/log/{id}", record)?;
+    Ok(())
 }
 
 fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

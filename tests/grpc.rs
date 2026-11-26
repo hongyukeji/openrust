@@ -327,7 +327,8 @@ mod process {
                 Response::json(StatusCode::OK, json!({"status":status.as_str_name()}))
             })
         }
-        openrust::support::facades::Route::get("/grpc-probe", probe)
+        openrust::support::facades::Route::get("/grpc-probe", probe)?;
+        Ok(())
     }
 
     struct GrpcProbe(openrust::console::CommandDefinition);

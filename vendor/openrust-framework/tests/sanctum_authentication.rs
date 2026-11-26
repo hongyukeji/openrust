@@ -295,7 +295,8 @@ fn api() -> Result<(), RoutingError> {
 }
 
 fn web<const KEY: u8>() -> Result<(), RoutingError> {
-    Route::post("/login", login::<KEY>)
+    Route::post("/login", login::<KEY>)?;
+    Ok(())
 }
 
 fn login<const KEY: u8>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

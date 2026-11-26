@@ -325,7 +325,8 @@ impl ServiceProvider for Observe {
 }
 
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/probe", record)
+    Route::get("/probe", record)?;
+    Ok(())
 }
 
 fn record(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

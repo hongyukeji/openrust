@@ -105,9 +105,10 @@ async fn redis_cluster_metadata_and_queue_transport_use_public_horizon_consumers
             builder
                 .with_config(config)
                 .with_providers(vec![Box::new(HorizonServiceProvider)])
-                .with_routing(
-                    Routing::default().api(|| Route::get("/round-trip", queue_round_trip)),
-                )
+                .with_routing(Routing::default().api(|| {
+                    Route::get("/round-trip", queue_round_trip)?;
+                    Ok(())
+                }))
         })
         .unwrap();
         std::fs::write(

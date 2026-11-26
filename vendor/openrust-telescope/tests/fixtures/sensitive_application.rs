@@ -87,7 +87,8 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
                 router.post("/reset/{token}", probe)?.middleware_name("sensitive"); Ok(())
             })?;
             Route::get("/queue/{kind}", enqueue)?;
-            Route::get("/ordinary", probe)
+            Route::get("/ordinary", probe)?;
+            Ok(())
         }))
         .create()?)
 }

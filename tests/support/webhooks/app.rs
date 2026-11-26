@@ -1450,7 +1450,8 @@ fn web_routes() -> Result<(), openrust::routing::RoutingError> {
     use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRoutes};
     Route::webhooks("/webhook-web/protected", Options::new().name("spatie"))?;
     Route::webhooks("/webhook-web/except", Options::new().name("spatie"))?;
-    Route::post("/webhook-web/ordinary", ordinary)
+    Route::post("/webhook-web/ordinary", ordinary)?;
+    Ok(())
 }
 fn ordinary(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Response::json(StatusCode::OK, json!({"ordinary":true})) })

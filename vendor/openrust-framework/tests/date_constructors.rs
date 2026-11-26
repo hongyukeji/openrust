@@ -177,7 +177,8 @@ async fn real_http_consumer_uses_same_clock_and_returns_safe_failure_without_cha
         b.with_config(|_, _| Ok([("app".into(), json!({"timezone":"UTC"}))].into()))
             .with_routing(
                 openrust::foundation::configuration::Routing::default().web(|| {
-                    openrust::support::facades::Route::get("/created", constructed_endpoint)
+                    openrust::support::facades::Route::get("/created", constructed_endpoint)?;
+                    Ok(())
                 }),
             )
     })

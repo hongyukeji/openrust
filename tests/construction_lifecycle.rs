@@ -238,7 +238,8 @@ fn read_self_built(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
 
 fn routes() -> Result<(), RoutingError> {
     Route::get("/worker", read)?;
-    Route::get("/self-building", read_self_built)
+    Route::get("/self-building", read_self_built)?;
+    Ok(())
 }
 fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool) -> Application {
     let owned = counts.clone();

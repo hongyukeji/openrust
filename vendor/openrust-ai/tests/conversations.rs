@@ -301,7 +301,8 @@ async fn assert_conversation_history(
                     assert_eq!(recorded[1].messages.len(), 2);
                     assert!(recorded[0].schema.is_some() && recorded[1].schema.is_some());
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     std::fs::write(app.root().join(".env.testing"), env)?;

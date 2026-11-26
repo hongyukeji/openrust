@@ -96,6 +96,8 @@ Route::get(
 
 用 `Route::resource("photos", controller)` 或 `Route::api_resource("photos", controller)` 注册约定路由。创建 `ResourceController` 时，用 `.action(ResourceAction::Index, PhotosController::index)` 这样的类型化方法指针提供所选动作。路由名采用 `photos.index`、`photos.show` 等框架约定，集合和成员的 URL 同样遵循该约定。API 资源默认省略创建和编辑表单路由，也可用 `only` 显式选择这些动作。
 
+注册时可链式调用 `only`、`except`、`names` 等资源配置方法。资源在语句结束时注册。用 `.register()?` 可显式完成注册，并在该处传播注册错误。
+
 用 `only`、`except` 选择动作，用 `names` 覆盖路由名，用 `parameters` 覆盖参数名。`albums.photos` 这样的点号资源会生成嵌套路径。`shallow` 保留嵌套集合路径，并将成员路由注册到 `photos/{photo}`。`scoped` 设置绑定字段，`configure` 可为单条路由接入中间件或类型化绑定。
 
 批量注册时，用 `ResourceRegistration::new` 传入每个资源名和类型化控制器描述符。同一批可以混用不同控制器类型，框架按数组顺序注册。
@@ -131,7 +133,7 @@ Route::resource("projects.notes", controller)?;
 当子资源标识足以定位成员时，用 `shallow`。集合路由保留父路径，成员路由使用 `/comments/{comment}`。
 
 ```rust
-Route::resource("photos.comments", controller.shallow())?;
+Route::resource("photos.comments", controller)?.shallow();
 ```
 
 ### 命名资源路由 {#restful-naming-resource-routes}

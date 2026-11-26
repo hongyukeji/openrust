@@ -252,7 +252,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/worker", read)?;
     Route::get("/stash", stash)?;
     Route::get("/resume", resume)?;
-    Route::get("/cancel", cancel_live)
+    Route::get("/cancel", cancel_live)?;
+    Ok(())
 }
 struct Probe(CommandDefinition);
 impl Command for Probe {

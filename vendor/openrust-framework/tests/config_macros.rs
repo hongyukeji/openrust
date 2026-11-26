@@ -141,7 +141,10 @@ async fn concurrent_http_applications_and_real_artisan_read_current_configuratio
         TestApp::create(|b| {
             b.with_routing(
                 openrust::foundation::configuration::Routing::default()
-                    .web(|| openrust::support::facades::Route::get("/macro", endpoint))
+                    .web(|| {
+                        openrust::support::facades::Route::get("/macro", endpoint)?;
+                        Ok(())
+                    })
                     .commands(commands),
             )
         })

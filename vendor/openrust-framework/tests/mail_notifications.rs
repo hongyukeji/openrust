@@ -1499,7 +1499,8 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
                 "/notification-preview/{kind}",
                 notification_preview_from_http,
             )?;
-            Route::get("/mail-events", mail_events_from_http)
+            Route::get("/mail-events", mail_events_from_http)?;
+            Ok(())
         }))
         .with_providers(vec![
             Box::new(FixtureGuardProvider),
@@ -2948,7 +2949,8 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
                 Route::get("/preview", html_preview)?;
                 Route::get("/preview-text", text_preview)?;
                 Route::get("/preview-cid", html_cid_preview)?;
-                Route::get("/preview-missing", missing_preview)
+                Route::get("/preview-missing", missing_preview)?;
+                Ok(())
             }))
             .create()
             .unwrap(),

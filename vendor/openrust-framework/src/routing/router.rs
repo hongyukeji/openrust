@@ -439,9 +439,9 @@ impl Router {
         group: RouteGroup,
         register: impl FnOnce(&mut Self) -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
-        self.groups.push(group);
+        self.push_group(group);
         let result = register(self);
-        self.groups.pop();
+        self.pop_group();
         result
     }
 
@@ -932,6 +932,23 @@ impl Router {
             .flat_map(|group| group.excluded_middleware.iter().cloned())
             .collect();
         Ok(route)
+    }
+
+    pub(crate) fn next_route_index(&self) -> usize {
+        self.routes.len()
+    }
+
+    pub(crate) fn registered_route_mut(&mut self, index: usize) -> &mut Route {
+        self.route_cache = None;
+        &mut self.routes[index]
+    }
+
+    pub(crate) fn push_group(&mut self, group: RouteGroup) {
+        self.groups.push(group);
+    }
+
+    pub(crate) fn pop_group(&mut self) {
+        self.groups.pop();
     }
 
     pub(super) fn insert_route(&mut self, methods: &[Method], mut route: Route) -> &mut Route {

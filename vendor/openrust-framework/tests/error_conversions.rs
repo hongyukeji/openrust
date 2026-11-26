@@ -162,7 +162,10 @@ async fn config_facade_question_mark_preserves_failure_type_reporting_and_redact
                         openrust::foundation::configuration::ReportDecision::Stop
                     });
                 })
-                .with_routing(Routing::default().web(|| Route::get("/config", config_route)))
+                .with_routing(Routing::default().web(|| {
+                    Route::get("/config", config_route)?;
+                    Ok(())
+                }))
         }).unwrap();
         let response = app.get("/config").await.unwrap();
         if valid {

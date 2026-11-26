@@ -462,7 +462,8 @@ fn resource_routes() -> Result<(), RoutingError> {
                 }
                 Ok(())
             }),
-    )
+    )?;
+    Ok(())
 }
 
 fn nested_resources() -> Result<(), RoutingError> {
@@ -507,7 +508,8 @@ fn nested_resources() -> Result<(), RoutingError> {
                 .without_scoped_bindings();
             Ok(())
         }),
-    )
+    )?;
+    Ok(())
 }
 
 fn web() -> Result<(), RoutingError> {

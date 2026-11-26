@@ -50,7 +50,8 @@ fn app() -> TestApp {
         builder.with_routing(Routing::default().web(|| {
             Route::get("/size/{size}", sized)?;
             Route::get("/pending", pending)?;
-            Route::get("/delayed", delayed)
+            Route::get("/delayed", delayed)?;
+            Ok(())
         }))
     })
     .unwrap()

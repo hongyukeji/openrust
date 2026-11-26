@@ -164,7 +164,8 @@ async fn crypt_uses_each_apps_current_and_previous_keys_over_http() {
             .with_config(config)
             .with_routing(Routing::default().web(|| {
                 Route::get("/encrypt", encrypt)?;
-                Route::get("/decrypt", decrypt)
+                Route::get("/decrypt", decrypt)?;
+                Ok(())
             }))
             .create()
             .unwrap();

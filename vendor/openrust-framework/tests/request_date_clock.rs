@@ -63,7 +63,10 @@ fn fixture() -> TestResult<TestApp> {
                 )]
                 .into())
             })
-            .with_routing(Routing::default().web(|| Route::get("/date", endpoint)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/date", endpoint)?;
+                Ok(())
+            }))
     })
 }
 

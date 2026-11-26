@@ -724,7 +724,10 @@ async fn throttled_login_reports_lockout_with_request_metadata() {
     let retry = Arc::new(AtomicU64::new(0));
     let recorded = retry.clone();
     let (address, server) = start(
-        || Route::post("/throttled", attempt),
+        || {
+            Route::post("/throttled", attempt)?;
+            Ok(())
+        },
         || Ok(()),
         move |app| {
             app.container()

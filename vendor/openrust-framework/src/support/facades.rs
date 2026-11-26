@@ -56,6 +56,7 @@ use std::{
     cell::RefCell,
     ffi::OsString,
     path::Path,
+    rc::Rc,
     sync::{Arc, Weak},
 };
 
@@ -268,14 +269,27 @@ impl View {
 }
 
 tokio::task_local! {
-    static ROUTER: RouteRegistration;
+    static ROUTER: Rc<RouteRegistration>;
     static CONSOLE: RefCell<Application>;
 }
 
 struct RouteRegistration {
     router: RefCell<Router>,
     config: Arc<dyn Repository>,
+    pending_error: RefCell<Option<RoutingError>>,
 }
+
+impl RouteRegistration {
+    fn borrow_router(&self) -> Result<std::cell::RefMut<'_, Router>, RoutingError> {
+        self.router
+            .try_borrow_mut()
+            .map_err(|_| RoutingError::RegistrationBorrowed)
+    }
+}
+
+mod route_registration;
+pub(crate) use route_registration::register_group;
+pub use route_registration::{PendingResourceRegistration, RegisteredRoute};
 
 /// Registers routes on the router bound by the current application.
 pub struct Route;
@@ -412,7 +426,7 @@ impl Route {
     pub fn get<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(
             &[crate::http::Method::GET, crate::http::Method::HEAD],
             uri,
@@ -425,7 +439,7 @@ impl Route {
     pub fn post<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&[crate::http::Method::POST], uri, handler)
     }
 
@@ -434,7 +448,7 @@ impl Route {
     pub fn put<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&[crate::http::Method::PUT], uri, handler)
     }
 
@@ -443,7 +457,7 @@ impl Route {
     pub fn patch<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&[crate::http::Method::PATCH], uri, handler)
     }
 
@@ -452,7 +466,7 @@ impl Route {
     pub fn delete<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&[crate::http::Method::DELETE], uri, handler)
     }
 
@@ -461,7 +475,7 @@ impl Route {
     pub fn options<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&[crate::http::Method::OPTIONS], uri, handler)
     }
 
@@ -470,7 +484,7 @@ impl Route {
     pub fn query<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(
             &[crate::http::Method::from_bytes(b"QUERY").expect("有效的 QUERY 方法")],
             uri,
@@ -483,7 +497,7 @@ impl Route {
     pub fn any<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::r#match(&Router::all_methods(), uri, handler)
     }
 
@@ -491,8 +505,8 @@ impl Route {
     #[track_caller]
     pub fn fallback<Arguments>(
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
-        Self::fallback_with(handler, |_| Ok(()))
+    ) -> Result<RegisteredRoute, RoutingError> {
+        Self::register_fallback(handler, |_| Ok(()))
     }
 
     /// 在登记作用域内配置后备路由，避免返回超出借用范围的可变引用。
@@ -501,6 +515,15 @@ impl Route {
         handler: impl IntoRouteHandler<Arguments>,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
+        Self::register_fallback(handler, configure)?;
+        Ok(())
+    }
+
+    #[track_caller]
+    fn register_fallback<Arguments>(
+        handler: impl IntoRouteHandler<Arguments>,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::register_configured(
             &[crate::http::Method::GET],
             "/{fallbackPlaceholder}",
@@ -518,8 +541,8 @@ impl Route {
         uri: &str,
         view: &str,
         options: crate::routing::ViewRouteOptions,
-    ) -> Result<(), RoutingError> {
-        Self::view_with(uri, view, options, |_| Ok(()))
+    ) -> Result<RegisteredRoute, RoutingError> {
+        Self::get(uri, crate::routing::ViewController::new(view, options))
     }
 
     #[track_caller]
@@ -548,7 +571,8 @@ impl Route {
             uri,
             handler,
             configure,
-        )
+        )?;
+        Ok(())
     }
 
     #[track_caller]
@@ -556,22 +580,38 @@ impl Route {
         uri: &str,
         target: &str,
         status: crate::http::StatusCode,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         ROUTER
             .try_with(|scope| {
-                scope
-                    .router
-                    .try_borrow_mut()
-                    .map_err(|_| RoutingError::RegistrationBorrowed)?
-                    .redirect(uri, target, status)
-                    .map(|_| ())
+                let mut router = scope.borrow_router()?;
+                let index = router.next_route_index();
+                router.redirect(uri, target, status)?;
+                Ok(RegisteredRoute::new(scope, index))
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
 
     #[track_caller]
-    pub fn permanent_redirect(uri: &str, target: &str) -> Result<(), RoutingError> {
+    pub fn permanent_redirect(uri: &str, target: &str) -> Result<RegisteredRoute, RoutingError> {
         Self::redirect(uri, target, crate::http::StatusCode::MOVED_PERMANENTLY)
+    }
+
+    pub fn prefix(prefix: impl Into<String>) -> crate::routing::RouteGroup {
+        crate::routing::RouteGroup::new().prefix(prefix)
+    }
+
+    pub fn name(prefix: impl Into<String>) -> crate::routing::RouteGroup {
+        crate::routing::RouteGroup::new().name(prefix)
+    }
+
+    pub fn middleware(
+        middleware: impl Into<crate::routing::MiddlewareEntry>,
+    ) -> crate::routing::RouteGroup {
+        crate::routing::RouteGroup::new().middleware(middleware)
+    }
+
+    pub fn domain(domain: impl Into<String>) -> crate::routing::RouteGroup {
+        crate::routing::RouteGroup::new().domain(domain)
     }
 
     pub fn group(
@@ -594,7 +634,7 @@ impl Route {
         methods: &[crate::http::Method],
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         Self::register_configured(methods, uri, handler, |_| Ok(()))
     }
 
@@ -606,7 +646,8 @@ impl Route {
         handler: impl IntoRouteHandler<Arguments>,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
-        Self::register_configured(methods, uri, handler, configure)
+        Self::register_configured(methods, uri, handler, configure)?;
+        Ok(())
     }
 
     #[track_caller]
@@ -652,7 +693,7 @@ impl Route {
     pub fn resource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<PendingResourceRegistration<C>, RoutingError> {
         Self::register_resource(name, controller, crate::routing::ResourceKind::Resource)
     }
 
@@ -660,7 +701,7 @@ impl Route {
     pub fn api_resource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<PendingResourceRegistration<C>, RoutingError> {
         Self::register_resource(name, controller, crate::routing::ResourceKind::ApiResource)
     }
 
@@ -668,7 +709,7 @@ impl Route {
     pub fn singleton<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<PendingResourceRegistration<C>, RoutingError> {
         Self::register_resource(name, controller, crate::routing::ResourceKind::Singleton)
     }
 
@@ -676,7 +717,7 @@ impl Route {
     pub fn api_singleton<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<PendingResourceRegistration<C>, RoutingError> {
         Self::register_resource(name, controller, crate::routing::ResourceKind::ApiSingleton)
     }
 
@@ -685,15 +726,14 @@ impl Route {
         name: &str,
         controller: crate::routing::ResourceController<C>,
         kind: crate::routing::ResourceKind,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<PendingResourceRegistration<C>, RoutingError> {
         let definition = std::panic::Location::caller();
         ROUTER
             .try_with(|scope| {
-                scope
-                    .router
-                    .try_borrow_mut()
-                    .map_err(|_| RoutingError::RegistrationBorrowed)?
-                    .register_resource(name, controller, kind, definition)
+                drop(scope.borrow_router()?);
+                Ok(PendingResourceRegistration::new(
+                    scope, name, controller, kind, definition,
+                ))
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
@@ -704,15 +744,14 @@ impl Route {
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<RegisteredRoute, RoutingError> {
         let definition = std::panic::Location::caller();
         ROUTER
             .try_with(|scope| {
-                let mut router = scope
-                    .router
-                    .try_borrow_mut()
-                    .map_err(|_| RoutingError::RegistrationBorrowed)?;
-                configure(router.register_with(methods, uri, handler, definition)?)
+                let mut router = scope.borrow_router()?;
+                let index = router.next_route_index();
+                configure(router.register_with(methods, uri, handler, definition)?)?;
+                Ok(RegisteredRoute::new(scope, index))
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
@@ -722,16 +761,19 @@ impl Route {
         application: &foundation::Application,
         register: fn() -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
-        let scope = RouteRegistration {
+        let scope = Rc::new(RouteRegistration {
             router: RefCell::new(std::mem::take(router)),
             config: application
                 .configuration_repository()
                 .map_err(|source| RoutingError::ContainerFailed { source })?,
-        };
+            pending_error: RefCell::new(None),
+        });
         ROUTER.sync_scope(scope, || {
             let result = register();
-            *router = ROUTER.with(|active| std::mem::take(&mut *active.router.borrow_mut()));
-            result
+            ROUTER.with(|active| {
+                *router = std::mem::take(&mut *active.router.borrow_mut());
+                result.and_then(|()| active.pending_error.take().map_or(Ok(()), Err))
+            })
         })
     }
 }

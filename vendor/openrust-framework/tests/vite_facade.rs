@@ -365,7 +365,8 @@ async fn actual_http_artisan_and_blade_helpers_share_public_vite_but_keep_lifecy
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/vite", page)?;
-            Route::get("/vite-error", failure)
+            Route::get("/vite-error", failure)?;
+            Ok(())
         }))
     })
     .unwrap();
@@ -517,7 +518,10 @@ async fn concurrent_real_http_requests_do_not_share_nonces_attributes_or_preload
             )]
             .into())
         })
-        .with_routing(Routing::default().web(|| Route::get("/vite", page)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/vite", page)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -664,7 +668,10 @@ async fn browser_acceptance_writes_the_page_from_the_actual_http_kernel() {
             )]
             .into())
         })
-        .with_routing(Routing::default().web(|| Route::get("/browser", browser_page)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/browser", browser_page)?;
+            Ok(())
+        }))
     })
     .unwrap();
     fs::create_dir_all(app.root().join("resources/views")).unwrap();

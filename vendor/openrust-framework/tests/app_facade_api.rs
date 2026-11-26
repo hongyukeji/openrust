@@ -129,7 +129,8 @@ async fn build_kernel() -> (tempfile::TempDir, Kernel) {
         })
         .with_routing(Routing::default().api(|| {
             Route::get("/inspect", inspect)?;
-            Route::get("/scoped", scoped)
+            Route::get("/scoped", scoped)?;
+            Ok(())
         }))
         .create()
         .unwrap();

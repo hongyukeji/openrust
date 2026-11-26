@@ -362,7 +362,8 @@ fn http_write(
     })
 }
 fn http_routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::get("/write/{id}", http_write)
+    openrust::support::facades::Route::get("/write/{id}", http_write)?;
+    Ok(())
 }
 fn cli_routes() -> Result<(), openrust::console::ConsoleError> {
     openrust::support::facades::Artisan::command("logs:remote", |_| {

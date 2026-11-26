@@ -46,10 +46,12 @@ fn tags_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 fn tagged_routes() -> Result<(), openrust::routing::RoutingError> {
     Horizon::tag(first_tags).unwrap();
     Horizon::tag(second_tags).unwrap();
-    Route::get("/tags", tags_response)
+    Route::get("/tags", tags_response)?;
+    Ok(())
 }
 fn untagged_routes() -> Result<(), openrust::routing::RoutingError> {
-    Route::get("/tags", tags_response)
+    Route::get("/tags", tags_response)?;
+    Ok(())
 }
 fn app(tagged: bool) -> TestApp {
     TestApp::create(|builder| {
@@ -320,9 +322,10 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
                 )]))
             })
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(
-                Routing::default().api(|| Route::get("/notification", named_notification_response)),
-            )
+            .with_routing(Routing::default().api(|| {
+                Route::get("/notification", named_notification_response)?;
+                Ok(())
+            }))
     })
     .unwrap();
     std::fs::write(app.root().join(".env"), "HORIZON_NAME=运维\n").unwrap();
@@ -628,9 +631,10 @@ async fn redis_supervisor_delivers_wait_alerts_and_master_only_persists_its_stat
         builder
             .with_config(wait_config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(
-                Routing::default().api(|| Route::get("/alert", supervisor_webhook_response)),
-            )
+            .with_routing(Routing::default().api(|| {
+                Route::get("/alert", supervisor_webhook_response)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.get("/api/alert").await.unwrap().assert_ok();
@@ -711,9 +715,10 @@ async fn redis_wait_event_listener_uses_the_container_factory_and_custom_signatu
                 Box::new(CustomWaitProvider),
                 Box::new(HorizonServiceProvider),
             ])
-            .with_routing(
-                Routing::default().api(|| Route::get("/custom-alert", custom_wait_response)),
-            )
+            .with_routing(Routing::default().api(|| {
+                Route::get("/custom-alert", custom_wait_response)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.get("/api/custom-alert").await.unwrap().assert_ok();
@@ -745,9 +750,10 @@ async fn long_wait_notifications_use_the_native_notification_fake() {
     let mut app = TestApp::create(|builder| {
         builder
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(
-                Routing::default().api(|| Route::get("/notification", notification_response)),
-            )
+            .with_routing(Routing::default().api(|| {
+                Route::get("/notification", notification_response)?;
+                Ok(())
+            }))
     })
     .unwrap();
     app.get("/api/notification").await.unwrap().assert_ok();

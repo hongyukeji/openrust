@@ -91,7 +91,8 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
         TestApp::create(|builder| {
             builder.with_routing(Routing::default().web(|| {
                 Route::get("/greeting", greet)?;
-                Route::get("/fake", fake_inside_http)
+                Route::get("/fake", fake_inside_http)?;
+                Ok(())
             }))
         })
     };
@@ -222,7 +223,10 @@ fn fake_for_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 #[tokio::test]
 async fn scoped_event_fakes_restore_after_errors_and_cancellation() -> TestResult {
     let mut app = TestApp::create(|builder| {
-        builder.with_routing(Routing::default().web(|| Route::get("/scoped", fake_for_request)))
+        builder.with_routing(Routing::default().web(|| {
+            Route::get("/scoped", fake_for_request)?;
+            Ok(())
+        }))
     })?;
     app.boot().await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
@@ -331,7 +335,10 @@ fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
 #[tokio::test]
 async fn predicates_select_payloads_without_hiding_other_events() -> TestResult {
     let mut app = TestApp::sqlite(|builder| {
-        builder.with_routing(Routing::default().web(|| Route::get("/filter", fake_matching_events)))
+        builder.with_routing(Routing::default().web(|| {
+            Route::get("/filter", fake_matching_events)?;
+            Ok(())
+        }))
     })?;
     app.boot().await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;

@@ -191,7 +191,8 @@ async fn decisions_classify_typed_questions_and_report_use()
                         Err(AiError::InvalidResponse)
                     ));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -361,7 +362,8 @@ async fn classification_fake_and_decide_use_normal_application_entry_points()
                     Classification::assert_classified(|request| request.attachments.len() == 1)
                         .unwrap();
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

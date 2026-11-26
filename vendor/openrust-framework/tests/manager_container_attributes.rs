@@ -90,7 +90,8 @@ fn configuration(root: &Path, env: &Environment) -> Result<BTreeMap<String, Valu
 
 fn routes() -> Result<(), RoutingError> {
     Route::get("/probe", probe)?;
-    Route::get("/memo", memo)
+    Route::get("/memo", memo)?;
+    Ok(())
 }
 
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

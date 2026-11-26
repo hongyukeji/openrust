@@ -49,7 +49,8 @@ fn app() -> TestApp {
             Route::get("/redirect-errors/{bag}", redirect_errors)?;
             Route::get("/old-input", read_old_input)?;
             Route::get("/{status}", response)?;
-            Route::get("/{status}/{body}", response)
+            Route::get("/{status}/{body}", response)?;
+            Ok(())
         }))
     })
     .unwrap()

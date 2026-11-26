@@ -119,7 +119,8 @@ fn register() -> Result<(), RoutingError> {
     Route::get("/read", read)?;
     Route::get("/presence", presence)?;
     Route::get("/expire", expire)?;
-    Route::get("/redirect-cookies/{operation}", redirect_cookies)
+    Route::get("/redirect-cookies/{operation}", redirect_cookies)?;
+    Ok(())
 }
 
 async fn transport(

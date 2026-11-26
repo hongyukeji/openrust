@@ -644,7 +644,8 @@ fn inject_routes() -> Result<(), RoutingError> {
         ResourceController::new()
             .only(&[ResourceAction::Store])
             .action_with_form_request(ResourceAction::Store, InjectionController::store),
-    )
+    )?;
+    Ok(())
 }
 
 struct CustomRejection;

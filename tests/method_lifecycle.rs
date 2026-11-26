@@ -180,7 +180,8 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/method", read)
+    Route::get("/method", read)?;
+    Ok(())
 }
 fn application(
     root: &Root,

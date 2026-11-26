@@ -73,7 +73,8 @@ async fn exact_api_prefix_and_children_render_json_independently_of_envelope() {
                 })
                 .with_routing(Routing::default().api(|| {
                     Route::get("/", unauthenticated)?;
-                    Route::get("/child", unauthenticated)
+                    Route::get("/child", unauthenticated)?;
+                    Ok(())
                 }))
                 .create()
                 .unwrap();

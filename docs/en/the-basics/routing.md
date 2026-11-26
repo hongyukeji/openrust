@@ -4,7 +4,7 @@ Declare web routes in `routes/web.rs`. The application registers those routes an
 
 The default application already registers `routes/api.rs` and `config/api.rs`; plain API endpoints do not require Sanctum. Run `./artisan install:api` only when API authentication is needed. It installs Sanctum and adds the protected `/user` route to an unchanged empty API skeleton. Existing business routes are preserved unless `--force` is explicitly requested; add the protected route manually when retaining a custom routes file. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. When `API_PREFIX` is unset, the prefix defaults to `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::api_prefix(...)` in `with_routing` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
 
-In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::get_with` when a GET route needs a name, model binding, or route-level middleware.
+In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Chain route options such as `name`, `model`, and `middleware` after registration.
 
 A parameter such as `{id}` is required. Add `?` to allow a trailing parameter to be omitted, as in `/profiles/{id?}/{tab?}` or `/report/{name}.{format?}`. Read the captured value with `request.route("id")`. For an omitted parameter, this returns `None` unless the route supplies a string through `defaults`. A parameter before required text or another required parameter must still be present.
 
@@ -16,12 +16,12 @@ Matching uses the UTF-8 percent-decoded path and ignores the query string. Inval
 
 ## HTTP Methods
 
-Use `get`, `post`, `put`, `patch`, `delete`, `options`, or `query` for a single method. Both `Route` and `Router` provide these methods; `get` also accepts HEAD. `Router` returns a mutable route for naming, middleware, constraints and defaults, while facade declarations return `Result<(), RoutingError>`.
+Use `get`, `post`, `put`, `patch`, `delete`, `options`, or `query` for a single method. Both `Route` and `Router` provide these methods, and `get` also accepts HEAD. Facade registrations return a handle for configuring the route in the current registration scope. In a registration callback, end each declaration with `?;` and return `Ok(())` after the last declaration.
 
 ```rust
 use openrust::{http::Method, support::facades::Route};
 
-Route::get("/users", UserController::index)?;
+Route::get("/users", UserController::index)?.name("users.index")?;
 Route::post("/users", UserController::store)?;
 Route::put("/users/{id}", UserController::replace)?;
 Route::patch("/users/{id}", UserController::update)?;
@@ -52,7 +52,7 @@ Route::view("/hello/{name}", "welcome", ViewRouteOptions {
 
 Put templates in `resources/views`, for example `welcome.blade.html`. Captured path and domain parameters override matching keys in `data`, before view creators and composers run. Set `status` and `headers` in `ViewRouteOptions` for a custom response. PHP's alternative headers-in-status argument is represented by the explicit `headers` field. Do not use `view`, `data`, `status` or `headers` as parameter names. Route defaults currently carry strings; arbitrary typed changes to these four view settings through `Route::defaults` are not supported. Bound model objects are not automatically converted into view data.
 
-`Router::view` returns a mutable route. For facade declarations, use `Route::view_with(uri, view, options, |route| { route.name("welcome"); Ok(()) })` to configure the route inside its registration borrow. Rendering uses the current application's view factory and middleware. A missing template or failing creator/composer follows the normal HTTP exception pipeline.
+Use `Route::view(uri, view, options)?.name("welcome")?;` to name a view route. Rendering uses the current application's view factory and middleware. A missing template or failing creator/composer follows the normal HTTP exception pipeline.
 
 ## Fallback Routes
 
@@ -66,7 +66,7 @@ Route::fallback(NotFoundController::show)?;
 
 Ordinary routes take precedence even when the fallback was declared earlier. Among matching fallbacks, registration order applies; a later declaration for the same method, domain and registered URI replaces the earlier one. An unmatched POST returns 405 with `Allow: GET, HEAD` when the fallback matches its path; automatic OPTIONS returns 200. A fallback is a registered route, so it takes precedence over the static file mounts described below.
 
-Use `Route::fallback_with(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.set_fallback(false)` removes the marker. Routing cache preserves this precedence.
+Use `Route::fallback(handler)?.name("missing")?;` to name the fallback. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.set_fallback(false)` removes the marker. Routing cache preserves this precedence.
 
 
 A handler can explicitly return another named route's response. `respond_with_route` binds that route against the same request URI, runs its middleware and replaces the request's current route parameters and name; it does not generate a redirect or substitute the target URI.
@@ -82,7 +82,7 @@ fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 }
 ```
 
-Register `missing` using `fallback_with` as above, then register `show_missing` as a handler. Rust requires an explicit mutable request borrow; the HTTP kernel supplies the shared runtime router through the application container. Each request keeps its own route state. Missing names return an error rendered as HTTP 500. The same public method is available on `Router` for direct consumers. Runtime router resolution is available after HTTP bootstrap; registration continues to use the route registration scope.
+Register `missing` using `Route::fallback(...)?.name("missing")?` as above, then register `show_missing` as a handler. Rust requires an explicit mutable request borrow; the HTTP kernel supplies the shared runtime router through the application container. Each request keeps its own route state. Missing names return an error rendered as HTTP 500. The same public method is available on `Router` for direct consumers. Runtime router resolution is available after HTTP bootstrap; registration continues to use the route registration scope.
 
 ## Mounting a static directory
 
@@ -151,26 +151,22 @@ Use `{id}` for a required parameter or `{id?}` for a trailing optional parameter
 
 Groups share URI prefixes, name prefixes, domains, middleware and constraints. Register specific domain routes before a host-independent route with the same path. A domain placeholder is available through `request.route`, just like a path placeholder.
 
-The group closure receives a mutable Rust router. Use it to configure the registered route. A GET route accepts HEAD, and automatic OPTIONS reports allowed methods for a matching path and domain.
+Chain the group configuration, then declare routes with the facade inside the callback. A GET route accepts HEAD, and automatic OPTIONS reports allowed methods for a matching path and domain.
 
 ```rust
-use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route, view::view};
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register() -> Result<(), RoutingError> {
-    Route::group(
-        RouteGroup::new()
-            .domain("{tenant}.example.test")
-            .prefix("admin")
-            .name("admin.")
-            .r#where("id", "[0-9]+")?,
-        |router| {
-            router
-                .get("/reports/{id?}", || view("welcome"))?
-                .name("reports.show")
-                .defaults("id", "1");
+    Route::domain("{tenant}.example.test")
+        .prefix("admin")
+        .name("admin.")
+        .r#where("id", "[0-9]+")?
+        .group(|| {
+            Route::get("/reports/{id?}", || view("welcome"))?
+                .name("reports.show")?
+                .defaults("id", "1")?;
             Ok(())
-        },
-    )
+        })
 }
 ```
 

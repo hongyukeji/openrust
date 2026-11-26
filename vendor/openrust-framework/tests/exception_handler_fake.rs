@@ -87,7 +87,10 @@ async fn app() -> TestApp {
                 "fake:fail",
             )))))
         })
-        .with_routing(Routing::default().web(|| Route::get("/failure", fail)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/failure", fail)?;
+            Ok(())
+        }))
     })
     .unwrap();
     app.boot().await.unwrap();

@@ -25,7 +25,8 @@ async fn request_fingerprint_preserves_registration_order_root_uri_and_automatic
   ("session".into(),json!({"driver":"array","cookie":"alignment-session","lifetime":120}))
  ].into())).with_routing(Routing::default().web(|| {
   Route::r#match(&[http::Method::POST,http::Method::GET],"/items/{id}",inspect)?;
-  Route::get("/",inspect)
+  Route::get("/",inspect)?;
+  Ok(())
  }))).unwrap();
     let response = app
         .call(
@@ -273,10 +274,10 @@ fn excluded_upload(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 #[tokio::test]
 async fn excluded_multipart_file_is_removed_from_both_validated_data_and_file_projection() {
     let mut app = TestApp::create(|builder| {
-        builder.with_routing(
-            Routing::default()
-                .api(|| Route::r#match(&[http::Method::POST], "/upload", excluded_upload)),
-        )
+        builder.with_routing(Routing::default().api(|| {
+            Route::r#match(&[http::Method::POST], "/upload", excluded_upload)?;
+            Ok(())
+        }))
     })
     .unwrap();
     let body = "--upload\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\nskip\r\n--upload\r\nContent-Disposition: form-data; name=\"attachment\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\nfile bytes\r\n--upload--\r\n";
@@ -304,7 +305,10 @@ async fn explicit_exception_policy_overrides_json_preference_after_middleware_re
             .with_exceptions(|exceptions| {
                 exceptions.should_render_json_when(|_, _| false);
             })
-            .with_routing(Routing::default().api(|| Route::get("/fail", reject_request)))
+            .with_routing(Routing::default().api(|| {
+                Route::get("/fail", reject_request)?;
+                Ok(())
+            }))
     })
     .unwrap();
     let response = app.get("http://example.test/api/fail").await.unwrap();
@@ -329,7 +333,8 @@ async fn shared_view_data_reaches_blocking_renderer_and_does_not_leak_to_next_re
     let mut app = TestApp::create(|builder| {
         builder.with_routing(Routing::default().api(|| {
             Route::get("/one", scoped_view)?;
-            Route::get("/default", default_view)
+            Route::get("/default", default_view)?;
+            Ok(())
         }))
     })
     .unwrap();

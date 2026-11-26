@@ -152,8 +152,10 @@ async fn http_unset_keeps_null_presence_and_restores_request_scoped_locale() {
             .into())
         })
         .with_routing(
-            openrust::foundation::configuration::Routing::default()
-                .web(|| openrust::support::facades::Route::get("/clear", clear_locale)),
+            openrust::foundation::configuration::Routing::default().web(|| {
+                openrust::support::facades::Route::get("/clear", clear_locale)?;
+                Ok(())
+            }),
         )
     })
     .unwrap();

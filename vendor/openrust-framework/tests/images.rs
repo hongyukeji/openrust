@@ -387,7 +387,8 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
         })
         .with_routing(Routing::default().web(|| {
             Route::static_disk("public")?;
-            Route::post("/upload", upload)
+            Route::post("/upload", upload)?;
+            Ok(())
         }))
         .create().unwrap();
     let mut kernel = Kernel::new(application);
@@ -1857,7 +1858,10 @@ async fn image_driver_registration_in_provider_boot_uses_default_config_and_appl
                     )]))
                 })
                 .with_providers(vec![Box::new(ThumbnailImages(width, calls))])
-                .with_routing(Routing::default().web(|| Route::get("/thumbnail", thumbnail)))
+                .with_routing(Routing::default().web(|| {
+                    Route::get("/thumbnail", thumbnail)?;
+                    Ok(())
+                }))
         })
         .unwrap()
     }

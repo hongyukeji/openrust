@@ -34,7 +34,10 @@ async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Syn
     use openrust::{foundation::configuration::Routing, support::facades::Route, view::view};
 
     let mut fixture = TestApp::create(|builder| {
-        builder.with_routing(Routing::default().web(|| Route::get("/probe", || view("welcome"))))
+        builder.with_routing(Routing::default().web(|| {
+            Route::get("/probe", || view("welcome"))?;
+            Ok(())
+        }))
     })?;
     fs::write(
         fixture.root().join(".env.testing"),
@@ -118,7 +121,10 @@ async fn selects_local_testing_environment_on_http_and_artisan_first_boot()
 
     let configure = |builder: ApplicationBuilder| {
         builder
-            .with_routing(Routing::default().web(|| Route::get("/fixture", probe)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/fixture", probe)?;
+                Ok(())
+            }))
             .with_config(|_, env| {
                 Ok([(
                     "app".into(),
@@ -191,7 +197,8 @@ async fn dispatches_http_and_captures_artisan_output_without_leaking_state()
         Box::pin(async { Response::json(StatusCode::OK, json!({"fixture": true})) })
     }
     fn routes() -> Result<(), RoutingError> {
-        Route::get("/fixture", answer)
+        Route::get("/fixture", answer)?;
+        Ok(())
     }
     fn commands() -> Result<(), ConsoleError> {
         Artisan::command("fixture:probe", |output| output.comment("fixture output"))?
@@ -749,7 +756,8 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
         fn endpoint(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Box::pin(async { Ok(Response::new(StatusCode::OK, "linked provider".into())) })
         }
-        Route::get("/discovered", endpoint)
+        Route::get("/discovered", endpoint)?;
+        Ok(())
     }
 
     static ENTRIES: &[DiscoveredPackage] = &[DiscoveredPackage::new(
@@ -838,7 +846,8 @@ async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addr
                 })
                 .with_routing(Routing::default().api_prefix("").api(|| {
                     Route::get("/probe", probe)?;
-                    Route::get("/sub/probe", probe)
+                    Route::get("/sub/probe", probe)?;
+                    Ok(())
                 }))
         })
         .unwrap();

@@ -31,7 +31,10 @@ fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
             )]))
         })
         .with_packages(compiled::PACKAGES)
-        .with_routing(Routing::default().web(|| Route::get("/native", render)))
+        .with_routing(Routing::default().web(|| {
+            Route::get("/native", render)?;
+            Ok(())
+        }))
         .create()?)
 }
 

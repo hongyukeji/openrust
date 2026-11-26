@@ -332,7 +332,8 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
         })])
         .with_routing(Routing::default().web(|| {
             Route::get("/ok", enqueue)?;
-            Route::get("/failed", enqueue_failed)
+            Route::get("/failed", enqueue_failed)?;
+            Ok(())
         }))
         .create()
         .unwrap();

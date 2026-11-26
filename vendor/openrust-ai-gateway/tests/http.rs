@@ -418,7 +418,8 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                             .any(|model| model.configured && model.id == "claude-private")
                     );
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

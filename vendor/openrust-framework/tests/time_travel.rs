@@ -93,7 +93,8 @@ fn app() -> TestResult<TestApp> {
             .with_commands(commands)
             .with_routing(Routing::default().web(|| {
                 Route::get("/clock", clock_route)?;
-                Route::get("/stamp", stamp_route)
+                Route::get("/stamp", stamp_route)?;
+                Ok(())
             }))
     })
 }

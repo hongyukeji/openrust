@@ -409,7 +409,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
                 .ends_with("/replacement")
         );
         Ok::<_, HttpError>(json!({"path":R::path()?}))
-    })
+    })?;
+    Ok(())
 }
 
 async fn kernel() -> (tempfile::TempDir, Kernel) {
@@ -658,7 +659,8 @@ fn web_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::post("/form", validation)?;
     Route::get("/form", || async {
         Ok::<_, HttpError>(json!({"errors":R::session(|session| session.get("errors").cloned())?}))
-    })
+    })?;
+    Ok(())
 }
 
 #[tokio::test]

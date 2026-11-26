@@ -73,7 +73,8 @@ fn application() -> Result<TestApp, Box<dyn Error + Send + Sync>> {
                     );
                     assert!(Embeddings::fake_embedding(0).is_err());
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })
 }

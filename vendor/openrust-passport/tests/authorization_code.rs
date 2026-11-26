@@ -160,7 +160,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             Ok(())
         },
     )?;
-    Route::post("/login", login)
+    Route::post("/login", login)?;
+    Ok(())
 }
 fn session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {

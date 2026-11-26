@@ -18,7 +18,8 @@ use serde_json::json;
 
 fn routes() -> Result<(), RoutingError> {
     Route::get("/configuration", name)?;
-    Route::get("/configuration/check", check)
+    Route::get("/configuration/check", check)?;
+    Ok(())
 }
 
 fn name(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

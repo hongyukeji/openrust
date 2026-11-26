@@ -169,7 +169,8 @@ async fn native_reranking_drivers_preserve_original_indexes() -> TestResult {
                         Err(AiError::InvalidResponse)
                     );
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(
@@ -278,7 +279,8 @@ async fn reranking_fake_intercepts_the_sdk_and_preserves_collection_items() -> T
                         default.results[0].relevance_score > default.results[1].relevance_score
                     );
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
-                })
+                })?;
+                Ok(())
             }))
     })?;
     fs::write(

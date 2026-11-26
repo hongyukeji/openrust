@@ -51,7 +51,10 @@ async fn public_consumer_reports_domain_and_returns_redacted_server_error() {
                     openrust::foundation::configuration::ReportDecision::Stop
                 });
             })
-            .with_routing(Routing::default().web(|| Route::get("/failure", unavailable)))
+            .with_routing(Routing::default().web(|| {
+                Route::get("/failure", unavailable)?;
+                Ok(())
+            }))
     })
     .unwrap();
     let response = app.get("/failure").await.unwrap();
