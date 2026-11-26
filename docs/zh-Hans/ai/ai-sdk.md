@@ -93,6 +93,10 @@ let answer = responder.prompt("What can I do next?").await?;
 
 Anthropic Messages 的 HTTP 529 可触发重试或切换。Messages 返回符合固定 Laravel 基线的额度错误时也可切换。发生这两类错误时，应用可分别匹配 `AiError::ProviderOverloaded` 和 `AiError::ProviderInsufficientCredits`，获取 HTTP 状态。原始错误正文不会进入应用错误。
 
+### Agent 提示事件 {#agent-prompt-events}
+
+非流式提示在每次供应商尝试前分派 `PromptingAgent`，随后分派携带响应的 `AgentPrompted` 或携带类型化错误的 `AgentFailed`。通过框架的 `Event` 门面按各事件的 `NAME` 注册监听器。每次尝试及 `AgentFailedOver` 共用调用 ID。`event.prompt.as_prompt()` 可读取当前连接在步骤中间件运行前的请求参数。
+
 ### 接入 Responses 网关 {#responses-gateway}
 
 接入提供 OpenAI Responses 的 Sub2API 实例时，使用 `driver: "openai"` 和实例的 v1 基础地址。SDK 使用 `/models` 发现模型，通过 `/responses` 发起生成请求。设置 `store: false` 可请求上游关闭响应存储。

@@ -88,6 +88,12 @@ pub(crate) struct OwnedPrompt {
 
 impl From<AgentPrompt<'_>> for OwnedPrompt {
     fn from(value: AgentPrompt<'_>) -> Self {
+        Self::from(&value)
+    }
+}
+
+impl From<&AgentPrompt<'_>> for OwnedPrompt {
+    fn from(value: &AgentPrompt<'_>) -> Self {
         Self {
             instructions: value.text.instructions.into(),
             text: value.text.prompt.into(),
@@ -100,6 +106,7 @@ impl From<AgentPrompt<'_>> for OwnedPrompt {
             attachments: value.attachments.to_vec(),
             schema: value
                 .structured_output
+                .as_ref()
                 .map(|output| (output.schema.clone(), output.strict)),
         }
     }

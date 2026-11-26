@@ -661,6 +661,14 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 - [固定 Laravel ReasoningDelta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ReasoningDelta.php) · [OpenAI 推理摘要文档](https://developers.openai.com/api/docs/guides/reasoning?api-mode=responses&site_locale=en) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 
+### AI-02 Agent 生成事件
+
+非流式 SDK 每次供应商尝试分派 `PromptingAgent`，成功后交付含逐步响应的 `AgentPrompted`，失败时交付含原类型错误的 `AgentFailed`。事件使用已解析的连接与请求模型、当前 Agent 类型及出站请求的调用 ID。提示参数为步骤中间件执行前的快照。由 Fake 直接提供结果的路径沿用各自的断言入口。流式生成、逐模型步骤和逐工具的生命周期事件继续按固定契约核对。
+
+隔离服务经实际 Artisan 及 HTTP 验证普通和结构化请求、401、跨协议切换、全部候选失败、两步工具成功和续轮失败。监听器看到每次尝试先开始、再成功或失败，出站请求与监听器记录的调用 ID 一致。两步工具成功事件带两个步骤及一个工具结果。续轮 503 后只分派原连接的失败事件。SDK 文本、工具和会话回归及严格 Clippy 通过。
+
+- [固定 Laravel GeneratesText](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/GeneratesText.php)
+
 ### AI-02 具名供应商故障转移
 
 `Agent::providers` 与匿名 Agent 的 `with_providers` 可声明有序具名连接。连接内指定模型或使用当前档位。单次调用显式指定供应商时只使用指定连接。切换时发布 `AgentFailedOver`，候选请求、事件和原生文本流沿用同一调用 ID。需要向自托管端传递该 ID 时沿用已有的 `forward_usage_context`。固定基线的数组供应商使用逐连接模型映射。旧版工作树 `6d1a81924` 未发现对应 AI SDK 实现。

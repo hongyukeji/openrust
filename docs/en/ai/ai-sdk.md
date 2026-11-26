@@ -93,6 +93,10 @@ For built-in text protocols, the SDK retries the same request once when a rate l
 
 Anthropic Messages can retry or fail over on HTTP 529 and fail over on credit errors recognized by the fixed Laravel baseline. Applications can match `AiError::ProviderOverloaded` or `AiError::ProviderInsufficientCredits` to read the HTTP status. The error omits the upstream body.
 
+### Agent prompt events {#agent-prompt-events}
+
+Buffered prompts dispatch `PromptingAgent` before each provider attempt, followed by `AgentPrompted` with the response or `AgentFailed` with the typed error. Listen through the framework’s Event facade using each event’s `NAME`. Every attempt and any `AgentFailedOver` event share the invocation ID. `event.prompt.as_prompt()` exposes the request resolved for that connection before step middleware.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

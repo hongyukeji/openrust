@@ -10,6 +10,12 @@ pub(crate) enum ProviderAttemptError {
 }
 
 impl ProviderAttemptError {
+    pub(crate) fn error(&self) -> &AiError {
+        match self {
+            Self::BeforeCommit(error) | Self::Committed(error) => error,
+        }
+    }
+
     pub(crate) fn into_error(self) -> AiError {
         match self {
             Self::BeforeCommit(error) | Self::Committed(error) => error,
@@ -23,7 +29,7 @@ impl From<AiError> for ProviderAttemptError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AiError {
     Unavailable,

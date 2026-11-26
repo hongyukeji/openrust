@@ -702,21 +702,27 @@ impl AiManager {
             choice.validate(&[])?;
         }
         let middleware = agent.middleware();
+        let agent_type = std::any::type_name::<A>();
         if tools.is_empty() && middleware.is_empty() {
-            let response = self
-                .with_text_failover(agent, options, request, None, |provider, request, _, _| {
-                    Box::pin(async move {
-                        provider
+            self.with_text_failover(agent, options, request, None, |provider, request, _, _| {
+                Box::pin(crate::events::observe_prompt(
+                    agent_type,
+                    provider.name(),
+                    request,
+                    move |request| async move {
+                        let choice = request.tool_choice;
+                        let response = provider
                             .generate(request)
                             .await
-                            .map_err(ProviderAttemptError::BeforeCommit)
-                    })
-                })
-                .await?;
-            if let Some(choice) = &choice {
-                choice.validate_calls(&response.tool_calls)?;
-            }
-            Ok(response)
+                            .map_err(ProviderAttemptError::BeforeCommit)?;
+                        if let Some(choice) = choice {
+                            choice.validate_calls(&response.tool_calls)?;
+                        }
+                        Ok(response)
+                    },
+                ))
+            })
+            .await
         } else {
             let max_steps = agent.max_steps();
             self.with_text_failover(
@@ -725,13 +731,22 @@ impl AiManager {
                 request,
                 approvals,
                 |provider, request, approvals, _| {
-                    Box::pin(crate::tools::run(
-                        provider.as_ref(),
+                    let tools = tools.clone();
+                    let middleware = middleware.clone();
+                    Box::pin(crate::events::observe_prompt(
+                        agent_type,
+                        provider.name(),
                         request,
-                        tools.clone(),
-                        max_steps,
-                        middleware.clone(),
-                        approvals,
+                        move |request| {
+                            crate::tools::run(
+                                provider.as_ref(),
+                                request,
+                                tools,
+                                max_steps,
+                                middleware,
+                                approvals,
+                            )
+                        },
                     ))
                 },
             )
