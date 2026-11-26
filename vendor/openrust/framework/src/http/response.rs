@@ -426,6 +426,17 @@ impl Response {
             .remove::<crate::cookie::ResponseCookies>();
         (self.parts, self.body)
     }
+    pub(crate) fn redirect_target(&self) -> Option<&str> {
+        self.parts
+            .extensions
+            .get::<super::redirect_response::RedirectMarker>()?;
+        self.parts
+            .headers
+            .get(http::header::LOCATION)?
+            .to_str()
+            .ok()
+    }
+
     pub fn status(&self) -> StatusCode {
         self.parts.status
     }

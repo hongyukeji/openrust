@@ -32,6 +32,8 @@ Watchers cover requests, queries, exceptions, logs, jobs, batches, cache, HTTP c
 
 Request records show the client IP resolved by the framework’s trusted proxy configuration and any loaded session data. Apply `hide_request_parameters` to sensitive session keys as well as request inputs. Request duration is recorded in whole milliseconds. PHP allocator peak memory has no native request-level reading.
 
+To exclude requests, set `ignore_http_methods` to exact method names, which are matched case-insensitively, or set `ignore_status_codes` to response codes. The `size_limit` option compares the whole number of 1,000-character units in buffered text or JSON. A limit of `1` keeps up to 1,999 characters.
+
 Each of the 18 public types under `openrust_telescope::watchers` implements `Watcher`. Construct a watcher with `new(options)` and call `register(app).await?` from an application Provider; disable its default configuration entry first to avoid registering it twice. The package Provider uses these same registration paths. `QueryWatcher` options include `slow`; `EventWatcher` supports `ignore` patterns. Framework events are ignored by default; set `telescope.ignore_framework_events.store(false, std::sync::atomic::Ordering::Release)` on the resolved service to include them. This setting is shared only within that application.
 
 For application events, implement `Event::properties()` to expose a JSON diagnostic snapshot; Rust does not reflect arbitrary struct fields. Event listener names come from actual dispatcher registrations. Model hydration counts use the native Eloquent lifecycle. Mail records preserve the original mailable and queued flag. Mail previews use a browser sandbox, and downloads contain the captured MIME message.

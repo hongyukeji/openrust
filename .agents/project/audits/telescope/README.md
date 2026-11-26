@@ -155,7 +155,13 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用实际 HTTP 内核、Web 会话�
 
 ### RequestWatcher 的筛选与响应分类
 
-固定 PHP 8.5.12 探针确认方法选项大小写不敏感且按字面匹配，状态码选项可使用数值字符串。缓冲纯文本在千字符整除后的单位内保留，数值配置为 1 时分别保留 1999 字符、清除 2000 字符；带 JSON 或纯文本的 302 状态仍记录缓冲正文，只有原生重定向响应记录目标，304 空响应返回空响应提示。Rust 当前方法使用大小写敏感通配符，状态排除仅识别整数，记录缓冲响应时按字符数直接比较并把 3xx 状态一概视为重定向。待修复这些可验证的差异，视图来源与绑定数据另行核对。固定探针为 `target/tmp/observability-parity/telescope-request-options-upstream.log`。
+固定 PHP 8.5.12 探针确认方法选项大小写不敏感且按字面匹配，状态码选项可使用数值字符串。缓冲纯文本按千字符整除比较，配置为 1 时保留 1999 字符、清除 2000 字符。带 JSON 或纯文本的 302 记录缓冲正文，实际重定向记录目标，304 返回空响应提示。Rust 已对齐这些规则，并复用出站 HTTP 的关联数组形状转换处理入站响应 JSON。未知正文或流仍标记为 `Not Captured`。 [固定 RequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L69-L233)
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用实际 HTTP 内核验证方法字面匹配、数字状态码、两侧字符边界、302 和 304，以及路由元数据与敏感响应遮罩。Pulse Provider 24 项、Telescope Provider 24 项、Watchers 19 项和仓储 14 项通过，独占 Redis 用例沿用环境条件。框架 HTTP 观察 4 项、URL 与重定向 7 项、隔离快照格式、三扩展相关严格 Clippy、三语构建和六组浏览器检查通过。首轮新增夹具使用框架默认 HTML 响应类型，改为显式纯文本后重新完成整套验收。证据为 `target/tmp/observability-parity/telescope-request-options-{upstream,macos-baseline,macos-final,macos-retry,docs}.log`。
+
+### RequestWatcher 的渲染视图
+
+固定 PHP 通过实际 `Illuminate\Http\Response` 渲染根视图后，记录模板路径、显式绑定数据和组合器写入的数据。共享变量可用于渲染，但不会进诊断绑定。对象可提供显式诊断投影。原生响应已经保留名称及最终绑定以供测试使用，Telescope 尚待连通实际来源和可安全记录的投影。固定 PHP 探针为 `target/tmp/observability-parity/telescope-request-view-upstream.log`。
 
 ### Query 事务和保存点的调用来源
 

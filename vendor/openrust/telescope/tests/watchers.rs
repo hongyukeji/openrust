@@ -1818,7 +1818,7 @@ fn response_handler(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                 HeaderName::from_static("content-type"),
                 HeaderValue::from_static("text/plain"),
             )),
-            "api/large" => Ok(Response::from("好".repeat(1001)).header(
+            "api/large" => Ok(Response::from("好".repeat(2000)).header(
                 HeaderName::from_static("content-type"),
                 HeaderValue::from_static("text/plain"),
             )),

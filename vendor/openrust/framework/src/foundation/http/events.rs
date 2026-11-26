@@ -17,6 +17,8 @@ pub struct RequestHandled {
     pub response: ResponseParts,
     /// Shared bytes only for responses whose content is already buffered.
     pub response_content: Option<axum::body::Bytes>,
+    /// 原生重定向的目标地址。
+    pub redirect_target: Option<String>,
     pub attributes: HashMap<String, ParameterValue>,
     pub route_name: Option<String>,
     /// 使用框架信任代理规则解析后的客户端地址。
@@ -46,6 +48,7 @@ impl RequestHandled {
             request: parts,
             response: response.parts().clone(),
             response_content: response.get_content().cloned(),
+            redirect_target: response.redirect_target().map(str::to_owned),
             attributes: request.attributes().snapshot(),
             route_name: request.route_name.clone(),
             ip_address: request.ip(),

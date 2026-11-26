@@ -6,7 +6,8 @@ use openrust::{
         events::{Event, Listener},
     },
     events::{EventContext, EventFuture, EventResult, ListenerResponse},
-    support::facades::Facade,
+    foundation::http::events::RequestHandled,
+    support::{facades::Facade, php_loose_string_value_equal},
 };
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
@@ -254,58 +255,72 @@ impl NativeWatcher {
             path,
         )
     }
-    fn response_content(
-        &self,
-        telescope: &Telescope,
-        response: &openrust::http::ResponseParts,
-        content: Option<&[u8]>,
-    ) -> Value {
-        if response.status.is_redirection() {
-            return format!(
-                "Redirected to {}",
-                response
-                    .headers
-                    .get("location")
-                    .and_then(|value| value.to_str().ok())
-                    .unwrap_or("")
-            )
-            .into();
+    fn response_content(&self, telescope: &Telescope, event: &RequestHandled) -> Value {
+        let content = event.response_content.as_deref();
+        if let Some(bytes) = content {
+            let text = String::from_utf8_lossy(bytes);
+            let limit = self
+                .option("RequestWatcher", "size_limit")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(64);
+            let within = (text.chars().count() as u64) / 1000 <= limit;
+            if let Ok(value @ (Value::Array(_) | Value::Object(_))) =
+                serde_json::from_slice::<Value>(bytes)
+            {
+                return if within {
+                    diagnostic_json_shape(telescope.response_parameters(value))
+                } else {
+                    "Purged By Telescope".into()
+                };
+            }
+            if event
+                .response
+                .headers
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.to_ascii_lowercase().starts_with("text/plain"))
+            {
+                return if within {
+                    text.into_owned().into()
+                } else {
+                    "Purged By Telescope".into()
+                };
+            }
         }
-        let Some(bytes) = content else {
-            return "Not Captured".into();
+        if let Some(target) = &event.redirect_target {
+            return format!("Redirected to {target}").into();
+        }
+        match content {
+            None => "Not Captured".into(),
+            Some(b"" | b"0") => "Empty Response".into(),
+            Some(_) => "HTML Response".into(),
+        }
+    }
+    fn ignore_request(&self, event: &RequestHandled) -> bool {
+        let method = event.request.method.as_str();
+        let method_matches = |value: &Value| {
+            value
+                .as_str()
+                .is_some_and(|value| value.eq_ignore_ascii_case(method))
         };
-        let text = String::from_utf8_lossy(bytes);
-        let limit = self
-            .option("RequestWatcher", "size_limit")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(64);
-        let within = text.chars().count() as u64 <= limit.saturating_mul(1000);
-        if let Ok(value @ (Value::Array(_) | Value::Object(_))) =
-            serde_json::from_slice::<Value>(bytes)
+        if self
+            .option("RequestWatcher", "ignore_http_methods")
+            .is_some_and(|value| match value {
+                Value::Array(values) => values.iter().any(method_matches),
+                Value::Object(values) => values.values().any(method_matches),
+                value => method_matches(&value),
+            })
         {
-            return if within {
-                telescope.response_parameters(value)
-            } else {
-                "Purged By Telescope".into()
-            };
+            return true;
         }
-        if response
-            .headers
-            .get("content-type")
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.to_ascii_lowercase().starts_with("text/plain"))
-        {
-            return if within {
-                text.into_owned().into()
-            } else {
-                "Purged By Telescope".into()
-            };
-        }
-        if bytes.is_empty() {
-            "Empty Response".into()
-        } else {
-            "HTML Response".into()
-        }
+        let status = event.response.status.as_str();
+        let status_matches = |value: &Value| php_loose_string_value_equal(status, value);
+        self.option("RequestWatcher", "ignore_status_codes")
+            .is_some_and(|value| match value {
+                Value::Array(codes) => codes.iter().any(status_matches),
+                Value::Object(codes) => codes.values().any(status_matches),
+                _ => false,
+            })
     }
     fn record(
         &self,
@@ -314,9 +329,7 @@ impl NativeWatcher {
         context: Option<&EventContext<'_>>,
     ) -> crate::Result<()> {
         if telescope.protect_sensitive_request().is_some()
-            && event
-                .downcast_ref::<openrust::foundation::http::events::RequestHandled>()
-                .is_none()
+            && event.downcast_ref::<RequestHandled>().is_none()
         {
             return Ok(());
         }
@@ -419,9 +432,7 @@ impl NativeWatcher {
                 }
             }
             telescope.record_command(IncomingEntry::make(json!({"command":event.command,"exit_code":event.exit_code,"arguments":arguments,"options":options}).as_object().unwrap().clone())?);
-        } else if let Some(event) =
-            event.downcast_ref::<openrust::foundation::http::events::RequestHandled>()
-        {
+        } else if let Some(event) = event.downcast_ref::<RequestHandled>() {
             if !self.approved_path(
                 event.request.uri.path(),
                 event
@@ -434,34 +445,14 @@ impl NativeWatcher {
                 telescope.stop_recording();
                 return Ok(());
             }
-            if !self.enabled("RequestWatcher")
-                || self.patterns(
-                    "RequestWatcher",
-                    "ignore_http_methods",
-                    event.request.method.as_str(),
-                )
-                || self
-                    .option("RequestWatcher", "ignore_status_codes")
-                    .and_then(|v| {
-                        v.as_array().map(|items| {
-                            items.iter().any(|item| {
-                                item.as_u64() == Some(event.response.status.as_u16().into())
-                            })
-                        })
-                    })
-                    .unwrap_or(false)
-            {
+            if !self.enabled("RequestWatcher") || self.ignore_request(event) {
                 return Ok(());
             }
             let route = event
                 .request
                 .extensions
                 .get::<openrust::routing::RouteMetadata>();
-            let response = self.response_content(
-                telescope,
-                &event.response,
-                event.response_content.as_deref(),
-            );
+            let response = self.response_content(telescope, event);
             let session = event
                 .session
                 .clone()
@@ -650,7 +641,7 @@ impl NativeWatcher {
                     None => "Stream Response".into(),
                     Some(Ok(value @ (Value::Array(_) | Value::Object(_)))) => {
                         if within_limit {
-                            client_json_shape(telescope.response_parameters(value))
+                            diagnostic_json_shape(telescope.response_parameters(value))
                         } else {
                             "Purged By Telescope".into()
                         }
@@ -812,21 +803,23 @@ fn client_response_within_limit(bytes: &[u8], limit: Option<&Value>) -> bool {
     characters as f64 / 1000.0 <= limit
 }
 
-fn client_json_shape(value: Value) -> Value {
+fn diagnostic_json_shape(value: Value) -> Value {
     match value {
-        Value::Array(values) => Value::Array(values.into_iter().map(client_json_shape).collect()),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(diagnostic_json_shape).collect())
+        }
         Value::Object(values) => {
             if values
                 .keys()
                 .enumerate()
                 .all(|(index, key)| key == &index.to_string())
             {
-                Value::Array(values.into_values().map(client_json_shape).collect())
+                Value::Array(values.into_values().map(diagnostic_json_shape).collect())
             } else {
                 Value::Object(
                     values
                         .into_iter()
-                        .map(|(key, value)| (key, client_json_shape(value)))
+                        .map(|(key, value)| (key, diagnostic_json_shape(value)))
                         .collect(),
                 )
             }
@@ -850,7 +843,7 @@ fn client_content(
                 }
                 None => {
                     // 从线上正文解码的诊断载荷使用 PHP 关联数组的形状。
-                    client_json_shape(telescope.request_parameters(payload))
+                    diagnostic_json_shape(telescope.request_parameters(payload))
                 }
                 _ => telescope.request_parameters(payload),
             }

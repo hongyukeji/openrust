@@ -36,6 +36,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     )?;
     openrust::support::facades::Route::get("/identity", identity_handler)?;
     openrust::support::facades::Route::get("/guest", identity_handler)?;
+    openrust::support::facades::Route::get("/request-watcher/{kind}", watched_response)?;
+    openrust::support::facades::Route::post("/request-watcher/{kind}", watched_response)?;
     Ok(())
 }
 
@@ -1772,6 +1774,112 @@ async fn request_watcher_records_resolved_address_and_redacted_session() {
             assert_eq!(latest.content["session"], json!([]));
         }
         assert!(latest.content["memory"].is_null());
+    }
+}
+
+fn watched_response(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    use openrust::http::{Response, StatusCode};
+    let kind = request
+        .uri()
+        .path()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    Box::pin(async move {
+        let text = |body: String, status| {
+            let mut response = Response::from(body);
+            response.parts_mut().status = status;
+            response.header(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static("text/plain"),
+            )
+        };
+        match kind.as_str() {
+            "near-limit" => Ok(text("界".repeat(1999), StatusCode::OK)),
+            "limit" => Ok(text("界".repeat(2000), StatusCode::OK)),
+            "status-text" => Ok(text("filtered status".to_owned(), StatusCode::ACCEPTED)),
+            "status-other" => Ok(text("other status".to_owned(), StatusCode::CREATED)),
+            "304" => Ok(Response::empty(StatusCode::NOT_MODIFIED)),
+            "json-302" => Ok(
+                Response::json(StatusCode::FOUND, json!({"v":{},"visible":true}))?.header(
+                    http::header::LOCATION,
+                    http::HeaderValue::from_static("/next"),
+                ),
+            ),
+            "text-302" => Ok(text("plain".to_owned(), StatusCode::FOUND)),
+            "redirect" => Ok(openrust::support::facades::Redirect::away(
+                "/next",
+                Default::default(),
+            )
+            .unwrap()
+            .into()),
+            _ => Ok(text("plain".to_owned(), StatusCode::OK)),
+        }
+    })
+}
+
+fn request_watcher_options_config(
+    base: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> FixtureConfig {
+    let mut config = provider_config(base, env)?;
+    let watcher = &mut config.get_mut("telescope").unwrap()["watchers"]["RequestWatcher"];
+    watcher["ignore_http_methods"] = json!(["gEt", "P*"]);
+    watcher["ignore_status_codes"] = json!(["0202", "201x"]);
+    watcher["size_limit"] = json!(1);
+    Ok(config)
+}
+
+#[tokio::test]
+async fn request_watcher_applies_fixed_filters_and_buffered_response_rules() {
+    let mut app = application_with_config(request_watcher_options_config);
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let mut count = 0;
+    for (method, case, status, expected) in [
+        ("GET", "default", 200, None),
+        ("POST", "default", 200, Some(json!("plain"))),
+        ("POST", "status-text", 202, None),
+        ("POST", "status-other", 201, Some(json!("other status"))),
+        ("POST", "near-limit", 200, Some(json!("界".repeat(1999)))),
+        ("POST", "limit", 200, Some(json!("Purged By Telescope"))),
+        ("POST", "304", 304, Some(json!("Empty Response"))),
+        (
+            "POST",
+            "json-302",
+            302,
+            Some(json!({"v":[],"visible":true})),
+        ),
+        ("POST", "text-302", 302, Some(json!("plain"))),
+        ("POST", "redirect", 302, Some(json!("Redirected to /next"))),
+    ] {
+        let path = format!("/api/request-watcher/{case}");
+        let request = http::Request::builder()
+            .method(method)
+            .uri(&path)
+            .body(openrust::http::Body::empty())
+            .unwrap();
+        app.call(request)
+            .await
+            .unwrap()
+            .assert_status(http::StatusCode::from_u16(status).unwrap());
+        let records = repository
+            .get(Some(EntryType::Request), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        if let Some(expected) = expected {
+            count += 1;
+            assert_eq!(records.len(), count, "{method} {case}");
+            assert_eq!(records[0].content["uri"], path);
+            assert_eq!(records[0].content["response"], expected, "{method} {case}");
+        } else {
+            assert_eq!(records.len(), count, "{method} {case}");
+        }
     }
 }
 

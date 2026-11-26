@@ -15,6 +15,9 @@ use crate::{
 
 use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
 
+#[derive(Clone, Copy)]
+pub(super) struct RedirectMarker;
+
 /// An HTTP redirect with fluent session flashing.
 pub struct RedirectResponse(Response);
 
@@ -24,15 +27,15 @@ impl RedirectResponse {
             return Err(UrlError::InvalidRedirect);
         }
         let location = redirect_location(target)?;
-        Ok(Self(
-            Response::new(status, redirect_body(target))
-                .with_headers(headers)
-                .header(
-                    CONTENT_TYPE,
-                    HeaderValue::from_static("text/html; charset=utf-8"),
-                )
-                .header(LOCATION, location),
-        ))
+        let mut response = Response::new(status, redirect_body(target))
+            .with_headers(headers)
+            .header(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            )
+            .header(LOCATION, location);
+        response.parts_mut().extensions.insert(RedirectMarker);
+        Ok(Self(response))
     }
 
     /// Attaches an exception to the response.
