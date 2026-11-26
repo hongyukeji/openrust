@@ -190,6 +190,14 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 
 GW-03 参考 [TokenHub 的统一入口和模型协议矩阵](https://cloud.tencent.com/document/product/1823/130079)。在同一基础 URL 下，以 `/chat/completions`、`/responses` 和 `/messages` 区分协议，验证 Bearer 与 `x-api-key` 的对应入口。逐模型记录原生、协议转换及不支持的行为。目录发现时分别验证模型在线状态、账号开通和实际调用，记录转换兼容模式的字段与工具限制。
 
+### OpenRust 自定义 AI 路由前缀
+
+`config/ai.rs` 的 `ai.route_prefix` 配置 OpenRust 自定义 AI HTTP 路由的挂载前缀，默认 `/ai`。可用环境变量 `AI_ROUTE_PREFIX` 覆盖，例如 `/api/ai`。复用现有 ServiceProvider 与路由组，只在相关功能启用时注册对应入口。前缀随首个自定义入口交付，具体端点按其功能批次确定。
+
+配置仅作用于 OpenRust 自定义入口。OpenAI、Anthropic、Gemini、Codex、Sub2API 等外部协议兼容路由沿用现有路径和启用条件，包括 `/v1`、`/v1beta`、`/backend-api/codex`、`/v1/usage`、`/v1/sub2api/billing` 以及可选的无版本别名。
+
+GW-05 用 `route:list` 和真实 HTTP 验证默认挂载、环境变量覆盖和配置缓存。覆盖后，自定义入口仅在新路径可访问，鉴权与中间件继续生效。对比修改前后的兼容路由与实际调用，确认路径、启用条件和响应契约一致。
+
 ### 模型配置、发现与发布
 
 | 入口和用途 | 约定 |
