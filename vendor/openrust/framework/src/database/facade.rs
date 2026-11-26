@@ -30,6 +30,12 @@ macro_rules! statements {
 }
 
 impl Db {
+    /// 将当前调用位置作为此 Future 内查询的备选来源。
+    #[track_caller]
+    pub fn with_caller<F: Future>(future: F) -> impl Future<Output = F::Output> {
+        super::events::with_query_caller(std::panic::Location::caller(), future)
+    }
+
     pub fn table(table: &str) -> DatabaseResult<super::query::Builder<'static>> {
         Ok(Self::connection(None)?.table(table))
     }

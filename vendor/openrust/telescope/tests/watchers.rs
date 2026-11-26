@@ -32,6 +32,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/gate-callers", gate_callers)?;
     Route::get("/gate-outer-callers", gate_outer_callers)?;
     Route::get("/query-callers", query_callers)?;
+    Route::get("/scoped-callers", scoped_callers)?;
     Route::get("/transaction-callers", transaction_callers)?;
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
@@ -1414,6 +1415,105 @@ fn gate_outer_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         Response::json(http::StatusCode::OK, caller)
     })
 }
+
+fn scoped_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::{auth::access::Response as Decision, support::facades::Gate};
+
+    Box::pin(async {
+        for ability in ["scoped", "sibling"] {
+            Gate::define_guest(ability, |_, _| {
+                Box::pin(async {
+                    tokio::task::yield_now().await;
+                    Ok(Decision::from(true))
+                })
+            })?;
+        }
+        let gate = Gate::for_user(None)?;
+        let gate_line = line!() + 1;
+        let gate_future = gate.with_caller(gate_caller::allows("scoped"));
+        let query_line = line!() + 1;
+        let query_future = Db::with_caller(query_caller::select("SELECT 81 AS scoped_query_probe"));
+        let (scoped, sibling, _, _) = tokio::join!(
+            gate_future,
+            gate_caller::allows("sibling"),
+            query_future,
+            query_caller::select("SELECT 82 AS sibling_query_probe"),
+        );
+        assert!(scoped? && sibling?);
+        Response::json(
+            http::StatusCode::OK,
+            json!({"gate": gate_line, "query": query_line}),
+        )
+    })
+}
+
+#[tokio::test]
+async fn watcher_callers_can_cross_async_wrappers_without_leaking_to_siblings() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let config = json!({
+        "ignore_packages": false,
+        "ignore_paths": ["support/gate_caller.rs", "support/query_caller.rs"],
+    });
+    let config = config.as_object().unwrap();
+    GateWatcher::new(config.clone())
+        .register(app.app())
+        .await
+        .unwrap();
+    QueryWatcher::new(config.clone())
+        .register(app.app())
+        .await
+        .unwrap();
+
+    let response = app.get("/api/scoped-callers").await.unwrap();
+    response.assert_ok();
+    let expected = response.json::<serde_json::Value>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let gates = repository
+        .get(Some(EntryType::Gate), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(gates.len(), 2);
+    for gate in &gates {
+        assert_eq!(gate.content["result"], "allowed");
+        match gate.content["ability"].as_str().unwrap() {
+            "scoped" => {
+                assert_eq!(gate.content["file"], file!());
+                assert_eq!(gate.content["line"], expected["gate"]);
+            }
+            "sibling" => {
+                assert!(gate.content["file"].is_null());
+                assert!(gate.content["line"].is_null());
+            }
+            ability => panic!("未预期的授权能力 {ability}"),
+        }
+    }
+    let queries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let probes: Vec<_> = queries
+        .iter()
+        .filter(|entry| {
+            entry.content["sql"]
+                .as_str()
+                .unwrap()
+                .ends_with("_query_probe")
+        })
+        .collect();
+    assert_eq!(probes.len(), 1);
+    assert!(
+        probes[0].content["sql"]
+            .as_str()
+            .unwrap()
+            .ends_with("scoped_query_probe")
+    );
+    assert_eq!(probes[0].content["file"], file!());
+    assert_eq!(probes[0].content["line"], expected["query"]);
+}
+
 fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Db::connection(None)

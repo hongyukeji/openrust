@@ -296,6 +296,21 @@ impl Gate {
         args: &[&Argument],
         caller: &'static Location<'static>,
     ) -> AuthResult<Response> {
+        self.with_caller_at(caller, self.evaluate(ability, args, caller))
+            .await
+    }
+
+    /// 将当前调用位置作为此 Future 内同一应用授权的备选来源。
+    #[track_caller]
+    pub fn with_caller<F: Future>(&self, future: F) -> impl Future<Output = F::Output> {
+        self.with_caller_at(Location::caller(), future)
+    }
+
+    async fn with_caller_at<F: Future>(
+        &self,
+        caller: &'static Location<'static>,
+        future: F,
+    ) -> F::Output {
         // 授权回调可能继续授权。作用域只在当前 Future 的轮询期间有效。
         let outer = GATE_CALLERS
             .try_with(|outer| {
@@ -308,9 +323,7 @@ impl Gate {
             registry: Arc::clone(&self.registry),
             locations: locations.iter().copied().chain([caller]).collect(),
         };
-        GATE_CALLERS
-            .scope(callers, self.evaluate(ability, args, caller))
-            .await
+        GATE_CALLERS.scope(callers, future).await
     }
 
     async fn evaluate(

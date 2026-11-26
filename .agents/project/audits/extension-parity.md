@@ -144,7 +144,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 | 范围 | 接续工作与关闭条件 |
 |---|---|
-| Telescope | 继续核对普通异步包装器、关系与驱动变体的 Query／Gate 来源，以及出站 multipart 和其他诊断边界。逐类型核对公开 Watcher、Entry、关联、仓储、命令与授权面板。列表参数已通过三库对照，Dumps 采集状态和刷新已实测。 [筛选与游标](telescope/README.md#列表筛选与游标) [Dumps 面板](telescope/README.md#dumps-面板的采集与轮询) |
+| Telescope | Query／Gate 已支持显式登记异步包装器的外层来源，自动回溯普通异步调用栈有语言边界。继续核对关系与驱动变体、出站 multipart 和其他诊断边界，以及公开 Watcher、Entry、关联、仓储、命令与授权面板。列表参数已通过三库对照，Dumps 采集状态和刷新已实测。 [异步包装器来源](#telescope-异步包装器的应用调用行) [筛选与游标](telescope/README.md#列表筛选与游标) [Dumps 面板](telescope/README.md#dumps-面板的采集与轮询) |
 | Pulse | 十个默认 Recorder 的逐项审计持续进行，接续核对事件、过滤、采样、聚合、自定义 Recorder 与 ingest 契约。原生面板已有真实浏览器和三库证据，完整 Livewire 更新生命周期及已记录的排序边界须继续核对。 [卡片和查询](pulse/README.md#面板慢操作异常与用量排序) |
 | Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，目标服务管理器、物理 x86_64 和正式 Redis 拓扑仍需验收。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
@@ -406,6 +406,12 @@ PHP 8.5.12 使用固定 Gate 与固定 Telescope 复现四条授权记录。直�
 Rust 在授权 Future 中传播同一应用的外层授权位置，通过当前同步事件派发上下文提供给 Watcher，保留 `GateEvaluated.caller`。Watcher 先选最近的合格位置，内层被过滤时使用合格的外层位置。真实 HTTP 回归同时验证同一任务中交错轮询的兄弟授权无法取得无关外层位置，且来源为空时仍记录授权结果。普通异步包装器的外层应用位置、非标准依赖路径以及 Release 和实际部署组合仍待验收。
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的 Telescope Gate 专项及框架授权实测通过，框架事件默认 8 项、三个扩展默认 91 项、快照全仓格式、严格 Clippy、三语站点构建和 12 组浏览器检查通过。Linux 7.0.14 ARM64 和 Windows 11 ARM64 使用 Rust 1.94.0 通过同一源码快照的嵌套授权 HTTP 与 SQLite 专项。证据为 `target/tmp/observability-parity/gate-outer-caller-complete{,-linux,-docs}.log` 与 `target/tmp/observability-windows/gate-outer-caller-complete-arm64.log`。
+
+### Telescope 异步包装器的应用调用行
+
+固定 Laravel 和 Telescope 的真实 QueryWatcher、GateWatcher 在 PHP 8.5.12 与 SQLite 上过滤包装器文件后，分别记录应用调用包装器的两处行号。Rust 通过 `Db::with_caller(future)` 和授权实例的 `gate.with_caller(future)` 提供对应的外层候选，保留内层优先及现有过滤。同一任务交错轮询的兄弟 Future 使用各自来源。未登记外层位置时，Rust 普通异步调用链不会自动留下外层调用行。跨任务调度可在接收入口登记位置。 [Rust 调用位置规则](https://doc.rust-lang.org/reference/attributes/codegen.html#the-track_caller-attribute)
+
+macOS Rust 1.94.0 隔离快照通过 Watcher 21 项、框架授权 5 项。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实 HTTP 各确认包装器被过滤时，登记位置的查询和授权归到精确的应用调用行。未登记的兄弟查询省略，兄弟授权结果保留且来源为空。快照格式、相关严格 Clippy、三语站点构建及六组桌面和移动浏览器正文检查通过。其他平台及优化构建继续验收。证据为 `target/tmp/observability-parity/scoped-watcher-callers-{upstream,macos,docs}.log`。
 
 ### 发布构建的源码路径重映射
 

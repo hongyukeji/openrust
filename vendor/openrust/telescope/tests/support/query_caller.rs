@@ -1,5 +1,12 @@
 use openrust::database::Connection;
 
+pub async fn select(sql: &str) {
+    tokio::task::yield_now().await;
+    openrust::support::facades::Db::select(sql, &[])
+        .await
+        .unwrap();
+}
+
 pub fn register_nested_query(connection: &Connection) {
     connection.before_executing(|sql, _, connection, _| {
         Box::pin(async move {

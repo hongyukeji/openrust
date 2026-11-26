@@ -58,6 +58,8 @@ Pass an ordered list of descriptors to `as_multipart().post()` when a request ne
 
 When request middleware changes multipart to another media type, successful diagnostics use the original part descriptors and mask configured part headers. An empty descriptor list allows the rewritten JSON or form body to be decoded. Connection failures use the media type and buffered body of the request that was sent.
 
+Use `Db::with_caller(run_queries()).await` or `gate.with_caller(run_checks()).await` to register a fallback source location for an async wrapper. The `gate` value is the current application's authorization instance. A closer eligible location inside the wrapper still takes precedence. The scope applies while that future is polled. Separately spawned work can register its own source location.
+
 Import `openrust::database::DatabaseCursorExt` and call `cursor.try_next_with_source().await?` to associate SQL with the line that reads the next item. Standard stream consumers use the cursor creation site when available.
 
 Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types. In decoded raw JSON, empty objects and objects whose keys run from `0` in order appear as arrays. Structured JSON passed to the client keeps its nested object shapes.
