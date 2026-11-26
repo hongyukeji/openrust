@@ -15,3 +15,5 @@
 | 10 New Relic | `29666971b` 按已确认范围通过 OTLP 模拟及应用生命周期。[验收](../plans/log-supplier-integrations.md#合成业务数据与实际-otlp-模拟验收)，并通过[Windows ARM64 原生 OTLP](../plans/log-supplier-integrations.md#windows-arm64-otlp)和[四区域隔离 HTTPS](../plans/log-supplier-integrations.md#regional-https-otlp)，修正日本区域摄取域名 | 隔离 New Relic 租户、摄取凭据及 NRQL 读权限。实际托管队列和平台按发布环境核对 |
 
 [ARM64 Linux 与 Windows 原生验收](webhooks/native-platforms.md)已验证 Webhook 的 HTTP、Artisan 和 Worker。Linux 运行在本机 Docker。Windows 在虚机用默认 Cargo 测试构建复验，测试入口配置独立的 16 MiB 运行线程。[两个独立虚机](webhooks/topology.md#separate-vm-guests)已通过私有网络投递、共享 PostgreSQL 队列及持久处理终态验收，并实测[共享私有 S3 附件](webhooks/shared-object-storage.md#separate-vm-guests)及[对象 ACL、桶策略和禁用 ACL 的边界](webhooks/shared-object-storage.md#bucket-policy)。物理跨机需已授权的隔离主机及共享服务地址。当前进程未配置内容审核专用凭据目录，也未配置 New Relic 的试验租户、摄取及查询凭据。
+
+扩展组合已核对五个锁定目标的许可依赖图，macOS ARM64 Reverb 制品已确认内嵌 SQLite 并通过 HTTP、Artisan 与 SQLite Worker 实测。根发行声明已补充来源和许可原文。组合候选制品、其他原生依赖和发布渠道仍需核验。[扩展组合依赖与 SQLite 发行声明](extension-release-licenses.md)
