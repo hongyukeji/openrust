@@ -70,3 +70,9 @@ HTTP Kernel 和独立网关进程验证分组 Key 的列表、模型交集、不
 参考固定 Sub2API 的 [Anthropic 到 Responses](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/apicompat/anthropic_to_responses.go) 和 [Responses 到 Anthropic](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/apicompat/responses_to_anthropic.go)。转换标准客户端函数定义、工具选择、对象参数、文本结果和调用 ID。Anthropic 错误结果转为带错误标记的文本。拒绝重复、缺失或不匹配的工具历史，包含工具历史的上游调用不自动重放。
 
 HTTP Kernel 及独立网关验证两个方向的工具调用、上游鉴权、结果回送和普通生成。测试覆盖并行 ID、无效历史、流式工具拒绝以及原有文本 SSE。Artisan 检查两个协议路由。流式工具转换、非文本结果和服务端工具另列待办。
+
+## GW-03 Responses 与 Messages 流式工具转换
+
+两端工具声明与完整历史沿用非流式转换。Anthropic 的 `input_json_delta` 和 OpenAI 的 `response.function_call_arguments.delta` 实时双向转换，保留调用 ID、事件索引和终止用量。最终参数须是合法 JSON 对象，且与之前实际发送的增量一致。缺失或矛盾的完成帧终止为协议错误，已开始的流不重放。
+
+包测试覆盖调用开始、分段参数、工具结束、终止用量和错误；独立进程的两条 HTTP 路径均在上游等待信号期间收到第一段参数，Artisan 核对路由。服务端工具、附件及特殊工具协议仍待后续批次。

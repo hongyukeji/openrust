@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use openrust::support::Str;
 use serde_json::{Map, Value, json};
@@ -29,13 +29,9 @@ pub(crate) fn to_responses(request: Map<String, Value>) -> Result<Value, &'stati
             _ => return Err("当前 Messages 到 Responses 转换不支持该请求字段"),
         }
     }
-    let streaming = request.get("stream") == Some(&Value::Bool(true));
     if let Some(tools) = request.get("tools").filter(|tools| !tools.is_null()) {
         let tools = tools.as_array().ok_or("tools 必须是数组")?;
         if !tools.is_empty() {
-            if streaming {
-                return Err("流式协议转换暂不支持工具");
-            }
             let definitions = tools
                 .iter()
                 .map(|tool| tool_definition(tool, false))
@@ -85,9 +81,6 @@ pub(crate) fn to_responses(request: Map<String, Value>) -> Result<Value, &'stati
                 }
                 texts.push(block["text"].as_str().ok_or("文本块缺少 text")?);
                 continue;
-            }
-            if streaming {
-                return Err("流式协议转换暂不支持工具和非文本块");
             }
             push_text(&mut input, role, &mut texts);
             match block["type"].as_str() {
@@ -172,13 +165,15 @@ fn parts(content: &Value) -> Result<Vec<&str>, &'static str> {
 pub(crate) struct Message {
     id: String,
     model: String,
+    allows_tools: bool,
 }
 
 impl Message {
-    pub(crate) fn new(model: String) -> Self {
+    pub(crate) fn new(model: String, allows_tools: bool) -> Self {
         Self {
             id: format!("msg_{}", Str::ulid()),
             model,
+            allows_tools,
         }
     }
 
@@ -189,7 +184,9 @@ impl Message {
         for item in response["output"].as_array()? {
             match item["type"].as_str()? {
                 "reasoning" => {}
-                "function_call" if matches!(reason, "end_turn" | "tool_use") => {
+                "function_call"
+                    if self.allows_tools && matches!(reason, "end_turn" | "tool_use") =>
+                {
                     if item["status"]
                         .as_str()
                         .is_some_and(|status| status != "completed")
@@ -278,7 +275,42 @@ fn usage(data: &Value) -> Value {
 pub(crate) struct StreamState {
     started: bool,
     blocks: BTreeMap<(u64, u64), u64>,
+    tools: BTreeMap<u64, ToolBlock>,
+    call_ids: HashSet<String>,
     next_index: u64,
+}
+
+struct ToolBlock {
+    index: u64,
+    item_id: String,
+    call_id: String,
+    name: String,
+    arguments: String,
+    done: bool,
+}
+
+impl ToolBlock {
+    fn finish_arguments(&mut self, arguments: &str) -> Option<Vec<String>> {
+        let completed = serde_json::from_str::<Map<String, Value>>(arguments).ok()?;
+        let frames = if self.arguments.is_empty() {
+            self.arguments = arguments.into();
+            vec![tool_delta(self.index, arguments)]
+        } else {
+            if serde_json::from_str::<Map<String, Value>>(&self.arguments).ok()? != completed {
+                return None;
+            }
+            Vec::new()
+        };
+        self.done = true;
+        Some(frames)
+    }
+}
+
+fn tool_delta(index: u64, arguments: &str) -> String {
+    frame(
+        "content_block_delta",
+        json!({"index":index,"delta":{"type":"input_json_delta","partial_json":arguments}}),
+    )
 }
 
 impl StreamState {
@@ -298,7 +330,6 @@ impl StreamState {
                 )]
             }
             "response.in_progress"
-            | "response.output_item.done"
             | "response.output_text.done"
             | "response.refusal.delta"
             | "response.refusal.done"
@@ -306,15 +337,78 @@ impl StreamState {
             | "response.reasoning_summary_part.done"
             | "response.reasoning_summary_text.delta"
             | "response.reasoning_summary_text.done" => vec![],
-            "response.output_item.added" => {
-                if !matches!(
-                    event["item"]["type"].as_str(),
-                    Some("message" | "reasoning")
-                ) {
+            "response.output_item.added" if self.started => {
+                let item = &event["item"];
+                match item["type"].as_str()? {
+                    "message" | "reasoning" => Vec::new(),
+                    "function_call" if message.allows_tools => {
+                        let output_index = event["output_index"].as_u64()?;
+                        let call_id = tool_id(&item["call_id"])?;
+                        if self.tools.contains_key(&output_index)
+                            || !self.call_ids.insert(call_id.to_owned())
+                        {
+                            return None;
+                        }
+                        let name = tool_name(&item["name"])?;
+                        let arguments = item["arguments"].as_str().unwrap_or_default();
+                        let index = self.next_index;
+                        self.next_index += 1;
+                        self.tools.insert(
+                            output_index,
+                            ToolBlock {
+                                index,
+                                item_id: tool_id(&item["id"])?.into(),
+                                call_id: call_id.into(),
+                                name: name.into(),
+                                arguments: arguments.into(),
+                                done: false,
+                            },
+                        );
+                        let mut frames = vec![frame(
+                            "content_block_start",
+                            json!({"index":index,"content_block":{"type":"tool_use","id":call_id,"name":name,"input":{}}}),
+                        )];
+                        if !arguments.is_empty() {
+                            frames.push(tool_delta(index, arguments));
+                        }
+                        frames
+                    }
+                    _ => return None,
+                }
+            }
+            "response.function_call_arguments.delta" => {
+                let block = self.tools.get_mut(&event["output_index"].as_u64()?)?;
+                if block.done || event["item_id"] != block.item_id {
                     return None;
                 }
-                vec![]
+                let delta = event["delta"].as_str()?;
+                block.arguments.push_str(delta);
+                vec![tool_delta(block.index, delta)]
             }
+            "response.function_call_arguments.done" => {
+                let block = self.tools.get_mut(&event["output_index"].as_u64()?)?;
+                if block.done || event["item_id"] != block.item_id {
+                    return None;
+                }
+                block.finish_arguments(event["arguments"].as_str()?)?
+            }
+            "response.output_item.done" if event["item"]["type"] == "function_call" => {
+                let item = &event["item"];
+                let mut block = self.tools.remove(&event["output_index"].as_u64()?)?;
+                if item["id"] != block.item_id
+                    || item["call_id"] != block.call_id
+                    || item["name"] != block.name
+                    || item["status"]
+                        .as_str()
+                        .is_some_and(|status| status != "completed")
+                {
+                    return None;
+                }
+                let mut frames = block.finish_arguments(item["arguments"].as_str()?)?;
+                frames.push(frame("content_block_stop", json!({"index":block.index})));
+                frames
+            }
+            "response.output_item.done" => Vec::new(),
             "response.content_part.added" if self.started => {
                 if event["part"]["type"] == "refusal" {
                     return Some((vec![], false));
@@ -360,7 +454,13 @@ impl StreamState {
             }
             "response.completed" | "response.incomplete" if self.started => {
                 let response = &event["response"];
-                let reason = finish(response)?;
+                let mut reason = finish(response)?;
+                if !self.tools.is_empty() {
+                    return None;
+                }
+                if reason == "end_turn" && !self.call_ids.is_empty() {
+                    reason = "tool_use";
+                }
                 if self.next_index == 0 && reason == "end_turn" {
                     return None;
                 }

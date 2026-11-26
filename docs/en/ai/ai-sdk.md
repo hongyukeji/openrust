@@ -64,7 +64,7 @@ For an Anthropic client, set the base URL to your application domain and send th
 
 Both conversion directions support buffered JSON and SSE, and use the published model name in client responses. When upstream reports cache reads or writes, the gateway includes those counts using the destination protocol’s usage fields.
 
-The same published Anthropic model can serve Messages and Responses clients. Translation supports text, system instructions, basic sampling options, and buffered client function tools. Tool conversion preserves call IDs and text results in both directions. Use a native endpoint for streamed tools, structured output, or attachments.
+The same published Anthropic model can serve Messages and Responses clients. Translation supports text, system instructions, basic sampling options and client function tools in JSON and SSE. Tool conversion preserves call IDs, streams argument deltas and accepts text results in both directions. Use a native endpoint for structured output or attachments.
 
 Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent?alt=sse`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.
 

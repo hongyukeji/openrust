@@ -782,10 +782,11 @@ async fn bridged_tools_keep_call_ids_and_arguments_in_both_directions() -> TestR
         ],
         "tool_choice":"required","parallel_tool_calls":true,
     });
-    let mut streamed = request.clone();
-    streamed["stream"] = true.into();
+    let mut unsupported = request.clone();
+    unsupported["stream"] = true.into();
+    unsupported["tools"][0]["type"] = "custom".into();
     assert_eq!(
-        send(&mut app, "/v1/responses", bearer, Some(streamed))
+        send(&mut app, "/v1/responses", bearer, Some(unsupported))
             .await?
             .status(),
         StatusCode::BAD_REQUEST
@@ -878,5 +879,160 @@ async fn bridged_tools_keep_call_ids_and_arguments_in_both_directions() -> TestR
         requests[3]["input"][2],
         json!({"type":"function_call_output","call_id":"call_openai","output":"Tool error: not found"})
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn bridged_streams_translate_tool_arguments_and_terminal_events() -> TestResult {
+    fn load(
+        base: &std::path::Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut configuration = config(base, env)?;
+        let gateway = configuration.get_mut("ai_gateway").unwrap();
+        gateway["models"] = json!({
+            "stream-claude":{"provider":"anthropic","model":"private-claude"},
+            "stream-openai":{"provider":"openai","model":"private-openai"},
+        });
+        gateway["keys"] = json!({
+            "caller":{"key_env":"CALLER_GENERAL","models":["stream-claude","stream-openai"]}
+        });
+        Ok(configuration)
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let upstream = tokio::spawn(async move {
+        let anthropic = vec![
+            json!({"type":"message_start","message":{"usage":{"input_tokens":4}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_sse","name":"lookup","input":{}}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"sku\":"}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"rose\"}"}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}),
+            json!({"type":"message_stop"}),
+        ];
+        let started = json!({"type":"function_call","id":"fc_sse","call_id":"call_sse","name":"lookup","arguments":"","status":"in_progress"});
+        let mut completed = started.clone();
+        completed["arguments"] = "{\"sku\":\"rose\"}".into();
+        completed["status"] = "completed".into();
+        let responses = vec![
+            json!({"type":"response.created","response":{"status":"in_progress"}}),
+            json!({"type":"response.output_item.added","output_index":0,"item":started}),
+            json!({"type":"response.function_call_arguments.delta","output_index":0,"item_id":"fc_sse","delta":"{\"sku\":"}),
+            json!({"type":"response.function_call_arguments.delta","output_index":0,"item_id":"fc_sse","delta":"\"rose\"}"}),
+            json!({"type":"response.function_call_arguments.done","output_index":0,"item_id":"fc_sse","arguments":completed["arguments"]}),
+            json!({"type":"response.output_item.done","output_index":0,"item":completed}),
+            json!({"type":"response.completed","response":{"status":"completed","output":[completed],"usage":{"input_tokens":4,"output_tokens":5}}}),
+        ];
+        let mut malformed = responses.clone();
+        malformed[4]["arguments"] = "{\"sku\":\"changed\"}".into();
+        for (path, frames) in [
+            ("messages", anthropic),
+            ("responses", responses),
+            ("responses", malformed),
+        ] {
+            let (socket, _) = timeout(Duration::from_secs(5), listener.accept())
+                .await
+                .unwrap()
+                .unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut line = String::new();
+            socket.read_line(&mut line).await.unwrap();
+            assert_eq!(line.trim_end(), format!("POST /private/v1/{path} HTTP/1.1"));
+            let mut size = 0;
+            loop {
+                line.clear();
+                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+                if line == "\r\n" {
+                    break;
+                }
+                let (key, value) = line.split_once(':').unwrap();
+                if key.eq_ignore_ascii_case("content-length") {
+                    size = value.trim().parse().unwrap();
+                }
+            }
+            let mut bytes = vec![0; size];
+            socket.read_exact(&mut bytes).await.unwrap();
+            let request: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(request["stream"], true);
+            assert_eq!(request["tools"][0]["name"], "lookup");
+            let body = frames
+                .iter()
+                .map(|frame| format!("data: {frame}\n\n"))
+                .collect::<String>();
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len(),
+            );
+            socket.get_mut().write_all(header.as_bytes()).await.unwrap();
+            socket.get_mut().write_all(body.as_bytes()).await.unwrap();
+        }
+    });
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(load)
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nCALLER_GENERAL=caller-group\nANTHROPIC_URL=http://{address}/private/v1\nANTHROPIC_API_KEY=upstream-claude\nOPENAI_URL=http://{address}/private/v1\nOPENAI_API_KEY=upstream-openai\n"
+        ),
+    )?;
+    let bearer = Some("Bearer caller-group");
+    let schema = json!({"type":"object","properties":{"sku":{"type":"string"}}});
+    let first = send(
+        &mut app,
+        "/v1/responses",
+        bearer,
+        Some(json!({
+            "model":"stream-claude","input":"Find roses","stream":true,
+            "tools":[{"type":"function","name":"lookup","parameters":schema}]
+        })),
+    )
+    .await?;
+    assert_eq!(first.status(), StatusCode::OK);
+    let frames = |response: &TestResponse| -> Result<Vec<Value>, Box<dyn Error + Send + Sync>> {
+        std::str::from_utf8(response.streamed_content())?
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .map(|line| serde_json::from_str(line).map_err(Into::into))
+            .collect()
+    };
+    let response = frames(&first)?;
+    for (sequence, event) in response.iter().enumerate() {
+        assert_eq!(event["sequence_number"], sequence);
+    }
+    assert_eq!(response[2]["item"]["call_id"], "toolu_sse");
+    assert_eq!(response[2]["item"]["status"], "in_progress");
+    assert_eq!(response[3]["delta"], "{\"sku\":");
+    assert_eq!(response[4]["delta"], "\"rose\"}");
+    assert_eq!(response[5]["type"], "response.function_call_arguments.done");
+    assert_eq!(response[6]["item"]["arguments"], "{\"sku\":\"rose\"}");
+    assert_eq!(response[7]["type"], "response.completed");
+    assert_eq!(response[7]["response"]["usage"]["output_tokens"], 5);
+    assert_eq!(response[7]["response"]["tools"][0]["name"], "lookup");
+
+    let request = json!({
+        "model":"stream-openai","messages":[{"role":"user","content":"Find roses"}],"max_tokens":20,"stream":true,
+        "tools":[{"name":"lookup","input_schema":schema}]
+    });
+    let first = send(&mut app, "/v1/messages", bearer, Some(request.clone())).await?;
+    let response = frames(&first)?;
+    assert_eq!(response[1]["content_block"]["id"], "call_sse");
+    assert_eq!(response[2]["delta"]["partial_json"], "{\"sku\":");
+    assert_eq!(response[3]["delta"]["partial_json"], "\"rose\"}");
+    assert_eq!(response[4]["type"], "content_block_stop");
+    assert_eq!(response[5]["delta"]["stop_reason"], "tool_use");
+    assert_eq!(response[6]["type"], "message_stop");
+    let malformed = send(&mut app, "/v1/messages", bearer, Some(request)).await?;
+    let response = frames(&malformed)?;
+    assert_eq!(response.last().unwrap()["type"], "error");
+    assert!(
+        !response
+            .iter()
+            .any(|event| event["type"] == "message_stop" || event["type"] == "content_block_stop")
+    );
+    upstream.await?;
     Ok(())
 }

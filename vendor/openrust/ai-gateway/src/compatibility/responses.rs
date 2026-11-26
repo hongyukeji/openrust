@@ -37,13 +37,9 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
         }
     }
 
-    let streaming = request.get("stream") == Some(&Value::Bool(true));
     if let Some(tools) = request.get("tools").filter(|tools| !tools.is_null()) {
         let tools = tools.as_array().ok_or("tools 必须是数组")?;
         if !tools.is_empty() {
-            if streaming {
-                return Err("流式协议转换暂不支持工具");
-            }
             let definitions = tools
                 .iter()
                 .map(|tool| tool_definition(tool, true))
@@ -75,7 +71,7 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
         let mut tools = ToolHistory::default();
         for item in items {
             match item["type"].as_str() {
-                Some("function_call") if !streaming => {
+                Some("function_call") => {
                     if !allowed_fields(
                         item,
                         &["type", "id", "call_id", "name", "arguments", "status"],
@@ -96,7 +92,7 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
                     );
                     continue;
                 }
-                Some("function_call_output") if !streaming => {
+                Some("function_call_output") => {
                     if !allowed_fields(item, &["type", "id", "call_id", "output", "status"]) {
                         return Err("工具结果字段不受协议转换支持");
                     }
@@ -112,9 +108,6 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
                 }
                 None if item["type"].is_null() => {}
                 Some("message") => {}
-                Some("function_call" | "function_call_output") => {
-                    return Err("流式协议转换暂不支持工具");
-                }
                 _ => return Err("input 只支持文本消息和客户端函数工具"),
             }
             if item.as_object().is_none_or(|item| {
@@ -194,6 +187,7 @@ pub(crate) struct Response {
     model: String,
     created_at: u64,
     output: Vec<Value>,
+    tool_fields: Option<Map<String, Value>>,
     sequence: u64,
     input_tokens: Option<u64>,
     output_tokens: Option<u64>,
@@ -202,7 +196,7 @@ pub(crate) struct Response {
 }
 
 impl Response {
-    pub(crate) fn new(model: String) -> Self {
+    pub(crate) fn new(model: String, tool_fields: Option<Map<String, Value>>) -> Self {
         Self {
             id: format!("resp_{}", Str::ulid()),
             model,
@@ -211,6 +205,7 @@ impl Response {
                 .unwrap_or_default()
                 .as_secs(),
             output: Vec::new(),
+            tool_fields,
             sequence: 0,
             input_tokens: None,
             output_tokens: None,
@@ -222,11 +217,7 @@ impl Response {
     pub(crate) fn buffered(mut self, message: &Value) -> Option<Value> {
         self.observe_usage(&message["usage"]);
         let reason = message["stop_reason"].as_str()?;
-        let finish = if reason == "tool_use" {
-            Finish::Complete
-        } else {
-            Finish::parse(reason)?
-        };
+        let finish = Finish::parse(reason)?;
         let mut calls = std::collections::HashSet::new();
         for content in message["content"].as_array()? {
             match content["type"].as_str()? {
@@ -235,7 +226,7 @@ impl Response {
                     finish.item_status(),
                     vec![text_part(content["text"].as_str()?)],
                 )),
-                "tool_use" if reason == "tool_use" => {
+                "tool_use" if reason == "tool_use" && self.tool_fields.is_some() => {
                     let id = tool_id(&content["id"])?;
                     let name = tool_name(&content["name"])?;
                     if !content["input"].is_object() || !calls.insert(id) {
@@ -287,14 +278,21 @@ impl Response {
             }
             _ => Value::Null,
         };
-        json!({
+        let mut result = json!({
             "id":self.id, "object":"response", "created_at":self.created_at, "model":self.model,
             "status":finish.map_or("in_progress", Finish::item_status),
             "output":self.output, "error":null, "store":false, "usage":usage,
             "incomplete_details":finish.and_then(Finish::incomplete_reason).map(|reason| json!({"reason":reason})),
             "parallel_tool_calls":false, "tool_choice":"none", "tools":[],
             "text":{"format":{"type":"text"}},
-        })
+        });
+        if let Some(fields) = &self.tool_fields {
+            result
+                .as_object_mut()
+                .expect("Responses 响应为 JSON 对象")
+                .extend(fields.clone());
+        }
+        result
     }
 
     fn frame(&mut self, kind: &str, mut payload: Value) -> String {
@@ -320,6 +318,7 @@ fn output_item(id: &str, status: &str, content: Vec<Value>) -> Value {
 #[derive(Clone, Copy)]
 enum Finish {
     Complete,
+    ToolUse,
     Length,
     Refused,
 }
@@ -328,6 +327,7 @@ impl Finish {
     fn parse(reason: &str) -> Option<Self> {
         match reason {
             "end_turn" | "stop_sequence" => Some(Self::Complete),
+            "tool_use" => Some(Self::ToolUse),
             "max_tokens" | "model_context_window_exceeded" => Some(Self::Length),
             "refusal" => Some(Self::Refused),
             _ => None,
@@ -344,7 +344,7 @@ impl Finish {
 
     fn incomplete_reason(self) -> Option<&'static str> {
         match self {
-            Self::Complete => None,
+            Self::Complete | Self::ToolUse => None,
             Self::Length => Some("max_output_tokens"),
             Self::Refused => Some("content_filter"),
         }
@@ -361,7 +361,17 @@ pub(crate) struct StreamState {
 struct Block {
     index: u64,
     id: String,
-    text: String,
+    content: BlockContent,
+}
+
+enum BlockContent {
+    Text(String),
+    Tool {
+        call_id: String,
+        name: String,
+        initial: Value,
+        arguments: String,
+    },
 }
 
 impl StreamState {
@@ -384,31 +394,78 @@ impl StreamState {
             }
             "content_block_start" if self.started && self.active.is_none() => {
                 let part = &event["content_block"];
-                if part["type"] != "text" {
-                    return None;
-                }
-                let id = message_id();
-                let text = part["text"].as_str()?.to_owned();
                 let index = event["index"].as_u64()?;
-                self.active = Some(Block {
-                    index,
-                    id: id.clone(),
-                    text: text.clone(),
-                });
                 let output_index = response.output.len();
-                vec![
-                    response.frame("response.output_item.added", json!({"output_index":output_index,"item":output_item(&id, "in_progress", vec![])})),
-                    response.frame("response.content_part.added", json!({"output_index":output_index,"content_index":0,"item_id":id,"part":text_part(&text)})),
-                ]
+                let (id, content, frames) = match part["type"].as_str()? {
+                    "text" => {
+                        let id = message_id();
+                        let text = part["text"].as_str()?.to_owned();
+                        let frames = vec![
+                            response.frame("response.output_item.added", json!({"output_index":output_index,"item":output_item(&id, "in_progress", vec![])})),
+                            response.frame("response.content_part.added", json!({"output_index":output_index,"content_index":0,"item_id":id,"part":text_part(&text)})),
+                        ];
+                        (id, BlockContent::Text(text), frames)
+                    }
+                    "tool_use" if response.tool_fields.is_some() => {
+                        let call_id = tool_id(&part["id"])?.to_owned();
+                        if !part["input"].is_object()
+                            || response
+                                .output
+                                .iter()
+                                .any(|item| item["call_id"] == call_id)
+                        {
+                            return None;
+                        }
+                        let name = tool_name(&part["name"])?.to_owned();
+                        let id = format!("fc_{}", Str::ulid());
+                        let item = function_item(&id, &call_id, &name, "", "in_progress");
+                        let frames = vec![response.frame(
+                            "response.output_item.added",
+                            json!({"output_index":output_index,"item":item}),
+                        )];
+                        (
+                            id,
+                            BlockContent::Tool {
+                                call_id,
+                                name,
+                                initial: part["input"].clone(),
+                                arguments: String::new(),
+                            },
+                            frames,
+                        )
+                    }
+                    _ => return None,
+                };
+                self.active = Some(Block { index, id, content });
+                frames
             }
-            "content_block_delta" if event["delta"]["type"] == "text_delta" => {
+            "content_block_delta" => {
                 let block = self
                     .active
                     .as_mut()
                     .filter(|block| Some(block.index) == event["index"].as_u64())?;
-                let delta = event["delta"]["text"].as_str()?;
-                block.text.push_str(delta);
-                vec![response.frame("response.output_text.delta", json!({"output_index":response.output.len(),"content_index":0,"item_id":block.id,"delta":delta,"logprobs":[]}))]
+                let output_index = response.output.len();
+                match (&mut block.content, event["delta"]["type"].as_str()?) {
+                    (BlockContent::Text(text), "text_delta") => {
+                        let delta = event["delta"]["text"].as_str()?;
+                        text.push_str(delta);
+                        vec![response.frame("response.output_text.delta", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"delta":delta,"logprobs":[]}))]
+                    }
+                    (
+                        BlockContent::Tool {
+                            arguments, initial, ..
+                        },
+                        "input_json_delta",
+                    ) if initial.as_object()?.is_empty() => {
+                        let delta = event["delta"]["partial_json"].as_str()?;
+                        arguments.push_str(delta);
+                        vec![response.frame(
+                            "response.function_call_arguments.delta",
+                            json!({"output_index":output_index,"item_id":block.id,"delta":delta}),
+                        )]
+                    }
+                    _ => return None,
+                }
             }
             "content_block_stop" => {
                 let block = self
@@ -416,14 +473,42 @@ impl StreamState {
                     .take()
                     .filter(|block| Some(block.index) == event["index"].as_u64())?;
                 let output_index = response.output.len();
-                let part = text_part(&block.text);
-                let item = output_item(&block.id, "completed", vec![part.clone()]);
+                let (item, mut frames) = match block.content {
+                    BlockContent::Text(text) => {
+                        let part = text_part(&text);
+                        let item = output_item(&block.id, "completed", vec![part.clone()]);
+                        let frames = vec![
+                            response.frame("response.output_text.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"text":text,"logprobs":[]})),
+                            response.frame("response.content_part.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"part":part})),
+                        ];
+                        (item, frames)
+                    }
+                    BlockContent::Tool {
+                        call_id,
+                        name,
+                        initial,
+                        mut arguments,
+                    } => {
+                        let mut frames = Vec::new();
+                        if arguments.is_empty() {
+                            arguments = initial.to_string();
+                            frames.push(response.frame("response.function_call_arguments.delta", json!({"output_index":output_index,"item_id":block.id,"delta":arguments})));
+                        } else {
+                            serde_json::from_str::<Map<String, Value>>(&arguments).ok()?;
+                        }
+                        frames.push(response.frame("response.function_call_arguments.done", json!({"output_index":output_index,"item_id":block.id,"name":name,"arguments":arguments})));
+                        (
+                            function_item(&block.id, &call_id, &name, &arguments, "completed"),
+                            frames,
+                        )
+                    }
+                };
                 response.output.push(item.clone());
-                vec![
-                    response.frame("response.output_text.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"text":block.text,"logprobs":[]})),
-                    response.frame("response.content_part.done", json!({"output_index":output_index,"content_index":0,"item_id":block.id,"part":part})),
-                    response.frame("response.output_item.done", json!({"output_index":output_index,"item":item})),
-                ]
+                frames.push(response.frame(
+                    "response.output_item.done",
+                    json!({"output_index":output_index,"item":item}),
+                ));
+                frames
             }
             "message_delta" if self.started && self.active.is_none() => {
                 response.observe_usage(&event["usage"]);
@@ -434,7 +519,14 @@ impl StreamState {
             }
             "message_stop" if self.started && self.active.is_none() => {
                 let finish = self.finish?;
-                if response.output.is_empty() && matches!(finish, Finish::Complete) {
+                let has_call = response
+                    .output
+                    .iter()
+                    .any(|item| item["type"] == "function_call");
+                if (response.output.is_empty() && matches!(finish, Finish::Complete))
+                    || (matches!(finish, Finish::ToolUse) != has_call
+                        && finish.incomplete_reason().is_none())
+                {
                     return None;
                 }
                 let kind = if finish.incomplete_reason().is_some() {
@@ -449,4 +541,8 @@ impl StreamState {
         };
         Some((frames, false))
     }
+}
+
+fn function_item(id: &str, call_id: &str, name: &str, arguments: &str, status: &str) -> Value {
+    json!({"id":id,"type":"function_call","status":status,"call_id":call_id,"name":name,"arguments":arguments})
 }

@@ -24,31 +24,28 @@ impl Bridge {
         self,
         data: Map<String, Value>,
     ) -> Result<(Value, Translation), &'static str> {
+        let allows_tools = data
+            .get("tools")
+            .and_then(Value::as_array)
+            .is_some_and(|tools| !tools.is_empty());
         let response_fields = match self {
-            Self::ResponsesToMessages
-                if data
-                    .get("tools")
-                    .and_then(Value::as_array)
-                    .is_some_and(|tools| !tools.is_empty()) =>
-            {
-                Some(Map::from_iter([
-                    ("tools".into(), data["tools"].clone()),
-                    (
-                        "tool_choice".into(),
-                        data.get("tool_choice")
-                            .filter(|value| !value.is_null())
-                            .cloned()
-                            .unwrap_or_else(|| "auto".into()),
-                    ),
-                    (
-                        "parallel_tool_calls".into(),
-                        data.get("parallel_tool_calls")
-                            .filter(|value| !value.is_null())
-                            .cloned()
-                            .unwrap_or(Value::Bool(true)),
-                    ),
-                ]))
-            }
+            Self::ResponsesToMessages if allows_tools => Some(Map::from_iter([
+                ("tools".into(), data["tools"].clone()),
+                (
+                    "tool_choice".into(),
+                    data.get("tool_choice")
+                        .filter(|value| !value.is_null())
+                        .cloned()
+                        .unwrap_or_else(|| "auto".into()),
+                ),
+                (
+                    "parallel_tool_calls".into(),
+                    data.get("parallel_tool_calls")
+                        .filter(|value| !value.is_null())
+                        .cloned()
+                        .unwrap_or(Value::Bool(true)),
+                ),
+            ])),
             _ => None,
         };
         let request = match self {
@@ -60,6 +57,7 @@ impl Bridge {
             Translation {
                 bridge: self,
                 response_fields,
+                allows_tools,
             },
         ))
     }
@@ -68,28 +66,29 @@ impl Bridge {
 pub(super) struct Translation {
     bridge: Bridge,
     response_fields: Option<Map<String, Value>>,
+    allows_tools: bool,
 }
 
 impl Translation {
     pub(super) fn response(self, name: String, data: &Value) -> Option<Value> {
-        let mut response = match self.bridge {
-            Bridge::ResponsesToMessages => responses::Response::new(name).buffered(data)?,
-            Bridge::MessagesToResponses => messages::Message::new(name).buffered(data)?,
-        };
-        if let Some(fields) = self.response_fields {
-            response.as_object_mut()?.extend(fields);
+        match self.bridge {
+            Bridge::ResponsesToMessages => {
+                responses::Response::new(name, self.response_fields).buffered(data)
+            }
+            Bridge::MessagesToResponses => {
+                messages::Message::new(name, self.allows_tools).buffered(data)
+            }
         }
-        Some(response)
     }
 
     pub(super) fn stream(self, name: String) -> Stream {
         match self.bridge {
             Bridge::ResponsesToMessages => Stream::Responses(
-                responses::Response::new(name),
+                Box::new(responses::Response::new(name, self.response_fields)),
                 responses::StreamState::default(),
             ),
             Bridge::MessagesToResponses => Stream::Messages(
-                messages::Message::new(name),
+                messages::Message::new(name, self.allows_tools),
                 messages::StreamState::default(),
             ),
         }
@@ -97,7 +96,7 @@ impl Translation {
 }
 
 pub(super) enum Stream {
-    Responses(responses::Response, responses::StreamState),
+    Responses(Box<responses::Response>, responses::StreamState),
     Messages(messages::Message, messages::StreamState),
 }
 

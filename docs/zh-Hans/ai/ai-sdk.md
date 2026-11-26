@@ -64,7 +64,7 @@ let answer = response.text;
 
 两个方向的转换都支持普通 JSON 和 SSE，给客户端返回公开模型名。上游报告缓存读写用量时，网关会按目标协议返回相应计数。
 
-同一个 Anthropic 发布模型同时可由 Messages 和 Responses 客户端调用。转换支持文本、系统指令、基本采样参数和非流式客户端函数工具。工具调用 ID 和文本结果可双向传递。流式工具、结构化输出和附件使用相应的原生端点。
+同一个 Anthropic 发布模型同时可由 Messages 和 Responses 客户端调用。转换支持文本、系统指令、基本采样参数和客户端函数工具，支持 JSON 和 SSE。工具调用 ID、流式参数增量和文本结果可双向传递。结构化输出和附件使用相应的原生端点。
 
 Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key。网关列出授权的 Gemini 模型，并支持 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中选择 `gemini` 连接，模型 ID 可带 `models/` 前缀。
 
