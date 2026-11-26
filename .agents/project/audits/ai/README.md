@@ -227,3 +227,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 包测试覆盖三种答案、默认及覆盖模型、图片记录、序列耗尽、标签重复、阈值和原条目映射。独立 Artisan 执行 Fake 请求并确认上游无流量。独立 HTTP 应用通过协议服务运行 Stringable 和 Collection 真实分类逻辑，验证阈值和回到原条目。三语文档同步。
 
 - [固定 Laravel 分类 Fake](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeClassificationGateway.php) · [固定 Laravel 便捷入口](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php)
+
+## AI-04 具名 Agent 排队与类型化回调
+
+`Agent::queue` 和 `queue_with` 使用框架 Payload、队列连接、重试及终态失败处理。具名 Agent 通过 `QueueableAgent` 指定稳定任务名，在应用服务提供者注册同一个 Worker 处理器。用 Serde 恢复 Agent 状态，调用正常 SDK 入口。Rust 的 `then` 与 `catch` 传注册名，由 Worker 解析为已编译的类型化函数。调用 `dispatch` 时提交，可在此前指定连接、队列名、延迟及任务策略。上游密钥由执行进程解析。
+
+独立 HTTP 与 Artisan 分别派发任务，独立 Artisan SQLite Worker 实测在同一进程里消费、503 重试后成功与耗尽后失败。核对任务表、终态失败表、成功回调原始模型和用量、失效回调名拒绝及上游认证来自 Worker。包测试、严格 Clippy 和三语站点及浏览器检查通过。该批实测具名文本 Agent 与 SQLite 队列，广播、匿名与结构化 Agent、排队 Fake、其他能力排队及更多队列后端继续核对。
+
+- [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel InvokeAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/InvokeAgent.php)

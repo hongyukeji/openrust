@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use openrust::{http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, Message,
-    StreamableAgentResponse, StructuredAnonymousAgent, Tool,
+    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, Message, QueueableAgent,
+    QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent, Tool,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -73,6 +73,24 @@ pub trait Agent: Send + Sync + 'static {
     {
         Box::pin(async move { Ai::manager()?.prompt(self, prompt, options).await })
     }
+    fn queue(&self, prompt: impl Into<String>) -> QueuedAgentResponse<'_, Self>
+    where
+        Self: QueueableAgent,
+    {
+        self.queue_with(prompt, PromptOptions::default())
+    }
+
+    fn queue_with(
+        &self,
+        prompt: impl Into<String>,
+        options: PromptOptions<'_>,
+    ) -> QueuedAgentResponse<'_, Self>
+    where
+        Self: QueueableAgent,
+    {
+        QueuedAgentResponse::new(self, prompt, options)
+    }
+
     fn stream<'a>(&'a self, prompt: &'a str) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
     where
         Self: Sized,

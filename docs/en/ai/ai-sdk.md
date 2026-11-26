@@ -140,6 +140,24 @@ let answer = response.text;
 
 Agent tools work with buffered and streaming Chat Completions, Responses, Anthropic Messages, and Gemini GenerateContent. Claude and Gemini receive their original model content again with the tool results so the provider can verify its signatures. The SDK streams text as it arrives, then emits the completed tool call and its result before the next model step. The default SSE, Vercel UI, and AG-UI formats carry these tool events. The Agent sends results back with their call IDs and exposes `tool_calls` and `tool_results` on the response. Use `with_max_steps(n)` to limit model steps. Tool execution stops on the last step, and any calls proposed in that step appear as failed results.
 
+## Queued agents {#queued-agents}
+
+Implement `QueueableAgent` on a named Agent that derives `Serialize` and `Deserialize`. Give it a stable `QUEUE_JOB` name. Register it in the application service provider’s `boot` method with `TicketAgent::register_queue(queue.as_ref())`, where `queue` is the application’s `QueueManager`.
+
+```rust
+use openrust_ai::Agent;
+
+let delivery = agent.queue("Summarize the latest conversation")
+    .on_connection("database")
+    .on_queue("ai")
+    .then("persist")
+    .catch("record_failure")
+    .dispatch()
+    .await?;
+```
+
+Define `queued_then` and `queued_catch` to resolve callback names to typed functions. A success callback receives the restored Agent and its `AgentResponse`. A failure callback receives the Agent and the terminal queue error. The queue uses its normal retries and backoff. Make callback side effects idempotent because the queue may redeliver a job. Credentials come from the worker’s named provider configuration.
+
 ## Generate an Agent or tool {#generators}
 
 ```shell

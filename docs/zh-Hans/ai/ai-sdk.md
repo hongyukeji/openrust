@@ -140,6 +140,24 @@ let answer = response.text;
 
 工具调用支持 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的普通与流式请求。Claude 和 Gemini 会收到原始模型内容及工具结果，以便供应商核对签名。SDK 实时发送文本，在下一次模型调用前发送完整的工具调用及结果。默认 SSE、Vercel UI 和 AG-UI 都提供相应的工具事件。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
 
+## Agent 排队 {#queued-agents}
+
+给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。
+
+```rust
+use openrust_ai::Agent;
+
+let delivery = agent.queue("Summarize the latest conversation")
+    .on_connection("database")
+    .on_queue("ai")
+    .then("persist")
+    .catch("record_failure")
+    .dispatch()
+    .await?;
+```
+
+用 `queued_then` 和 `queued_catch` 将回调名解析为类型化函数。成功回调接收还原后的 Agent 和 `AgentResponse`，失败回调接收 Agent 和任务终态错误。重试和退避沿用框架队列。任务可能重复投递，因此回调中的写入需要幂等。上游密钥由 Worker 的具名连接配置提供。
+
 ## 生成 Agent 或工具 {#generators}
 
 ```shell

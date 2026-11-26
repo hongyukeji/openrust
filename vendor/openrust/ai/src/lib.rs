@@ -11,6 +11,7 @@ use openrust::{
 };
 
 mod agent;
+mod agent_queue;
 mod anthropic;
 mod audio;
 pub mod classification;
@@ -48,6 +49,7 @@ mod tools;
 mod transcription;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
+pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
 pub use audio::{
     Audio, AudioFormat, AudioPrompt, AudioProvider, AudioResponse, AudioVoice,
     PendingAudioGeneration, ToAudio,
