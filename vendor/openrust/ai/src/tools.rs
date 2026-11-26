@@ -150,6 +150,7 @@ pub(crate) async fn run(
                 instructions: prompt.text.instructions.into(),
                 prompt: prompt.text.prompt,
                 options: prompt.options,
+                provider_options: prompt.provider_options.map(std::borrow::Cow::Borrowed),
                 tool_choice: prompt
                     .tool_choice
                     .and_then(|choice| choice.for_step(step - 1))

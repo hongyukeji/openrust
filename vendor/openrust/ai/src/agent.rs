@@ -1,11 +1,12 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
     AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, Message,
-    QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent,
-    TextGenerationOptions, TextModelTier, Tool, ToolChoice, agent_broadcast::StreamBroadcast,
+    ProviderOptions, QueueableAgent, QueuedAgentResponse, StreamableAgentResponse,
+    StructuredAnonymousAgent, TextGenerationOptions, TextModelTier, Tool, ToolChoice,
+    agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -33,6 +34,10 @@ pub trait Agent: Send + Sync + 'static {
 
     fn generation_options(&self) -> TextGenerationOptions {
         TextGenerationOptions::default()
+    }
+
+    fn provider_options(&self, _provider: &str) -> ProviderOptions {
+        ProviderOptions::new()
     }
 
     fn messages(&self) -> &[Message] {
@@ -204,6 +209,7 @@ pub struct AnonymousAgent {
     instructions: String,
     model_tier: TextModelTier,
     options: TextGenerationOptions,
+    provider_options: BTreeMap<String, ProviderOptions>,
     messages: Vec<Message>,
     attachments: Vec<Attachment>,
     tools: Vec<Arc<dyn Tool>>,
@@ -217,6 +223,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
         instructions: instructions.into(),
         model_tier: TextModelTier::Default,
         options: TextGenerationOptions::default(),
+        provider_options: BTreeMap::new(),
         messages: Vec::new(),
         attachments: Vec::new(),
         tools: Vec::new(),
@@ -239,6 +246,15 @@ impl AnonymousAgent {
 
     pub fn with_tool_choice(mut self, choice: ToolChoice) -> Self {
         self.tool_choice = Some(choice);
+        self
+    }
+
+    pub fn with_provider_options(
+        mut self,
+        provider: impl Into<String>,
+        options: ProviderOptions,
+    ) -> Self {
+        self.provider_options.insert(provider.into(), options);
         self
     }
 
@@ -286,6 +302,13 @@ impl Agent for AnonymousAgent {
 
     fn generation_options(&self) -> TextGenerationOptions {
         self.options
+    }
+
+    fn provider_options(&self, provider: &str) -> ProviderOptions {
+        self.provider_options
+            .get(provider)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn messages(&self) -> &[Message] {

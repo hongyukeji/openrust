@@ -655,6 +655,10 @@ impl AiManager {
             return fake.respond(crate::RecordedPrompt {
                 text: prompt.into(),
                 options: generation,
+                provider_options: provider
+                    .as_deref()
+                    .map(|provider| agent.provider_options(provider))
+                    .unwrap_or_default(),
                 tool_choice: choice,
                 messages: messages.to_vec(),
                 attachments: attachments.to_vec(),
@@ -671,6 +675,7 @@ impl AiManager {
             options.model.or_else(|| agent.model()),
             agent.model_tier(),
         )?;
+        let provider_options = agent.provider_options(provider.name());
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -679,6 +684,7 @@ impl AiManager {
                 timeout: options.timeout,
             },
             options: generation,
+            provider_options: Some(&provider_options),
             tool_choice: choice.as_ref(),
             messages,
             attachments,
@@ -766,6 +772,7 @@ impl AiManager {
             options.model.or_else(|| agent.model()),
             agent.model_tier(),
         )?;
+        let provider_options = agent.provider_options(provider.name());
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -774,6 +781,7 @@ impl AiManager {
                 timeout: options.timeout,
             },
             options: generation,
+            provider_options: Some(&provider_options),
             tool_choice: choice.as_ref(),
             messages,
             attachments,

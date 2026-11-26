@@ -262,6 +262,20 @@ let response = agent("Keep the answer concise.")
 
 The driver maps options to the provider’s wire format. With Anthropic, the SDK sends sampling options for supported Claude models. If you set both temperature and top-p, it sends temperature.
 
+### Provider-specific options {#provider-options}
+
+Use `with_provider_options` for a named connection or implement `Agent::provider_options`. Extensions apply when that connection is selected and continue through its tool steps. Core request fields such as the model, messages, streaming mode, and structured schema are set through the SDK. Gemini’s `generationConfig` accepts extra entries alongside the SDK’s settings.
+
+```rust
+use openrust_ai::{Agent, ProviderOptions, agent};
+use serde_json::json;
+
+let options = ProviderOptions::from_iter([("reasoning".into(), json!({"effort": "low"}))]);
+let assistant = agent("Keep the answer concise.")
+    .with_provider_options("openai", options);
+let response = assistant.prompt("Summarize our return policy.").await?;
+```
+
 ## Text summarization {#text-summarization}
 
 Import the extension traits to use the same summarization agent from `Str` and `Stringable`. The default requests at most three sentences. `summarize_with` accepts a sentence count and the usual `PromptOptions` for a connection, model and timeout.

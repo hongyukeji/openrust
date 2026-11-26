@@ -6,8 +6,9 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, Attachment, Message, StepResponse, StructuredOutput,
-    TextGenerationOptions, TextPrompt, TextProvider, ToolChoice, ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AiError, AiResult, Attachment, Message, ProviderOptions, StepResponse,
+    StructuredOutput, TextGenerationOptions, TextPrompt, TextProvider, ToolChoice, ToolDefinition,
+    ToolStep, Usage,
 };
 
 /// Agent 中间件可以读取、修改或拦截单个模型生成步骤。
@@ -27,6 +28,7 @@ pub struct PendingStep<'a> {
     pub instructions: Cow<'a, str>,
     pub prompt: &'a str,
     pub options: TextGenerationOptions,
+    pub provider_options: Option<Cow<'a, ProviderOptions>>,
     pub tool_choice: Option<ToolChoice>,
     pub messages: Cow<'a, [Message]>,
     pub attachments: Cow<'a, [Attachment]>,
@@ -65,6 +67,11 @@ impl<'a> PendingStep<'a> {
 
     pub fn with_generation_options(mut self, options: TextGenerationOptions) -> Self {
         self.options = options;
+        self
+    }
+
+    pub fn with_provider_options(mut self, options: ProviderOptions) -> Self {
+        self.provider_options = Some(Cow::Owned(options));
         self
     }
 
@@ -147,6 +154,7 @@ pub(crate) async fn generate_step(
                         timeout: step.timeout,
                     },
                     options: step.options,
+                    provider_options: step.provider_options.as_deref(),
                     tool_choice: choice,
                     messages: &step.messages,
                     attachments: &step.attachments,

@@ -9,7 +9,8 @@ use serde_json::{Map, Value};
 
 use crate::{
     Agent, AgentMiddleware, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message,
-    PromptOptions, StreamableAgentResponse, TextGenerationOptions, TextModelTier, Tool, ToolChoice,
+    PromptOptions, ProviderOptions, StreamableAgentResponse, TextGenerationOptions, TextModelTier,
+    Tool, ToolChoice,
 };
 
 #[derive(Clone, Copy)]
@@ -153,6 +154,10 @@ impl Agent for StructuredAnonymousAgent {
 
     fn generation_options(&self) -> TextGenerationOptions {
         self.agent.generation_options()
+    }
+
+    fn provider_options(&self, provider: &str) -> ProviderOptions {
+        self.agent.provider_options(provider)
     }
 
     fn messages(&self) -> &[Message] {

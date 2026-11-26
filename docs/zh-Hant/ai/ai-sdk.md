@@ -262,6 +262,20 @@ let response = agent("Keep the answer concise.")
 
 驅動會產生供應商協定所需的欄位。Anthropic 只向支援取樣的 Claude 模型傳送取樣參數。兩項都設定時，優先傳送 temperature。
 
+### 供應商擴充選項 {#provider-options}
+
+匿名 Agent 用 `with_provider_options` 為具名連線設定擴充欄位，具名 Agent 可實作 `Agent::provider_options`。只有所選連線的擴充欄位會隨請求傳送，並保留在該連線的工具續步中。模型、訊息、串流模式與結構化 Schema 等欄位透過 SDK 設定。Gemini 的 `generationConfig` 可以追加擴充欄位。
+
+```rust
+use openrust_ai::{Agent, ProviderOptions, agent};
+use serde_json::json;
+
+let options = ProviderOptions::from_iter([("reasoning".into(), json!({"effort": "low"}))]);
+let assistant = agent("Keep the answer concise.")
+    .with_provider_options("openai", options);
+let response = assistant.prompt("Summarize our return policy.").await?;
+```
+
 ## 文字摘要 {#text-summarization}
 
 匯入擴充 trait 後，`Str` 與 `Stringable` 共用同一個摘要 Agent，預設要求不超過三句。`summarize_with` 可傳入句數，並用一般的 `PromptOptions` 指定連線、模型與逾時。

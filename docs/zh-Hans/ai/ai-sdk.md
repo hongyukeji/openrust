@@ -262,6 +262,20 @@ let response = agent("Keep the answer concise.")
 
 驱动会生成供应商协议所需的字段。Anthropic 只向支持采样的 Claude 模型发送采样参数。两项都设置时，优先发送 temperature。
 
+### 供应商扩展选项 {#provider-options}
+
+匿名 Agent 用 `with_provider_options` 为具名连接设置扩展字段，具名 Agent 可实现 `Agent::provider_options`。仅所选连接的扩展字段会随请求发送，并保留在该连接的工具续步中。模型、消息、流模式及结构化 Schema 等字段通过 SDK 设置。Gemini 的 `generationConfig` 可以追加扩展字段。
+
+```rust
+use openrust_ai::{Agent, ProviderOptions, agent};
+use serde_json::json;
+
+let options = ProviderOptions::from_iter([("reasoning".into(), json!({"effort": "low"}))]);
+let assistant = agent("Keep the answer concise.")
+    .with_provider_options("openai", options);
+let response = assistant.prompt("Summarize our return policy.").await?;
+```
+
 ## 文本摘要 {#text-summarization}
 
 导入扩展 trait 后，`Str` 和 `Stringable` 共用同一个摘要 Agent，默认请求不超过三句。`summarize_with` 可传入句数，并用常规的 `PromptOptions` 指定连接、模型和超时。

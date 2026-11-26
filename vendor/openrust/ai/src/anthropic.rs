@@ -18,6 +18,7 @@ use crate::{
     connection::{Authorization, Connection},
     files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
+    provider_options::apply_provider_options,
     text::{transport_error, validate},
 };
 
@@ -90,6 +91,7 @@ impl AnthropicTextProvider {
         if let Some(output) = &prompt.structured_output {
             body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
         }
+        apply_provider_options(&mut body, prompt.provider_options, false)?;
         Ok(body)
     }
 
@@ -356,6 +358,11 @@ impl AnthropicTextProvider {
             .into();
 
         if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
+            if !body["thinking"].is_null()
+                && matches!(choice, ToolChoice::Required | ToolChoice::Tool(_))
+            {
+                return Err(AiError::InvalidToolChoice);
+            }
             body["tool_choice"] = match choice {
                 ToolChoice::Auto => json!({"type":"auto"}),
                 ToolChoice::None => json!({"type":"none"}),

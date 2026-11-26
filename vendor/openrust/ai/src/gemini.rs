@@ -20,6 +20,7 @@ use crate::{
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
     models::ListedModel,
+    provider_options::apply_provider_options,
     stores::StoreProvider,
     text::{transport_error, validate},
 };
@@ -63,7 +64,7 @@ impl GeminiTextProvider {
         request.post(&path, body).await.map_err(transport_error)
     }
 
-    fn prompt_body(prompt: &AgentPrompt<'_>) -> Value {
+    fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
         let mut contents: Vec<_> = prompt
             .messages
             .iter()
@@ -104,7 +105,8 @@ impl GeminiTextProvider {
         if let Some(top_p) = prompt.options.top_p {
             body["generationConfig"]["topP"] = top_p.into();
         }
-        body
+        apply_provider_options(&mut body, prompt.provider_options, true)?;
+        Ok(body)
     }
 
     async fn list_models(&self) -> AiResult<Vec<ListedModel>> {
@@ -210,7 +212,7 @@ impl TextProvider for GeminiTextProvider {
                 .relay_model(
                     TextEndpoint::GeminiGenerateContent,
                     prompt.text.model,
-                    &Self::prompt_body(&prompt),
+                    &Self::prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
                 .await?;
@@ -246,7 +248,7 @@ impl TextProvider for GeminiTextProvider {
                 .relay_model(
                     TextEndpoint::GeminiStreamGenerateContent,
                     prompt.text.model,
-                    &Self::prompt_body(&prompt),
+                    &Self::prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
                 .await?))?;
@@ -429,7 +431,7 @@ impl GeminiTextProvider {
         tools: &[ToolDefinition],
         history: &[ToolStep],
     ) -> AiResult<Value> {
-        let mut body = Self::prompt_body(prompt);
+        let mut body = Self::prompt_body(prompt)?;
         let contents = body["contents"]
             .as_array_mut()
             .ok_or(AiError::InvalidResponse)?;

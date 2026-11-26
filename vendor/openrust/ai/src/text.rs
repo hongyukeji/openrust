@@ -42,6 +42,7 @@ use crate::{
     files::{FileProvider, OpenAiFileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     image::{ImageProvider, OpenAiImageProvider},
     models::ListedModel,
+    provider_options::apply_provider_options,
     reranking::{HttpRerankingProvider, RerankingProtocol},
     stores::StoreProvider,
     transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
@@ -122,6 +123,12 @@ pub trait TextProvider: Send + Sync {
         if prompt.options != TextGenerationOptions::default() {
             return Box::pin(async { Err(AiError::GenerationOptionsNotSupported) });
         }
+        if prompt
+            .provider_options
+            .is_some_and(|options| !options.is_empty())
+        {
+            return Box::pin(async { Err(AiError::ProviderOptionsNotSupported) });
+        }
         if prompt.messages.is_empty() {
             self.generate_text(prompt.text)
         } else {
@@ -141,6 +148,12 @@ pub trait TextProvider: Send + Sync {
         }
         if prompt.options != TextGenerationOptions::default() {
             return Box::pin(async { Err(AiError::GenerationOptionsNotSupported) });
+        }
+        if prompt
+            .provider_options
+            .is_some_and(|options| !options.is_empty())
+        {
+            return Box::pin(async { Err(AiError::ProviderOptionsNotSupported) });
         }
         if prompt.messages.is_empty() {
             self.stream_text(prompt.text)
@@ -485,30 +498,24 @@ impl OpenAiTextProvider {
         }
     }
 
-    async fn send_text(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
-        let endpoint = self.protocol.endpoint();
-        let response = match self.protocol {
+    fn request_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Value> {
+        let mut body = match self.protocol {
             OpenAiProtocol::ChatCompletions => {
-                self.connection
-                    .send(
-                        endpoint,
-                        &Self::chat_body(prompt, stream)?,
-                        stream,
-                        prompt.text.timeout,
-                    )
-                    .await?
+                serde_json::to_value(Self::chat_body(prompt, stream)?)
             }
-            OpenAiProtocol::Responses => {
-                self.connection
-                    .send(
-                        endpoint,
-                        &self.responses_body(prompt, stream),
-                        stream,
-                        prompt.text.timeout,
-                    )
-                    .await?
-            }
-        };
+            OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
+        }
+        .map_err(|_| AiError::InvalidSchema)?;
+        apply_provider_options(&mut body, prompt.provider_options, false)?;
+        Ok(body)
+    }
+
+    async fn send_text(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
+        let body = self.request_body(prompt, stream)?;
+        let response = self
+            .connection
+            .send(self.protocol.endpoint(), &body, stream, prompt.text.timeout)
+            .await?;
         validate(Ok(response))
     }
 }
@@ -716,15 +723,12 @@ impl OpenAiTextProvider {
         history: &[ToolStep],
         stream: bool,
     ) -> AiResult<Value> {
+        let body = self.request_body(prompt, stream)?;
         let mut body = match self.protocol {
             OpenAiProtocol::ChatCompletions => {
-                let body = serde_json::to_value(Self::chat_body(prompt, stream)?)
-                    .map_err(|_| AiError::InvalidSchema)?;
                 crate::tool_protocol::chat_request(body, tools, history)?
             }
             OpenAiProtocol::Responses => {
-                let body = serde_json::to_value(self.responses_body(prompt, stream))
-                    .map_err(|_| AiError::InvalidSchema)?;
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };

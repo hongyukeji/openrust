@@ -42,6 +42,7 @@ mod middleware;
 mod models;
 mod native_tool_stream;
 mod on_demand;
+mod provider_options;
 mod reranking;
 mod stores;
 mod streaming;
@@ -95,6 +96,7 @@ pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};
+pub use provider_options::ProviderOptions;
 pub use reranking::{
     PendingReranking, RankedDocument, Reranking, RerankingOptions, RerankingPrompt,
     RerankingProvider, RerankingResponse, Reranks,

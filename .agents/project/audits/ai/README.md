@@ -389,3 +389,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 验证 Responses 的指定工具、首步后释放及 Fake 记录。实测 HTTP 通过 Chat、Anthropic 和 Gemini 本地 TCP 上游覆盖流式续步、自动、禁止、指定与必选，以及已注册的其他工具被拒绝且未触发其处理器。包测试、严格 Clippy 和三语文档验收通过。
 
 - [固定 Laravel ToolChoice](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/ToolChoice.php) · [固定 Laravel 续步选项](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php)
+
+## AI-02 按连接的供应商扩展选项
+
+固定 Laravel 的 `HasProviderOptions::providerOptions` 对应具名 Agent 的 `provider_options`，匿名 Agent 用 `with_provider_options` 登记具名连接字段。SDK 传递当前连接的扩展参数，工具续步沿用本轮选项，普通中间件可覆盖当前步骤。模型、消息、工具选择、结构化输出及流式控制等保留字段由 SDK 管理。Gemini 允许合并 `generationConfig` 的额外字段。Anthropic 扩展思考与强制工具选择互斥。
+
+独立 Artisan 核对具名连接、Responses 推理选项和 Fake 记录。真实 HTTP 通过四个本地 TCP 上游验证普通调用、Chat 工具流续步、Gemini 结构化合并和保留字段拒绝，以及 Anthropic 扩展思考与强制工具互斥。包测试、严格 Clippy 和三语文档验收通过。
+
+- [固定 Laravel HasProviderOptions](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/HasProviderOptions.php) · [固定 Laravel 生成选项合并](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php)

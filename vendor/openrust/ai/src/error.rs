@@ -14,6 +14,8 @@ pub enum AiError {
     InvalidPrompt,
     InvalidGenerationOptions,
     GenerationOptionsNotSupported,
+    InvalidProviderOptions,
+    ProviderOptionsNotSupported,
     InvalidConversationParticipant,
     ConversationNotFound,
     ConversationStorageUnavailable,
@@ -85,6 +87,10 @@ impl fmt::Display for AiError {
             Self::InvalidGenerationOptions => formatter.write_str("AI 文本生成选项超出允许范围"),
             Self::GenerationOptionsNotSupported => {
                 formatter.write_str("该 AI 协议驱动不支持文本生成选项")
+            }
+            Self::InvalidProviderOptions => formatter.write_str("AI 供应商选项含无效或保留字段"),
+            Self::ProviderOptionsNotSupported => {
+                formatter.write_str("该 AI 协议驱动不支持供应商扩展选项")
             }
             Self::InvalidConversationParticipant => formatter.write_str("AI 会话参与者无效"),
             Self::ConversationNotFound => formatter.write_str("未找到当前参与者的 AI 会话"),
