@@ -19,6 +19,7 @@ use crate::{
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
     models::ListedModel,
+    stores::StoreProvider,
     text::{transport_error, validate},
 };
 
@@ -153,6 +154,10 @@ impl TextProvider for GeminiTextProvider {
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
+        Some(Arc::new(GeminiFileProvider(self.0.clone())))
+    }
+
+    fn store_provider(&self) -> Option<Arc<dyn StoreProvider>> {
         Some(Arc::new(GeminiFileProvider(self.0.clone())))
     }
 

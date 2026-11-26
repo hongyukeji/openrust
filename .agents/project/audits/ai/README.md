@@ -301,3 +301,11 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 独立 Artisan 和 HTTP 通过本地 TCP 验证标头、JSON、二进制上传、异源会话拒绝、诊断移除 Key／会话查询／正文、`PROCESSING` 刷新为 `ACTIVE`、过期时间、带符号的分页令牌和删除后 404。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。Gemini 向量仓库、提示词文件引用、供应商生成文件下载和授权 Gemini 实机仍待独立验收。
 
 - [固定 Laravel Gemini File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiFileGateway.php) · [Google Files API](https://ai.google.dev/gemini-api/docs/files)
+
+## AI-06 Gemini 向量仓库
+
+同一 `Stores` 门面接入 Gemini File Search，支持创建、获取、分页、删除和仓库文档管理。导入使用原生异步操作，限时轮询同一仓库的操作名。`StoreOptions` 可初始化文件，失败时返回已创建的仓库 ID。Gemini 对描述与闲置过期设置返回明确错误。原始文件 ID 与文档 ID 分开保留。由于供应商文档清单不含原文件 ID，`StoreFile::file_id()` 返回 `Option<&str>`。若原文件身份未知，同时删除原文件的请求在移除成员之前被拒绝。
+
+分别以独立 Artisan 和 HTTP 验证原生认证、预填文件、轮询、字符串／数字／字符串列表元数据、分页、跨仓库和跨操作拒绝、只移除成员、同时删除原文件、软失败后处理以及删除后 404。OpenAI 仓库以同样入口重跑通过。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。真实服务商凭证、Gemini File Search 工具及向量仓库 Fake 继续单列。
+
+- [固定 Laravel Gemini Store Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiStoreGateway.php) · [Google File Search Stores](https://ai.google.dev/api/file-search/file-search-stores) · [Google File Search Documents](https://ai.google.dev/api/file-search/documents)

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use openrust::http::{HttpFuture, Method};
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,8 @@ use crate::{
     files::{Deleted, OpenAiFileProvider, OpenAiPage, same_resource_scope, validate_id},
     text::validate,
 };
+
+mod gemini;
 
 pub struct Stores;
 
@@ -25,25 +27,26 @@ impl Stores {
         if name.trim().is_empty() || options.expires_after_days.is_some_and(|days| days == 0) {
             return Err(AiError::InvalidStore);
         }
-        for id in options.file_ids {
-            validate_id(id)?;
-        }
         let provider = Ai::store_provider(provider)?;
+        for id in options.file_ids {
+            provider.canonical_id(id)?;
+        }
         let result = provider.create_store(name, options).await?;
         Store::new(result, provider)
     }
 
     pub async fn get(id: &str, provider: Option<&str>) -> AiResult<Store> {
-        validate_id(id)?;
         let provider = Ai::store_provider(provider)?;
-        let result = provider.get_store(id).await?;
-        verify_resource(id, &result.id)?;
+        let id = provider.canonical_store_id(id)?;
+        let result = provider.get_store(&id).await?;
+        verify_resource(&id, &result.id)?;
         Store::new(result, provider)
     }
 
     pub async fn delete(id: &str, provider: Option<&str>) -> AiResult<bool> {
-        validate_id(id)?;
-        Ai::store_provider(provider)?.delete_store(id).await
+        let provider = Ai::store_provider(provider)?;
+        let id = provider.canonical_store_id(id)?;
+        provider.delete_store(&id).await
     }
 
     pub async fn list(
@@ -51,9 +54,10 @@ impl Stores {
         limit: u16,
         provider: Option<&str>,
     ) -> AiResult<StorePage> {
-        validate_page(after, limit)?;
         let provider = Ai::store_provider(provider)?;
+        validate_page(provider.as_ref(), after, limit)?;
         let result = provider.list_stores(after, limit).await?;
+        validate_next_cursor(provider.as_ref(), after, result.next_cursor.as_deref())?;
         let stores = result
             .data
             .into_iter()
@@ -102,7 +106,10 @@ pub struct Store {
 
 impl Store {
     fn new(info: StoreInfo, provider: Arc<dyn StoreProvider>) -> AiResult<Self> {
-        validate_id(&info.id).map_err(|_| AiError::InvalidResponse)?;
+        let canonical = provider
+            .canonical_store_id(&info.id)
+            .map_err(|_| AiError::InvalidResponse)?;
+        verify_resource(&canonical, &info.id)?;
         Ok(Self { info, provider })
     }
 
@@ -145,22 +152,25 @@ impl Store {
         id: &str,
         attributes: &Map<String, Value>,
     ) -> AiResult<StoreFile> {
-        validate_id(id)?;
-        validate_attributes(attributes)?;
+        let id = self.provider.canonical_id(id)?;
         let info = self
             .provider
-            .add_file_to_store(self.id(), id, attributes)
+            .add_file_to_store(self.id(), &id, attributes)
             .await?;
-        verify_resource(id, &info.file_id)?;
+        verify_resource(
+            &id,
+            info.file_id.as_deref().ok_or(AiError::InvalidResponse)?,
+        )?;
         StoreFile::new(info, self.id(), self.provider.clone())
     }
 
     pub async fn files(&self, after: Option<&str>, limit: u16) -> AiResult<StoreFilePage> {
-        validate_page(after, limit)?;
+        validate_page(self.provider.as_ref(), after, limit)?;
         let page = self
             .provider
             .list_store_files(self.id(), after, limit)
             .await?;
+        validate_next_cursor(self.provider.as_ref(), after, page.next_cursor.as_deref())?;
         let files = page
             .data
             .into_iter()
@@ -179,18 +189,23 @@ impl Store {
         {
             return Err(AiError::ResourceScopeMismatch);
         }
+        let source_file = if delete_file {
+            Some(file.file_id().ok_or(AiError::StoreSourceFileUnavailable)?)
+        } else {
+            None
+        };
         let removed = self
             .provider
             .remove_file_from_store(self.id(), file.id())
             .await?;
-        if removed && delete_file {
-            let error = match self.provider.delete_file(file.file_id()).await {
+        if let (true, Some(file_id)) = (removed, source_file) {
+            let error = match self.provider.delete_file(file_id).await {
                 Ok(true) | Err(AiError::ProviderStatus(404)) => return Ok(true),
                 Ok(false) => AiError::InvalidResponse,
                 Err(error) => error,
             };
             return Err(AiError::DetachedFileDeletionFailed {
-                file_id: file.file_id().to_owned(),
+                file_id: file_id.to_owned(),
                 source: Box::new(error),
             });
         }
@@ -215,7 +230,7 @@ pub struct ProviderStorePage {
 #[derive(Clone, Debug, Serialize)]
 pub struct StoreFileInfo {
     pub id: String,
-    pub file_id: String,
+    pub file_id: Option<String>,
     pub store_id: String,
     pub status: Option<String>,
     pub usage_bytes: Option<u64>,
@@ -231,7 +246,12 @@ impl StoreFile {
     fn new(info: StoreFileInfo, store: &str, provider: Arc<dyn StoreProvider>) -> AiResult<Self> {
         verify_resource(store, &info.store_id)?;
         validate_id(&info.id).map_err(|_| AiError::InvalidResponse)?;
-        validate_id(&info.file_id).map_err(|_| AiError::InvalidResponse)?;
+        if let Some(file_id) = &info.file_id {
+            let canonical = provider
+                .canonical_id(file_id)
+                .map_err(|_| AiError::InvalidResponse)?;
+            verify_resource(&canonical, file_id)?;
+        }
         Ok(Self { info, provider })
     }
 
@@ -239,8 +259,8 @@ impl StoreFile {
         &self.info.id
     }
 
-    pub fn file_id(&self) -> &str {
-        &self.info.file_id
+    pub fn file_id(&self) -> Option<&str> {
+        self.info.file_id.as_deref()
     }
 
     pub fn info(&self) -> &StoreFileInfo {
@@ -259,6 +279,11 @@ pub struct ProviderStoreFilePage {
 }
 
 pub trait StoreProvider: FileProvider {
+    fn canonical_store_id<'a>(&self, id: &'a str) -> AiResult<Cow<'a, str>> {
+        validate_id(id)?;
+        Ok(Cow::Borrowed(id))
+    }
+
     fn get_store<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<StoreInfo>>;
 
     fn create_store<'a>(
@@ -400,7 +425,7 @@ impl StoreProvider for OpenAiFileProvider {
         limit: u16,
     ) -> HttpFuture<'a, AiResult<ProviderStoreFilePage>> {
         Box::pin(async move {
-            validate_page(after, limit)?;
+            validate_page(self, after, limit)?;
             let path = format!("{}/files", store_path(store)?);
             let response = self
                 .0
@@ -425,7 +450,7 @@ impl StoreProvider for OpenAiFileProvider {
         limit: u16,
     ) -> HttpFuture<'a, AiResult<ProviderStorePage>> {
         Box::pin(async move {
-            validate_page(after, limit)?;
+            validate_page(self, after, limit)?;
             let response = self
                 .0
                 .request(None)?
@@ -453,7 +478,7 @@ struct OpenAiStoreFile {
 impl From<OpenAiStoreFile> for StoreFileInfo {
     fn from(record: OpenAiStoreFile) -> Self {
         Self {
-            file_id: record.id.clone(),
+            file_id: Some(record.id.clone()),
             id: record.id,
             store_id: record.vector_store_id,
             status: record.status,
@@ -493,12 +518,28 @@ fn store_path(id: &str) -> AiResult<String> {
     Ok(format!("vector_stores/{id}"))
 }
 
-fn validate_page(after: Option<&str>, limit: u16) -> AiResult<()> {
+fn validate_page(provider: &dyn StoreProvider, after: Option<&str>, limit: u16) -> AiResult<()> {
     if let Some(cursor) = after {
-        validate_id(cursor)?;
+        provider.validate_cursor(cursor)?;
     }
     if !(1..=100).contains(&limit) {
         return Err(AiError::InvalidConfiguration("stores.limit"));
+    }
+    Ok(())
+}
+
+fn validate_next_cursor(
+    provider: &dyn StoreProvider,
+    after: Option<&str>,
+    next: Option<&str>,
+) -> AiResult<()> {
+    if let Some(next) = next {
+        provider
+            .validate_cursor(next)
+            .map_err(|_| AiError::InvalidResponse)?;
+        if Some(next) == after {
+            return Err(AiError::InvalidResponse);
+        }
     }
     Ok(())
 }

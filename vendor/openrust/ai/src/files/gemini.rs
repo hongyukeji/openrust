@@ -22,7 +22,7 @@ impl FileProvider for GeminiFileProvider {
 
     fn canonical_id<'a>(&self, id: &'a str) -> AiResult<Cow<'a, str>> {
         let name = id.strip_prefix("files/").unwrap_or(id);
-        validate_name(name)?;
+        validate_gemini_id(name)?;
         Ok(if name.len() == id.len() {
             format!("files/{name}").into()
         } else {
@@ -176,7 +176,7 @@ fn upload_header(
     Ok(request.with_header(name.parse().expect("valid header name"), value))
 }
 
-fn validate_name(name: &str) -> AiResult<()> {
+pub(crate) fn validate_gemini_id(name: &str) -> AiResult<()> {
     if name.is_empty()
         || name.len() > 40
         || name.starts_with('-')
@@ -206,7 +206,7 @@ impl TryFrom<Metadata> for FileInfo {
     type Error = AiError;
 
     fn try_from(file: Metadata) -> AiResult<Self> {
-        validate_name(
+        validate_gemini_id(
             file.name
                 .strip_prefix("files/")
                 .ok_or(AiError::InvalidResponse)?,

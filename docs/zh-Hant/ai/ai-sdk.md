@@ -430,7 +430,7 @@ Gemini 傳回類似 `files/policy` 的資源名稱。`Files::get` 和 `Files::de
 
 ## 向量儲存庫 {#vector-stores}
 
-用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。
+用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI 與 Gemini File Search 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。
 
 ```rust
 use openrust_ai::{Files, Stores};
@@ -441,6 +441,8 @@ let member = store.add(&file, &Default::default()).await?;
 let ready = store.refresh().await?.is_ready();
 ```
 
-`StoreOptions` 可指定描述、已查驗的初始檔案 ID 和閒置到期天數。`refresh()` 可讀取索引進度及是否就緒。`Stores::list` 與 `Store::files` 支援游標分頁。
+`StoreOptions` 可指定已查驗的初始檔案 ID。OpenAI 也接受描述和閒置到期天數。`refresh()` 可讀取索引進度及是否就緒。`Stores::list` 與 `Store::files` 支援游標分頁。
 
 儲存庫與檔案須來自同一連線。`Store::remove(&member, false)` 移除成員並保留原檔案。傳入 `true` 會繼續刪除原檔案。移除後刪除失敗時，`DetachedFileDeletionFailed` 會傳回原檔案 ID 供個別處理。使用 `add_file_id` 前先在應用程式中查驗檔案 ID 的歸屬。
+
+使用 Gemini 時，原檔 ID 可使用 `files/policy` 這類資源名稱。匯入會等待索引操作完成，並傳回獨立的文件 ID。已知原檔 ID 時，`StoreFile::file_id()` 傳回 `Some`。Gemini 文件清單省略原檔 ID，因此透過 `remove(&member, false)` 移除清單中的文件。若已建立儲存庫，但有初始檔案匯入失敗，`StorePopulationFailed` 會攜帶已建立的儲存庫 ID。

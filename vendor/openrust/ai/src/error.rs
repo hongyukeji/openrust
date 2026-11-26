@@ -42,6 +42,12 @@ pub enum AiError {
     FileNotDownloadable,
     StoresNotSupported,
     InvalidStore,
+    StoreSourceFileUnavailable,
+    StoreImportFailed(i32),
+    StorePopulationFailed {
+        store_id: String,
+        source: Box<AiError>,
+    },
     ResourceScopeMismatch,
     DetachedFileDeletionFailed {
         file_id: String,
@@ -103,6 +109,13 @@ impl fmt::Display for AiError {
             Self::FileNotDownloadable => formatter.write_str("AI 供应商未开放此文件的下载"),
             Self::StoresNotSupported => formatter.write_str("该 AI 连接不支持向量仓库"),
             Self::InvalidStore => formatter.write_str("AI 向量仓库配置无效"),
+            Self::StoreSourceFileUnavailable => formatter.write_str("AI 向量仓库未返回原文件 ID"),
+            Self::StoreImportFailed(code) => {
+                write!(formatter, "AI 向量仓库导入失败，供应商状态码为 {code}")
+            }
+            Self::StorePopulationFailed { source, .. } => {
+                write!(formatter, "AI 向量仓库已创建，预填文件失败：{source}")
+            }
             Self::ResourceScopeMismatch => formatter.write_str("AI 资源不属于当前连接或仓库"),
             Self::DetachedFileDeletionFailed { source, .. } => {
                 write!(formatter, "文件已移出向量仓库，删除原文件失败：{source}")
@@ -124,7 +137,8 @@ impl fmt::Display for AiError {
 impl std::error::Error for AiError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::DetachedFileDeletionFailed { source, .. } => Some(source.as_ref()),
+            Self::DetachedFileDeletionFailed { source, .. }
+            | Self::StorePopulationFailed { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }

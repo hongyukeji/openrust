@@ -430,7 +430,7 @@ Gemini returns a resource name such as `files/policy`. You can pass the resource
 
 ## Vector stores {#vector-stores}
 
-Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI supports them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
+Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
 
 ```rust
 use openrust_ai::{Files, Stores};
@@ -441,6 +441,8 @@ let member = store.add(&file, &Default::default()).await?;
 let ready = store.refresh().await?.is_ready();
 ```
 
-Use `StoreOptions` to set a description, trusted initial file IDs, and an idle expiry in days. `refresh()` reports indexing counts and readiness. Use `Stores::list` and `Store::files` for cursor pagination.
+Use `StoreOptions` to set trusted initial file IDs. OpenAI also accepts a description and an idle expiry in days. `refresh()` reports indexing counts and readiness. Use `Stores::list` and `Store::files` for cursor pagination.
 
 The store and file must come from the same connection. `Store::remove(&member, false)` detaches a member while retaining the source file. Passing `true` also deletes that source. If deletion fails after the detach, `DetachedFileDeletionFailed` reports the original file ID so it can be handled separately. Use `add_file_id` only with IDs already authorized by your application.
+
+When using Gemini, pass a resource name such as `files/policy` as the source file ID. Imports wait for the indexing operation and return a separate document ID. `StoreFile::file_id()` returns `Some` when the source file ID is known. Gemini document listings omit that ID, so call `remove(&member, false)` to remove a listed document. If an initial import fails after creating a store, `StorePopulationFailed` includes the created store ID.

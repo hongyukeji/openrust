@@ -21,7 +21,7 @@ use crate::{
 
 mod gemini;
 mod workspace;
-pub(crate) use gemini::GeminiFileProvider;
+pub(crate) use gemini::{GeminiFileProvider, validate_gemini_id};
 pub(crate) use workspace::{WorkspaceFileProtocol, WorkspaceFileProvider};
 
 const FILE_LIMIT: usize = 100 * 1024 * 1024;
