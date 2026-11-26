@@ -128,6 +128,12 @@ Rust 指标入口保留 `cache` 明细，新增 `cache_totals` 提供独立聚�
 
 macOS 三库的实际授权 HTTP 验证空汇总、超过明细上限的键及采样率。桌面与移动浏览器验证估算值、全局和逐键原始值提示、截断后的全局与逐键命中率。Pulse Provider 19 项、Pulse 缓存和存储 8 项、Telescope 存储 7 项、相关严格 Clippy、隔离快照格式、三语构建和六组正文检查通过。平台 Release 与完整 Livewire 请求仍待验收。证据为 `target/tmp/observability-parity/pulse-dashboard-cache-{macos-final,regressions,docs}.log`。
 
+### Servers 历史曲线与最近上报
+
+固定 PHP 8.5.12 的 Servers `render` 与真实 SQLite 将主机快照关联到 CPU、内存的平均历史序列。样本 13／33 和 256／512 生成 23 和 384；31 秒前的主机标为未最近上报。默认按主机名升序，`ignoreAfter=15` 可隐藏过期快照。证据为 `target/tmp/observability-parity/pulse-dashboard-servers-upstream.log`。 [固定 Servers 组件](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Servers.php)
+
+同样数据经原生真实 HTTP 返回最近的主机快照。CPU 历史断言因缺少序列而失败，最近上报状态、排序及按时限过滤一并保留为接续对齐项。原生复现为 `target/tmp/observability-parity/pulse-dashboard-servers-baseline.log`。
+
 ## SlowJobs 任务尝试计时
 
 固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
