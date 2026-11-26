@@ -7,14 +7,17 @@ use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt};
 use openrust::{
     http::{Response, StatusCode, client::ResponseStream},
-    support::Str,
+    support::{
+        Str,
+        facades::{App, Facade},
+    },
 };
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::{
     AgentResponse, AiError, AiResult, TextEndpoint, ToolCall, ToolResult, Usage,
-    text::transport_error,
+    agent_broadcast::StreamBroadcast, text::transport_error,
 };
 
 mod protocols;
@@ -54,6 +57,20 @@ impl StreamableAgentResponse {
             events,
             protocol: None,
         }
+    }
+
+    pub(crate) fn broadcasting(mut self, broadcast: StreamBroadcast) -> AiResult<Self> {
+        let app = App::get_facade_root().map_err(|_| AiError::Unavailable)?;
+        let mut events = self.events;
+        self.events = Box::pin(async_stream::try_stream! {
+            while let Some(event) = events.next().await {
+                let event = event?;
+                // HTTP 正文可能在路由请求作用域退出后才开始读取。
+                app.scope(broadcast.publish(&event)).await;
+                yield event;
+            }
+        });
+        Ok(self)
     }
 
     pub fn into_stream(self) -> AgentEventStream {

@@ -11,6 +11,7 @@ use openrust::{
 };
 
 mod agent;
+mod agent_broadcast;
 mod agent_queue;
 mod anthropic;
 mod audio;

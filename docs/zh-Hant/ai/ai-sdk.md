@@ -158,6 +158,23 @@ let delivery = agent.queue("Summarize the latest conversation")
 
 用 `queued_then` 和 `queued_catch` 將回呼名稱解析為具型別的函式。成功回呼接收還原後的 Agent 和 `AgentResponse`，失敗回呼接收 Agent 和工作終止錯誤。重試和退避沿用框架佇列。工作可能重複投遞，因此回呼中的寫入需要具備冪等性。上游金鑰由 Worker 的具名連線設定提供。
 
+### 廣播串流事件 {#broadcast-agents}
+
+`broadcast_now` 立即發布各事件，`broadcast` 透過框架佇列投遞事件。兩者都傳回串流，消費串流或傳回 `to_response()` 後才會開始傳送。使用者資料應透過私人頻道發布，並由應用程式的頻道規則授權訂閱。
+
+```rust
+use openrust::broadcasting::PrivateChannel;
+use openrust_ai::Agent;
+
+let channel = PrivateChannel { name: format!("tickets.{ticket_id}") };
+let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).await?;
+let response = stream.to_response();
+```
+
+`broadcast_on_queue` 在 Worker 內產生並發布串流。派發前可透過 `invocation_id()` 取得呼叫識別碼，用於關聯用戶端事件。成功回呼接收彙整回應，終止失敗會傳送同一呼叫識別碼的 `stream_failed`。廣播工作預設只嘗試一次，因為訂閱者可能已收到部分事件。
+
+Agent 可覆寫 `without_broadcasting` 排除部分廣播事件，同時在 HTTP 串流中保留這些事件。即時投遞失敗會寫入日誌。廣播服務本身的訊息大小限制仍有效。
+
 ## 產生 Agent 或工具 {#generators}
 
 ```shell

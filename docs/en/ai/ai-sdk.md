@@ -158,6 +158,23 @@ let delivery = agent.queue("Summarize the latest conversation")
 
 Define `queued_then` and `queued_catch` to resolve callback names to typed functions. A success callback receives the restored Agent and its `AgentResponse`. A failure callback receives the Agent and the terminal queue error. The queue uses its normal retries and backoff. Make callback side effects idempotent because the queue may redeliver a job. Credentials come from the worker’s named provider configuration.
 
+### Broadcast streamed events {#broadcast-agents}
+
+Call `broadcast_now` to publish each event immediately, or `broadcast` to enqueue delivery through the framework. Both return a stream, so consume it or return `to_response()` to start delivery. Use a private channel for user data and authorize subscriptions with the application’s channel rules.
+
+```rust
+use openrust::broadcasting::PrivateChannel;
+use openrust_ai::Agent;
+
+let channel = PrivateChannel { name: format!("tickets.{ticket_id}") };
+let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).await?;
+let response = stream.to_response();
+```
+
+Use `broadcast_on_queue` to generate and publish the stream in a worker. Read `invocation_id()` before dispatch to correlate client events. Success callbacks receive the combined response. A terminal error emits `stream_failed` with the same invocation ID. The worker defaults to one attempt for a broadcast because subscribers may have already received some events.
+
+An Agent can override `without_broadcasting` to exclude event types from delivery while keeping them in the HTTP stream. Immediate delivery failures are logged. The broadcaster’s payload limits still apply.
+
 ## Generate an Agent or tool {#generators}
 
 ```shell

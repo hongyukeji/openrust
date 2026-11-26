@@ -1,10 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use openrust::{http::HttpFuture, json_schema::types::ObjectType};
+use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
     AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, Message, QueueableAgent,
     QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent, Tool,
+    agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -89,6 +90,79 @@ pub trait Agent: Send + Sync + 'static {
         Self: QueueableAgent,
     {
         QueuedAgentResponse::new(self, prompt, options)
+    }
+
+    fn without_broadcasting(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    fn broadcast<'a>(
+        &'a self,
+        prompt: &'a str,
+        channels: impl IntoIterator<Item = BroadcastChannel>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
+    where
+        Self: Sized,
+    {
+        self.broadcast_with(prompt, channels, PromptOptions::default(), false)
+    }
+
+    fn broadcast_now<'a>(
+        &'a self,
+        prompt: &'a str,
+        channels: impl IntoIterator<Item = BroadcastChannel>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
+    where
+        Self: Sized,
+    {
+        self.broadcast_with(prompt, channels, PromptOptions::default(), true)
+    }
+
+    fn broadcast_with<'a>(
+        &'a self,
+        prompt: &'a str,
+        channels: impl IntoIterator<Item = BroadcastChannel>,
+        options: PromptOptions<'a>,
+        immediate: bool,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
+    where
+        Self: Sized,
+    {
+        let broadcast = StreamBroadcast {
+            channels: channels.into_iter().collect(),
+            excluded: self.without_broadcasting(),
+            immediate,
+        };
+        Box::pin(async move {
+            broadcast.validate()?;
+            self.stream_with(prompt, options)
+                .await?
+                .broadcasting(broadcast)
+        })
+    }
+
+    fn broadcast_on_queue(
+        &self,
+        prompt: impl Into<String>,
+        channels: impl IntoIterator<Item = BroadcastChannel>,
+    ) -> QueuedAgentResponse<'_, Self>
+    where
+        Self: QueueableAgent,
+    {
+        self.broadcast_on_queue_with(prompt, channels, PromptOptions::default())
+    }
+
+    fn broadcast_on_queue_with(
+        &self,
+        prompt: impl Into<String>,
+        channels: impl IntoIterator<Item = BroadcastChannel>,
+        options: PromptOptions<'_>,
+    ) -> QueuedAgentResponse<'_, Self>
+    where
+        Self: QueueableAgent,
+    {
+        self.queue_with(prompt, options)
+            .broadcasting(channels.into_iter().collect())
     }
 
     fn stream<'a>(&'a self, prompt: &'a str) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>

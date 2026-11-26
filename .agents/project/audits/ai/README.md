@@ -232,6 +232,14 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `Agent::queue` 和 `queue_with` 使用框架 Payload、队列连接、重试及终态失败处理。具名 Agent 通过 `QueueableAgent` 指定稳定任务名，在应用服务提供者注册同一个 Worker 处理器。用 Serde 恢复 Agent 状态，调用正常 SDK 入口。Rust 的 `then` 与 `catch` 传注册名，由 Worker 解析为已编译的类型化函数。调用 `dispatch` 时提交，可在此前指定连接、队列名、延迟及任务策略。上游密钥由执行进程解析。
 
-独立 HTTP 与 Artisan 分别派发任务，独立 Artisan SQLite Worker 实测在同一进程里消费、503 重试后成功与耗尽后失败。核对任务表、终态失败表、成功回调原始模型和用量、失效回调名拒绝及上游认证来自 Worker。包测试、严格 Clippy 和三语站点及浏览器检查通过。该批实测具名文本 Agent 与 SQLite 队列，广播、匿名与结构化 Agent、排队 Fake、其他能力排队及更多队列后端继续核对。
+独立 HTTP 与 Artisan 分别派发任务，独立 Artisan SQLite Worker 实测在同一进程里消费、503 重试后成功与耗尽后失败。核对任务表、终态失败表、成功回调原始模型和用量、失效回调名拒绝及上游认证来自 Worker。包测试、严格 Clippy 和三语站点及浏览器检查通过。该批实测具名文本 Agent 与 SQLite 队列。匿名与结构化 Agent、排队 Fake、其他能力排队及更多队列后端继续核对。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel InvokeAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/InvokeAgent.php)
+
+## AI-04 Agent 流事件广播
+
+`broadcast` 使用框架广播队列，`broadcast_now` 随消费流直接投递，`broadcast_on_queue` 在 Worker 内生成并即时投递。匿名广播沿用框架的频道、授权及广播连接。HTTP 正文读取发生在路由返回之后，广播在所属应用作用域执行。`without_broadcasting` 可按事件类型排除广播，HTTP 流仍保留对应事件。队列模式返回稳定调用标识，终态发出同一标识的 `stream_failed`，默认只尝试一次。成功回调接收收集后的文本、工具和用量。
+
+独立 HTTP、Artisan、SQLite Worker、模型协议服务和真实 Reverb WebSocket 联测三种方式。通过框架频道授权接口得到订阅签名，未授权请求收到 403，未订阅客户端无事件。超过 Reverb 10 KB 入口限制的中文文本事件仍完整到达 HTTP SSE，前后的正常广播保留，拒绝投递写日志。Worker 对同一调用标识发出完成和终态失败事件，实际用量交给回调。三语构建、AI 页面在两种部署前缀的桌面与移动检查以及全站导航页渲染通过。全站浏览器脚本的安装页语言切换保留查询和锚点断言在该轮超时，独立记录于验收日志。
+
+- [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel BroadcastAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/BroadcastAgent.php)

@@ -158,6 +158,23 @@ let delivery = agent.queue("Summarize the latest conversation")
 
 用 `queued_then` 和 `queued_catch` 将回调名解析为类型化函数。成功回调接收还原后的 Agent 和 `AgentResponse`，失败回调接收 Agent 和任务终态错误。重试和退避沿用框架队列。任务可能重复投递，因此回调中的写入需要幂等。上游密钥由 Worker 的具名连接配置提供。
 
+### 广播流事件 {#broadcast-agents}
+
+`broadcast_now` 立即发布各事件，`broadcast` 通过框架排队投递事件。两者都返回流，消费流或返回 `to_response()` 后才开始发送。用户数据应使用私有频道，并由应用的频道规则授权订阅。
+
+```rust
+use openrust::broadcasting::PrivateChannel;
+use openrust_ai::Agent;
+
+let channel = PrivateChannel { name: format!("tickets.{ticket_id}") };
+let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).await?;
+let response = stream.to_response();
+```
+
+`broadcast_on_queue` 在 Worker 内生成和发布流。派发前可通过 `invocation_id()` 取得调用标识，用于关联客户端事件。成功回调接收汇总响应，终态失败会发送同一调用标识的 `stream_failed`。广播任务默认只尝试一次，因为订阅者可能已收到部分事件。
+
+Agent 可覆盖 `without_broadcasting` 来排除部分广播事件，同时在 HTTP 流中保留这些事件。即时投递失败会写入日志。广播服务自身的消息大小限制仍有效。
+
 ## 生成 Agent 或工具 {#generators}
 
 ```shell

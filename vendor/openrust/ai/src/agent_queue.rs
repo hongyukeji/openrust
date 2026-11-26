@@ -1,6 +1,7 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use openrust::{
+    broadcasting::BroadcastChannel,
     contracts::queue::JobHandler,
     queue::{
         Delay, DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError,
@@ -10,7 +11,7 @@ use openrust::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{Agent, AgentResponse, AiError, PromptOptions};
+use crate::{Agent, AgentResponse, AiError, PromptOptions, agent_broadcast::QueuedBroadcast};
 
 pub type AgentQueueThen<A> =
     for<'a> fn(&'a A, &'a AgentResponse) -> QueueFuture<'a, QueueResult<()>>;
@@ -42,6 +43,8 @@ struct Invocation<A> {
     timeout: Option<std::time::Duration>,
     then: Vec<String>,
     catch: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    broadcast: Option<QueuedBroadcast>,
 }
 
 impl<A> Invocation<A> {
@@ -72,10 +75,25 @@ impl<'a, A: QueueableAgent> QueuedAgentResponse<'a, A> {
                 timeout: options.timeout,
                 then: Vec::new(),
                 catch: Vec::new(),
+                broadcast: None,
             },
             dispatch: DispatchOptions::default(),
             job: JobOptions::default(),
         }
+    }
+
+    pub(crate) fn broadcasting(mut self, channels: Vec<BroadcastChannel>) -> Self {
+        self.invocation.broadcast = Some(QueuedBroadcast::new(channels));
+        self.job.max_tries = Some(1);
+        self
+    }
+
+    /// 可在派发前将订阅者与此 Agent 流调用关联。
+    pub fn invocation_id(&self) -> Option<&str> {
+        self.invocation
+            .broadcast
+            .as_ref()
+            .map(QueuedBroadcast::invocation_id)
     }
 
     pub fn on_connection(mut self, name: impl Into<String>) -> Self {
@@ -112,6 +130,9 @@ impl<'a, A: QueueableAgent> QueuedAgentResponse<'a, A> {
         if self.invocation.text.trim().is_empty() {
             return Err(QueueError::execution(AiError::InvalidPrompt));
         }
+        if let Some(broadcast) = &self.invocation.broadcast {
+            broadcast.validate().map_err(QueueError::execution)?;
+        }
         validate_callbacks::<A>(&self.invocation.then, &self.invocation.catch)?;
         let payload = Payload::new(A::QUEUE_JOB, &self.invocation)?.with_options(self.job);
         Queue::dispatch(payload, self.dispatch, None).await
@@ -143,11 +164,19 @@ impl<A: QueueableAgent> JobHandler for InvokeAgent<A> {
             let work: Invocation<A> = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
             validate_callbacks::<A>(&work.then, &work.catch)?;
-            let response = work
-                .agent
-                .prompt_with(&work.text, work.prompt_options())
-                .await
-                .map_err(QueueError::execution)?;
+            let response = match &work.broadcast {
+                Some(broadcast) => {
+                    broadcast
+                        .run(&work.agent, &work.text, work.prompt_options())
+                        .await
+                }
+                None => {
+                    work.agent
+                        .prompt_with(&work.text, work.prompt_options())
+                        .await
+                }
+            }
+            .map_err(QueueError::execution)?;
             for name in &work.then {
                 let then = A::queued_then(name).ok_or(QueueError::InvalidConfiguration)?;
                 then(&work.agent, &response).await?;
@@ -165,6 +194,9 @@ impl<A: QueueableAgent> JobHandler for InvokeAgent<A> {
         Box::pin(async move {
             let work: Invocation<A> = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
+            if let Some(broadcast) = &work.broadcast {
+                broadcast.failed().await;
+            }
             // 终态即便其他回调失败，也执行其余已明确注册的失败回调。
             let mut failure = None;
             for name in &work.catch {
