@@ -108,6 +108,8 @@ pub struct ToolStep {
 pub struct StepResponse {
     pub model: Option<String>,
     pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reasoning: String,
     pub usage: Usage,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub citations: Vec<crate::UrlCitation>,
@@ -390,10 +392,13 @@ impl ToolRun {
             let results = plan.run().await;
             let finished = response.tool_calls.is_empty() || final_step;
             let model = response.model.clone();
-            let citations = if finished {
-                std::mem::take(&mut response.citations)
+            let (citations, reasoning) = if finished {
+                (
+                    std::mem::take(&mut response.citations),
+                    std::mem::take(&mut response.reasoning),
+                )
             } else {
-                Vec::new()
+                (Vec::new(), String::new())
             };
             self.add_step(response, results);
             if finished {
@@ -409,6 +414,7 @@ impl ToolRun {
                 }
                 return Ok(AgentResponse {
                     text: text.unwrap_or_default(),
+                    reasoning,
                     usage: self.usage.unwrap_or_default(),
                     provider: provider.name().into(),
                     model: model.unwrap_or_else(|| prompt.text.model.into()),

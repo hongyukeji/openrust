@@ -52,6 +52,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentResponse {
     pub text: String,
+    pub reasoning: String,
     pub usage: Usage,
     pub provider: String,
     pub model: String,
@@ -77,6 +78,7 @@ impl AgentResponse {
     ) -> Self {
         Self {
             text: text.into(),
+            reasoning: String::new(),
             usage,
             provider: provider.into(),
             model: model.into(),
@@ -703,6 +705,7 @@ impl TextProvider for OpenAiTextProvider {
             };
             Ok(AgentResponse {
                 text: result.text,
+                reasoning: result.reasoning,
                 usage: result.usage,
                 provider: self.name().into(),
                 model: result.model.unwrap_or_else(|| prompt.text.model.into()),
@@ -944,6 +947,7 @@ pub(crate) fn transport_error(error: client::Error) -> AiError {
 
 struct ParsedText {
     text: String,
+    reasoning: String,
     usage: Usage,
     model: Option<String>,
     citations: Vec<UrlCitation>,
@@ -980,6 +984,7 @@ fn parse_chat(response: Response) -> AiResult<ParsedText> {
     }
     Ok(ParsedText {
         text: message.content.ok_or(AiError::InvalidResponse)?,
+        reasoning: String::new(),
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
         citations: Vec::new(),
@@ -999,6 +1004,10 @@ struct ResponsesResponse {
 enum ResponsesItem {
     Message {
         content: Vec<ResponsesContent>,
+    },
+    Reasoning {
+        #[serde(default)]
+        summary: Value,
     },
     #[serde(other)]
     Other,
@@ -1028,27 +1037,43 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
     }
     let mut text = None::<String>;
     let mut citations = Vec::new();
+    let mut reasoning = Vec::new();
     for item in response.output {
-        if let ResponsesItem::Message { content } = item {
-            for part in content {
-                match part {
-                    ResponsesContent::OutputText {
-                        text: part,
-                        annotations,
-                    } => {
-                        text.get_or_insert_default().push_str(&part);
-                        citations.extend(UrlCitation::from_annotations(&annotations));
+        match item {
+            ResponsesItem::Message { content } => {
+                for part in content {
+                    match part {
+                        ResponsesContent::OutputText {
+                            text: part,
+                            annotations,
+                        } => {
+                            text.get_or_insert_default().push_str(&part);
+                            citations.extend(UrlCitation::from_annotations(&annotations));
+                        }
+                        ResponsesContent::Refusal => return Err(AiError::Refused),
+                        ResponsesContent::Other => {}
                     }
-                    ResponsesContent::Refusal => return Err(AiError::Refused),
-                    ResponsesContent::Other => {}
                 }
             }
+            ResponsesItem::Reasoning { summary } => reasoning.extend(public_summary_text(&summary)),
+            ResponsesItem::Other => {}
         }
     }
     Ok(ParsedText {
         text: text.ok_or(AiError::InvalidResponse)?,
+        reasoning: reasoning.join("\n\n"),
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
         citations,
     })
+}
+
+pub(crate) fn public_summary_text(summary: &Value) -> Option<String> {
+    let text: String = summary
+        .as_array()?
+        .iter()
+        .filter(|part| part["type"] == "summary_text")
+        .filter_map(|part| part["text"].as_str())
+        .collect();
+    (!text.trim().is_empty()).then_some(text)
 }

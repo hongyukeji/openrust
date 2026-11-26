@@ -61,7 +61,7 @@ OpenAI Responses 的普通响应可通过 `response.meta()` 读取来源连接�
 
 非流式 Anthropic Messages 提供网页搜索和抓取引文。非流式 Gemini GenerateContent 提供选中候选的 Grounding 网页来源。两者保留每个 URL 首次出现的顺序和公开标题。
 
-Responses 模型支持公开推理摘要时，可通过 `with_provider_options` 将 `reasoning.summary` 设为 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用独立事件。可在完成回调中用 `StreamedAgentResponse::reasoning()` 读取合并后的摘要。
+Responses 模型支持公开推理摘要时，可通过 `with_provider_options` 将 `reasoning.summary` 设为 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用独立事件。可在完成回调中用 `StreamedAgentResponse::reasoning()` 读取合并后的摘要。 非流式 Responses 在 `response.reasoning` 中提供公开摘要，结构化响应同样可读。非流式工具调用提供最后一个模型步骤的公开摘要。
 
 Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆写 `stream` 文案。
 

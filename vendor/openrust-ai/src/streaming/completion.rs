@@ -29,24 +29,7 @@ impl StreamedAgentResponse {
     }
 
     pub fn reasoning(&self) -> String {
-        let mut indices = BTreeMap::new();
-        let mut blocks: Vec<String> = Vec::new();
-        for event in &self.events {
-            if let StreamEventData::ReasoningDelta {
-                reasoning_id,
-                delta,
-            } = &event.data
-            {
-                let index = *indices.entry(reasoning_id).or_insert_with(|| {
-                    let index = blocks.len();
-                    blocks.push(String::new());
-                    index
-                });
-                blocks[index].push_str(delta);
-            }
-        }
-        blocks.retain(|block| !block.trim().is_empty());
-        blocks.join("\n\n")
+        collect_reasoning(&self.events)
     }
 
     pub(super) fn from_events(events: Vec<StreamEvent>) -> Option<Self> {
@@ -102,6 +85,7 @@ impl StreamedAgentResponse {
         texts.push(text);
         texts.retain(|text| !text.trim().is_empty());
         response.text = texts.join("\n\n");
+        response.reasoning = collect_reasoning(&events);
         response.usage = usage.unwrap_or_default();
         Some(Self {
             invocation_id,
@@ -111,6 +95,27 @@ impl StreamedAgentResponse {
             pending_approvals,
         })
     }
+}
+
+fn collect_reasoning(events: &[StreamEvent]) -> String {
+    let mut indices = BTreeMap::new();
+    let mut blocks: Vec<String> = Vec::new();
+    for event in events {
+        if let StreamEventData::ReasoningDelta {
+            reasoning_id,
+            delta,
+        } = &event.data
+        {
+            let index = *indices.entry(reasoning_id).or_insert_with(|| {
+                let index = blocks.len();
+                blocks.push(String::new());
+                index
+            });
+            blocks[index].push_str(delta);
+        }
+    }
+    blocks.retain(|block| !block.trim().is_empty());
+    blocks.join("\n\n")
 }
 
 type Callback = Box<dyn FnOnce(&StreamedAgentResponse) + Send>;

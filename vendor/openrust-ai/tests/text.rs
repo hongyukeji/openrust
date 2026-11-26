@@ -112,7 +112,9 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                 "status": "completed",
                 "model": "resolved-responses",
                 "output": [
-                    {"type": "reasoning"},
+                    {"type": "reasoning",
+                        "summary":[{"type":"summary_text","text":"Public summary"}],
+                        "content":[{"type":"reasoning_text","text":"Private trace"}]},
                     {"type": "message", "content": [{"type": "output_text", "text": "OK",
                         "annotations":[
                             {"type":"url_citation","url":"https://example.test/source",
@@ -161,6 +163,7 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                     assert_eq!(result.model, "resolved-responses");
                     assert_eq!(result.usage.prompt_tokens, Some(7));
                     assert_eq!(result.usage.completion_tokens, Some(2));
+                    assert_eq!(result.reasoning, "Public summary");
                     Response::json(
                         StatusCode::OK,
                         json!({"output": result.text, "meta": result.meta()}),

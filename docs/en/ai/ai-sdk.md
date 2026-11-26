@@ -61,7 +61,7 @@ Buffered OpenAI Responses results expose the connection, model, and URL citation
 
 Buffered Anthropic Messages includes web search and web fetch citations. Buffered Gemini GenerateContent includes web sources from the selected candidate’s grounding metadata. Both preserve the first occurrence of each URL and expose its public title.
 
-For a Responses model that provides public reasoning summaries, set `reasoning.summary` to `auto` in `with_provider_options`. Summary fragments have their own events in native SSE, Vercel, and AG-UI. Use `StreamedAgentResponse::reasoning()` to read the joined summary in a completion callback.
+For a Responses model that provides public reasoning summaries, set `reasoning.summary` to `auto` in `with_provider_options`. Summary fragments have their own events in native SSE, Vercel, and AG-UI. Use `StreamedAgentResponse::reasoning()` to read the joined summary in a completion callback. Buffered Responses expose the public summary as `response.reasoning`, including structured results. A buffered tool call exposes the final model step’s summary.
 
 The Vercel and AG-UI stream adapters use the application locale for generation failure messages. Override the generic message under `stream` in `lang/vendor/ai/<locale>/errors.json`.
 

@@ -102,6 +102,7 @@ impl FakeTextGateway {
         self.prompts.lock().unwrap().push(prompt);
         Ok(AgentResponse {
             text,
+            reasoning: String::new(),
             usage: Usage::default(),
             provider,
             model,

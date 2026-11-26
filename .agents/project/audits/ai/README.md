@@ -4,7 +4,7 @@
 
 ## 当前验收范围
 
-SDK 已验证四种原生文本协议、结构化输出、流式工具与回调、Responses 网页引文、数据库会话、持久化审批、Skills 与 MCP 工具桥。模型发现及 Artisan 选择、Embeddings、Reranking、分类、OpenAI 图像与音频、部分供应商文件和向量仓库均已有入口证据。
+SDK 已验证四种原生文本协议、结构化输出、流式工具与回调、具名连接故障转移、Responses／Messages／Gemini 网页引文、Responses 公开推理摘要、数据库会话、持久化审批、Skills 与 MCP 工具桥。模型发现及 Artisan 选择、Embeddings、Reranking、分类、OpenAI 图像与音频、部分供应商文件和向量仓库均已有入口证据。
 
 网关已验证原生文本入口、跨协议工具、下游授权、托管 Key、账号回退、冷却、并发、会话黏性，以及预算预占、用量、计费与账单对账。各条记录标注应用进程、隔离数据库、模拟上游或授权实机。剩余供应商能力、完整的 SDK 类型与网关端点矩阵、应用发布验收继续按计划逐项核对。
 
@@ -656,6 +656,8 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_start`、`reasoning_delta`、`reasoning_end`。原生、Vercel 和 AG-UI 分别沿用各自的协议形状。完成回调按首次出现的摘要块顺序合并。增量、直接终帧及工具续轮共用相同解析。SDK 只识别独立的公开摘要帧。
 
 实际 Artisan 与 HTTP 核对普通及带工具的两步 Responses，请求中的 `reasoning.summary`、交错分块、重复终帧、缺少增量的完整块、上游私有字段隔离及 Token 用量。两步调用合计 15 输入、8 输出及 4 推理 Token。文本、工具和 UI 回归、严格 Clippy 和三语文档通过。
+
+非流式 Responses 从公开摘要项读取 `response.reasoning`。同一个推理项内拼接摘要片段，各项以空行分隔。结构化响应通过 Rust 字段读取摘要，非流式工具调用取最后一步摘要。实际 Artisan 和 HTTP 覆盖普通／结构化／工具续轮、空白和未知摘要类型、私有推理与加密内容隔离以及 Chat 兼容路径的空摘要。流的原接口与聚合字段用独立进程复验一致；原生 SSE、Vercel、AG-UI、严格 Clippy、仓库回归和三语站点通过。
 
 - [固定 Laravel ReasoningDelta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ReasoningDelta.php) · [OpenAI 推理摘要文档](https://developers.openai.com/api/docs/guides/reasoning?api-mode=responses&site_locale=en) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 

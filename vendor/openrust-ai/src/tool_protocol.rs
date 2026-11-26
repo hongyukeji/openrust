@@ -95,6 +95,7 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text: message["content"].as_str().map(str::to_owned),
+        reasoning: String::new(),
         usage: Usage::from_openai(&data["usage"]),
         citations: Vec::new(),
         tool_calls,
@@ -113,10 +114,14 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     }
     let mut text = None::<String>;
     let mut citations = Vec::new();
+    let mut reasoning = Vec::new();
     let mut tool_calls = Vec::new();
     for item in data["output"].as_array().ok_or(AiError::InvalidResponse)? {
         match item["type"].as_str() {
             Some("function_call") => tool_calls.push(parse_call(&item["call_id"], item)?),
+            Some("reasoning") => {
+                reasoning.extend(crate::text::public_summary_text(&item["summary"]))
+            }
             Some("message") => {
                 for part in item["content"].as_array().ok_or(AiError::InvalidResponse)? {
                     match part["type"].as_str() {
@@ -137,6 +142,7 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text,
+        reasoning: reasoning.join("\n\n"),
         usage: Usage::from_openai(&data["usage"]),
         citations,
         tool_calls,

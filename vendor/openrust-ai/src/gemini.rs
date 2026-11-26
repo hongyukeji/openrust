@@ -241,6 +241,7 @@ impl TextProvider for GeminiTextProvider {
             }
             Ok(AgentResponse {
                 text,
+                reasoning: String::new(),
                 usage: usage(&value),
                 provider: self.name().into(),
                 model: value["modelVersion"]
@@ -548,6 +549,7 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: value["modelVersion"].as_str().map(str::to_owned),
         text,
+        reasoning: String::new(),
         usage: usage(&value),
         citations,
         tool_calls,

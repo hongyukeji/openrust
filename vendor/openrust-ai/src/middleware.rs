@@ -173,6 +173,7 @@ pub(crate) async fn generate_step(
                     return Ok(StepResponse {
                         model: Some(response.model),
                         text: Some(response.text),
+                        reasoning: response.reasoning,
                         usage: response.usage,
                         citations: response.citations,
                         tool_calls: response.tool_calls,
