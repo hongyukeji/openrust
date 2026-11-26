@@ -58,3 +58,7 @@
 ## Windows ARM64 组合预检
 
 在现有 Windows 11 ARM64 虚机上核对 `ab1d2b4c8` 归档和 Rust 1.94.0。首次离线解析缺少 `mago-syntax`，按锁文件补齐公开依赖后，用 `cargo tree --locked --offline --target aarch64-pc-windows-msvc --edges normal --depth 1` 复验，九个扩展依赖均出现，联网与离线树输出逐字节一致。专用验收盘有 34,179,629,056 字节可用，虚机未检测到 Docker CLI。组合 PE、运行与许可随附仍需实际构建验收。
+
+用 `7dd141aac` 的干净归档执行独立发布许可预检。Windows PowerShell 原生创建 ZIP 并解包，核对根许可证、根发行声明以及两个 Webhook 包的声明和许可证，共 10 个文件与源码逐字节一致。三语部署说明补齐复制清单，VitePress 构建成功，Playwright 核对两种部署前缀下的六个页面。完整 ZIP 与组合 PE 的运行验收继续单列。
+
+同一归档首次把 Cargo 输出写入虚机共享盘，Rust 构建探针清理目录时收到 Windows 错误 87。切换到专用 NTFS 构建盘后，续跑触及 32 GB 停线。停止本次构建树后持锁清理八个项目编译目录，释放 10,256,171,008 字节，可用空间恢复到 42,202,472,448 字节。源码与锁文件沿用同一归档，构建进程和磁盘停线同时在虚机内受监控。预检和构建日志保存在 `target/tmp/goal-extension-combined-windows/`。

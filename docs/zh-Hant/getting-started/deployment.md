@@ -141,6 +141,7 @@ cargo +1.94.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
+Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'
@@ -151,6 +152,8 @@ $app = Join-Path $PWD 'release/main.exe'
 & $app artisan inspire
 & $app
 ```
+
+建置包含 `webhook-client` 或 `webhook-server` 時，將各已啟用套件的 `THIRD_PARTY_NOTICES.md` 和 `LICENSES/` 從 `vendor/openrust/<套件名稱>/` 複製到 `release/licenses/<套件名稱>/`。
 
 後續發佈應保留應用程式金鑰、資料庫與可寫入儲存目錄。服務管理員可從其他工作目錄執行 `main.exe`，也可用 `APP_BASE_PATH` 指定絕對應用程式根目錄。
 

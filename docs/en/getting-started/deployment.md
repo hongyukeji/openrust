@@ -141,6 +141,7 @@ cargo +1.94.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
+Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'
@@ -151,6 +152,8 @@ $app = Join-Path $PWD 'release/main.exe'
 & $app artisan inspire
 & $app
 ```
+
+When the build includes `webhook-client` or `webhook-server`, copy each included package's `THIRD_PARTY_NOTICES.md` and `LICENSES/` from `vendor/openrust/<package>/` into `release/licenses/<package>/`.
 
 For subsequent releases, preserve the application key, database, and writable storage. A service manager can run `main.exe` from another working directory. `APP_BASE_PATH` can select an absolute application root.
 
