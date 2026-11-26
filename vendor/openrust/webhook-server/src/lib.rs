@@ -92,7 +92,7 @@ pub use limits::{
 };
 pub use message_retention::PublicationPruneReport;
 pub use publication::{EventType, PublishOptions, PublishedMessage};
-pub use recovery::RecoveryReport;
+pub use recovery::{RecoveryBacklog, RecoveryReport};
 pub use replay::{
     ReplayDelivery, ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest, register_replay_policy,
 };

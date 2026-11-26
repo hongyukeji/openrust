@@ -47,6 +47,13 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .default_value("100")
                 .value_parser(value_parser!(u32).range(1..=500)),
         );
+    let recovery = recovery.arg(
+        Arg::new("backlog")
+            .long("backlog")
+            .requires("pretend")
+            .help("返回投递恢复候选数量和最早可用时间的 JSON 预览")
+            .action(ArgAction::SetTrue),
+    );
     Artisan::add(Box::new(Recover(CommandDefinition::new(recovery))))?;
     let replay = Syntax::new("webhook-server:replay")
         .about("登记有独立预算且可审计的 Webhook 人工重放")
@@ -243,12 +250,23 @@ impl Command for Recover {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let service = delivery_service(app, input).await?;
+            let args = input.matches();
+            let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
+            if args.get_flag("backlog") {
+                let report = service
+                    .inspect_recovery_backlog(limit)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                let json = serde_json::to_string(&report).map_err(ConsoleError::from_source)?;
+                output
+                    .write_raw(&format!("{json}\n"))
+                    .map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
             let queue = app
                 .make::<QueueManager>()
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let args = input.matches();
-            let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
             let report = service
                 .recover_due(&queue, limit, args.get_flag("pretend"))
                 .await

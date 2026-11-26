@@ -17,7 +17,20 @@ pub struct RecoveryReport {
     pub failed: usize,
 }
 
+/// 有界的待唤醒或收尾统计，只包含数量和最早可用时间。
+#[derive(Debug, serde::Serialize)]
+pub struct RecoveryBacklog {
+    pub candidates: usize,
+    pub oldest_available_at: Option<i64>,
+    pub has_more: bool,
+}
+
 impl DeliveryService {
+    /// 读取恢复候选的积压，无需建立队列连接。
+    pub async fn inspect_recovery_backlog(&self, limit: u32) -> Result<RecoveryBacklog> {
+        self.store.wake_backlog(limit).await
+    }
+
     /// 有界扫描只唤醒原生 Worker。多个调度进程通过数据库协调同一投递。
     pub async fn recover_due(
         &self,

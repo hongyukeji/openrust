@@ -1573,7 +1573,24 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert marker(registered) == "0" and queued_for(registered) == 0
         assert recover("--pretend") == {"candidates": 1, "queued": 0, "retired": 0, "skipped": 0, "failed": 0}
         assert recover(scope="wrong-scope")["candidates"] == 0
+        second = submit("recover-backlog-peer")
+        oldest = int(sql(f"SELECT available_at FROM webhook_deliveries WHERE id='{registered}'")) - 1
+        update(second, f"available_at={oldest}")
+        assert recover("--pretend", "--backlog", "--limit=1") == {
+            "candidates": 1, "oldest_available_at": oldest, "has_more": True,
+        }
+        assert recover("--pretend", "--backlog", "--limit=2") == {
+            "candidates": 2, "oldest_available_at": oldest, "has_more": False,
+        }
+        empty_backlog = {"candidates": 0, "oldest_available_at": None, "has_more": False}
+        assert recover("--pretend", "--backlog", scope="wrong-scope") == empty_backlog
+        invalid = subprocess.run(
+            [str(binary), "artisan", "webhook-server:recover", "--scope", SCOPE, "--backlog"],
+            env=env, capture_output=True, text=True, timeout=20,
+        )
+        assert invalid.returncode != 0 and "--pretend" in invalid.stdout + invalid.stderr
         assert marker(registered) == "0" and queued_for(registered) == 0
+        assert marker(second) == "0" and queued_for(second) == 0
         second_root = Path(env["APP_BASE_PATH"]) / "scheduler-peer"
         second_root.mkdir()
         peer = env | {
@@ -1587,11 +1604,16 @@ def exercise(binary, env, log, receiver, driver, sql):
             for result in results:
                 result.result()
         assert marker(registered) != "0" and queued_for(registered) == 1
+        assert marker(second) != "0" and queued_for(second) == 1
         assert recover()["candidates"] == 0 and read(registered) == "pending\t0"
+        assert recover("--pretend", "--backlog") == empty_backlog
         captured("recover-unenqueued", 0)
         command(*worker)
+        command(*worker)
         assert read(registered) == "succeeded\t1"
+        assert read(second) == "succeeded\t1"
         captured("recover-unenqueued")
+        captured("recover-backlog-peer")
 
         lost = submit("recover-lost", "builder-async-if")
         assert queued_for(lost) == 1 and marker(lost) != "0"
@@ -1640,6 +1662,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert marker(failed_dispatch) != "0" and queued_for(failed_dispatch) == 0
         assert recover()["candidates"] == 0 and read(failed_dispatch) == "pending\t0"
         update(failed_dispatch, "deadline=0")
+        assert recover("--pretend", "--backlog")["candidates"] == 1
         assert recover()["retired"] == 1 and read(failed_dispatch) == "expired\t0"
         captured("dispatch-listener-error", 0)
 
@@ -1650,6 +1673,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         }
         if redis_container:
             unavailable["REDIS_URL"] = "redis://127.0.0.1:1"
+        assert recover("--pretend", "--backlog", current=unavailable)["candidates"] == 1
         assert recover(current=unavailable, success=False)["failed"] == 1
         assert queued_for(broker) == 0 and read(broker) == "pending\t0"
         assert recover()["candidates"] == 0

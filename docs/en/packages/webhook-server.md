@@ -294,6 +294,8 @@ Recovery reserves a 60-second wake-up window before pushing to the queue. A late
 ./artisan webhook-server:recover --scope=billing --pretend
 ```
 
+Add `--backlog` to the preview for a JSON report. `candidates` is capped by `--limit` and includes both deliveries ready to wake and deliveries ready for retirement. `has_more` indicates the cap was exceeded. `oldest_available_at` is the earliest stored availability time among the candidates in Unix seconds, or null when none qualify. `DeliveryService::inspect_recovery_backlog` reads the same report without contacting the queue.
+
 ### Customize a delivery job {#custom-job}
 
 Implement `CallWebhookJob` and register the same name with `register_call_webhook_job` and `DeliveryService::register_worker` on the producer, Scheduler and Workers. Select it with `.use_job("stop-on-gone")`. The hook `should_be_removed_from_queue` can stop a retry eligible under the original delivery budget. `failed` observes committed terminal failures from an attempt after the result events. Keep both hooks short and synchronous.

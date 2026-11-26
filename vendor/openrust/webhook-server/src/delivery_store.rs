@@ -410,35 +410,63 @@ impl DeliveryStore {
     }
 
     pub(crate) async fn wake_ids(&self, limit: u32) -> Result<Vec<String>> {
+        self.bounded_ids(self.wake_candidates(), limit).await
+    }
+
+    pub(crate) async fn wake_backlog(&self, limit: u32) -> Result<crate::RecoveryBacklog> {
+        if !(1..=500).contains(&limit) {
+            return Err(Error::InvalidConfig("delivery.limit"));
+        }
+        let rows = self
+            .ordered_candidates(self.wake_candidates())
+            .select(["available_at"])
+            .limit(u64::from(limit) + 1)
+            .get()
+            .await?;
+        let limit = limit as usize;
+        Ok(crate::RecoveryBacklog {
+            candidates: rows.len().min(limit),
+            oldest_available_at: rows
+                .first()
+                .map(|row| number(row, "available_at"))
+                .transpose()?,
+            has_more: rows.len() > limit,
+        })
+    }
+
+    fn wake_candidates(&self) -> Builder<'static> {
         let clock = self.clock();
-        let candidates = self
-            .reclaimable(self.connection.table(DELIVERIES))
+        self.reclaimable(self.connection.table(DELIVERIES))
             .where_nested(|query| {
                 query
                     .where_null("next_wake_at")
                     .or_where_raw(&format!("next_wake_at <= {clock}"), vec![])
                     .or_where_raw(&format!("deadline <= {clock}"), vec![])
                     .or_where_raw("attempts >= maximum_tries", vec![])
-            });
-        self.bounded_ids(candidates, limit).await
+            })
     }
 
     async fn bounded_ids(&self, candidates: Builder<'_>, limit: u32) -> Result<Vec<String>> {
         if !(1..=500).contains(&limit) {
             return Err(Error::InvalidConfig("delivery.limit"));
         }
-        let rows = candidates
-            .r#where("scope_key", "=", self.scope_key.as_str())
-            .use_write_pdo()
+        let rows = self
+            .ordered_candidates(candidates)
             .select(["id"])
-            .order_by("available_at", "asc")
-            .order_by("id", "asc")
             .limit(u64::from(limit))
             .get()
             .await?;
         rows.iter()
             .map(|row| Ok(text(row, "id")?.to_owned()))
             .collect()
+    }
+
+    fn ordered_candidates<'a>(&self, candidates: Builder<'a>) -> Builder<'a> {
+        candidates
+            .r#where("scope_key", "=", self.scope_key.as_str())
+            .use_write_pdo()
+            .order_by("available_at", "asc")
+            .order_by("id", "asc")
     }
 
     pub(crate) async fn claim_wake(&self, id: &str) -> Result<WakeClaim> {

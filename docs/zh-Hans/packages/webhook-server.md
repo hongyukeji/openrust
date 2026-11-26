@@ -294,6 +294,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 ./artisan webhook-server:recover --scope=billing --pretend
 ```
 
+在预演命令中加 `--backlog` 可输出 JSON。 `candidates` 受 `--limit` 限制，包含可唤醒及可收尾的投递。 `has_more` 表示超过上限。 `oldest_available_at` 为候选记录中最早的已保存可用时间，使用 Unix 秒，无符合条件的记录时为 null。 `DeliveryService::inspect_recovery_backlog` 无需连接队列即可读取同一报告。
+
 ### 自定义发送 Job {#custom-job}
 
 实现 `CallWebhookJob`，在生产者、Scheduler 和 Worker 用 `register_call_webhook_job` 与 `DeliveryService::register_worker` 注册同一名称，再用 `.use_job("stop-on-gone")` 选用。`should_be_removed_from_queue` 可停止原投递预算允许的重试。`failed` 在一次尝试提交最终失败并派发结果事件后运行。两个钩子都应快速同步返回。
