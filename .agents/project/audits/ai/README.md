@@ -132,7 +132,11 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 
 固定 `HasMiddleware::middleware` 在 Rust 普通 Agent 契约上由 `Agent::middleware` 装配，匿名 Agent 提供 `with_middleware`。复用框架异步 Pipeline；中间件可以读取 `PendingStep` 的编号、模型、历史、累积用量和调用 ID，在本步修改模型、指令、历史或筛选工具，再调用 `NextStep::run` 继续并处理结果。实际执行核对本步启用的应用工具，即使上游仍返回被禁用的工具，也只记录失败。HTTP Kernel 加本地上游验收三步修改、上下文与工具约束。
 
-`make:agent-middleware` 生成到 `app/ai/middleware`，Agent 中间件模板加到 `ai-stubs`。独立 Artisan 验证生成、发布及生成文件编译后的真实调用。流式入口在配置中间件时显式返回未支持错误。Agent Fake 中间件、Provider 选项编辑及流式步骤待后续批次。
+`make:agent-middleware` 生成到 `app/ai/middleware`，Agent 中间件模板加到 `ai-stubs`。独立 Artisan 验证生成、发布及生成文件编译后的真实调用。
+
+流式中间件通过 `AgentMiddleware::handle_stream` 复用 `PendingStep` 和异步 Pipeline。可继续实时上游，使用 `StepResult::then` 检查终帧，也可直接返回应用生成的响应。真实 Artisan 和 HTTP 检查三步模型及指令改写、历史传入、实时首段、上下文恢复、禁用工具后的返回结果、非流式原请求契约、应用响应的引文和摘要，以及中间件参与时 503 后只调用首选连接。原生、Vercel、AG-UI 通过。SDK 回归 14 项、严格 Clippy 和三语文档通过。新生成模板提供两种入口，Artisan 实际生成文件通过编译，18 语生成回归再次通过。只提供非流式实现的中间件继续获得明确的流式不支持错误。固定上游的显式停止和完整步骤结果读取仍待补。
+
+- [固定 Laravel StepResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/StepResult.php)
 
 ## AI-05 Embeddings 缓存
 

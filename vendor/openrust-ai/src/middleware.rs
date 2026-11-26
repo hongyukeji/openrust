@@ -1,14 +1,15 @@
 use std::{borrow::Cow, collections::BTreeSet, sync::Arc, time::Duration};
 
+use futures_util::StreamExt;
 use openrust::{
     http::HttpFuture,
     pipeline::{Next, Pipeline},
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, Attachment, Message, ProviderOptions, StepResponse,
-    StructuredOutput, TextGenerationOptions, TextPrompt, TextProvider, ToolChoice, ToolDefinition,
-    ToolStep, Usage, events::StepObservation,
+    AgentPrompt, AiError, AiResult, Attachment, Message, ProviderOptions, StepEvent,
+    StepEventStream, StepResponse, StructuredOutput, TextGenerationOptions, TextPrompt,
+    TextProvider, ToolChoice, ToolDefinition, ToolStep, Usage, events::StepObservation,
 };
 
 /// Agent 中间件可以读取、修改或拦截单个模型生成步骤。
@@ -17,7 +18,17 @@ pub trait AgentMiddleware: Send + Sync {
         &'a self,
         step: PendingStep<'step>,
         next: NextStep<'a, 'step>,
-    ) -> HttpFuture<'a, AiResult<StepResponse>>;
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        next.run(step)
+    }
+
+    fn handle_stream<'a, 'step: 'a>(
+        &'a self,
+        _step: PendingStep<'step>,
+        _next: NextStreamStep<'a, 'step>,
+    ) -> HttpFuture<'a, AiResult<StepResult>> {
+        Box::pin(async { Err(AiError::StreamingMiddlewareNotSupported) })
+    }
 }
 
 pub struct PendingStep<'a> {
@@ -97,6 +108,35 @@ impl<'a> PendingStep<'a> {
             .retain(|tool| !names.contains(&tool.name.as_str()));
         self
     }
+
+    fn validate(&self) -> AiResult<()> {
+        if self.model.trim().is_empty() {
+            return Err(AiError::MissingModel);
+        }
+        crate::attachments::validate_prompt_attachments(&self.attachments)?;
+        self.options.validate()?;
+        if let Some(choice) = &self.tool_choice {
+            choice.validate(&self.tools)?;
+        }
+        Ok(())
+    }
+
+    fn as_prompt(&self) -> AgentPrompt<'_> {
+        AgentPrompt {
+            text: TextPrompt {
+                instructions: &self.instructions,
+                prompt: self.prompt,
+                model: &self.model,
+                timeout: self.timeout,
+            },
+            options: self.options,
+            provider_options: self.provider_options.as_deref(),
+            tool_choice: self.tool_choice.as_ref(),
+            messages: &self.messages,
+            attachments: &self.attachments,
+            structured_output: self.structured_output,
+        }
+    }
 }
 
 /// 继续执行剩余中间件及当前模型请求。
@@ -108,6 +148,155 @@ impl<'a, 'step: 'a> NextStep<'a, 'step> {
     pub fn run(self, step: PendingStep<'step>) -> HttpFuture<'a, AiResult<StepResponse>> {
         self.0.run(step)
     }
+}
+
+/// 流式步骤可继续读取供应商事件，也可由中间件直接交付结果。
+pub enum StepResult {
+    Stream(StepEventStream),
+    Response(Box<StepResponse>),
+}
+
+impl StepResult {
+    pub fn from_response(response: StepResponse) -> Self {
+        Self::Response(Box::new(response))
+    }
+
+    pub fn streamed(&self) -> bool {
+        matches!(self, Self::Stream(_))
+    }
+
+    pub(crate) async fn probe(self) -> AiResult<Self> {
+        let Self::Stream(mut source) = self else {
+            return Ok(self);
+        };
+        match source.next().await.transpose()? {
+            Some(event) => Ok(Self::Stream(Box::pin(
+                futures_util::stream::iter([Ok(event)]).chain(source),
+            ))),
+            None => Ok(Self::Stream(source)),
+        }
+    }
+
+    pub(crate) fn into_stream(self) -> StepEventStream {
+        match self {
+            Self::Stream(source) => source,
+            Self::Response(response) => Box::pin(async_stream::stream! {
+                if let Some(text) = &response.text
+                    && !text.is_empty()
+                {
+                    yield Ok(StepEvent::TextDelta(text.clone()));
+                }
+                for citation in &response.citations {
+                    yield Ok(StepEvent::Citation { part:None, citation:citation.clone() });
+                }
+                if !response.reasoning.is_empty() {
+                    yield Ok(StepEvent::Reasoning(crate::ReasoningPart::End {
+                        part:("middleware".into(), 0),
+                        text:Some(response.reasoning.clone()),
+                    }));
+                }
+                let reason = response.finish_reason.as_str().into();
+                yield Ok(StepEvent::Finished { response, reason });
+            }),
+        }
+    }
+
+    pub fn then(self, callback: impl FnOnce(&StepResponse) + Send + 'static) -> Self {
+        match self {
+            Self::Response(response) => {
+                callback(&response);
+                Self::Response(response)
+            }
+            Self::Stream(mut source) => {
+                let app = openrust::support::facades::App::get_instance().ok();
+                Self::Stream(Box::pin(async_stream::try_stream! {
+                    let mut callback = Some(callback);
+                    while let Some(event) = source.next().await {
+                        let event = event?;
+                        if let StepEvent::Finished { response, .. } = &event
+                            && let Some(callback) = callback.take()
+                        {
+                            if let Some(app) = &app {
+                                app.scope(async { callback(response) }).await;
+                            } else {
+                                callback(response);
+                            }
+                        }
+                        yield event;
+                    }
+                }))
+            }
+        }
+    }
+}
+
+pub struct NextStreamStep<'a, 'step: 'a>(
+    Next<'a, PendingStep<'step>, StepResult, AiError, StreamStepContext<'step>>,
+);
+
+impl<'a, 'step: 'a> NextStreamStep<'a, 'step> {
+    pub fn run(self, step: PendingStep<'step>) -> HttpFuture<'a, AiResult<StepResult>> {
+        self.0.run(step)
+    }
+}
+
+struct StreamStepContext<'a> {
+    provider: &'a dyn TextProvider,
+    model: String,
+    allowed: BTreeSet<String>,
+    choice: Option<ToolChoice>,
+}
+
+pub(crate) struct PreparedStreamStep {
+    pub(crate) result: StepResult,
+    pub(crate) model: String,
+    pub(crate) allowed: BTreeSet<String>,
+    pub(crate) choice: Option<ToolChoice>,
+}
+
+pub(crate) async fn generate_stream_step(
+    provider: &dyn TextProvider,
+    step: PendingStep<'_>,
+    middleware: &[Arc<dyn AgentMiddleware>],
+) -> AiResult<PreparedStreamStep> {
+    let mut context = StreamStepContext {
+        provider,
+        model: step.model.to_string(),
+        allowed: step.tools.iter().map(|tool| tool.name.clone()).collect(),
+        choice: step.tool_choice.clone(),
+    };
+    let mut pipeline = Pipeline::send(step);
+    for middleware in middleware {
+        let middleware = middleware.clone();
+        pipeline = pipeline.pipe(move |step, next| {
+            Box::pin(async move { middleware.handle_stream(step, NextStreamStep(next)).await })
+        });
+    }
+    let result = pipeline
+        .then_with(&mut context, |step, context| {
+            Box::pin(async move {
+                step.validate()?;
+                context.model = step.model.to_string();
+                context.allowed = step.tools.iter().map(|tool| tool.name.clone()).collect();
+                context.choice = step.tool_choice.clone();
+                crate::tool_stream::stream_step(
+                    context.provider,
+                    &step.as_prompt(),
+                    &step.tools,
+                    step.steps,
+                    step.is_final_step,
+                )
+                .await
+                .map(StepResult::Stream)
+            })
+        })
+        .await?;
+    Ok(PreparedStreamStep {
+        result,
+        model: context.model,
+        allowed: context.allowed,
+        choice: context.choice,
+    })
 }
 
 struct StepContext<'a> {
@@ -136,32 +325,12 @@ pub(crate) async fn generate_step(
     let response = pipeline
         .then_with(&mut context, |step, context| {
             Box::pin(async move {
-                if step.model.trim().is_empty() {
-                    return Err(AiError::MissingModel);
-                }
-                crate::attachments::validate_prompt_attachments(&step.attachments)?;
-                step.options.validate()?;
+                step.validate()?;
                 let choice = step.tool_choice.as_ref();
-                if let Some(choice) = choice {
-                    choice.validate(&step.tools)?;
-                }
                 context
                     .allowed
                     .extend(step.tools.iter().map(|tool| tool.name.clone()));
-                let request = AgentPrompt {
-                    text: TextPrompt {
-                        instructions: &step.instructions,
-                        prompt: step.prompt,
-                        model: &step.model,
-                        timeout: step.timeout,
-                    },
-                    options: step.options,
-                    provider_options: step.provider_options.as_deref(),
-                    tool_choice: choice,
-                    messages: &step.messages,
-                    attachments: &step.attachments,
-                    structured_output: step.structured_output,
-                };
+                let request = step.as_prompt();
                 context.observation = StepObservation::start(
                     context.provider.name(),
                     &request,

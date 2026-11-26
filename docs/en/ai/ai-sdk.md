@@ -99,7 +99,7 @@ Buffered prompts dispatch `PromptingAgent` before each provider attempt, followe
 
 The SDK dispatches `StreamingAgent` before starting each provider attempt for a stream. A fully consumed stream dispatches `AgentStreamed` with the result, and startup or read errors dispatch `AgentFailed`. Approval pauses carry the saved approval batch. A remembered conversation is saved before the success event, and the event includes its conversation ID. Register listeners before starting the request. A client that stops consuming a stream can leave it without a success event.
 
-For buffered or streaming generation, listen to `StartingStep`, `StepCompleted`, and `StepFailed` to inspect actual model attempts. Step numbers start at zero. The starting event carries the resolved request and the preceding tool results. Buffered calls capture the request after step middleware. The completion event carries the provider’s reported model, usage, and finish reason before the step’s tools run. Middleware that returns a response directly produces no model-step event.
+For buffered or streaming generation, listen to `StartingStep`, `StepCompleted`, and `StepFailed` to inspect actual model attempts. Step numbers start at zero. The starting event carries the resolved request and the preceding tool results. The request snapshot reflects any changes made by step middleware. The completion event carries the provider’s reported model, usage, and finish reason before the step’s tools run. Middleware that returns a response directly produces no model-step event.
 
 ### Connect to a Responses gateway {#responses-gateway}
 
@@ -482,7 +482,7 @@ Assistant history for completed SDK turns includes the model, total usage, and `
 
 ## Text generation options {#text-generation-options}
 
-Set the output token limit and sampling options on an Agent. Use `with_generation_options` for an anonymous Agent or implement `Agent::generation_options` for a named Agent. The settings also apply to structured output and streaming tool steps. Buffered Agent middleware can override them for one step.
+Set the output token limit and sampling options on an Agent. Use `with_generation_options` for an anonymous Agent or implement `Agent::generation_options` for a named Agent. The settings also apply to structured output and streaming tool steps. Agent middleware can override them for one step.
 
 ```rust
 use openrust_ai::{Agent, TextGenerationOptions, agent};
@@ -750,7 +750,9 @@ An Agent can override `without_broadcasting` to exclude event types from deliver
 
 Agents and tools are generated under `app/ai/agents` and `app/ai/tools`. Declare the generated modules in their parent Rust modules and recompile. Add `--force` to replace an existing generated file. Use the published files in `stubs/` to customize the templates.
 
-Declare reusable middleware with `Agent::middleware`, or pass it to an anonymous Agent using `with_middleware`. For each buffered generation step, `PendingStep` exposes the selected model, step number, previous steps and usage. Call `next.run(step)` to continue. Use `with_model`, `with_instructions` and `only_tools` to change that step.
+Declare reusable middleware with `Agent::middleware`, or pass it to an anonymous Agent using `with_middleware`. For each generation step, `PendingStep` exposes the selected model, step number, previous steps and usage. Call `next.run(step)` to continue. Use `with_model`, `with_instructions` and `only_tools` to change that step.
+
+Implement `handle` for buffered calls and `handle_stream` for streaming calls. The generated middleware stub includes both. In `handle_stream`, `NextStreamStep::run` returns a `StepResult` that keeps the upstream stream live. Use `StepResult::then` to inspect the terminal response or `StepResult::from_response` to supply a response from middleware. A middleware that defines only `handle` returns `StreamingMiddlewareNotSupported` on a streaming call.
 
 ## Embeddings {#embeddings}
 

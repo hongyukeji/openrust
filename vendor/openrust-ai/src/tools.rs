@@ -317,6 +317,38 @@ impl ToolRun {
         }
     }
 
+    pub(crate) fn pending_step<'a>(
+        &'a self,
+        provider: &'a str,
+        prompt: &AgentPrompt<'a>,
+        definitions: &'a [ToolDefinition],
+    ) -> PendingStep<'a> {
+        let step = self.history.len();
+        let final_step = step + 1 == self.max_steps;
+        PendingStep {
+            number: step,
+            is_final_step: final_step,
+            provider,
+            model: prompt.text.model.into(),
+            instructions: prompt.text.instructions.into(),
+            prompt: prompt.text.prompt,
+            options: prompt.options,
+            provider_options: prompt.provider_options.map(std::borrow::Cow::Borrowed),
+            tool_choice: prompt
+                .tool_choice
+                .and_then(|choice| choice.for_step(step))
+                .cloned(),
+            messages: prompt.messages.into(),
+            attachments: prompt.attachments.into(),
+            structured_output: prompt.structured_output,
+            steps: &self.history,
+            usage: self.usage.clone().unwrap_or_default(),
+            timeout: prompt.text.timeout,
+            invocation_id: &self.invocation_id,
+            tools: std::borrow::Cow::Borrowed(definitions),
+        }
+    }
+
     pub(crate) fn add_step(&mut self, response: StepResponse, results: Vec<ToolResult>) {
         self.usage = Some(match self.usage.as_ref() {
             Some(previous) => response.usage.clone().combine(previous),
@@ -391,28 +423,7 @@ impl ToolRun {
             let final_step = step + 1 == self.max_steps;
             let (response, allowed) = crate::middleware::generate_step(
                 provider,
-                PendingStep {
-                    number: step,
-                    is_final_step: final_step,
-                    provider: provider.name(),
-                    model: prompt.text.model.into(),
-                    instructions: prompt.text.instructions.into(),
-                    prompt: prompt.text.prompt,
-                    options: prompt.options,
-                    provider_options: prompt.provider_options.map(std::borrow::Cow::Borrowed),
-                    tool_choice: prompt
-                        .tool_choice
-                        .and_then(|choice| choice.for_step(step))
-                        .cloned(),
-                    messages: prompt.messages.into(),
-                    attachments: prompt.attachments.into(),
-                    structured_output: prompt.structured_output,
-                    steps: &self.history,
-                    usage: self.usage.clone().unwrap_or_default(),
-                    timeout: prompt.text.timeout,
-                    invocation_id: &self.invocation_id,
-                    tools: std::borrow::Cow::Borrowed(definitions),
-                },
+                self.pending_step(provider.name(), &prompt, definitions),
                 middleware,
             )
             .await

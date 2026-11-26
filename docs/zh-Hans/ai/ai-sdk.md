@@ -99,7 +99,7 @@ Anthropic Messages 的 HTTP 529 可触发重试或切换。Messages 返回符合
 
 流式调用在每次供应商尝试启动前分派 `StreamingAgent`。完整消费的流分派携带结果的 `AgentStreamed`，启动或读取出错时分派 `AgentFailed`。暂停等候审批时会带上已保存的审批批次。持久会话先写入再分派成功事件，事件带会话 ID。请在发起请求前注册监听器。客户端提前停止消费时，可能收不到成功事件。
 
-非流式与流式生成均可监听 `StartingStep`、`StepCompleted` 和 `StepFailed`，查看实际发起的模型步骤。步骤编号从零开始。起始事件携带已解析的请求及此前的工具结果。非流式调用在步骤中间件处理后采集请求。完成事件在本步工具执行前分派，携带供应商报告的模型、用量和结束原因。中间件直接返回响应时不会产生模型步骤事件。
+非流式与流式生成均可监听 `StartingStep`、`StepCompleted` 和 `StepFailed`，查看实际发起的模型步骤。步骤编号从零开始。起始事件携带已解析的请求及此前的工具结果。请求快照包含步骤中间件的调整。完成事件在本步工具执行前分派，携带供应商报告的模型、用量和结束原因。中间件直接返回响应时不会产生模型步骤事件。
 
 ### 接入 Responses 网关 {#responses-gateway}
 
@@ -482,7 +482,7 @@ SDK 将完成的用户消息和助手消息一起保存。下一次提示默认�
 
 ## 文本生成选项 {#text-generation-options}
 
-在 Agent 上设置输出 Token 上限与采样参数。匿名 Agent 用 `with_generation_options`，具名 Agent 实现 `Agent::generation_options`。这些选项也用于结构化输出和流式工具续步。普通响应的 Agent 中间件可覆盖当前步骤的选项。
+在 Agent 上设置输出 Token 上限与采样参数。匿名 Agent 用 `with_generation_options`，具名 Agent 实现 `Agent::generation_options`。这些选项也用于结构化输出和流式工具续步。Agent 中间件可覆盖当前步骤的选项。
 
 ```rust
 use openrust_ai::{Agent, TextGenerationOptions, agent};
@@ -750,7 +750,9 @@ Agent 可覆盖 `without_broadcasting` 来排除部分广播事件，同时在 H
 
 Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块中声明生成的 Rust 模块，再重新编译。加 `--force` 可覆盖已有文件。发布后可编辑 `stubs/` 下的文件，自定义生成模板。
 
-在 Agent 上通过 `Agent::middleware` 配置中间件，匿名 Agent 则使用 `with_middleware`。非流式生成的每一步都会收到 `PendingStep`，其中包含当前模型、步骤编号、已完成步骤和用量。调用 `next.run(step)` 继续执行。用 `with_model`、`with_instructions` 和 `only_tools` 修改当前步骤。
+在 Agent 上通过 `Agent::middleware` 配置中间件，匿名 Agent 则使用 `with_middleware`。生成的每一步都会收到 `PendingStep`，其中包含当前模型、步骤编号、已完成步骤和用量。调用 `next.run(step)` 继续执行。用 `with_model`、`with_instructions` 和 `only_tools` 修改当前步骤。
+
+非流式调用实现 `handle`，流式调用实现 `handle_stream`。生成的中间件模板包含两个入口。在 `handle_stream` 中，`NextStreamStep::run` 返回持续读取上游的 `StepResult`。用 `StepResult::then` 读取终帧响应，也可用 `StepResult::from_response` 由中间件直接返回结果。只实现 `handle` 的中间件用于流式调用时会返回 `StreamingMiddlewareNotSupported`。
 
 ## Embeddings {#embeddings}
 

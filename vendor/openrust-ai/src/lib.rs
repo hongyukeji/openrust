@@ -114,7 +114,7 @@ pub use load_skill::LoadSkill;
 pub use manager::AiManager;
 pub use mcp_tool::{McpServerTool, McpTool};
 pub use messages::{AgentPrompt, Message, MessageRole};
-pub use middleware::{AgentMiddleware, NextStep, PendingStep};
+pub use middleware::{AgentMiddleware, NextStep, NextStreamStep, PendingStep, StepResult};
 pub use models::{ModelCatalog, ModelInfo};
 pub use provider_options::ProviderOptions;
 pub use request_context::{INVOCATION_HEADER, MODEL_TURN_HEADER};

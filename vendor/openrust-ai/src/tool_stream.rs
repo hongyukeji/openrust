@@ -7,11 +7,12 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
+    AgentMiddleware, AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
     StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep,
     approval_turn::ApprovalSession,
     events::StepObservation,
     messages::OwnedPrompt,
+    middleware::{PreparedStreamStep, generate_stream_step},
     streaming::{StreamMetadata, TextMessages, event},
     tools,
 };
@@ -23,7 +24,8 @@ pub(crate) struct PreparedToolStream {
     registered: tools::ToolHandlers,
     run: tools::ToolRun,
     max_steps: usize,
-    upstream: StepEventStream,
+    opened: PreparedStreamStep,
+    middleware: Vec<Arc<dyn AgentMiddleware>>,
     agent: Option<&'static str>,
 }
 
@@ -32,27 +34,20 @@ pub(crate) async fn prepare(
     prompt: AgentPrompt<'_>,
     registered: Vec<Arc<dyn Tool>>,
     max_steps: Option<usize>,
+    middleware: Vec<Arc<dyn AgentMiddleware>>,
     probe: bool,
 ) -> AiResult<PreparedToolStream> {
     let max_steps = tools::step_limit(registered.len(), max_steps);
     let (definitions, registered) = tools::prepare(registered)?;
-    if let Some(choice) = prompt.tool_choice {
-        choice.validate(&definitions)?;
-    }
     let run = tools::ToolRun::new(max_steps);
-    let mut upstream = stream_step(
+    let mut opened = generate_stream_step(
         provider.as_ref(),
-        &prompt,
-        &definitions,
-        &[],
-        max_steps == 1,
+        run.pending_step(provider.name(), &prompt, &definitions),
+        &middleware,
     )
     .await?;
     if probe {
-        let first = upstream.next().await.transpose()?;
-        if let Some(first) = first {
-            upstream = Box::pin(futures_util::stream::iter([Ok(first)]).chain(upstream));
-        }
+        opened.result = opened.result.probe().await?;
     }
     Ok(PreparedToolStream {
         provider,
@@ -61,7 +56,8 @@ pub(crate) async fn prepare(
         registered,
         run,
         max_steps,
-        upstream,
+        opened,
+        middleware,
         agent: crate::request_context::agent_invocation().map(|(agent, _)| agent),
     })
 }
@@ -79,7 +75,8 @@ pub(crate) fn response(
         registered,
         mut run,
         max_steps,
-        mut upstream,
+        mut opened,
+        middleware,
         agent,
     } = prepared;
     let invocation_id = run.invocation_id.clone();
@@ -88,10 +85,12 @@ pub(crate) fn response(
     let stream = async_stream::try_stream! {
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
+            let PreparedStreamStep { result, model, allowed, choice } = opened;
             yield event(&invocation_id, StreamEventData::StreamStart {
                 provider: provider.name().into(),
-                model: prompt.as_prompt(step - 1).text.model.into(),
+                model,
             });
+            let mut upstream = result.into_stream();
             let mut messages = TextMessages::default();
             let mut reasoning = TextMessages::default();
             let mut has_text = false;
@@ -140,19 +139,18 @@ pub(crate) fn response(
             for message_id in messages.open_ids() {
                 yield event(&invocation_id, StreamEventData::TextEnd { message_id });
             }
-            if let Some(choice) = prompt.choice_for(step - 1) {
+            if let Some(choice) = choice {
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
             observed.record(completed.model.clone(), completed.usage.clone(), completed.finish_reason);
             let plan = || tools::plan_execution(
-                &completed.tool_calls, &registered, None, step == max_steps, None,
+                &completed.tool_calls, &registered, Some(&allowed), step == max_steps, None,
             );
             let execution = in_tool_scope(application.as_deref(), locale.as_deref(), async { plan() }).await??;
             if execution.requires_approval() {
                 let plan = execution.for_pause();
                 let calls = completed.tool_calls.clone();
-                let allowed = registered.keys().cloned().collect();
                 let pause = run.pause(
                     approvals.as_ref(), provider.as_ref(), prompt.as_prompt(0),
                     completed, plan, allowed,
@@ -184,18 +182,22 @@ pub(crate) fn response(
                 return;
             }
             run.add_step(completed, results);
-            let request = prompt.as_prompt(step);
+            let request = prompt.as_prompt(0);
             let open = crate::request_context::in_agent_invocation(
                 &invocation_id, step, agent,
-                stream_step(provider.as_ref(), &request, &definitions, &run.history, step + 1 == max_steps),
+                generate_stream_step(
+                    provider.as_ref(),
+                    run.pending_step(provider.name(), &request, &definitions),
+                    &middleware,
+                ),
             );
-            upstream = in_tool_scope(application.as_deref(), locale.as_deref(), open).await??;
+            opened = in_tool_scope(application.as_deref(), locale.as_deref(), open).await??;
         }
     };
     StreamableAgentResponse::from_events(Box::pin(stream)).with_step_metadata(metadata)
 }
 
-async fn stream_step(
+pub(crate) async fn stream_step(
     provider: &dyn TextProvider,
     prompt: &AgentPrompt<'_>,
     definitions: &[ToolDefinition],

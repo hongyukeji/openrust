@@ -774,6 +774,11 @@ impl OpenAiTextProvider {
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };
+        if stream && tools.is_empty() {
+            body.as_object_mut()
+                .ok_or(AiError::InvalidResponse)?
+                .remove("tools");
+        }
         if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
             body["tool_choice"] = match choice {
                 ToolChoice::Auto => "auto".into(),

@@ -312,6 +312,11 @@ impl StepTextGateway for AnthropicTextProvider {
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
             let mut body = Self::tool_payload(prompt, tools, history)?;
+            if tools.is_empty() {
+                body.as_object_mut()
+                    .ok_or(AiError::InvalidResponse)?
+                    .remove("tools");
+            }
             body["stream"] = true.into();
             let response = self
                 .0

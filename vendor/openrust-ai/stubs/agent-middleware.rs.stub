@@ -1,5 +1,7 @@
 use openrust::http::HttpFuture;
-use openrust_ai::{AgentMiddleware, AiResult, NextStep, PendingStep, StepResponse};
+use openrust_ai::{
+    AgentMiddleware, AiResult, NextStep, NextStreamStep, PendingStep, StepResponse, StepResult,
+};
 
 pub struct {{class}};
 
@@ -9,6 +11,14 @@ impl AgentMiddleware for {{class}} {
         step: PendingStep<'step>,
         next: NextStep<'a, 'step>,
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        next.run(step)
+    }
+
+    fn handle_stream<'a, 'step: 'a>(
+        &'a self,
+        step: PendingStep<'step>,
+        next: NextStreamStep<'a, 'step>,
+    ) -> HttpFuture<'a, AiResult<StepResult>> {
         next.run(step)
     }
 }

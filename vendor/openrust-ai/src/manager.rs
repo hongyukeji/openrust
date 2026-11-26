@@ -829,9 +829,7 @@ impl AiManager {
                 .await
                 .map(StreamableAgentResponse::from_text);
         }
-        if !agent.middleware().is_empty() {
-            return Err(AiError::StreamingMiddlewareNotSupported);
-        }
+        let middleware = agent.middleware();
         let tools = crate::load_skill::tools_for(agent)?;
         if tools.is_empty()
             && let Some(choice) = &choice
@@ -853,7 +851,7 @@ impl AiManager {
             structured_output,
         };
         let agent_type = std::any::type_name::<A>();
-        if tools.is_empty() {
+        if tools.is_empty() && middleware.is_empty() {
             let (response, attempt) = self
                 .with_text_failover(
                     agent,
@@ -910,6 +908,8 @@ impl AiManager {
                     None,
                     |provider, request, _, probe| {
                         let tools = tools.clone();
+                        let middleware = middleware.clone();
+                        let can_replay = middleware.is_empty();
                         Box::pin(crate::events::observe_stream_start(
                             agent_type,
                             provider.name(),
@@ -920,10 +920,17 @@ impl AiManager {
                                     request,
                                     tools,
                                     max_steps,
-                                    probe,
+                                    middleware,
+                                    probe && can_replay,
                                 )
                                 .await
-                                .map_err(ProviderAttemptError::BeforeCommit)
+                                .map_err(|error| {
+                                    if can_replay {
+                                        ProviderAttemptError::BeforeCommit(error)
+                                    } else {
+                                        ProviderAttemptError::Committed(error)
+                                    }
+                                })
                             },
                         ))
                     },

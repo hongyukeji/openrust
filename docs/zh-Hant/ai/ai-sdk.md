@@ -99,7 +99,7 @@ Anthropic Messages 的 HTTP 529 可觸發重試或切換。Messages 傳回符合
 
 串流呼叫在每次供應商嘗試啟動前分派 `StreamingAgent`。完整消費的串流分派帶有結果的 `AgentStreamed`，啟動或讀取出錯時分派 `AgentFailed`。暫停等候審批時會帶上已儲存的審批批次。持久會話先寫入再分派成功事件，事件帶有會話 ID。請在發起請求前註冊監聽器。用戶端提前停止消費時，可能收不到成功事件。
 
-非串流與串流生成皆可監聽 `StartingStep`、`StepCompleted` 和 `StepFailed`，查看實際發起的模型步驟。步驟編號從零開始。起始事件帶有已解析的請求及先前的工具結果。非串流呼叫在步驟中介層處理後收集請求。完成事件在本步驟的工具執行前分派，帶有供應商回報的模型、用量和結束原因。中介層直接回傳回應時不會產生模型步驟事件。
+非串流與串流生成皆可監聽 `StartingStep`、`StepCompleted` 和 `StepFailed`，查看實際發起的模型步驟。步驟編號從零開始。起始事件帶有已解析的請求及先前的工具結果。請求快照包含步驟中介層的調整。完成事件在本步驟的工具執行前分派，帶有供應商回報的模型、用量和結束原因。中介層直接回傳回應時不會產生模型步驟事件。
 
 ### 接入 Responses 閘道 {#responses-gateway}
 
@@ -482,7 +482,7 @@ SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示�
 
 ## 文字生成選項 {#text-generation-options}
 
-在 Agent 上設定輸出 Token 上限與取樣參數。匿名 Agent 用 `with_generation_options`，具名 Agent 實作 `Agent::generation_options`。這些選項也用於結構化輸出與串流工具續步。一般回應的 Agent 中介軟體可覆寫目前步驟的選項。
+在 Agent 上設定輸出 Token 上限與取樣參數。匿名 Agent 用 `with_generation_options`，具名 Agent 實作 `Agent::generation_options`。這些選項也用於結構化輸出與串流工具續步。Agent 中介層可覆寫目前步驟的選項。
 
 ```rust
 use openrust_ai::{Agent, TextGenerationOptions, agent};
@@ -750,7 +750,9 @@ Agent 可覆寫 `without_broadcasting` 排除部分廣播事件，同時在 HTTP
 
 Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組中宣告產生的 Rust 模組，再重新編譯。加 `--force` 可覆寫既有檔案。發布後可編輯 `stubs/` 下的檔案，自訂產生範本。
 
-在 Agent 上透過 `Agent::middleware` 設定中介層，匿名 Agent 則使用 `with_middleware`。非串流產生的每一步都會收到 `PendingStep`，其中包含目前模型、步驟編號、已完成步驟和用量。呼叫 `next.run(step)` 繼續執行。用 `with_model`、`with_instructions` 和 `only_tools` 修改目前步驟。
+在 Agent 上透過 `Agent::middleware` 設定中介層，匿名 Agent 則使用 `with_middleware`。產生的每一步都會收到 `PendingStep`，其中包含目前模型、步驟編號、已完成步驟和用量。呼叫 `next.run(step)` 繼續執行。用 `with_model`、`with_instructions` 和 `only_tools` 修改目前步驟。
+
+非串流呼叫實作 `handle`，串流呼叫實作 `handle_stream`。產生的中介層範本包含兩個進入點。在 `handle_stream` 中，`NextStreamStep::run` 回傳持續讀取上游的 `StepResult`。用 `StepResult::then` 讀取終止訊框的回應，也可用 `StepResult::from_response` 由中介層直接回傳結果。只實作 `handle` 的中介層用於串流呼叫時會回傳 `StreamingMiddlewareNotSupported`。
 
 ## Embeddings {#embeddings}
 

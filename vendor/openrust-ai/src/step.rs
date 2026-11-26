@@ -17,6 +17,19 @@ pub enum FinishReason {
 }
 
 impl FinishReason {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Stop => "stop",
+            Self::ToolCalls => "tool_calls",
+            Self::Continue => "continue",
+            Self::Length => "length",
+            Self::ContentFilter => "content_filter",
+            Self::Error => "error",
+            Self::Cancelled => "cancelled",
+            Self::Unknown => "unknown",
+        }
+    }
+
     pub(crate) fn from_wire(reason: Option<&str>) -> Self {
         match reason {
             Some("stop" | "end_turn" | "stop_sequence" | "STOP" | "completed") => Self::Stop,
