@@ -14,7 +14,7 @@ NEW_RELIC_REGION=us
 
 Provide the New Relic ingest license as `NEW_RELIC_LICENSE_KEY` through the runtime environment. The provider reads it at startup, outside the configuration cache. The service name defaults to the application name. Choose `us`, `eu`, `jp`, or `us-gov` for the account's ingest region. Rebuild the application configuration cache after changing the enable flag, name, or region.
 
-For an OpenTelemetry Collector, set `NEW_RELIC_COLLECTOR_ENDPOINT` to its base URL. Use HTTPS or a loopback IP with HTTP, with no credentials, path, query, or fragment. The application sends OTLP HTTP/protobuf to `/v1/traces` and `/v1/metrics`. Configure the Collector's New Relic exporter with the license.
+For an OpenTelemetry Collector, set `NEW_RELIC_COLLECTOR_ENDPOINT` to its base URL. Use HTTPS or a loopback IP with HTTP, with no credentials, path, query, or fragment. The application sends OTLP HTTP/protobuf to `/v1/traces` and `/v1/metrics`, and to `/v1/logs` when log export is enabled. Configure the Collector's New Relic exporter with the license.
 
 When a trusted downstream service should receive W3C trace context, set `NEW_RELIC_PROPAGATE_ORIGINS` to a comma-separated list of exact origins such as `https://api.example.com,https://internal.example.com:8443`. Each origin includes scheme, host, and effective port. Leave it empty to disable automatic injection. Rebuild the configuration cache after changing this list.
 

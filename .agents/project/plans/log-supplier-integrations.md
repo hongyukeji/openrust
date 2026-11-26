@@ -100,4 +100,12 @@ Rust 1.94.0 冻结快照使用真实 HTTP、两个回环下游和独立 Artisan�
 
 Rust 1.94.0 在 macOS ARM64 完成数据库与队列矩阵，在 Debian Bookworm ARM64 容器完成 SQLite 端到端、真实子进程和退出流程复验。两个环境各实测日志和错误 Span 分别成功接收 2,560 条、过载丢弃 1,536 条。格式、定向严格 Clippy、36 项框架 HTTP／Artisan 回归、VitePress 三语构建、12 组浏览器与导航检查通过。
 
-产品实现与上述模拟验收按用户确认的口径闭合。真实 New Relic 租户的 HTTPS 摄取、NRQL、APM 页面及后台聚合属于发布实机验收。托管 SQS 身份与 Windows 原生环境同样需要各自的运行环境。
+产品实现与上述模拟验收按用户确认的口径闭合。真实 New Relic 租户的 HTTPS 摄取、NRQL、APM 页面及后台聚合属于发布实机验收。托管 SQS 身份和发布目标平台继续单列。
+
+<a id="windows-arm64-otlp"></a>
+
+### Windows ARM64 原生 OTLP 验收
+
+在隔离的 Windows 11 ARM64 虚机上，从 `63dd69a31` 的干净归档使用 Rust 1.94.0 编译 `new_relic_app`，启用 `new-relic`。检查实际 PE 的 ARM64 类型和与正式入口一致的 16 MiB 主线程栈。应用以回环 HTTP 发送，测试用 TCP 转发器通过私有网将数据送到隔离的 OTLP 收集器，使用 `opentelemetry-proto 1.43.0` 解码。
+
+默认禁用时无上报。配置与路由缓存文件均生成，文件中没有测试授权金钥。缓存后实际 HTTP 覆盖路由模板、W3C 父链路、404 与 500、结构化日志关联、下游 HTTP 和 SQLite 操作、临时故障重试及 OTLP 部分拒收。独立 Artisan 失败、实际 SQLite Worker 的成功与失败、批量任务关联和隔离子进程均通过。任务释放后重新领取保留生产者关联，硬超时 Worker 返回 77 并导出超时耗时，新 Worker 可继续处理。日志位于 `target/tmp/new-relic-windows/`。真实租户的摄取、页面和 NRQL、Windows x86_64 发布制品、托管 SQS 仍保留验收。

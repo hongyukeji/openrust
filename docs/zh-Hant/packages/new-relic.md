@@ -14,7 +14,7 @@ NEW_RELIC_REGION=us
 
 透過執行階段環境提供 New Relic 擷取授權金鑰 `NEW_RELIC_LICENSE_KEY`。Provider 啟動時讀取授權金鑰，設定快取不會儲存該值。服務名稱預設採用應用程式名稱。依帳號的擷取區域選擇 `us`、`eu`、`jp` 或 `us-gov`。變更啟用狀態、服務名稱或區域後，重新產生應用程式設定快取。
 
-使用 OpenTelemetry Collector 時，將 `NEW_RELIC_COLLECTOR_ENDPOINT` 設為其基礎 URL。接受 HTTPS 或使用回送 IP 的 HTTP 位址，位址不得包含認證資訊、路徑、查詢或片段。應用程式使用 OTLP HTTP/protobuf 傳送至 `/v1/traces` 和 `/v1/metrics`。請在 Collector 的 New Relic 匯出器中設定授權金鑰。
+使用 OpenTelemetry Collector 時，將 `NEW_RELIC_COLLECTOR_ENDPOINT` 設為其基礎 URL。接受 HTTPS 或使用回送 IP 的 HTTP 位址，位址不得包含認證資訊、路徑、查詢或片段。應用程式使用 OTLP HTTP/protobuf 傳送至 `/v1/traces` 和 `/v1/metrics`，啟用日誌匯出時也會傳送至 `/v1/logs`。請在 Collector 的 New Relic 匯出器中設定授權金鑰。
 
 需要將 W3C 追蹤傳遞給可信的下游服務時，將 `NEW_RELIC_PROPAGATE_ORIGINS` 設為以逗號分隔的精確來源，例如 `https://api.example.com,https://internal.example.com:8443`。比對通訊協定、主機和有效連接埠。留空時停用自動注入。變更後重新產生設定快取。
 
