@@ -15,7 +15,9 @@
 
 ## 設定 {#configuration}
 
-重用 `database.redis` 中的單機 Redis 連線和 `queue.connections` 中的 Redis 佇列連線。`horizon.use` 選擇元資料連線，預設 `default`；`horizon.prefix` 讀取 `HORIZON_PREFIX`，預設將 `APP_NAME` 轉為底線 slug 後附加 `_horizon:`；共用 Redis 的不同環境應使用獨立前綴。不支援 Redis Cluster。原生[佇列](../digging-deeper/queues.md)仍按自身契約支援其他傳輸。
+重用 `database.redis` 中的 Redis 連線和 `queue.connections` 中的 Redis 佇列連線。`horizon.use` 選擇中繼資料連線，預設值為 `default`。`horizon.prefix` 讀取 `HORIZON_PREFIX`，預設將 `APP_NAME` 轉為底線 slug 後附加 `_horizon:`。共用 Redis 的不同環境應使用獨立前綴。
+
+Horizon 中繼資料和佇列傳輸可獨立使用單節點 Redis 或 [Redis Cluster](../database/redis.md#clusters)。將 `horizon.use` 設為叢集名稱即可使用叢集儲存中繼資料。要讓佇列使用叢集，將 Redis 佇列設定下的 `connection` 設為叢集名稱。同名的叢集和單節點連線同時存在時，Horizon 中繼資料選擇叢集，佇列連線選擇單節點。Horizon 會為缺少 hash tag 的中繼資料前綴自動加上標籤，叢集佇列也會為缺少標籤的鍵補上標籤，使待處理、延遲、保留和通知鍵位於同一槽。
 
 執行中的監控程序會重試短時 Redis 中繼資料中斷。無法核對所有權時，受管 Worker 等候領取。重新連線後 Horizon 驗證既有所有權權杖，驗證通過才恢復。權杖缺失或變更時，舊程序樹會關閉。受管 Worker 在 Redis 保留工作後再次核對所有權。未能通過核對時，只要保留仍有效，就把工作放回佇列首位並恢復先前的嘗試次數。主從切換期間由設定的 Redis 端點負責選定主節點。
 

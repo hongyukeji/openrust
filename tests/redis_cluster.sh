@@ -91,6 +91,10 @@ for port in "$first" "$independent"; do
     done
 done
 docker exec "$cid" redis-server --version
+HORIZON_CLUSTER_TEST_PORTS="$first,$second,$third" \
+HORIZON_CLUSTER_TEST_STANDALONE_PORT="$standalone" HORIZON_CLUSTER_TEST_PASSWORD=cluster-fixture \
+    cargo +1.94.0 test --locked --offline -p openrust-horizon --test cluster \
+    redis_cluster_metadata_and_queue_transport_use_public_horizon_consumers -- --ignored --exact
 export OPENRUST_TEST_REDIS_CLUSTER_PORT="$first" OPENRUST_REQUIRE_REDIS_CLUSTER=1
 export OPENRUST_TEST_REDIS_CLUSTER_CONTAINER="$cid" OPENRUST_TEST_REDIS_CLUSTER_FIXTURE="$fixture"
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_routes_commands_and_cache_locks_across_shards -- --exact

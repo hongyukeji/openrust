@@ -98,7 +98,13 @@ macOS 使用修复提交 `06d60f418` 和本机 Redis 8.10.3，在独立端口启
 
 Laravel 13 的 Horizon 安装文档仍将 Redis Cluster 列为不兼容。固定 Horizon 提交 `b86d5aa87` 的 `Horizon::use` 支持为内部元数据连接设置集群，连接前缀缺少 hash tag 时自动添加。固定 Laravel Framework `1449bf241` 可为集群队列的普通名称生成同槽键。PHP 8.5.12、Predis 2.4.0、Redis 8.10.3 的三个集群主节点与独立单节点实测如下。 [Laravel Horizon 安装文档](https://laravel.com/framework/docs/13.x/horizon#installation) [固定 Horizon::use](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Horizon.php#L109-L179) [固定队列键规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L672-L697)
 
-集群元数据配单节点队列、单节点元数据配集群队列，以及两者均用集群的普通／显式 hash tag 队列名四组均通过。固定仓储实际读写 Master 心跳、命令队列、指标与监控标签。原队列执行写入、保留和删除，Laravel 监听器将记录更新至 completed。Rust 前态在 `horizon.use` 解析时拒绝已配置的集群，需补齐元数据命名空间和槽定向操作，再验收同样四组进程。固定 PHP 的组合结果为 `target/tmp/observability-parity/horizon-cluster-reference/upstream-retry.log`。真实故障切换、PhpRedis 与目标生产集群继续独立验收。
+集群元数据配单节点队列、单节点元数据配集群队列，以及两者均用集群的普通／显式 hash tag 队列名均通过。同名的集群和单节点同时配置时，`Horizon::use` 选择集群，普通队列选择单节点。Predis 2.4.0 和 PhpRedis 6.3.0 各通过五组。固定仓储实际读写 Master 心跳、命令队列、指标和监控标签。原队列实际执行阻塞等待、写入、保留和删除，固定监听器将任务标记为 completed。证据为 `target/tmp/observability-parity/horizon-cluster-reference/upstream-{precedence,phpredis}.log`。
+
+OpenRust 前态拒绝集群元数据与监督器集群队列。现复用框架集群连接，为元数据生成独立 hash tag，并将 Redis 时间和滚动指标清理定向到所属槽。元数据在同名配置中选择集群，普通连接仍优先使用单节点。集群队列用 hash tag 让待处理、延迟、保留和通知键进入同一槽。原先使用有效 hash tag 的键保持原地址。阻塞消费者使用独立集群传输。标签与孤儿进程仓储分别兼容 RESP3 的 Set 与 Map，同时保留原 RESP2 返回形状。
+
+macOS 的五组实际 HTTP 和仓储回归检查阻塞等待、任务状态、标签、命令队列、孤儿进程，以及同槽不同命名空间的指标隔离。另用真实 Artisan 启动三种拓扑的 Master 和 Worker，验证运行中的任务排空，以及快照和清理命令。用三个主节点及每分片一个副本，分别核对集群元数据配单节点队列，以及元数据与集群队列共槽。确认租约已复制后停止分片主节点，原 Master 在自动选主后继续运行并消费新任务。首次真实切换曾使 Master 退出，修复将集群暂不可用的返回纳入现有有界恢复流程。证据为 `target/tmp/observability-parity/horizon-cluster-reference/native-{failover-retry,fifth,shared-slot-failover}.log`。目标生产集群和本批目标平台的优化制品继续验收。 [Redis Cluster 复制与故障转移边界](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)
+
+基于 `672b8241b` 的隔离快照叠加本批文件，使用 Rust 1.94.0 验证选项 10 项、配置 8 项、五组集群专项及相关严格 Clippy。配置套件另有一个独立单节点用例按条件跳过。三语文档完成构建，并在根路径和 `/docs/` 核对桌面、移动和导航。测试入口为 `tests/redis_cluster.sh`，文档证据为 `target/tmp/observability-parity/horizon-cluster-reference/docs-retry.log`。
 
 ### Master 命令队列与动态部署
 

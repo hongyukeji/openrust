@@ -289,7 +289,7 @@ fn environment_overrides_merge_without_modifying_defaults_and_reject_unsafe_work
 }
 
 #[test]
-fn cluster_queue_transports_are_rejected() {
+fn cluster_queue_transports_can_be_provisioned() {
     let config = Repository::new(BTreeMap::from([
         (
             "horizon".into(),
@@ -301,10 +301,10 @@ fn cluster_queue_transports_are_rejected() {
         ),
         (
             "database".into(),
-            json!({"redis":{"clusters":{"cluster":[]}}}),
+            json!({"redis":{"clusters":{"cluster":[{"host":"127.0.0.1","port":7000}]}}}),
         ),
     ]));
-    assert!(SupervisorOptions::from_config(&config).is_err());
+    assert_eq!(SupervisorOptions::from_config(&config).unwrap().len(), 1);
 }
 
 #[test]

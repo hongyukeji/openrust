@@ -22,7 +22,7 @@ type Connector = dyn Fn(&serde_json::Value, &str) -> RedisResult<Connection> + S
 /// Resolves named Redis connections and manages their lifecycle.
 pub struct RedisManager {
     config: Arc<dyn Repository>,
-    connections: Mutex<HashMap<String, Arc<Connection>>>,
+    connections: Mutex<HashMap<(String, bool), Arc<Connection>>>,
     pub(crate) events: Arc<CommandEvents>,
     custom_creators: RwLock<HashMap<String, Arc<Connector>>>,
 }
@@ -91,10 +91,11 @@ impl RedisManager {
 
     /// 清除后续解析的缓存；已交给消费者的连接仍有效。
     pub fn purge(&self, name: Option<&str>) {
+        let name = name.filter(|name| !name.is_empty()).unwrap_or("default");
         self.connections
             .lock()
             .unwrap()
-            .remove(name.filter(|name| !name.is_empty()).unwrap_or("default"));
+            .retain(|(cached, _), _| cached != name);
     }
 
     pub fn extend(
@@ -110,12 +111,21 @@ impl RedisManager {
     }
 
     pub fn connection(&self, name: Option<&str>) -> RedisResult<Arc<Connection>> {
-        let name = name.unwrap_or("default");
+        self.resolve_connection(name.unwrap_or("default"), false)
+    }
+
+    /// 按名称选择集群配置，即使存在同名的单节点连接。
+    pub fn cluster_connection(&self, name: &str) -> RedisResult<Arc<Connection>> {
+        self.resolve_connection(name, true)
+    }
+
+    fn resolve_connection(&self, name: &str, cluster_only: bool) -> RedisResult<Arc<Connection>> {
+        let cache_key = (name.to_owned(), cluster_only);
         let mut connections = self
             .connections
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(connection) = connections.get(name) {
+        if let Some(connection) = connections.get(&cache_key) {
             return Ok(connection.clone());
         }
         let config = self
@@ -127,9 +137,9 @@ impl RedisManager {
             Some(serde_json::Value::String(prefix)) => prefix.clone(),
             _ => return Err(RedisError::InvalidConfiguration),
         };
-        let direct = config
-            .get(name)
-            .filter(|value| !value.is_null() && !matches!(name, "options" | "clusters" | "client"));
+        let direct = config.get(name).filter(|value| {
+            !cluster_only && !value.is_null() && !matches!(name, "options" | "clusters" | "client")
+        });
         let driver = config
             .get("client")
             .and_then(serde_json::Value::as_str)
@@ -156,7 +166,7 @@ impl RedisManager {
             return Err(RedisError::UnknownConnection { name: name.into() });
         };
         let connection = Arc::new(connection.with_events(name, self.events.clone()));
-        connections.insert(name.into(), connection.clone());
+        connections.insert(cache_key, connection.clone());
         Ok(connection)
     }
 }

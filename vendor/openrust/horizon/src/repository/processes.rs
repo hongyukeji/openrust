@@ -300,10 +300,12 @@ async fn names(repository: &Repository, kind: &str, age: u64) -> Result<Vec<Stri
     )
 }
 pub(super) fn string_list(value: Value) -> Result<Vec<String>> {
-    let Value::Array(values) = value else {
-        return Err(Error::Redis);
-    };
-    values.iter().map(text).collect()
+    value
+        .as_sequence()
+        .ok_or(Error::Redis)?
+        .iter()
+        .map(text)
+        .collect()
 }
 impl MasterSupervisorRepository {
     pub fn new(repository: Repository) -> Self {
@@ -499,16 +501,15 @@ impl ProcessRepository {
         Ok(self.0.key(&format!("orphans:{}", super::encode(master))))
     }
     pub async fn all_orphans(&self, master: &str) -> Result<BTreeMap<u32, u64>> {
-        let values = string_list(self.0.command("HGETALL", &[self.key(master)?]).await?)?;
-        if values.len() % 2 != 0 {
-            return Err(Error::Redis);
-        }
-        values
-            .chunks_exact(2)
-            .map(|v| {
+        self.0
+            .command("HGETALL", &[self.key(master)?])
+            .await?
+            .into_map_iter()
+            .map_err(|_| Error::Redis)?
+            .map(|(pid, ended_at)| {
                 Ok((
-                    v[0].parse().map_err(|_| Error::Redis)?,
-                    v[1].parse().map_err(|_| Error::Redis)?,
+                    text(&pid)?.parse().map_err(|_| Error::Redis)?,
+                    text(&ended_at)?.parse().map_err(|_| Error::Redis)?,
                 ))
             })
             .collect()

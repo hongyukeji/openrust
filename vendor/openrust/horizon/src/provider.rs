@@ -71,17 +71,16 @@ impl ServiceProvider for HorizonServiceProvider {
                     .and_then(|v| v.as_u64())
                     .and_then(|v| u32::try_from(v).ok())
                     .ok_or_else(binding)?;
-                // Horizon uses the standalone Redis queue transport, following upstream's boundary.
-                if config
+                let redis = container.make::<openrust::redis::RedisManager>()?;
+                let connection = if config
                     .get(&format!("database.redis.clusters.{name}"))
                     .is_some()
                 {
-                    return Err(binding());
+                    redis.cluster_connection(&name)
+                } else {
+                    redis.connection(Some(&name))
                 }
-                let connection = container
-                    .make::<openrust::redis::RedisManager>()?
-                    .connection(Some(&name))
-                    .map_err(|_| binding())?;
+                .map_err(|_| binding())?;
                 let mut repository = Repository::new(connection, prefix, retention)
                     .and_then(|repository| repository.with_config(config.as_ref()))
                     .map_err(|_| binding())?;

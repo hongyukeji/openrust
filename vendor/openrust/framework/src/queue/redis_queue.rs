@@ -166,7 +166,10 @@ impl RedisQueue {
     }
 
     fn keys(&self, queue: &str) -> [String; 3] {
-        let ready = self.connection.key(&format!("queues:{queue}"));
+        let mut ready = self.connection.key(&format!("queues:{queue}"));
+        if self.connection.is_cluster() && !Connection::has_hash_tag(&ready) {
+            ready = self.connection.key(&format!("queues:{{{queue}}}"));
+        }
         let delayed = format!("{ready}:delayed");
         let reserved = format!("{ready}:reserved");
         [ready, delayed, reserved]
@@ -398,13 +401,11 @@ impl RedisQueue {
             // Bounded waits allow delayed jobs and expired reservations to be promoted.
             let mut command = ::redis::cmd("BLPOP");
             command.arg(&notify).arg(slice.as_secs_f64());
-            let _: Option<(String, String)> = tokio::time::timeout(
-                slice + Duration::from_secs(2),
-                command.query_async(&mut connection),
-            )
-            .await
-            .map_err(backend)?
-            .map_err(backend)?;
+            let _: Option<(String, String)> =
+                tokio::time::timeout(slice + Duration::from_secs(2), connection.query(&command))
+                    .await
+                    .map_err(backend)?
+                    .map_err(backend)?;
             if !may_resume_reservation().await? {
                 return Ok(None);
             }

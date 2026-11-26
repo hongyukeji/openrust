@@ -1,5 +1,5 @@
 use crate::{Error, Result, label};
-use openrust::redis::{Value, connections::Connection};
+use openrust::redis::{RedisError, Value, connections::Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
@@ -122,15 +122,30 @@ return phase
 "#;
 impl Repository {
     pub fn new(connection: Arc<Connection>, prefix: String, retention: u32) -> Result<Self> {
-        if prefix.is_empty()
+        if !(60..=86400).contains(&retention) {
+            return Err(Error::InvalidConfiguration);
+        }
+        let prefix = if connection.is_cluster() {
+            let prefix = if prefix.is_empty() || prefix == "0" {
+                "horizon:".into()
+            } else {
+                prefix
+            };
+            if Connection::has_hash_tag(&prefix) {
+                prefix
+            } else {
+                format!("{{{prefix}}}")
+            }
+        } else if prefix.is_empty()
             || prefix.len() > 128
             || !prefix
                 .bytes()
                 .all(|c| c.is_ascii_alphanumeric() || b"_:-.".contains(&c))
-            || !(60..=86400).contains(&retention)
         {
             return Err(Error::InvalidConfiguration);
-        }
+        } else {
+            prefix
+        };
         Ok(Self {
             master_names: Arc::default(),
             connection,
@@ -195,8 +210,13 @@ impl Repository {
         self.trim.get(kind).copied().unwrap_or(self.retention)
     }
     pub(crate) fn key(&self, suffix: &str) -> String {
-        self.connection
-            .key(&format!("{}{{horizon}}:{suffix}", self.prefix))
+        if self.connection.is_cluster() {
+            // 集群的 Horizon 前缀独立于应用 Redis 前缀，所有元数据进入一个槽。
+            format!("{}{suffix}", self.prefix)
+        } else {
+            self.connection
+                .key(&format!("{}{{horizon}}:{suffix}", self.prefix))
+        }
     }
     pub(crate) async fn command(&self, command: &str, args: &[String]) -> Result<Value> {
         self.connection
@@ -205,13 +225,7 @@ impl Repository {
                 &args.iter().map(|s| s.as_bytes()).collect::<Vec<_>>(),
             )
             .await
-            .map_err(|error| {
-                if error.is_temporarily_unavailable() {
-                    Error::RedisUnavailable(error)
-                } else {
-                    Error::Redis
-                }
-            })
+            .map_err(redis_error)
     }
     async fn eval(&self, script: &str, keys: Vec<String>, args: Vec<String>) -> Result<Value> {
         let mut parameters = vec![script.into(), keys.len().to_string()];
@@ -220,7 +234,13 @@ impl Repository {
         self.command("EVAL", &parameters).await
     }
     pub(crate) async fn now(&self) -> Result<u64> {
-        let Value::Array(values) = self.command("TIME", &[]).await? else {
+        let clock = if self.connection.is_cluster() {
+            self.eval("return redis.call('TIME')", vec![self.key("clock")], vec![])
+                .await?
+        } else {
+            self.command("TIME", &[]).await?
+        };
+        let Value::Array(values) = clock else {
             return Err(Error::Redis);
         };
         if values.len() != 2 {
@@ -443,6 +463,14 @@ return cjson.encode(total)
             }
         }
         Ok(result)
+    }
+}
+
+fn redis_error(error: RedisError) -> Error {
+    if error.is_temporarily_unavailable() {
+        Error::RedisUnavailable(error)
+    } else {
+        Error::Redis
     }
 }
 pub(crate) fn text(value: &Value) -> Result<String> {

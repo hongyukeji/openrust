@@ -37,7 +37,7 @@ pub enum RedisError {
 }
 
 impl RedisError {
-    /// 连接暂不可用，或服务端正在加载、尚未允许写入。
+    /// 连接暂不可用，或服务端正在加载、切换主节点或等待写入。
     pub fn is_temporarily_unavailable(&self) -> bool {
         use ::redis::{ErrorKind, ServerErrorKind};
 
@@ -47,10 +47,13 @@ impl RedisError {
                 matches!(
                     error.kind(),
                     ErrorKind::Io
+                        | ErrorKind::ClusterConnectionNotFound
                         | ErrorKind::Server(
                             ServerErrorKind::BusyLoading
                                 | ServerErrorKind::ReadOnly
                                 | ServerErrorKind::TryAgain
+                                | ServerErrorKind::ClusterDown
+                                | ServerErrorKind::MasterDown
                         )
                 )
             })

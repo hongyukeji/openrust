@@ -15,7 +15,9 @@ Published configuration takes effect after recompiling the application. Repeatin
 
 ## Configuration {#configuration}
 
-Use existing standalone Redis connections from `database.redis` and Redis queue connections from `queue.connections`. `horizon.use` selects the metadata connection (default `default`); `horizon.prefix` reads `HORIZON_PREFIX`, defaulting to the underscore slug of `APP_NAME` followed by `_horizon:`. Use separate prefixes for environments sharing Redis. Redis Cluster is unsupported. Core [queues](../digging-deeper/queues.md) still support their own transports.
+Use Redis connections from `database.redis` and Redis queue connections from `queue.connections`. `horizon.use` selects the metadata connection and defaults to `default`. `horizon.prefix` reads `HORIZON_PREFIX` and defaults to the underscore slug of `APP_NAME` followed by `_horizon:`. Use separate prefixes for environments sharing Redis.
+
+Horizon metadata and queue transport can independently use standalone Redis or [Redis Cluster](../database/redis.md#clusters). Set `horizon.use` to a cluster name for metadata. Set the Redis queue connection's `connection` to a cluster name for transport. When the same name exists in both configurations, Horizon metadata uses the cluster and the queue connection uses the standalone server. Horizon automatically gives the metadata prefix a hash tag if it has none. Cluster queues give untagged queue keys a hash tag so the ready, delayed, reserved and notification keys share a slot.
 
 For an existing deployment using the former `horizon:` metadata prefix, set `HORIZON_PREFIX=horizon:` while keeping its workers on that prefix. Change prefixes only after draining the old master; a new prefix has separate control state and history.
 

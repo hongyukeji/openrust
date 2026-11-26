@@ -15,7 +15,9 @@
 
 ## 配置 {#configuration}
 
-复用 `database.redis` 中的单机 Redis 连接和 `queue.connections` 中的 Redis 队列连接。`horizon.use` 选择元数据连接，默认 `default`；`horizon.prefix` 读取 `HORIZON_PREFIX`，默认将 `APP_NAME` 转为下划线 slug 后追加 `_horizon:`；共享 Redis 的不同环境应使用独立前缀。不支持 Redis Cluster。原生[队列](../digging-deeper/queues.md)仍按自身契约支持其他传输。
+复用 `database.redis` 中的 Redis 连接和 `queue.connections` 中的 Redis 队列连接。`horizon.use` 选择元数据连接，默认值为 `default`。`horizon.prefix` 读取 `HORIZON_PREFIX`，默认将 `APP_NAME` 转为下划线 slug 后追加 `_horizon:`。共享 Redis 的不同环境应使用独立前缀。
+
+Horizon 元数据和队列运输可独立使用单节点 Redis 或 [Redis Cluster](../database/redis.md#clusters)。将 `horizon.use` 设置为集群名称可使用集群存储元数据。要让队列使用集群，将 Redis 队列配置下的 `connection` 设置为集群名称。同名的集群和单节点连接同时存在时，Horizon 元数据选择集群，队列连接选择单节点。Horizon 为缺少 hash tag 的元数据前缀自动补充标签，集群队列也为缺少标签的键补充标签，使待处理、延迟、保留和通知键落在同一槽。
 
 运行中的监控进程会重试短时 Redis 元数据中断。无法核对所有权时，受管 Worker 等待领取。重连后 Horizon 验证已有所有权令牌，验证通过才恢复。令牌缺失或变更时，旧进程树关闭。受管 Worker 在 Redis 保留任务后再次核对所有权。未能通过核对时，只要保留仍有效，就把任务放回队首并恢复此前的尝试次数。主从切换期间由配置的 Redis 端点负责选定主节点。
 

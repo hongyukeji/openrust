@@ -35,11 +35,24 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
             .unwrap_or(5);
         json!({"supervisor-1":{"timeout":timeout,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":i32::from(cfg!(unix))}})
     };
+    let redis_prefix = format!("{}:", base.file_name().unwrap().to_str().unwrap());
+    let mut redis = json!({
+        "options": {"prefix": redis_prefix},
+        "default": {"url": std::env::var("HORIZON_TEST_REDIS_URL").unwrap()},
+    });
+    if let Ok(ports) = std::env::var("HORIZON_CLUSTER_TEST_PORTS") {
+        let password = std::env::var("HORIZON_CLUSTER_TEST_PASSWORD").unwrap();
+        redis["clusters"] = json!({
+            "cluster": ports.split(',').map(|port|
+                json!({"url":format!("redis://:{password}@127.0.0.1:{port}/0")})
+            ).collect::<Vec<_>>()
+        });
+    }
     Ok(BTreeMap::from([
         ("app".into(), json!({"env":"testing","debug":false})),
         (
             "database".into(),
-            json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":base.join("database.sqlite")}},"redis":{"options":{"prefix":format!("{}:",base.file_name().unwrap().to_str().unwrap())},"default":{"url":std::env::var("HORIZON_TEST_REDIS_URL").unwrap()}}}),
+            json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":base.join("database.sqlite")}},"redis":redis}),
         ),
         (
             "cache".into(),
@@ -47,13 +60,14 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
         (
             "queue".into(),
-            json!({"default":"redis","connections":{"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":30,
+            json!({"default":"redis","connections":{"redis":{"driver":"redis","connection":std::env::var("HORIZON_PROBE_QUEUE_REDIS").as_deref().unwrap_or("default"),"queue":"default","retry_after":30,
                 "block_for": std::env::var("HORIZON_PROBE_BLOCK_FOR").ok().map(|value| value.parse::<u32>().unwrap())
             }},"failed":{"driver":"database-uuids","database":"sqlite","table":"failed_jobs"}}),
         ),
         (
             "horizon".into(),
             json!({
+                "use": std::env::var("HORIZON_PROBE_METADATA_REDIS").as_deref().unwrap_or("default"),
                 "retention": 3600,
                 "fast_termination": std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref() == Ok("1"),
                 "memory_limit": std::env::var("HORIZON_PROBE_MEMORY_LIMIT")

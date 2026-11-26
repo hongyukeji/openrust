@@ -259,17 +259,6 @@ impl ProvisioningPlan {
         {
             return Err(Error::InvalidConfiguration);
         }
-        let connection = get("connection");
-        let redis = connection
-            .as_ref()
-            .and_then(Json::as_str)
-            .unwrap_or("default");
-        if config
-            .get(&format!("database.redis.clusters.{redis}"))
-            .is_some()
-        {
-            return Err(Error::InvalidConfiguration);
-        }
         Ok(())
     }
 }

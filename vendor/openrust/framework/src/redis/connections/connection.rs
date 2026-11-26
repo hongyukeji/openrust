@@ -40,6 +40,28 @@ enum Transport {
     Cluster(ClusterTransport),
 }
 
+pub(crate) struct BlockingTransport<'a>(BlockingBackend<'a>);
+
+enum BlockingBackend<'a> {
+    Standalone(::redis::aio::MultiplexedConnection),
+    Cluster(&'a Cluster, ClusterTransport),
+}
+
+impl BlockingTransport<'_> {
+    pub(crate) async fn query<T: FromRedisValue>(
+        &mut self,
+        command: &::redis::Cmd,
+    ) -> RedisResult<T> {
+        match &mut self.0 {
+            BlockingBackend::Standalone(transport) => command.query_async(transport).await,
+            BlockingBackend::Cluster(cluster, transport) => {
+                cluster.query(transport.clone(), command, true).await
+            }
+        }
+        .map_err(backend)
+    }
+}
+
 impl Connection {
     /// 通过原生 redis 客户端配置创建惰性连接，供自定义连接器复用。
     pub fn new(client: Client, config: ConnectionManagerConfig, prefix: String) -> Self {
@@ -65,8 +87,16 @@ impl Connection {
         }
     }
 
-    pub(crate) fn is_cluster(&self) -> bool {
+    /// 判断此连接是否使用 Redis Cluster。
+    pub fn is_cluster(&self) -> bool {
         matches!(self.client, Backend::Cluster(_))
+    }
+
+    /// 判断键的第一对花括号是否包含有效的 Redis Cluster hash tag。
+    pub fn has_hash_tag(key: &str) -> bool {
+        key.split_once('{')
+            .and_then(|(_, rest)| rest.split_once('}'))
+            .is_some_and(|(tag, _)| !tag.is_empty())
     }
 
     pub(crate) fn with_events(
@@ -91,7 +121,7 @@ impl Connection {
     }
 
     /// Give SCAN a routing key so Redis redirects it if the slot has moved.
-    pub(crate) async fn scan_slot_keys(
+    pub async fn scan_slot_keys(
         &self,
         key: &str,
         pattern: &str,
@@ -171,24 +201,29 @@ impl Connection {
         .map_err(backend)
     }
 
-    pub(crate) async fn blocking_transport(
-        &self,
-    ) -> RedisResult<::redis::aio::MultiplexedConnection> {
-        let Backend::Standalone { client, .. } = &self.client else {
-            return Err(RedisError::UnsupportedClusterOperation(
-                "queue blocking transport",
-            ));
-        };
-        // The queue bounds blocking commands independently of the client response timeout.
-        let config = AsyncConnectionConfig::new()
-            .set_connection_timeout(Some(Duration::from_secs(5)))
-            .set_response_timeout(None);
-        tokio::time::timeout(
-            Duration::from_secs(5),
-            client.get_multiplexed_async_connection_with_config(&config),
-        )
+    pub(crate) async fn blocking_transport(&self) -> RedisResult<BlockingTransport<'_>> {
+        // 每个阻塞消费者拥有独立传输，队列对每次等待设置期限。
+        tokio::time::timeout(Duration::from_secs(5), async {
+            match &self.client {
+                Backend::Standalone { client, .. } => {
+                    let config = AsyncConnectionConfig::new()
+                        .set_connection_timeout(Some(Duration::from_secs(5)))
+                        .set_response_timeout(None);
+                    client
+                        .get_multiplexed_async_connection_with_config(&config)
+                        .await
+                        .map(BlockingBackend::Standalone)
+                }
+                Backend::Cluster(cluster) => cluster
+                    .client
+                    .get_async_generic_connection()
+                    .await
+                    .map(|transport| BlockingBackend::Cluster(cluster, transport)),
+            }
+        })
         .await
         .map_err(backend)?
+        .map(BlockingTransport)
         .map_err(backend)
     }
 

@@ -1,4 +1,4 @@
-use super::{Repository, encode, processes::string_list, text};
+use super::{Repository, encode, processes::string_list, redis_error, text};
 use crate::{Error, Result};
 use openrust::redis::Value;
 use serde_json::{Value as Json, json};
@@ -203,33 +203,23 @@ impl MetricsRepository {
         }
         // The compatibility dashboard also reads rolling attempt buckets.
         // Clear those in the same metadata namespace without scanning job data.
-        let mut cursor = "0".to_string();
+        let prefix = self.0.key("metrics:");
+        let mut pattern = String::with_capacity(prefix.len() + 1);
+        for character in prefix.chars() {
+            if matches!(character, '\\' | '[' | ']' | '?' | '*') {
+                pattern.push('\\');
+            }
+            pattern.push(character);
+        }
+        pattern.push('*');
+        let mut cursor = 0;
         loop {
-            let Value::Array(page) = self
-                .0
-                .command(
-                    "SCAN",
-                    &[
-                        cursor,
-                        "MATCH".into(),
-                        self.0.key("metrics:*"),
-                        "COUNT".into(),
-                        "1000".into(),
-                    ],
-                )
-                .await?
-            else {
-                return Err(Error::Redis);
-            };
-            let [next, keys] = page.as_slice() else {
-                return Err(Error::Redis);
-            };
-            cursor = text(next)?;
-            let keys = string_list(keys.clone())?;
+            let (next, keys) = self.scan_rolling_metrics(cursor, &pattern).await?;
             if !keys.is_empty() {
                 self.0.command("DEL", &keys).await?;
             }
-            if cursor == "0" {
+            cursor = next;
+            if cursor == 0 {
                 break;
             }
         }
@@ -244,6 +234,43 @@ impl MetricsRepository {
             )
             .await?;
         Ok(())
+    }
+
+    async fn scan_rolling_metrics(&self, cursor: u64, pattern: &str) -> Result<(u64, Vec<String>)> {
+        if self.0.connection.is_cluster() {
+            let (next, keys) = self
+                .0
+                .connection
+                .scan_slot_keys(&self.0.key("metrics:snapshot"), pattern, cursor, 1000)
+                .await
+                .map_err(redis_error)?;
+            let keys = keys
+                .into_iter()
+                .map(|key| String::from_utf8(key).map_err(|_| Error::InvalidRecord))
+                .collect::<Result<_>>()?;
+            return Ok((next, keys));
+        }
+        let Value::Array(page) = self
+            .0
+            .command(
+                "SCAN",
+                &[
+                    cursor.to_string(),
+                    "MATCH".into(),
+                    pattern.into(),
+                    "COUNT".into(),
+                    "1000".into(),
+                ],
+            )
+            .await?
+        else {
+            return Err(Error::Redis);
+        };
+        let [next, keys] = page.as_slice() else {
+            return Err(Error::Redis);
+        };
+        let next = text(next)?.parse().map_err(|_| Error::Redis)?;
+        Ok((next, string_list(keys.clone())?))
     }
     pub async fn summary(&self) -> Result<Json> {
         Ok(
