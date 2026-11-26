@@ -2448,6 +2448,129 @@ async fn usage_resolves_fixed_user_details_and_gravatar_fallbacks_from_the_nativ
 }
 
 #[tokio::test]
+async fn usage_loads_eloquent_users_in_one_query() {
+    use openrust::{
+        auth::{AuthIdentifier, AuthManager, AuthResult},
+        contracts::auth::Authenticatable,
+        database::{
+            DatabaseManager, Value as DbValue,
+            eloquent::{Model, ModelMetadata, ModelState},
+        },
+    };
+
+    struct UsageUser(ModelState);
+    impl Model for UsageUser {
+        fn metadata() -> &'static ModelMetadata {
+            static META: ModelMetadata =
+                ModelMetadata::new("pulse_eloquent_users").timestamps(None, None);
+            &META
+        }
+        fn from_state(state: ModelState) -> Self {
+            Self(state)
+        }
+        fn state(&self) -> &ModelState {
+            &self.0
+        }
+        fn state_mut(&mut self) -> &mut ModelState {
+            &mut self.0
+        }
+    }
+    impl Authenticatable for UsageUser {
+        fn get_auth_identifier_name(&self) -> &str {
+            "id"
+        }
+        fn get_auth_identifier(&self) -> AuthIdentifier {
+            self.get_key().unwrap().try_into().unwrap()
+        }
+        fn get_auth_password_name(&self) -> &str {
+            "password"
+        }
+        fn get_auth_password(&self) -> Option<&str> {
+            None
+        }
+        fn get_remember_token(&self) -> Option<&str> {
+            None
+        }
+        fn set_remember_token(&mut self, _: Option<String>) {}
+        fn get_remember_token_name(&self) -> &str {
+            "remember_token"
+        }
+        fn get_auth_attribute(&self, attribute: &str) -> AuthResult<Option<DbValue>> {
+            Ok(self.get_attribute(attribute).cloned())
+        }
+    }
+
+    let mut app = TestApp::create(|b| {
+        b.with_config(|root, env| {
+            let mut values = usage_user_config(root, env)?;
+            values.get_mut("auth").unwrap()["providers"]["pulse-users"] =
+                json!({"driver":"eloquent","model":"PulseUsageUser"});
+            Ok(values)
+        })
+        .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let application = app.app();
+    application
+        .make::<AuthManager>()
+        .await
+        .unwrap()
+        .register_model::<UsageUser>("PulseUsageUser");
+    let connection = application
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    connection
+        .get_schema_builder()
+        .create("pulse_eloquent_users", |table| {
+            table.big_integer("id").primary();
+            table.string("name", 100);
+        })
+        .await
+        .unwrap();
+    connection
+        .table("pulse_eloquent_users")
+        .insert(&[
+            BTreeMap::from([("id".into(), 1.into()), ("name".into(), "First".into())]),
+            BTreeMap::from([("id".into(), 2.into()), ("name".into(), "Second".into())]),
+        ])
+        .await
+        .unwrap();
+    let pulse = application.make::<Pulse>().await.unwrap();
+    for id in ["1", "01", "2", "404"] {
+        pulse.record("user_request", id, None, None).await.count();
+    }
+    assert_eq!(pulse.ingest().await, 4);
+    connection.enable_query_log();
+    let response = app.get("/pulse/api/metrics?cards=requests").await.unwrap();
+    response.assert_ok();
+    let queries: Vec<_> = connection
+        .get_query_log()
+        .into_iter()
+        .filter(|query| query.query.contains("pulse_eloquent_users"))
+        .collect();
+    assert_eq!(queries.len(), 1, "expected one Eloquent user query");
+    assert!(queries[0].query.contains(" in "));
+    let data: serde_json::Value = response.json().unwrap();
+    let rows = data["requests"].as_array().unwrap();
+    assert_eq!(rows.len(), 4);
+    for (key, expected) in [
+        ("1", "First"),
+        ("01", "First"),
+        ("2", "Second"),
+        ("404", "ID: 404"),
+    ] {
+        let row = rows.iter().find(|row| row["key"] == key).unwrap();
+        assert_eq!(row["user"]["name"], expected, "{key}");
+    }
+}
+
+#[tokio::test]
 async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_observable() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     let mut app = app();

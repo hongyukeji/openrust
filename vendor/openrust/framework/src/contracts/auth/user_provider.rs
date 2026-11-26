@@ -1,12 +1,20 @@
 use crate::auth::{AuthFuture, AuthIdentifier, AuthResult, Credentials};
 
-use super::Authenticatable;
+use super::{Authenticatable, UserModels};
 
 /// Loads users, verifies credentials, and persists credential changes.
 pub trait UserProvider: Send + Sync {
     /// Compiled model identity corresponding to an Eloquent provider's getModel.
     fn get_model(&self) -> Option<std::any::TypeId> {
         None
+    }
+
+    /// 批量读取模型主键。返回 `None` 表示 Provider 不提供模型查询。
+    fn retrieve_by_model_keys<'a>(
+        &'a self,
+        _keys: &'a [AuthIdentifier],
+    ) -> AuthFuture<'a, AuthResult<Option<UserModels>>> {
+        Box::pin(async { Ok(None) })
     }
 
     fn retrieve_by_id<'a>(

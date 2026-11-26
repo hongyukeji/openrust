@@ -13,6 +13,8 @@ pub use guard::Guard;
 pub use stateful_guard::StatefulGuard;
 pub use user_provider::UserProvider;
 
+pub(crate) type UserModels = Vec<Box<dyn Authenticatable>>;
+
 mod can_reset_password;
 mod must_verify_email;
 mod password_broker;

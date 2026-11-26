@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     contracts::{
-        auth::{Authenticatable, UserProvider},
+        auth::{Authenticatable, UserModels, UserProvider},
         hashing::Hasher,
     },
     database::{
@@ -71,6 +71,20 @@ impl<M: Model + Authenticatable> EloquentUserProvider<M> {
 impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
     fn get_model(&self) -> Option<std::any::TypeId> {
         Some(std::any::TypeId::of::<M>())
+    }
+
+    fn retrieve_by_model_keys<'a>(
+        &'a self,
+        keys: &'a [AuthIdentifier],
+    ) -> AuthFuture<'a, AuthResult<Option<UserModels>>> {
+        Box::pin(async move {
+            if keys.is_empty() {
+                return Ok(Some(Vec::new()));
+            }
+            let mut query = self.query()?;
+            query.where_key(keys.iter().cloned().map(Value::from).collect::<Vec<_>>());
+            Ok(Some(query.get().await?.into_iter().map(erase).collect()))
+        })
     }
 
     fn retrieve_by_id<'a>(

@@ -1,9 +1,13 @@
 use crate::{Error, PulseFuture, Result};
 use openrust::{
     contracts::auth::Authenticatable,
-    support::facades::{Auth, Config, Facade},
+    support::{
+        facades::{Auth, Config, Facade},
+        php_regular_compare,
+    },
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -113,13 +117,30 @@ impl ResolvesUsers for Users {
             let mut resolved = BTreeMap::new();
             if let Some(provider) = provider {
                 let provider = auth.create_user_provider(&provider).map_err(Error::Auth)?;
-                for key in keys {
-                    if let Some(user) = provider
-                        .retrieve_by_id(&key.clone().into())
-                        .await
-                        .map_err(Error::Auth)?
-                    {
-                        resolved.insert(key.clone(), self.fields(user.as_ref())?);
+                let identifiers: Vec<_> = keys.iter().cloned().map(Into::into).collect();
+                if let Some(users) = provider
+                    .retrieve_by_model_keys(&identifiers)
+                    .await
+                    .map_err(Error::Auth)?
+                {
+                    for key in keys {
+                        let requested = Value::String(key.clone());
+                        if let Some(user) = users.iter().find(|user| {
+                            let actual = Value::String(user.get_auth_identifier().to_string());
+                            php_regular_compare(&actual, &requested).is_eq()
+                        }) {
+                            resolved.insert(key.clone(), self.fields(user.as_ref())?);
+                        }
+                    }
+                } else {
+                    for (key, identifier) in keys.iter().zip(&identifiers) {
+                        if let Some(user) = provider
+                            .retrieve_by_id(identifier)
+                            .await
+                            .map_err(Error::Auth)?
+                        {
+                            resolved.insert(key.clone(), self.fields(user.as_ref())?);
+                        }
                     }
                 }
             }
