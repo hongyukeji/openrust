@@ -9,7 +9,7 @@
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | 已验收 OpenAI 同协议和 Anthropic 转换的 JSON、SSE、下游取消与客户端函数工具。上游选择覆盖配置回退、组授权、冷却、并发及会话黏性。 |
 | `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | 已验收原生 Responses、转换到 Messages 和 Chat Completions 的普通及 SSE 文本与客户端函数工具。Chat 转换另覆盖 JSON 对象模式。结构化 Schema、附件、推理及其他高级字段仍待核对。 |
 | `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | 已验收 `input_tokens`，可使用 OpenAI 原生计数或映射到 Anthropic 计数。其余子路径待核对。共享凭证当前拒绝 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
-| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。上游 WebSocket、续接状态与并行通道待核对。 |
+| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。已验收同连接的文本与客户端函数续接；上游 WebSocket 与并行通道待核对。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，正式客户端进程待验收。 |
@@ -152,3 +152,11 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 原生 Responses 接受只包含客户端函数或自定义工具的命名空间。公开模型可用 `server_tools: ["web_search"]` 启用上游网页搜索；原生目标仍须通过当前 Key 的分组授权。需要原生 Responses 的工具不进入协议桥接，也不自动重放。HTTP 和包测试验证未开启的搜索、通过命名空间声明供应商资源工具，以及 Chat-only 模型处理原生工具的拒绝。两个包测试、严格 Clippy、三语构建、十二组浏览器及导航通过。该轮覆盖工具声明与文本回复，搜索执行、工具回送及供应商真实账号仍分列。
 
 - [Codex 0.170.0 发布资产](https://github.com/openai/codex/releases/tag/rust-v0.170.0) · [Codex 配置参考](https://developers.openai.com/codex/config-reference)
+
+## GW-03 Responses WebSocket 续接
+
+在同一连接及 `stream_id` 下，可用最新的已完成响应继续文本与客户端函数对话。内存保留最多 512 KiB 和 256 项。续接时将历史转换为内联输入，保留函数的调用 ID 和结果，去除供应商消息条目的资源 ID。只使用当前轮的 `instructions`。每轮仍走既有 HTTP 准入、用量和上游协议适配。
+
+独立 WebSocket、HTTP 和 Artisan 验证原生 Responses 与 Chat-only 上游的续接、同轮工具结果、过期响应 ID、不同连接／模型／通道、超长或不支持的续接输入、权限撤销、断流及记录。两个包测试、严格 Clippy、三语构建、十二组浏览器及导航通过。当前验证串行文本和客户端函数。上游 WebSocket、预热、并行通道、分叉、推理与附件续接单列。
+
+- [Responses WebSocket 续接](https://developers.openai.com/api/docs/guides/websocket-mode#continue-with-incremental-inputs)

@@ -119,9 +119,11 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 }
 ```
 
-每條連線同時處理一個回應，每輪傳送完整的 `input`。選用的 `stream_id` 會隨事件傳回。閘道逐輪檢查 Key 和模型權限，沿用 HTTP 的路由、限額與用量記錄。關閉連線會取消目前的生成。
+每條連線同時處理一個回應，選用的 `stream_id` 會隨事件傳回。閘道逐輪檢查 Key 和模型權限，沿用 HTTP 的路由、限額與用量記錄。關閉連線會取消目前的生成。
 
-文字訊框上限為 2 MiB，連線滿一小時後須重新連線。對於上一輪回應 ID，閘道會傳回 `previous_response_not_found`，可附上完整上下文重新送出。
+在同一連線及 `stream_id` 上延續最近一次已完成的回應時，將其 ID 放入 `previous_response_id`，並在 `input` 中只提交新文字或用戶端函式結果。省略 `model` 時沿用原模型別名。`instructions` 僅用於當前輪次。閘道在記憶體最多保留 512 KiB、256 項可重播的上下文。重新連線、更換模型或 `stream_id`、收到 `previous_response_not_found` 時，重新傳送完整上下文。
+
+文字訊框上限為 2 MiB，連線滿一小時後須重新連線。
 
 ### Codex 模型目錄 {#codex-model-catalog}
 

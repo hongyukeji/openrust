@@ -19,6 +19,9 @@ use serde_json::{Map, Value};
 
 use super::{Gateway, HttpResult, Protocol, authorize, error_body, responses};
 
+mod replay;
+use replay::{Checkpoint, replay_input};
+
 const MAX_MESSAGE: usize = 2 * 1024 * 1024;
 const CONNECTION_MAX_AGE: Duration = Duration::from_secs(60 * 60);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -87,10 +90,11 @@ async fn serve(
     app: Arc<Application>,
     headers: HeaderMap,
 ) -> Result<(), ()> {
+    let mut checkpoint = None;
     while let Some(message) = socket.recv().await {
         match message.map_err(|_| ())? {
             Message::Text(text) => match Turn::parse(text.as_str()) {
-                Ok(turn) => run(socket, &app, &headers, turn).await?,
+                Ok(turn) => run(socket, &app, &headers, turn, &mut checkpoint).await?,
                 Err(error) => {
                     write_error(
                         socket,
@@ -113,6 +117,7 @@ async fn serve(
 struct Turn {
     body: Map<String, Value>,
     lane: Option<String>,
+    previous: Option<String>,
 }
 
 struct InvalidTurn {
@@ -165,18 +170,22 @@ impl Turn {
         {
             return Err(fail("unsupported_parameter", "当前连接未启用上下文预热"));
         }
-        if body
-            .get("previous_response_id")
-            .is_some_and(|value| !value.is_null())
-        {
-            return Err(fail(
-                "previous_response_not_found",
-                "请重发完整 input 继续对话",
-            ));
-        }
-        body.remove("previous_response_id");
+        let previous = match body.remove("previous_response_id") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(id)) if !id.is_empty() && id.len() <= 256 => Some(id),
+            _ => {
+                return Err(fail(
+                    "invalid_previous_response_id",
+                    "previous_response_id 无效",
+                ));
+            }
+        };
         body.insert("stream".into(), Value::Bool(true));
-        Ok(Self { body, lane })
+        Ok(Self {
+            body,
+            lane,
+            previous,
+        })
     }
 }
 
@@ -184,8 +193,41 @@ async fn run(
     socket: &mut WebSocket,
     app: &Application,
     headers: &HeaderMap,
-    turn: Turn,
+    mut turn: Turn,
+    checkpoint: &mut Option<Checkpoint>,
 ) -> Result<(), ()> {
+    if let Some(previous) = &turn.previous {
+        let resumed = checkpoint
+            .as_ref()
+            .ok_or("previous_response_not_found")
+            .and_then(|checkpoint| {
+                checkpoint.resume(previous, turn.lane.as_deref(), &mut turn.body)
+            });
+        if let Err(code) = resumed {
+            let message = match code {
+                "unsupported_continuation_input" => "续接仅支持文本消息与客户端函数工具",
+                "continuation_too_large" => "续接上下文超出连接限制",
+                _ => "未找到当前连接上的响应，请重发完整 input",
+            };
+            return write_error(
+                socket,
+                StatusCode::BAD_REQUEST,
+                code,
+                message,
+                turn.lane.as_deref(),
+            )
+            .await;
+        }
+        // 当前续接消耗检查点，失败后由客户端重新发送完整输入。
+        checkpoint.take();
+    }
+    let mut history = turn
+        .body
+        .get("model")
+        .and_then(Value::as_str)
+        .and_then(|model| {
+            replay_input(turn.body.get("input")).map(|input| (model.to_owned(), input))
+        });
     let mut raw = http::Request::builder()
         .method(http::Method::POST)
         .uri("/v1/responses")
@@ -247,6 +289,11 @@ async fn run(
                 };
                 let is_terminal = matches!(kind,
                     "response.completed" | "response.incomplete" | "response.failed");
+                if kind == "response.completed" {
+                    *checkpoint = history.take().and_then(|(model, input)| {
+                        Checkpoint::from_complete(data.get("response").unwrap_or(&Value::Null), turn.lane.clone(), model, input)
+                    });
+                }
                 if let Some(lane) = &turn.lane {
                     data.insert("stream_id".into(), Value::String(lane.clone()));
                 } else {

@@ -119,9 +119,11 @@ Connect to `wss://your-app.example/v1/responses` with the same Bearer Key as the
 }
 ```
 
-Keep one active response per socket and send full `input` for each turn. The optional `stream_id` is echoed on the events. The gateway checks Key and model permissions for each turn and uses the same routing, limits and usage accounting as HTTP. Closing the socket cancels the active turn.
+Each socket processes one response at a time. The optional `stream_id` is echoed on its events. The gateway checks Key and model permissions for each turn, applying the same routing, limits and usage accounting as HTTP. Closing the socket cancels the active turn.
 
-The socket accepts text frames up to 2 MiB and reconnects are required after one hour. For a prior response ID the gateway returns `previous_response_not_found`. Resend the turn with full context.
+For text and client-side function calls, continue the latest completed response on the same socket and `stream_id` by sending its ID in `previous_response_id` and only the new messages or function results in `input`. Omit `model` to reuse the current alias. `instructions` applies to the current turn. The gateway holds up to 512 KiB and 256 items of replayable history in memory. If you reconnect, change the model or stream ID, or receive `previous_response_not_found`, resend the full context.
+
+Text frames are limited to 2 MiB. Reconnect after one hour.
 
 ### Codex model catalog {#codex-model-catalog}
 
