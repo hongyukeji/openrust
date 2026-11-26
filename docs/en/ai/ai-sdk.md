@@ -372,6 +372,8 @@ Use `dimensions(n)` when the selected model supports explicit dimensions. For an
 
 For Gemini’s native API, set `AI_EMBEDDINGS_PROVIDER=gemini` and `GEMINI_EMBEDDING_MODEL`. The SDK uses `batchEmbedContents` for text, including one-item batches, and accepts the model ID with or without the `models/` prefix. It preserves input order, passes the requested dimensions and reports input tokens when Gemini supplies them.
 
+To publish a native Gemini embedding model, set its mapping to the Gemini connection and specify `"endpoints": ["embedContent", "batchEmbedContents"]`. The authorized model appears under `/v1beta/models`. Send Google-format requests to `POST /v1beta/models/{alias}:embedContent` or `POST /v1beta/models/{alias}:batchEmbedContents` with `x-goog-api-key`. When a request includes a model name in its body, it must match the published alias. The gateway substitutes the configured upstream model and accepts inline input.
+
 Call `cache(Some(600), None)` to cache embeddings for 600 seconds. The configuration under `ai.caching.embeddings` defines the default lifetime, the cache store and whether to enable caching for all SDK calls. Individual caching reuses each vector across batches and sends only misses to the provider. Pass `Some(false)` as the second argument to cache the full, ordered batch. Use `cache(Some(0), None)` to bypass caching for an individual call. Usage on a partial hit reflects the inputs sent upstream.
 
 ### Testing embeddings {#embeddings-fake}

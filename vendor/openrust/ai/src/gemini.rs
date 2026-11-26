@@ -275,6 +275,8 @@ impl TextProvider for GeminiTextProvider {
             TextEndpoint::GeminiGenerateContent
                 | TextEndpoint::GeminiStreamGenerateContent
                 | TextEndpoint::GeminiCountTokens
+                | TextEndpoint::GeminiEmbedContent
+                | TextEndpoint::GeminiBatchEmbedContents
         )
     }
 
@@ -285,6 +287,23 @@ impl TextProvider for GeminiTextProvider {
                 .and_then(|body| body.remove("model"))
                 .and_then(|model| model.as_str().map(str::to_owned))
                 .ok_or(AiError::MissingModel)?;
+            if endpoint.is_gemini_embedding() {
+                let resource = format!("models/{}", validated_model_id(&model)?);
+                match endpoint {
+                    TextEndpoint::GeminiEmbedContent => body["model"] = resource.into(),
+                    TextEndpoint::GeminiBatchEmbedContents => {
+                        let requests = body["requests"]
+                            .as_array_mut()
+                            .filter(|requests| !requests.is_empty())
+                            .ok_or(AiError::InvalidPrompt)?;
+                        for request in requests {
+                            let request = request.as_object_mut().ok_or(AiError::InvalidPrompt)?;
+                            request.insert("model".into(), resource.as_str().into());
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
             self.relay_model(endpoint, &model, &body, None).await
         })
     }

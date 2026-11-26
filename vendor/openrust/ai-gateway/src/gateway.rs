@@ -169,7 +169,7 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 11] = [
+const ENDPOINTS: [TextEndpoint; 13] = [
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -178,6 +178,8 @@ const ENDPOINTS: [TextEndpoint; 11] = [
     TextEndpoint::GeminiGenerateContent,
     TextEndpoint::GeminiStreamGenerateContent,
     TextEndpoint::GeminiCountTokens,
+    TextEndpoint::GeminiEmbedContent,
+    TextEndpoint::GeminiBatchEmbedContents,
     TextEndpoint::Embeddings,
     TextEndpoint::ImagesGenerations,
     TextEndpoint::ImagesEdits,
@@ -352,12 +354,10 @@ impl Gateway {
                         })
                     })
                     .filter(|endpoint| {
-                        model
-                            .endpoints
-                            .as_ref()
-                            .map_or(!endpoint.is_image(), |configured| {
-                                configured.iter().any(|path| path == endpoint.path())
-                            })
+                        model.endpoints.as_ref().map_or(
+                            !endpoint.is_image() && !endpoint.is_gemini_embedding(),
+                            |configured| configured.iter().any(|path| path == endpoint.path()),
+                        )
                     })
                     .collect();
                 if endpoints.is_empty()

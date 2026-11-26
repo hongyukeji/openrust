@@ -101,6 +101,8 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             "generateContent" => TextEndpoint::GeminiGenerateContent,
             "streamGenerateContent" => TextEndpoint::GeminiStreamGenerateContent,
             "countTokens" => TextEndpoint::GeminiCountTokens,
+            "embedContent" => TextEndpoint::GeminiEmbedContent,
+            "batchEmbedContents" => TextEndpoint::GeminiBatchEmbedContents,
             _ => {
                 return Protocol::Gemini.error(
                     StatusCode::NOT_FOUND,
@@ -160,6 +162,14 @@ fn catalog_protocol(request: &Request) -> Protocol {
     }
 }
 
+const GEMINI_MODEL_OPERATIONS: [TextEndpoint; 5] = [
+    TextEndpoint::GeminiGenerateContent,
+    TextEndpoint::GeminiStreamGenerateContent,
+    TextEndpoint::GeminiCountTokens,
+    TextEndpoint::GeminiEmbedContent,
+    TextEndpoint::GeminiBatchEmbedContents,
+];
+
 async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> HttpResult {
     let gateway = Gateway::get_facade_root()?;
     let key = match authorize(&gateway, token, protocol).await {
@@ -184,13 +194,9 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     model.supports_for(TextEndpoint::Messages, key)
                         || model.supports_for(TextEndpoint::CountMessageTokens, key)
                 }
-                Protocol::Gemini => [
-                    TextEndpoint::GeminiGenerateContent,
-                    TextEndpoint::GeminiStreamGenerateContent,
-                    TextEndpoint::GeminiCountTokens,
-                ]
-                .into_iter()
-                .any(|endpoint| model.supports_for(endpoint, key)),
+                Protocol::Gemini => GEMINI_MODEL_OPERATIONS
+                    .into_iter()
+                    .any(|endpoint| model.supports_for(endpoint, key)),
             }
     });
     let describe = |name: &str, model: &crate::gateway::Model| match protocol {
@@ -201,15 +207,11 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
             json!({"id": name, "type": "model", "display_name": name, "created_at": "1970-01-01T00:00:00Z"})
         }
         Protocol::Gemini => {
-            let methods = [
-                TextEndpoint::GeminiGenerateContent,
-                TextEndpoint::GeminiStreamGenerateContent,
-                TextEndpoint::GeminiCountTokens,
-            ]
-            .into_iter()
-            .filter(|endpoint| model.supports_for(*endpoint, key))
-            .map(TextEndpoint::path)
-            .collect::<Vec<_>>();
+            let methods = GEMINI_MODEL_OPERATIONS
+                .into_iter()
+                .filter(|endpoint| model.supports_for(*endpoint, key))
+                .map(TextEndpoint::path)
+                .collect::<Vec<_>>();
             json!({"name":format!("models/{name}"),"displayName": name,"supportedGenerationMethods":methods})
         }
     };
@@ -416,7 +418,9 @@ async fn relay(
         TextEndpoint::Messages | TextEndpoint::CountMessageTokens => Protocol::Anthropic,
         TextEndpoint::GeminiGenerateContent
         | TextEndpoint::GeminiStreamGenerateContent
-        | TextEndpoint::GeminiCountTokens => Protocol::Gemini,
+        | TextEndpoint::GeminiCountTokens
+        | TextEndpoint::GeminiEmbedContent
+        | TextEndpoint::GeminiBatchEmbedContents => Protocol::Gemini,
         _ => Protocol::OpenAi,
     };
     let key = match authorize(&gateway, protocol.token(request), protocol).await {
@@ -597,20 +601,30 @@ async fn relay(
         );
     }
     if matches!(protocol, Protocol::Gemini)
-        && [
-            "model",
-            "cachedContent",
-            "cached_content",
-            "generateContentRequest",
-            "generate_content_request",
-        ]
-        .iter()
-        .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+        && ((!endpoint.is_gemini_embedding() && resources::present_field(&data, "model"))
+            || [
+                "cachedContent",
+                "cached_content",
+                "generateContentRequest",
+                "generate_content_request",
+            ]
+            .iter()
+            .any(|field| resources::present_field(&data, field))
+            || resources::gemini_file_references(&data))
     {
         return protocol.error(
             StatusCode::BAD_REQUEST,
             "unsupported_state",
-            "Gemini 模型由路径选择，暂不支持嵌套请求或上游缓存资源",
+            "Gemini 模型由路径选择，仅支持当前请求内的资源",
+        );
+    }
+    if endpoint.is_gemini_embedding()
+        && !resources::gemini_embedding_model_matches(&data, &name, endpoint)
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "嵌入请求的模型须与路径中的公开模型一致",
         );
     }
     let may_replay = !endpoint.is_image()

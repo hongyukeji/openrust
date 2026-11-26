@@ -29,7 +29,10 @@ impl OutputQuota {
         native_openai: bool,
         payload: &mut Value,
     ) -> Result<Option<i64>, &'static str> {
-        if endpoint.is_counting() || endpoint == TextEndpoint::Embeddings {
+        if endpoint.is_counting()
+            || endpoint == TextEndpoint::Embeddings
+            || endpoint.is_gemini_embedding()
+        {
             return Ok(None);
         }
         let fields: &[&str] = match endpoint {

@@ -1,4 +1,5 @@
-use serde_json::Value;
+use openrust_ai::TextEndpoint;
+use serde_json::{Map, Value};
 
 pub(super) fn openai_references(value: &Value) -> bool {
     match value {
@@ -40,6 +41,61 @@ pub(super) fn image_file_references(value: &Value) -> bool {
         }
         _ => false,
     }
+}
+
+pub(super) fn present_field(data: &Map<String, Value>, field: &str) -> bool {
+    data.get(field).is_some_and(present)
+}
+
+pub(super) fn gemini_file_references(data: &Map<String, Value>) -> bool {
+    fn contains_reference(value: &Value) -> bool {
+        match value {
+            Value::Array(items) => items.iter().any(contains_reference),
+            Value::Object(fields) => gemini_file_references(fields),
+            _ => false,
+        }
+    }
+
+    ["fileData", "file_data", "cachedContent", "cached_content"]
+        .iter()
+        .any(|field| present_field(data, field))
+        || [
+            "content",
+            "contents",
+            "parts",
+            "requests",
+            "systemInstruction",
+            "system_instruction",
+            "functionResponse",
+            "function_response",
+        ]
+        .iter()
+        .any(|field| data.get(*field).is_some_and(contains_reference))
+}
+
+pub(super) fn gemini_embedding_model_matches(
+    data: &Map<String, Value>,
+    alias: &str,
+    endpoint: TextEndpoint,
+) -> bool {
+    let permitted = |data: &Map<String, Value>| {
+        data.get("model").is_none_or(|value| {
+            value
+                .as_str()
+                .is_some_and(|model| model.strip_prefix("models/").unwrap_or(model) == alias)
+        })
+    };
+    permitted(data)
+        && (endpoint != TextEndpoint::GeminiBatchEmbedContents
+            || data
+                .get("requests")
+                .and_then(Value::as_array)
+                .is_some_and(|requests| {
+                    !requests.is_empty()
+                        && requests
+                            .iter()
+                            .all(|request| request.as_object().is_some_and(permitted))
+                }))
 }
 
 fn present(value: &Value) -> bool {
