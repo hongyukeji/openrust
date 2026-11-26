@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Sucht Dokumente, die einer angegebenen Suchanfrage ähneln.",
     "query": "Die Suchanfrage."
+  },
+  "load_skill": {
+    "description": "Lädt die Anleitung einer passenden Fähigkeit oder liest eine zugehörige Datei.",
+    "available": "Verfügbare Fähigkeiten",
+    "name": "Name der zu ladenden Fähigkeit.",
+    "path": "Optionaler relativer Pfad einer zugehörigen Datei.",
+    "read_hint": "Um eine Datei zu lesen, rufen Sie das Tool mit dem Fähigkeitsnamen und dem Dateipfad auf.",
+    "missing_skill": "Die Fähigkeit [:name] existiert nicht.",
+    "missing_file": "Die Datei [:path] gehört nicht zur Fähigkeit [:name].",
+    "file_too_large": "Die Datei [:path] ist zu groß zum direkten Lesen.",
+    "file_binary": "Die Datei [:path] ist kein UTF-8-Text."
   }
 }

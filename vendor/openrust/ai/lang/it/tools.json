@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Cerca documenti simili a una determinata richiesta.",
     "query": "La richiesta di ricerca."
+  },
+  "load_skill": {
+    "description": "Carica le istruzioni di una competenza adatta al compito o leggi un file incluso.",
+    "available": "Competenze disponibili",
+    "name": "Nome della competenza da caricare.",
+    "path": "Percorso relativo facoltativo di un file incluso.",
+    "read_hint": "Per leggere un file incluso, richiama lo strumento con il nome della competenza e il percorso del file.",
+    "missing_skill": "La competenza [:name] non esiste.",
+    "missing_file": "Il file [:path] non è incluso nella competenza [:name].",
+    "file_too_large": "Il file [:path] è troppo grande per essere letto direttamente.",
+    "file_binary": "Il file [:path] non è testo UTF-8."
   }
 }

@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "检索与给定查询相似的文档。",
     "query": "用于检索的查询文本。"
+  },
+  "load_skill": {
+    "description": "匹配任务时加载技能说明，也可读取指定的配套文件。",
+    "available": "可用技能",
+    "name": "要加载的技能名称。",
+    "path": "可选的配套文件相对路径。",
+    "read_hint": "如需读取配套文件，请使用技能名称与对应文件路径调用本工具。",
+    "missing_skill": "技能 [:name] 不存在。",
+    "missing_file": "技能 [:name] 未提供文件 [:path]。",
+    "file_too_large": "文件 [:path] 太大，无法内联读取。",
+    "file_binary": "文件 [:path] 不是 UTF-8 文本。"
   }
 }

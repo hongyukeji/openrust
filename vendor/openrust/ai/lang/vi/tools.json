@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Tìm tài liệu tương tự với truy vấn đã cho.",
     "query": "Truy vấn dùng để tìm kiếm."
+  },
+  "load_skill": {
+    "description": "Nạp hướng dẫn của kỹ năng phù hợp với tác vụ hoặc đọc tệp đi kèm.",
+    "available": "Kỹ năng có sẵn",
+    "name": "Tên kỹ năng cần nạp.",
+    "path": "Đường dẫn tương đối tùy chọn của tệp đi kèm.",
+    "read_hint": "Để đọc tệp đi kèm, hãy gọi công cụ này với tên kỹ năng và đường dẫn tệp.",
+    "missing_skill": "Kỹ năng [:name] không tồn tại.",
+    "missing_file": "Tệp [:path] không đi kèm kỹ năng [:name].",
+    "file_too_large": "Tệp [:path] quá lớn để đọc trực tiếp.",
+    "file_binary": "Tệp [:path] không phải là văn bản UTF-8."
   }
 }

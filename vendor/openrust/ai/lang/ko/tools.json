@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "주어진 검색어와 유사한 문서를 찾습니다.",
     "query": "문서를 찾는 데 사용할 검색어입니다."
+  },
+  "load_skill": {
+    "description": "작업에 맞는 스킬의 지침을 불러오거나 포함된 파일을 읽습니다.",
+    "available": "사용 가능한 스킬",
+    "name": "불러올 스킬 이름입니다.",
+    "path": "포함된 파일의 선택적 상대 경로입니다.",
+    "read_hint": "포함된 파일을 읽으려면 스킬 이름과 파일 경로를 지정해 이 도구를 호출하세요.",
+    "missing_skill": "스킬 [:name]이 존재하지 않습니다.",
+    "missing_file": "파일 [:path]은 스킬 [:name]에 포함되어 있지 않습니다.",
+    "file_too_large": "파일 [:path]이 너무 커서 직접 읽을 수 없습니다.",
+    "file_binary": "파일 [:path]은 UTF-8 텍스트가 아닙니다."
   }
 }

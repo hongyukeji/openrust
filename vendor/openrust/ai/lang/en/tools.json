@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Search for documents similar to a given query.",
     "query": "The search query."
+  },
+  "load_skill": {
+    "description": "Load a skill’s instructions when it matches the task, or read a bundled file.",
+    "available": "Available skills",
+    "name": "The name of the skill to load.",
+    "path": "Optional relative path of a bundled file.",
+    "read_hint": "To read a bundled file, call this tool with the skill name and file path.",
+    "missing_skill": "Skill [:name] does not exist.",
+    "missing_file": "File [:path] is not bundled with skill [:name].",
+    "file_too_large": "File [:path] is too large to read inline.",
+    "file_binary": "File [:path] is not UTF-8 text."
   }
 }

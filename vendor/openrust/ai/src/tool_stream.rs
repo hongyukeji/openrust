@@ -1,7 +1,13 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, future::Future, sync::Arc};
 
 use futures_util::StreamExt;
-use openrust::support::{Str, facades::App};
+use openrust::{
+    foundation::Application,
+    support::{
+        Str,
+        facades::{App, Lang},
+    },
+};
 
 use crate::{
     AgentPrompt, AiError, AiResult, StepEvent, StreamEventData, StreamableAgentResponse,
@@ -17,6 +23,7 @@ pub(crate) async fn stream(
     approvals: Option<ApprovalSession>,
 ) -> AiResult<StreamableAgentResponse> {
     let application = App::get_instance().ok();
+    let locale = Lang::get_locale().ok();
     let max_steps = tools::step_limit(registered.len(), max_steps);
     let (definitions, registered) = tools::prepare(registered)?;
     if let Some(choice) = prompt.tool_choice {
@@ -83,10 +90,7 @@ pub(crate) async fn stream(
             let plan = || tools::plan_execution(
                 &completed.tool_calls, &registered, None, step == max_steps, None,
             );
-            let execution = match &application {
-                Some(application) => application.scope(async { plan() }).await?,
-                None => plan()?,
-            };
+            let execution = in_tool_scope(application.as_deref(), locale.as_deref(), async { plan() }).await??;
             if execution.requires_approval() {
                 let plan = execution.for_pause();
                 let calls = completed.tool_calls.clone();
@@ -95,10 +99,7 @@ pub(crate) async fn stream(
                     approvals.as_ref(), provider.as_ref(), prompt.as_prompt(0),
                     completed, plan, allowed,
                 );
-                let pending = match &application {
-                    Some(application) => application.scope(pause).await?,
-                    None => pause.await?,
-                };
+                let pending = in_tool_scope(application.as_deref(), locale.as_deref(), pause).await??;
                 let conversation_id = approvals.as_ref().expect("已保存审批会话").conversation_id.clone();
                 for call in calls {
                     yield event(&invocation_id, StreamEventData::ToolCall { call });
@@ -114,10 +115,7 @@ pub(crate) async fn stream(
                 yield event(&invocation_id, StreamEventData::ToolCall { call: call.clone() });
             }
             let execution = execution.run();
-            let results = match &application {
-                Some(application) => application.scope(execution).await,
-                None => execution.await,
-            };
+            let results = in_tool_scope(application.as_deref(), locale.as_deref(), execution).await?;
             for result in &results {
                 yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });
             }
@@ -134,4 +132,25 @@ pub(crate) async fn stream(
         }
     };
     Ok(StreamableAgentResponse::from_events(Box::pin(stream)))
+}
+
+async fn in_tool_scope<T>(
+    application: Option<&Application>,
+    locale: Option<&str>,
+    operation: impl Future<Output = T>,
+) -> AiResult<T> {
+    let Some(application) = application else {
+        return Ok(operation.await);
+    };
+    application
+        .scope(async {
+            // 在异步 HTTP 正文中恢复创建流时的语言。
+            match locale {
+                Some(locale) => Lang::with_locale(locale, operation)
+                    .await
+                    .map_err(|_| AiError::Unavailable),
+                None => Ok(operation.await),
+            }
+        })
+        .await
 }

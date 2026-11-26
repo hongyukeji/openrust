@@ -572,6 +572,20 @@ The child uses its own instructions, model and provider. The parent sends the ta
 
 The default description and the `task` field help are translated when the tool schema is generated, using the current application locale and its configured fallback. Override individual phrases in `lang/vendor/ai/<locale>/tools.json` under `agent.description` and `agent.task`. Use `:agent` in the description to insert the tool name.
 
+### Skills {#agent-skills}
+
+Use `Skill::from_directory` to open a directory with `SKILL.md`. YAML metadata supplies the skill name and description, and the Markdown body supplies the instructions. Use `Skill::new` to define a skill in Rust and add any inline resources to its `files`.
+
+Register the skills with `LoadSkill::new` as an Agent tool. The tool description advertises the skill names and descriptions. The model calls `load_skill` with `name` to load the instructions and file list, or with `name` and a relative `path` to read a bundled UTF-8 file up to 256 KiB. The tool’s prompts use the application locale.
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{LoadSkill, Skill, agent};
+
+let skill = Skill::from_directory("resources/skills/catalog")?;
+let assistant = agent("").with_tools(vec![Arc::new(LoadSkill::new(skill))]);
+```
+
 ### Tool approval policy {#tool-approval}
 
 Implement `Tool::should_request_approval` to request approval for selected arguments. When the invocation has no resumable approval context, the SDK returns `AiError::ApprovalNotResumable` before executing any tool in the step. The buffered error carries the pending call IDs, tool names, arguments, and reasons.

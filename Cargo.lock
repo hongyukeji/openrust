@@ -255,6 +255,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2724,6 +2730,9 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "foldhash",
+]
 
 [[package]]
 name = "hashlink"
@@ -2732,6 +2741,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
 dependencies = [
  "hashbrown 0.16.1",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb"
+dependencies = [
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
@@ -4595,11 +4613,13 @@ dependencies = [
  "async-openai",
  "async-stream",
  "bytes",
+ "cap-std",
  "eventsource-stream",
  "futures-util",
  "http 1.5.0",
  "md-5 0.11.0",
  "openrust-framework",
+ "saphyr",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -6437,6 +6457,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "saphyr"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f11167c67bce89a26f450f8621bcc6faff72d463a717db7c4f30d9c94a23b55"
+dependencies = [
+ "hashlink 0.12.2",
+ "ordered-float",
+ "saphyr-parser",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "saphyr-parser"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8af5472a0fd13242ab1e30a2ae6290d5b875a095dd17b21c26d01d556cf766bd"
+dependencies = [
+ "arraydeque",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6990,7 +7032,7 @@ dependencies = [
  "futures-io",
  "futures-util",
  "hashbrown 0.16.1",
- "hashlink",
+ "hashlink 0.11.1",
  "indexmap 2.14.2",
  "log",
  "memchr",

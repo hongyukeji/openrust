@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Zoekt documenten die lijken op een opgegeven zoekopdracht.",
     "query": "De zoekopdracht."
+  },
+  "load_skill": {
+    "description": "Laad de instructies van een passende vaardigheid of lees een bijbehorend bestand.",
+    "available": "Beschikbare vaardigheden",
+    "name": "Naam van de te laden vaardigheid.",
+    "path": "Optioneel relatief pad van een bijbehorend bestand.",
+    "read_hint": "Roep deze tool aan met de naam van de vaardigheid en het bestandspad om een bestand te lezen.",
+    "missing_skill": "Vaardigheid [:name] bestaat niet.",
+    "missing_file": "Bestand [:path] hoort niet bij vaardigheid [:name].",
+    "file_too_large": "Bestand [:path] is te groot om direct te lezen.",
+    "file_binary": "Bestand [:path] is geen UTF-8-tekst."
   }
 }

@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Mencari dokumen yang mirip dengan kueri tertentu.",
     "query": "Kueri pencarian."
+  },
+  "load_skill": {
+    "description": "Muat petunjuk keterampilan yang sesuai dengan tugas atau baca berkas yang disertakan.",
+    "available": "Keterampilan yang tersedia",
+    "name": "Nama keterampilan yang akan dimuat.",
+    "path": "Jalur relatif opsional untuk berkas yang disertakan.",
+    "read_hint": "Untuk membaca berkas, panggil alat ini dengan nama keterampilan dan jalur berkas.",
+    "missing_skill": "Keterampilan [:name] tidak ada.",
+    "missing_file": "Berkas [:path] tidak disertakan dalam keterampilan [:name].",
+    "file_too_large": "Berkas [:path] terlalu besar untuk dibaca langsung.",
+    "file_binary": "Berkas [:path] bukan teks UTF-8."
   }
 }

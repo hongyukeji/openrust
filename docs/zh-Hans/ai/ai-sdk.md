@@ -572,6 +572,20 @@ let response = agent("Search the policy documents before answering.")
 
 默认工具说明和 `task` 参数说明在生成 Schema 时按当前应用语言及其回退配置解析。可在 `lang/vendor/ai/<locale>/tools.json` 中覆写 `agent.description` 或 `agent.task`。说明中的 `:agent` 会替换为工具名称。
 
+### Agent 技能 {#agent-skills}
+
+用 `Skill::from_directory` 打开包含 `SKILL.md` 的目录。YAML 元数据声明技能名称和描述，Markdown 正文提供说明。也可用 `Skill::new` 在 Rust 中定义技能，通过 `files` 提供内联资源。
+
+通过 `LoadSkill::new` 将技能注册为 Agent 工具。工具描述列出技能名和描述。模型调用 `load_skill` 时，传 `name` 读取说明和文件清单，另传相对 `path` 读取不超过 256 KiB 的 UTF-8 配套文件。工具提示使用应用当前语言。
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{LoadSkill, Skill, agent};
+
+let skill = Skill::from_directory("resources/skills/catalog")?;
+let assistant = agent("").with_tools(vec![Arc::new(LoadSkill::new(skill))]);
+```
+
 ### 工具审批策略 {#tool-approval}
 
 实现 `Tool::should_request_approval` 可根据工具参数要求审批。当前调用没有可恢复的审批上下文时，SDK 在执行该步骤的任何工具前返回 `AiError::ApprovalNotResumable`。普通响应的错误携带待审批的调用 ID、工具名、参数和原因。

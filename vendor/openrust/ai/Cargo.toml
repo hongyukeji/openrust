@@ -15,10 +15,12 @@ openrust = { package = "openrust-framework", path = "../framework" }
 async-openai = { version = "=0.43.0", default-features = false, features = ["chat-completion-types", "embedding-types", "response-types"] }
 async-stream = "0.3.6"
 bytes = "1.12.1"
+cap-std = "4.0.3"
 eventsource-stream = "=0.2.3"
 futures-util = { version = "0.3", default-features = false }
 http = "1.4"
 md-5 = { version = "=0.11.0", default-features = false }
+saphyr = { version = "=0.4.1", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"

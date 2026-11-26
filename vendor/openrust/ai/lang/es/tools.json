@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Busca documentos similares a una consulta determinada.",
     "query": "La consulta de búsqueda."
+  },
+  "load_skill": {
+    "description": "Carga las instrucciones de una habilidad adecuada para la tarea o lee un archivo incluido.",
+    "available": "Habilidades disponibles",
+    "name": "Nombre de la habilidad que se cargará.",
+    "path": "Ruta relativa opcional de un archivo incluido.",
+    "read_hint": "Para leer un archivo incluido, llama a la herramienta con el nombre de la habilidad y la ruta del archivo.",
+    "missing_skill": "La habilidad [:name] no existe.",
+    "missing_file": "El archivo [:path] no está incluido en la habilidad [:name].",
+    "file_too_large": "El archivo [:path] es demasiado grande para leerlo directamente.",
+    "file_binary": "El archivo [:path] no es texto UTF-8."
   }
 }

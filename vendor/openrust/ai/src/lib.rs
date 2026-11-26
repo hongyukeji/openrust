@@ -42,6 +42,7 @@ mod files;
 mod gemini;
 mod generation_options;
 mod image;
+mod load_skill;
 mod localization;
 mod manager;
 mod media_storage;
@@ -54,6 +55,7 @@ mod provider_options;
 mod request_context;
 mod reranking;
 mod similarity_search;
+mod skill;
 mod stores;
 mod streaming;
 mod structured;
@@ -106,6 +108,7 @@ pub use image::{
     GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,
     ImageUsage, PendingImageGeneration,
 };
+pub use load_skill::LoadSkill;
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
@@ -117,6 +120,7 @@ pub use reranking::{
     RerankingProvider, RerankingResponse, Reranks,
 };
 pub use similarity_search::SimilaritySearch;
+pub use skill::Skill;
 pub use stores::{
     FakeStoreGateway, ProviderStoreFilePage, ProviderStorePage, RecordedStoreCreation,
     RecordedStoreDeletion, Store, StoreFile, StoreFileCounts, StoreFileInfo, StoreFilePage,

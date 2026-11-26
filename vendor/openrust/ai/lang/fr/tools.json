@@ -6,5 +6,16 @@
   "similarity_search": {
     "description": "Recherche des documents similaires à une requête donnée.",
     "query": "La requête de recherche."
+  },
+  "load_skill": {
+    "description": "Chargez les instructions d’une compétence adaptée à la tâche ou lisez un fichier associé.",
+    "available": "Compétences disponibles",
+    "name": "Nom de la compétence à charger.",
+    "path": "Chemin relatif facultatif d’un fichier associé.",
+    "read_hint": "Pour lire un fichier associé, appelez cet outil avec le nom de la compétence et le chemin du fichier.",
+    "missing_skill": "La compétence [:name] n’existe pas.",
+    "missing_file": "Le fichier [:path] ne fait pas partie de la compétence [:name].",
+    "file_too_large": "Le fichier [:path] est trop volumineux pour être lu directement.",
+    "file_binary": "Le fichier [:path] n’est pas du texte UTF-8."
   }
 }

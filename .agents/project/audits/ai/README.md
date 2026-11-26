@@ -591,6 +591,14 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 - [固定 Laravel StreamedAgentResponse](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/StreamedAgentResponse.php) · [固定 Laravel TextDelta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/TextDelta.php)
 
+### AI-03 技能文档与加载工具
+
+`Skill::new` 定义内联技能，`Skill::from_directory` 读取 `SKILL.md` 的 YAML 元数据及 Markdown 正文。YAML 使用纯 Rust 的 Saphyr，配套文件通过框架已使用的 `cap-std` 在对应目录中读取。应用通过 `LoadSkill::new` 显式注册技能。出站 Schema 仅列技能名与描述，模型请求时才发送正文及配套文件或读取指定 UTF-8 文件。重复名称按配置中首次出现的技能处理。
+
+真实 Artisan 与并发 HTTP 经本地 Responses 上游验证 18 语、应用覆写、回退、目录名称回退、折叠 YAML、畸形文档、内联资源、256 KiB 配套文件边界、二进制及目录外路径。流式工具执行恢复创建流时的语言，防止 HTTP 正文延后读取时切回默认语言。SDK 工具、UI 与会话回归、严格 Clippy 和三语文档通过。Agent 自动装配、目录集合发现及延迟来源合并继续按固定 Laravel 契约核对。
+
+- [固定 Laravel Skill](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Skills/Skill.php) · [固定 Laravel LoadSkill](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/LoadSkill.php) · [Agent Skills 规范](https://agentskills.io/specification) · [Saphyr 文档](https://docs.rs/saphyr/0.4.1/saphyr/)
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。
