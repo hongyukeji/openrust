@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
+    database::query::embeddings::Embeddings as QueryEmbeddings,
     foundation::Application,
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
@@ -24,6 +25,7 @@ mod console;
 mod conversation_store;
 mod conversation_stream;
 mod conversations;
+mod database_embeddings;
 mod embedding_cache;
 mod embeddings;
 mod error;
@@ -76,7 +78,7 @@ pub use conversation_store::{
 pub use conversations::{ConversationResponse, PendingConversation, RemembersConversations};
 pub use embeddings::{
     EmbeddingProvider, Embeddings, EmbeddingsPrompt, EmbeddingsResponse,
-    PendingEmbeddingsGeneration,
+    PendingEmbeddingsGeneration, ToEmbeddings,
 };
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
@@ -152,6 +154,12 @@ impl ServiceProvider for AiServiceProvider {
                         container.make()?,
                     )
                     .with_scope_owner(owner.clone()),
+                ))
+            })?;
+            app.container().singleton_if::<QueryEmbeddings, _>(|_| {
+                Ok(Arc::new(
+                    QueryEmbeddings::new(database_embeddings::DatabaseEmbeddingProvider)
+                        .without_cache(),
                 ))
             })?;
             Ok(())

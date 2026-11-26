@@ -23,16 +23,37 @@ pub trait EmbeddingProvider: Send + Sync + 'static {
 /// Register this service in the application container for text vector queries.
 pub struct Embeddings {
     provider: Box<dyn EmbeddingProvider>,
+    cache: bool,
 }
 
 impl Embeddings {
     pub fn new(provider: impl EmbeddingProvider) -> Self {
         Self {
             provider: Box::new(provider),
+            cache: true,
         }
     }
 
+    /// 让自身已管理缓存的嵌入服务跳过查询层缓存。
+    pub fn without_cache(mut self) -> Self {
+        self.cache = false;
+        self
+    }
+
+    async fn embed(&self, text: &str) -> DatabaseResult<Vec<f64>> {
+        let vector = self.provider.embed(text).await?;
+        if !valid(&vector) {
+            return Err(DatabaseError::InvalidQuery(
+                "embedding must contain finite values",
+            ));
+        }
+        Ok(vector)
+    }
+
     async fn cached(&self, text: &str) -> DatabaseResult<Vec<f64>> {
+        if !self.cache {
+            return self.embed(text).await;
+        }
         let identity = self.provider.cache_identity();
         let key = format!(
             "embeddings:v1:{}",
@@ -45,12 +66,7 @@ impl Embeddings {
         {
             return Ok(vector);
         }
-        let vector = self.provider.embed(text).await?;
-        if !valid(&vector) {
-            return Err(DatabaseError::InvalidQuery(
-                "embedding must contain finite values",
-            ));
-        }
+        let vector = self.embed(text).await?;
         cache
             .put(
                 &key,

@@ -397,3 +397,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 核对具名连接、Responses 推理选项和 Fake 记录。真实 HTTP 通过四个本地 TCP 上游验证普通调用、Chat 工具流续步、Gemini 结构化合并和保留字段拒绝，以及 Anthropic 扩展思考与强制工具互斥。包测试、严格 Clippy 和三语文档验收通过。
 
 - [固定 Laravel HasProviderOptions](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/HasProviderOptions.php) · [固定 Laravel 生成选项合并](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php)
+
+## AI-05 查询构建器与 SDK 嵌入
+
+安装 AI 后，应用容器为数据库的文本向量查询提供 SDK 默认实现。既有自定义数据库 Embedding Provider 保留优先权。Query Builder 与 Eloquent 的 `*_text` 入口复用当前 SDK 连接、模型、维度和缓存策略。`ToEmbeddings` 为字符串和 `Stringable` 提供单向量入口。数据库桥关闭旧的外层缓存，应用继续从 `ai.caching.embeddings` 管理 SDK 缓存。
+
+独立 Artisan 依次调用 `Stringable` 和 Query Builder，从真实 PostgreSQL 18.7 与 pgvector 0.8.2 查询过滤、顺序和投影距离。独立 HTTP 的 Eloquent 查询共用同一文件缓存。关闭 SDK 缓存后两次文本转换均实际出站。应用手动替换旧数据库绑定后可在 SDK 无凭证时查询，全程不会调用 SDK。保留框架数据库嵌入回归测试，包测试、严格 Clippy 与三语文档通过。
+
+- [Laravel Query Builder 向量相似度查询](https://laravel.com/docs/13.x/queries#vector-similarity-clauses) · [pgvector 0.8.2](https://github.com/pgvector/pgvector/tree/v0.8.2)

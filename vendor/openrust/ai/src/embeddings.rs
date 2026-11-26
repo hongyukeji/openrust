@@ -72,6 +72,26 @@ impl Embeddings {
     }
 }
 
+/// 从一个字符串生成向量，可用于 Stringable 和查询构建器。
+pub trait ToEmbeddings {
+    fn to_embeddings(&self) -> HttpFuture<'_, AiResult<Vec<f32>>>;
+}
+
+impl<T: AsRef<str> + ?Sized> ToEmbeddings for T {
+    fn to_embeddings(&self) -> HttpFuture<'_, AiResult<Vec<f32>>> {
+        let text = self.as_ref();
+        Box::pin(async move {
+            Embeddings::r#for([text])?
+                .generate()
+                .await?
+                .embeddings
+                .into_iter()
+                .next()
+                .ok_or(AiError::InvalidResponse)
+        })
+    }
+}
+
 pub struct PendingEmbeddingsGeneration {
     inputs: Vec<String>,
     dimensions: Option<usize>,

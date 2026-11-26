@@ -424,6 +424,24 @@ To publish a native Gemini embedding model, set its mapping to the Gemini connec
 
 Call `cache(Some(600), None)` to cache embeddings for 600 seconds. The configuration under `ai.caching.embeddings` defines the default lifetime, the cache store and whether to enable caching for all SDK calls. Individual caching reuses each vector across batches and sends only misses to the provider. Pass `Some(false)` as the second argument to cache the full, ordered batch. Use `cache(Some(0), None)` to bypass caching for an individual call. Usage on a partial hit reflects the inputs sent upstream.
 
+### Search vectors using text {#querying-embeddings}
+
+Import `ToEmbeddings` to generate one vector from a string. The query builder and Eloquent can also embed search text through the configured SDK connection. For PostgreSQL, enable pgvector and use a vector column with the same dimensions as the embedding model.
+
+```rust
+use openrust::{database::Db, support::Str};
+use openrust_ai::ToEmbeddings;
+
+let embedding = Str::of("return policy").to_embeddings().await?;
+let documents = Db::table("documents")?
+    .where_vector_similar_to_text("embedding", "return policy", 0.8, true)
+    .await?
+    .get()
+    .await?;
+```
+
+Both paths use the cache settings under `ai.caching.embeddings`. An application that registers its own database embedding provider can keep using it.
+
 ### Testing embeddings {#embeddings-fake}
 
 Register `Embeddings::fake` with one vector batch per expected generation. Use `fake_with` to build the vectors from the recorded request. A Fake with an empty sequence generates unit vectors when you specify a dimension. Turn on `prevent_stray_embeddings(true)` to require a scripted response for every call.

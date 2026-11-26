@@ -424,6 +424,24 @@ let vectors = response.embeddings;
 
 呼叫 `cache(Some(600), None)` 可將向量快取 600 秒。在 `ai.caching.embeddings` 設定預設有效期、快取存放位置，以及是否為所有 SDK 呼叫啟用快取。逐筆快取可跨批次重用向量，只將未命中的輸入送給供應商。第二個參數傳入 `Some(false)` 會依原順序快取整批。單次呼叫可使用 `cache(Some(0), None)` 略過快取。部分命中時，用量只記錄實際送往上游的輸入。
 
+### 使用文字查詢向量 {#querying-embeddings}
+
+匯入 `ToEmbeddings` 可從字串產生一個向量。查詢建構器與 Eloquent 也可透過設定好的 SDK 連線將搜尋文字轉成向量。使用 PostgreSQL 時，啟用 pgvector，並讓向量欄位的維度與嵌入模型一致。
+
+```rust
+use openrust::{database::Db, support::Str};
+use openrust_ai::ToEmbeddings;
+
+let embedding = Str::of("return policy").to_embeddings().await?;
+let documents = Db::table("documents")?
+    .where_vector_similar_to_text("embedding", "return policy", 0.8, true)
+    .await?
+    .get()
+    .await?;
+```
+
+兩條路徑都使用 `ai.caching.embeddings` 的快取設定。應用程式已註冊自己的資料庫 Embedding Provider 時，可以繼續使用該服務。
+
 ### 測試 Embeddings {#embeddings-fake}
 
 用 `Embeddings::fake` 依預期呼叫順序提供向量批次，或用 `fake_with` 根據記錄的請求產生向量。空序列在指定維度時產生單位向量。啟用 `prevent_stray_embeddings(true)` 可要求每次呼叫都使用預設回應。
