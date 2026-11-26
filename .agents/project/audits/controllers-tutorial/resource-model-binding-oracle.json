@@ -1,0 +1,78 @@
+{
+  "photos.index": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "photos.create": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "photos.store": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "photos.show": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "photos.edit": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "photos.update": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "photos.destroy": {
+    "missing": true,
+    "with_trashed": false
+  },
+  "albums.tracks.index": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "albums.tracks.create": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "albums.tracks.store": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "albums.tracks.show": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "albums.tracks.edit": {
+    "missing": true,
+    "with_trashed": false
+  },
+  "albums.tracks.update": {
+    "missing": true,
+    "with_trashed": false
+  },
+  "albums.tracks.destroy": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "posts.index": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "posts.store": {
+    "missing": false,
+    "with_trashed": false
+  },
+  "posts.show": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "posts.update": {
+    "missing": true,
+    "with_trashed": true
+  },
+  "posts.destroy": {
+    "missing": true,
+    "with_trashed": false
+  }
+}

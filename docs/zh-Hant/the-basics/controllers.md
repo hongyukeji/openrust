@@ -52,6 +52,40 @@ fn register() -> Result<(), RoutingError> {
 
 使用 `only`、`except` 選取動作，透過 `names` 覆寫路由名稱，透過 `parameters` 覆寫參數名稱。`albums.photos` 這類點號資源會產生巢狀路徑。`shallow` 保留巢狀集合路徑，並將成員路由註冊於 `photos/{photo}`。`scoped` 設定繫結欄位，`configure` 可為個別路由加入中介層或型別化繫結。
 
+### 自訂找不到模型時的行為 {#customizing-missing-model-behavior}
+
+用 `missing` 處理檢視、編輯、更新或刪除路由中找不到的模型。回呼在模型繫結階段執行。清單、建立表單與儲存保留預設處理，巢狀資源找不到父模型時也一樣。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    routing::ResourceController,
+    support::facades::Redirect,
+};
+
+fn with_missing_item<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.missing(missing_item)
+}
+
+fn missing_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Ok(Redirect::route("items.index", &[], Default::default())?.into())
+    })
+}
+```
+
+### 軟刪除模型 {#soft-deleted-models}
+
+用 `with_trashed()` 允許檢視、編輯與更新繫結軟刪除模型。用 `with_trashed_for` 指定動作，例如允許刪除動作繫結軟刪除模型。空清單採用預設動作。一般資源和 API 資源都支援這兩個入口。
+
+```rust
+use openrust::routing::{ResourceAction, ResourceController};
+
+fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.with_trashed_for(&[ResourceAction::Show])
+}
+```
+
 ### 指定資源模型 {#specifying-the-resource-model}
 
 傳入 `--model=Photo`，產生的成員動作會從路由讀取型別化的 `Photo`。註冊資源時，請在對應路由的 `photo` 參數設定模型繫結。缺少模型時，產生器可呼叫 `make:model` 建立。

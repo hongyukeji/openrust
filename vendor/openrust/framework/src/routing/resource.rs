@@ -111,6 +111,8 @@ pub struct ResourceController<C> {
     parameters: HashMap<String, String>,
     bindings: HashMap<String, String>,
     shallow: bool,
+    trashed: Vec<ResourceAction>,
+    missing: Option<Arc<dyn Handler>>,
     singleton_lifecycle: SingletonLifecycle,
     configure: Option<Box<Configure>>,
 }
@@ -126,6 +128,8 @@ impl<C> Default for ResourceController<C> {
             parameters: HashMap::new(),
             bindings: HashMap::new(),
             shallow: false,
+            trashed: Vec::new(),
+            missing: None,
             singleton_lifecycle: SingletonLifecycle::default(),
             configure: None,
         }
@@ -204,6 +208,29 @@ impl<C> ResourceController<C> {
 
     pub fn shallow(mut self) -> Self {
         self.shallow = true;
+        self
+    }
+
+    /// 为常规和 API 资源的成员动作设置模型找不到时的处理器。
+    pub fn missing(mut self, handler: impl Handler + 'static) -> Self {
+        self.missing = Some(Arc::new(handler));
+        self
+    }
+
+    /// 允许常规和 API 资源的 show、edit 和 update 绑定软删除模型。
+    pub fn with_trashed(self) -> Self {
+        self.with_trashed_for(&[])
+    }
+
+    /// 只允许指定动作绑定软删除模型。空切片采用默认动作。
+    pub fn with_trashed_for(mut self, actions: &[ResourceAction]) -> Self {
+        use ResourceAction::{Edit, Show, Update};
+
+        self.trashed = if actions.is_empty() {
+            vec![Show, Edit, Update]
+        } else {
+            actions.to_vec()
+        };
         self
     }
 
@@ -366,6 +393,16 @@ impl Router {
             route.definition = definition;
             route.name(&route_name);
             route.set_action(&format!("{}@{}", type_name::<C>(), action.name()))?;
+            if !kind.singleton() {
+                if controller.trashed.contains(&action) {
+                    route.with_trashed();
+                }
+                if action.member()
+                    && let Some(missing) = &controller.missing
+                {
+                    route.set_missing_handler(Arc::clone(missing));
+                }
+            }
             if let Some(configure) = &controller.configure {
                 configure(action, &mut route)?;
             }

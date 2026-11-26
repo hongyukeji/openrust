@@ -207,8 +207,12 @@ impl Route {
     }
 
     pub fn missing(&mut self, handler: impl Handler + 'static) -> &mut Self {
-        self.missing = Some(Arc::new(handler));
+        self.set_missing_handler(Arc::new(handler));
         self
+    }
+
+    pub(super) fn set_missing_handler(&mut self, handler: Arc<dyn Handler>) {
+        self.missing = Some(handler);
     }
 
     pub(super) fn binding_plan(

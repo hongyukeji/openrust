@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Controllers 资源模型回退和软删除已验。固定 Router 对照 19 条元数据，SQLite 与 MySQL 8.4.13 通过真实 HTTP、Artisan 及三语正文消费者。见[逐节对账](audits/controllers-tutorial/README.md)，继续批量资源注册。
+
 - Controllers 模型与表单请求生成已验。真实 Artisan 生成的源码经过编译，SQLite 实际 HTTP 覆盖普通和嵌套绑定、404、验证失败 422 和业务脚手架 501。见[控制器逐节对账](audits/controllers-tutorial/README.md)，继续资源模型回退和软删除，不推送。
 
 - Artisan 核心 43 节已验收。用户确认 Tinker 5 节单列可选原生 REPL，当前真实命令仍为 Planned，详见[章节复核](audits/artisan-tutorial/README.md#90-核心章节复核与可选-repl)。继续 Controllers，不推送。

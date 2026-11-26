@@ -18,7 +18,10 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
-    routing::{BindingContext, RouteParameter, RoutingError, SignatureMode, UrlError},
+    routing::{
+        BindingContext, ResourceAction, ResourceController, RouteParameter, RoutingError,
+        SignatureMode, UrlError,
+    },
     support::facades::{Route, Url},
 };
 use serde_json::{Value, json};
@@ -304,7 +307,97 @@ fn api() -> Result<(), RoutingError> {
     })
 }
 
+struct ResourceProvider;
+
+impl openrust::support::ServiceProvider for ResourceProvider {
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> HttpFuture<'a, openrust::support::ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .bind::<PostResource, _>(|_| Ok(Arc::new(PostResource)))?;
+            Ok(())
+        })
+    }
+}
+
+struct PostResource;
+
+impl PostResource {
+    fn index(&self, _: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+    }
+
+    fn member<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let post = request
+                .route_model::<Post>("item")
+                .ok_or(HttpError::NotFound)?;
+            let Some(DbValue::Text(slug)) = post.get_attribute("slug") else {
+                return Err(HttpError::NotFound);
+            };
+            Response::json(StatusCode::OK, json!({"slug":slug}))
+        })
+    }
+}
+
+fn resource_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Ok(
+            openrust::support::facades::Redirect::route("items.index", &[], Default::default())?
+                .into(),
+        )
+    })
+}
+
+fn resource_routes() -> Result<(), RoutingError> {
+    use ResourceAction::{Destroy, Edit, Index, Show, Update};
+
+    let resource = || {
+        ResourceController::new()
+            .only(&[Index, Show, Edit, Update, Destroy])
+            .action(Index, PostResource::index)
+            .action(Show, PostResource::member)
+            .action(Edit, PostResource::member)
+            .action(Update, PostResource::member)
+            .action(Destroy, PostResource::member)
+    };
+    Route::resource(
+        "items",
+        resource()
+            .with_trashed()
+            .missing(resource_missing)
+            .configure(|action, route| {
+                if action != Index {
+                    route.model::<Post>("item")?;
+                }
+                Ok(())
+            }),
+    )?;
+    Route::api_resource(
+        "accounts.archive",
+        resource()
+            .only(&[Index, Show, Destroy])
+            .parameters(&[("archive", "item")])
+            .scoped(&[("item", "slug")])
+            .with_trashed_for(&[Destroy])
+            .missing(resource_missing)
+            .configure(|action, route| {
+                route.model::<Account>("account")?;
+                if action != Index {
+                    route.model::<Post>("item")?;
+                }
+                Ok(())
+            }),
+    )
+}
+
 fn web() -> Result<(), RoutingError> {
+    resource_routes()?;
     Route::model::<Post>("explicit")?;
     Route::bind("alias", |binding| {
         Box::pin(async move { Ok(Some(binding.value().to_uppercase())) })
@@ -334,13 +427,22 @@ async fn transport(
 }
 
 async fn request(address: SocketAddr, path: &str, status: u16) -> String {
+    exchange(address, "GET", path, status)
+        .await
+        .split_once("\r\n\r\n")
+        .unwrap()
+        .1
+        .to_owned()
+}
+
+async fn exchange(address: SocketAddr, method: &str, path: &str, status: u16) -> String {
     timeout(Duration::from_secs(5), async {
         let mut stream = TcpStream::connect(address).await.unwrap();
-        stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with(&format!("HTTP/1.1 {status} ")), "{path} {response}");
-        response.split_once("\r\n\r\n").unwrap().1.to_owned()
+        response
     }).await.unwrap()
 }
 
@@ -349,6 +451,7 @@ async fn verify(config: Value) {
     let application = || {
         Application::configure(root.path().to_owned())
             .with_config(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
+            .with_providers(vec![Box::new(ResourceProvider)])
             .with_routing(Routing::default().api(api).web(web))
             .create()
             .unwrap()
@@ -422,6 +525,31 @@ async fn verify(config: Value) {
             slug
         );
     }
+    for (method, path) in [
+        ("GET", "/items/deleted"),
+        ("GET", "/items/deleted/edit"),
+        ("PUT", "/items/deleted"),
+        ("PATCH", "/items/deleted"),
+        ("DELETE", "/accounts/1/archive/deleted"),
+    ] {
+        exchange(address, method, path, 200).await;
+    }
+    for (method, path) in [
+        ("GET", "/items/absent"),
+        ("DELETE", "/items/deleted"),
+        ("GET", "/accounts/1/archive/deleted"),
+        ("GET", "/accounts/2/archive/first"),
+        ("GET", "/accounts/42/archive/first"),
+    ] {
+        let response = exchange(address, method, path, 302).await;
+        let location = response
+            .lines()
+            .find_map(|line| line.strip_prefix("location: "))
+            .expect("redirect should include a location");
+        assert!(location.ends_with("/items"), "{response}");
+    }
+    request(address, "/items", 204).await;
+    request(address, "/accounts/42/archive", 404).await;
     let generated: Value =
         serde_json::from_str(&request(address, "/posts/first", 200).await).unwrap();
     assert_eq!(generated["by_id"], "/api/id/1");

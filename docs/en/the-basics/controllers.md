@@ -52,6 +52,40 @@ Register conventional routes with `Route::resource("photos", controller)` or `Ro
 
 Use `only` and `except` to select actions, `names` to override route names, and `parameters` to override wildcard names. Dot-separated resources such as `albums.photos` register nested paths. `shallow` keeps collection routes nested and exposes member routes under `photos/{photo}`. `scoped` sets route binding fields. Use the descriptor's `configure` method to attach middleware or typed bindings to individual routes.
 
+### Customizing Missing Model Behavior {#customizing-missing-model-behavior}
+
+Use `missing` to handle an unresolved model on the show, edit, update, or destroy route. The callback runs during model binding. The index, create, and store routes keep their default handling, including when a nested resource cannot bind its parent.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    routing::ResourceController,
+    support::facades::Redirect,
+};
+
+fn with_missing_item<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.missing(missing_item)
+}
+
+fn missing_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Ok(Redirect::route("items.index", &[], Default::default())?.into())
+    })
+}
+```
+
+### Soft Deleted Models {#soft-deleted-models}
+
+Use `with_trashed()` to allow soft-deleted models on show, edit, and update. Use `with_trashed_for` to select an explicit action list, for example to include destroy. An empty list uses the default actions. Both options apply to regular and API resources.
+
+```rust
+use openrust::routing::{ResourceAction, ResourceController};
+
+fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.with_trashed_for(&[ResourceAction::Show])
+}
+```
+
 ### Specifying the Resource Model {#specifying-the-resource-model}
 
 Pass `--model=Photo` to have the generated member actions read a typed `Photo` from the route. In your resource registration, configure model binding for the `photo` parameter on the corresponding routes. The generator can create a missing model using `make:model`.

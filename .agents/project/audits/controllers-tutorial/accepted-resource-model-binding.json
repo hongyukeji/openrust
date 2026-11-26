@@ -1,0 +1,26 @@
+{
+  "base": "9dff257d93a976677f3544c9eb361a325d4a8c09",
+  "oracle": "resource-model-binding-oracle.json",
+  "runtime": {
+    "upstream_router_entries": 19,
+    "public_api_http_cases_per_database": 12,
+    "sqlite": true,
+    "mysql": "8.4.13",
+    "formal_tutorial_examples": 6,
+    "formal_tutorial_http_requests": 9,
+    "route_regressions": 12,
+    "route_regression_targets": 5,
+    "standalone_artisan_invocations": 2,
+    "standalone_health_requests": 1,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-test.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-mysql.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-formal.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-site.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-gates.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-binding-main.log"
+  ],
+  "pushed": false
+}

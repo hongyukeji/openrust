@@ -52,6 +52,40 @@ fn register() -> Result<(), RoutingError> {
 
 用 `only`、`except` 选择动作，用 `names` 覆盖路由名，用 `parameters` 覆盖参数名。`albums.photos` 这样的点号资源会生成嵌套路径。`shallow` 保留嵌套集合路径，并将成员路由注册到 `photos/{photo}`。`scoped` 设置绑定字段，`configure` 可为单条路由接入中间件或类型化绑定。
 
+### 自定义模型未命中的行为 {#customizing-missing-model-behavior}
+
+用 `missing` 处理查看、编辑、更新或删除路由中未找到的模型。回调在模型绑定阶段运行。列表、创建表单和保存保留默认处理，嵌套资源找不到父模型时也一样。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    routing::ResourceController,
+    support::facades::Redirect,
+};
+
+fn with_missing_item<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.missing(missing_item)
+}
+
+fn missing_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Ok(Redirect::route("items.index", &[], Default::default())?.into())
+    })
+}
+```
+
+### 软删除模型 {#soft-deleted-models}
+
+用 `with_trashed()` 允许查看、编辑和更新绑定软删除模型。用 `with_trashed_for` 指定动作，例如允许删除动作绑定软删除模型。空列表采用默认动作。普通资源和 API 资源都支持这两个入口。
+
+```rust
+use openrust::routing::{ResourceAction, ResourceController};
+
+fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
+    controller.with_trashed_for(&[ResourceAction::Show])
+}
+```
+
 ### 指定资源模型 {#specifying-the-resource-model}
 
 传入 `--model=Photo`，生成的成员动作会从路由读取类型化的 `Photo`。注册资源时，对对应路由的 `photo` 参数配置模型绑定。缺少模型时，生成器可调用 `make:model` 创建。

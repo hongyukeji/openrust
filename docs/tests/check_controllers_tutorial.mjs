@@ -30,6 +30,10 @@ try {
                     assert(text.includes('StorePhotoRequest'));
                     assert(text.includes('UpdatePhotoRequest'));
                     assert(text.includes('ResourceController::action_with_form_request'));
+                    assert.equal(await page.locator('#customizing-missing-model-behavior').count(),1);
+                    assert.equal(await page.locator('#soft-deleted-models').count(),1);
+                    assert(text.includes('controller.missing(missing_item)'));
+                    assert(text.includes('with_trashed_for'));
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();
