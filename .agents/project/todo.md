@@ -135,11 +135,11 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## 顺序 2–10 交接（Webhook 恢复事件与组合制品验收）
 
-- [ ] **本地剩余开发**。Webhook 出站恢复的 `WebhookCallUnknownEvent` 已起草。Worker 重新领取和 Artisan 收尾将未完成尝试持久记为 `unknown` 后通知监听器，正常结果事件和查询维持既有语义。通知为进程内观察入口，持久状态以尝试查询为准。修改归本批，目前均未提交。文件为 `vendor/openrust/webhook-server/src/{delivery,delivery_store,events,recovery}.rs`、`tests/support/webhooks/outbound.rs`、`tests/webhooks_send_acceptance.py`、`docs/{en,zh-Hans,zh-Hant}/packages/webhook-server.md`。先验证后提交，保留其他工作区改动。
-- [ ] **Webhook 恢复事件验收**。隔离快照基于 `7ed3f823a354af2d444c7f9d6747b18e9ea07542`，叠加上述修改。Rust 格式检查、Python 语法检查和三语 VitePress 构建通过。第一次编译的变量遮蔽已修正，重跑编译到测试应用时因把夹具登记成 `[[bin]]` 而无法访问根清单里已有的 `axum` dev-dependency。恢复后在隔离清单将 `tests/support/webhooks/app.rs` 登记为 `[[example]]`，使用 `cargo +1.94.0 build --locked --offline --features webhook-client,webhook-server --example webhook-unknown-fixture`。经项目构建守卫分别运行 `FIXTURE_SEND_SCHEDULE=1 python3 -B tests/webhooks_send_acceptance.py <夹具>` 和无该变量的同一命令。核对 HTTP、Artisan、独立 Worker、监听器读到已提交状态、旧租约完成被拒及双 Scheduler 只通知一次。再复跑 PostgreSQL／MySQL 及 Redis 队列组合，执行扩展包、测试应用的严格 Clippy 和扩展包测试。日志与隔离快照在 `target/tmp/goal-webhook-unknown-observation/`，构建产物由汇总工作流统一清理。
+- [x] **Webhook 恢复事件实现与 SQLite 验收**。本地提交 `cb8151df1` 已包含 `WebhookCallUnknownEvent`、验收夹具、三语文档和[执行记录](audits/webhooks/dispatch-events.md#恢复尝试的-unknown-事件)。真实 HTTP、Artisan、独立 Worker、SQLite Scheduler 都通过，确认监听器能读取已提交状态，双 Scheduler 只通知一次。扩展包 11 个测试、夹具和扩展包的严格 Clippy、格式检查及三语站点构建均通过。
+- [ ] **Webhook 恢复事件跨后端复验**。Docker 引擎恢复后，用项目隔离包装器复跑 PostgreSQL／MySQL 和 Redis 队列组合。夹具可按隔离快照将 `tests/support/webhooks/app.rs` 登记为 `[[example]]`，再执行 `cargo +1.94.0 build --locked --offline --features webhook-client,webhook-server --example webhook-unknown-fixture`，运行 `FIXTURE_SEND_SCHEDULE=1 python3 -B tests/webhooks_send_acceptance.py <夹具>` 和无该变量的同一命令。已有 SQLite 日志与隔离快照位于 `target/tmp/goal-webhook-unknown-observation/`。
 - [ ] **较新 Linux 生产 Dockerfile 验收**。冻结源码 `6a7874a3cb04a5319a9fdfa98d28a82d328a3f26` 的首次 ARM64 构建触及 32 GB 停线，续跑因 Docker 引擎持续超时安全结束，尚无该快照的运行镜像。引擎恢复且有足够空间后，经构建守卫续接 `target/tmp/goal-extension-linux-current-release/run.sh`，运行出包、11 份许可逐字节核对、58 项 SQLite 迁移、缓存前后 HTTP、Reverb、独立 Artisan Worker 和 OTLP。两种较早冻结 Linux 镜像、两份 Windows ZIP 和 macOS ARM64 新归档的已验结果在[发行验收记录](audits/extension-release-licenses.md)，不得外推为该 Linux 构建已验。
 - [ ] **实机与外部条件**。原生 Linux x86_64 需已核实的隔离主机登录及非交互 Docker 权限，原生 Windows x64／Docker Desktop、macOS Developer ID 与公证、生产 TLS、托管 SQS 和真实审核／翻译／短信／支付／订阅／New Relic 环境按[顺序 2–10 验收账本](audits/extension-goal-gates.md)分项推进。先确认测试身份、范围、回调和费用授权，再核验真实服务。协议模拟和虚机证据按各自范围保留。
-- **已提交及交接状态**。版权打包 `6db5a9be0`，Windows ZIP 实测 `146f7e907`，两种 Linux 冻结候选复验 `fae3a31e1`，macOS 冷构建 `6a7874a3c`，环境就绪复查 `f02caf1b6`，较新 Linux 停点 `fb9ced397`。本工作流的构建与验收均已退出。未推送。未验改动、日志与构建产物留给汇总工作流，顺序 2–10 未闭合。
+- **已提交及交接状态**。版权打包 `6db5a9be0`，Windows ZIP 实测 `146f7e907`，两种 Linux 冻结候选复验 `fae3a31e1`，macOS 冷构建 `6a7874a3c`，环境就绪复查 `f02caf1b6`，较新 Linux 停点 `fb9ced397`。本工作流的构建与验收均已退出。未推送。日志和构建产物留给汇总工作流，顺序 2–10 未闭合。
 
 <a id="observability-handoff"></a>
 
