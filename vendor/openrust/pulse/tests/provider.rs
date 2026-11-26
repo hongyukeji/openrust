@@ -533,6 +533,133 @@ async fn dashboard_and_partial_metrics_recheck_application_middleware() {
 }
 
 #[tokio::test]
+async fn dashboard_rechecks_a_browser_session_after_sign_out() {
+    use openrust::{
+        auth::access::{GateRegistry, Response as GateResponse},
+        contracts::auth::StatefulGuard,
+        database::{DatabaseManager, Value as DbValue},
+        http::{Body, StatusCode},
+        routing::RoutingError,
+        support::facades::Auth,
+    };
+
+    fn sign_in(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Auth::session_guard(request, None)?
+                .login_using_id(&42_u64.into(), false)
+                .await?;
+            Ok(Response::empty(StatusCode::NO_CONTENT))
+        })
+    }
+
+    fn sign_out(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Auth::session_guard(request, None)?.logout().await?;
+            Ok(Response::empty(StatusCode::NO_CONTENT))
+        })
+    }
+
+    fn session_routes() -> Result<(), RoutingError> {
+        Route::get("/fixture/sign-in", sign_in)?;
+        Route::get("/fixture/sign-out", sign_out)
+    }
+
+    fn request(path: &str, cookie: &str) -> http::Request<Body> {
+        http::Request::builder()
+            .method("GET")
+            .uri(path)
+            .header(http::header::COOKIE, cookie)
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = usage_user_config(root, env)?;
+                values.get_mut("app").unwrap()["env"] = json!("production");
+                values.get_mut("auth").unwrap()["guards"]["web"]["driver"] = json!("session");
+                values.get_mut("session").unwrap()["cookie"] = json!("pulse-session-fixture");
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().web(session_routes))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let application = app.app();
+    application
+        .make::<GateRegistry>()
+        .await
+        .unwrap()
+        .define_guest("viewPulse", |user, _| {
+            Box::pin(async move {
+                Ok(if user.is_some() {
+                    GateResponse::allow()
+                } else {
+                    GateResponse::deny("没有看板访问权限")
+                })
+            })
+        });
+    let connection = application
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    connection
+        .get_schema_builder()
+        .create("pulse_test_users", |table| {
+            table.id();
+            table.string("name", 255);
+            table.string("password", 255);
+            table.string("remember_token", 100).nullable();
+        })
+        .await
+        .unwrap();
+    connection
+        .table("pulse_test_users")
+        .insert(&[BTreeMap::from([
+            ("id".into(), DbValue::from(42_i64)),
+            ("name".into(), DbValue::from("Pulse session user")),
+            ("password".into(), DbValue::from("用于登录测试的固定指纹")),
+        ])])
+        .await
+        .unwrap();
+
+    let card = "/pulse/api/metrics?cards=cache";
+    app.get("/pulse")
+        .await
+        .unwrap()
+        .assert_status(StatusCode::FORBIDDEN);
+    let signed_in = app.get("/fixture/sign-in").await.unwrap();
+    signed_in.assert_status(StatusCode::NO_CONTENT);
+    let cookie = signed_in
+        .headers()
+        .get_all(http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|header| header.to_str().ok())
+        .filter_map(|header| header.split(';').next())
+        .find(|cookie| cookie.starts_with("pulse-session-fixture="))
+        .unwrap();
+    for path in ["/pulse", card] {
+        app.call(request(path, cookie)).await.unwrap().assert_ok();
+    }
+    app.call(request("/fixture/sign-out", cookie))
+        .await
+        .unwrap()
+        .assert_status(StatusCode::NO_CONTENT);
+    for path in [card, "/pulse"] {
+        app.call(request(path, cookie))
+            .await
+            .unwrap()
+            .assert_status(StatusCode::FORBIDDEN);
+    }
+}
+
+#[tokio::test]
 async fn queued_artisan_recorders_filter_by_display_name() {
     use openrust::{
         contracts::queue::JobHandler,
