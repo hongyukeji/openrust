@@ -836,6 +836,56 @@ async fn dashboard_cards_follow_fixed_orderings_and_usage_limits() {
 }
 
 #[tokio::test]
+async fn dashboard_cache_totals_count_keys_beyond_the_table_limit() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"]["CacheInteractions"] = json!({
+                    "enabled": false,
+                    "sample_rate": 0.5,
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let empty = response.json::<serde_json::Value>().unwrap();
+    assert_eq!(
+        empty["cache_totals"],
+        json!({"hits":0.0,"misses":0.0,"sample_rate":0.5})
+    );
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let mut entries = (0..102)
+        .map(|key| {
+            openrust_pulse::Entry::new(timestamp, "cache_hit", format!("key-{key}"), None)
+                .count()
+                .into()
+        })
+        .collect::<Vec<_>>();
+    entries.push(
+        openrust_pulse::Entry::new(timestamp, "cache_miss", "key-0", None)
+            .count()
+            .into(),
+    );
+    storage.store(&entries).await.unwrap();
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let metrics = response.json::<serde_json::Value>().unwrap();
+    assert_eq!(metrics["cache"].as_array().unwrap().len(), 101);
+    assert_eq!(
+        metrics["cache_totals"],
+        json!({"hits":102.0,"misses":1.0,"sample_rate":0.5})
+    );
+}
+
+#[tokio::test]
 async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods() {
     use openrust::contracts::foundation::Application as _;
     let mut app = app();

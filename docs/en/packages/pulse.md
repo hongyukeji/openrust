@@ -40,6 +40,8 @@ The dashboard uses native HTML, JavaScript and JSON. Publish its template with `
 
 Slow activity cards default to the slowest operation and can sort by count. Exceptions default to count and can sort by latest occurrence. Application usage shows the top ten users for requests, slow requests or jobs. Dashboard selections are kept in the page URL. The metrics endpoint accepts `slow-requests=count`, `slow-queries=count`, `slow-jobs=count`, `slow-outgoing-requests=count`, `exceptions=latest` and `usage=requests|slow_requests|jobs`.
 
+Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
+
 ## Recorders {#recorders}
 
 Configure `pulse.recorders` using the type names `CacheInteractions`, `Exceptions`, `Queues`, `SlowJobs`, `SlowOutgoingRequests`, `SlowQueries`, `SlowRequests`, `UserJobs`, `UserRequests` and `Servers`. Set a recorder to `false` or `enabled=false` to disable registration at startup. `sample_rate` ranges from 0 to 1. Slow recorder `threshold` values use milliseconds; `ignore` accepts PCRE patterns with PHP-style delimiters.

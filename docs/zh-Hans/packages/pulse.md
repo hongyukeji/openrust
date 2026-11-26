@@ -40,6 +40,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢操作卡片默认按最慢耗时排列，可切换为按次数排序。异常默认按次数排列，可切换为按最近发生时间排序。用量显示请求、慢请求或任务的前十名用户。面板选择保存在页面 URL。指标入口接受 `slow-requests=count`、`slow-queries=count`、`slow-jobs=count`、`slow-outgoing-requests=count`、`exceptions=latest` 和 `usage=requests|slow_requests|jobs`。
 
+缓存卡片显示所选时段的命中、未命中和命中率，汇总包括 100 行明细以外的键。启用采样时，面板用 `~` 标记估算次数。JSON 指标的 `cache_totals` 返回原始总量和采样率。
+
 ## 记录器 {#recorders}
 
 `pulse.recorders` 按类型名称配置 `CacheInteractions`、`Exceptions`、`Queues`、`SlowJobs`、`SlowOutgoingRequests`、`SlowQueries`、`SlowRequests`、`UserJobs`、`UserRequests` 和 `Servers`。`false` 或 `enabled=false` 在启动时关闭该记录器。`sample_rate` 为 0–1，慢记录的 `threshold` 单位为毫秒；`ignore` 接受 PHP 分隔符形式的 PCRE 模式。

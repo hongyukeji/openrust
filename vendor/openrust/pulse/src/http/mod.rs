@@ -164,19 +164,28 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             }
             cards.insert(name.into(), serde_json::Value::Array(rows));
         }
+        let cache_types = ["cache_hit".into(), "cache_miss".into()];
         let cache = pulse
-            .aggregate_types(
-                &["cache_hit".into(), "cache_miss".into()],
-                "count",
-                interval,
-                None,
-                "desc",
-                101,
-            )
+            .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
             .await?;
         cards.insert(
             "cache".into(),
             serde_json::Value::Array(cache.into_iter().map(row).collect()),
+        );
+        let totals = pulse
+            .aggregate_total(&cache_types, "count", interval)
+            .await?;
+        let sample_rate = Config::get_facade_root()?
+            .get("pulse.recorders.CacheInteractions.sample_rate")
+            .and_then(|value| value.as_f64())
+            .unwrap_or(1.0);
+        cards.insert(
+            "cache_totals".into(),
+            serde_json::json!({
+                "hits": totals.get(&cache_types[0]).copied().flatten().unwrap_or(0.0),
+                "misses": totals.get(&cache_types[1]).copied().flatten().unwrap_or(0.0),
+                "sample_rate": sample_rate,
+            }),
         );
         cards.insert(
             "queues".into(),

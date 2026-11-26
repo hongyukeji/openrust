@@ -25,6 +25,11 @@ try{
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));
   assert.equal(await page.locator('#cards img').count(),0);
   assert.equal(await page.evaluate(()=>window.compromised),undefined);
+  const cache = page.locator('.card').filter({has: page.getByRole('heading',{name:'Cache interactions',exact:true})});
+  assert.deepEqual(await cache.locator('.cache-summary dd').allTextContents(), ['~2', '~4', '33.33%']);
+  assert.equal(await cache.locator('.cache-summary dd').first().getAttribute('title'), 'Sample rate: 0.5, raw count: 1');
+  assert.equal(await cache.locator('td[data-column="hits"]').first().getAttribute('title'), 'Sample rate: 0.5, raw count: 1');
+  assert.equal(await cache.locator('td[data-column="hit_rate"]').first().textContent(), '33.33%');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   for(const period of ['6h','24h','7d','1h']){
    const response=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period='+period));

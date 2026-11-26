@@ -95,6 +95,11 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Pulse::record("cache_hit", unsafe_text, None, None)
             .await?
             .count();
+        for _ in 0..2 {
+            Pulse::record("cache_miss", unsafe_text, None, None)
+                .await?
+                .count();
+        }
         Pulse::record("queued", "redis:default", None, None)
             .await?
             .count()
@@ -125,7 +130,7 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":if std::env::var("PULSE_PROBE_TRANSPORT").as_deref() == Ok("1") {
             json!({"Servers":false,"SlowQueries":false,"UserRequests":{},"SlowRequests":{"threshold":{"#^/api/stream$#":100}}})
         } else {
-            json!({"Servers":false,"SlowQueries":false})
+            json!({"Servers":false,"SlowQueries":false,"CacheInteractions":{"enabled":false,"sample_rate":0.5}})
         },"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
     ]);
         match env.get("PULSE_PROBE_CONFIG") {

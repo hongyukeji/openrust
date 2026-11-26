@@ -42,7 +42,95 @@ function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof
 function meter(card,label,used,total){const item=document.createElement('div');item.className='reading';item.append(cell('p',label));const bar=document.createElement('progress');bar.max=100;bar.value=total>0?Math.min(100,used/total*100):0;bar.setAttribute('aria-label',label);item.append(bar);card.append(item)}
 function servers(card,values){for(const row of values){let data;try{data=JSON.parse(row.value)}catch{card.append(cell('p','Invalid server snapshot'));continue}card.append(cell('h3',data.name));meter(card,`CPU · ${data.cpu}%`,Number(data.cpu),100);meter(card,`Memory · ${data.memory_used} / ${data.memory_total} MiB`,Number(data.memory_used),Number(data.memory_total));for(const disk of data.storage??[])meter(card,`${disk.directory} · ${disk.used} / ${disk.total} MiB`,Number(disk.used),Number(disk.total));card.append(cell('small','Last reported '+new Date(Number(row.timestamp)*1000).toLocaleString()))}}
 function queues(card,values){const colors=['#38bdf8','#c084fc','#34d399','#fbbf24','#fb7185'];for(const [key,types] of Object.entries(values)){card.append(cell('h3',key));const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 100');svg.setAttribute('role','img');svg.setAttribute('aria-label',key+' queue activity');const series=Object.entries(types).map(([type,readings])=>[type,Object.values(readings).map(v=>Number(v??0))]);const max=Math.max(1,...series.flatMap(([,values])=>values));const legend=document.createElement('div');legend.className='legend';series.forEach(([type,readings],index)=>{const color=colors[index%colors.length];const line=document.createElementNS(svg.namespaceURI,'polyline');line.setAttribute('points',readings.map((v,i)=>`${i/Math.max(1,readings.length-1)*600},${95-v/max*90}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke',color);line.setAttribute('stroke-width','2');svg.append(line);const label=cell('span',`${type}: ${readings.reduce((a,b)=>a+b,0)}`);label.style.borderColor=color;legend.append(label)});card.append(svg,legend)}}
-function render(data){main.replaceChildren();for(const [name,title] of Object.entries(names)){const card=document.createElement('section');card.className='card';card.append(cell('h2',title));addFilter(card,name);const values=data[name];if(!values||Object.keys(values).length===0){const e=cell('div','No data for this period');e.className='empty';card.append(e)}else if(name==='servers'){servers(card,values)}else if(name==='queues'){queues(card,values)}else if(Array.isArray(values)){const box=document.createElement('div');box.className='rows';const table=document.createElement('table'),head=document.createElement('tr'),columns=Object.keys(values[0]);for(const k of columns)head.append(cell('th',k));table.append(head);for(const row of values){const tr=document.createElement('tr');for(const k of columns){const td=cell('td',row[k]);td.dataset.column=k;tr.append(td)}table.append(tr)}box.append(table);card.append(box)}else{for(const [key,types] of Object.entries(values)){card.append(cell('h3',key));for(const [type,readings] of Object.entries(types)){const total=Object.values(readings).reduce((sum,v)=>sum+Number(v??0),0);card.append(cell('p',`${type}: ${total}`))}}}main.append(card)}}
+function renderRows(card, values, headings = {}) {
+    const box = document.createElement('div');
+    box.className = 'rows';
+    const table = document.createElement('table');
+    const head = document.createElement('tr');
+    const columns = Object.keys(values[0]);
+    for (const column of columns) head.append(cell('th', headings[column] ?? column));
+    table.append(head);
+    for (const row of values) {
+        const tr = document.createElement('tr');
+        for (const column of columns) {
+            const value = row[column];
+            const td = cell('td', value);
+            if (headings[column] && value?.title) td.title = value.title;
+            td.dataset.column = column;
+            tr.append(td);
+        }
+        table.append(tr);
+    }
+    box.append(table);
+    card.append(box);
+}
+function cacheHitRate(hits, misses) {
+    const total = hits + misses;
+    return total > 0 ? Math.trunc(hits / total * 10000) / 100 + '%' : '—';
+}
+function renderCache(card, rows, {hits, misses, sample_rate: rate}) {
+    const format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0});
+    const estimated = rate > 0 && rate < 1;
+    const count = raw => estimated ? '~' + format.format(raw / rate) : format.format(raw);
+    const rawTitle = raw => `Sample rate: ${rate}, raw count: ${format.format(raw)}`;
+    const countCell = raw => ({name: count(raw), title: estimated ? rawTitle(raw) : undefined});
+    const summary = document.createElement('dl');
+    summary.className = 'cache-summary';
+    for (const [label, value, raw] of [
+        ['Hits', count(hits), hits],
+        ['Misses', count(misses), misses],
+        ['Hit rate', cacheHitRate(hits, misses)],
+    ]) {
+        const item = document.createElement('div');
+        const result = cell('dd', value);
+        if (estimated && raw !== undefined) result.title = rawTitle(raw);
+        item.append(cell('dt', label), result);
+        summary.append(item);
+    }
+    card.append(summary);
+    if (rows.length) {
+        renderRows(card, rows.slice(0, 100).map(row => {
+            const rowHits = Number(row.cache_hit ?? 0);
+            const rowMisses = Number(row.cache_miss ?? 0);
+            return {key: row.key, hits: countCell(rowHits), misses: countCell(rowMisses),
+                    hit_rate: cacheHitRate(rowHits, rowMisses)};
+        }), {key: 'Key', hits: 'Hits', misses: 'Misses', hit_rate: 'Hit rate'});
+    }
+    if (rows.length > 100) card.append(cell('small', 'Limited to 100 entries'));
+}
+function render(data) {
+    main.replaceChildren();
+    for (const [name, title] of Object.entries(names)) {
+        const card = document.createElement('section');
+        card.className = 'card';
+        card.append(cell('h2', title));
+        addFilter(card, name);
+        const values = data[name];
+        const cache = data.cache_totals;
+        if (name === 'cache' && cache && cache.hits + cache.misses > 0) {
+            renderCache(card, values ?? [], cache);
+        } else if (!values || Object.keys(values).length === 0) {
+            const empty = cell('div', 'No data for this period');
+            empty.className = 'empty';
+            card.append(empty);
+        } else if (name === 'servers') {
+            servers(card, values);
+        } else if (name === 'queues') {
+            queues(card, values);
+        } else if (Array.isArray(values)) {
+            renderRows(card, values);
+        } else {
+            for (const [key, types] of Object.entries(values)) {
+                card.append(cell('h3', key));
+                for (const [type, readings] of Object.entries(types)) {
+                    const total = Object.values(readings).reduce((sum, value) => sum + Number(value ?? 0), 0);
+                    card.append(cell('p', `${type}: ${total}`));
+                }
+            }
+        }
+        main.append(card);
+    }
+}
 let activeRefresh;
 async function refresh() {
     activeRefresh?.abort();

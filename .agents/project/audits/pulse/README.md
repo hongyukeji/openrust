@@ -120,6 +120,14 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 缓存汇总和采样展示
+
+固定 PHP 8.5.12 与 SQLite 执行 Cache 的实际 `render` 和数据库聚合。102 个命中键加一次未命中得到全量汇总 102 与 1，明细查询 101 项，Blade 取前 100 项。用固定模板实际表达式核对采样率 0.5、一次命中及两次未命中显示 `~2`、`~4` 和 `33.33%`。证据为 `target/tmp/observability-parity/pulse-dashboard-cache-upstream.log`。 [固定 Cache 组件](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Cache.php)
+
+Rust 指标入口保留 `cache` 明细，新增 `cache_totals` 提供独立聚合的原始计数和采样率。前端按相同规则显示全局及逐键命中率，明细展示最多 100 项。采样率为零时显示已有原始计数。修复前 HTTP 的汇总字段缺失，证据为 `target/tmp/observability-parity/pulse-dashboard-cache-baseline.log`。
+
+macOS 三库的实际授权 HTTP 验证空汇总、超过明细上限的键及采样率。桌面与移动浏览器验证估算值、全局和逐键原始值提示、截断后的全局与逐键命中率。Pulse Provider 19 项、Pulse 缓存和存储 8 项、Telescope 存储 7 项、相关严格 Clippy、隔离快照格式、三语构建和六组正文检查通过。平台 Release 与完整 Livewire 请求仍待验收。证据为 `target/tmp/observability-parity/pulse-dashboard-cache-{macos-final,regressions,docs}.log`。
+
 ## SlowJobs 任务尝试计时
 
 固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
