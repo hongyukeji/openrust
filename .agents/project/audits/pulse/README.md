@@ -98,7 +98,13 @@ CacheInteractions 的 PCRE 字节模式现在基于原始字节创建 Entry。�
 
 macOS 真实 HTTP 文件缓存、SQLite、PostgreSQL 18.7 及 MySQL 8.4.13 专项通过。严格模式两库在存储触发错误回调，跨写入批次的合法项一并回滚。非严格 MySQL 的两组键按数据库行为截断并合并计数。独占 Redis 8.10.3 验证失败保留、重试、裁剪、旧文本载荷和原字节往返。另用实际 HTTP 缓存、原生 Redis ingest、SQLite 与面板 API 验证完整链路。Pulse 和 Telescope 默认 78 项通过、两项按环境跳过，Redis ingest 跳过项单独实跑通过。框架两个数据库目标、隔离快照格式、相关严格 Clippy、三语文档构建及桌面／移动检查通过。证据位于 `target/tmp/observability-parity/pulse-byte-key-{storage-macos,framework-regressions,storage-docs,storage-docs-chapter}.log`。
 
-仅写 `(*UTF)` 的模式仍受 PCRE2 安全起始偏移约束。该变体、含字节键的通用 Graph／Value 契约、完整 Livewire 请求对照及本批目标平台 Release 仍待核对。
+Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redis 8.10.3 写入后再消费及独立失败保留／重试三项。证据为 `target/tmp/observability-parity/pulse-byte-key-storage-linux.log`。
+
+仅写 `(*UTF)` 的模式仍受 PCRE2 安全起始偏移约束。该变体、完整 Livewire 请求对照及本批目标平台 Release 继续验收。
+
+#### 含字节键的通用 Graph 与 Value
+
+固定 PHP 8.5.12、Redis 8.10.3 与 SQLite 通过实际 Ingest 和 DatabaseStorage 核对。Graph 把两个原始字节键各保留为独立序列，均包含 60 个桶和一次计数。直接序列化 Graph 到 JSON 报 `JSON_ERROR_UTF8`。Value 的同键覆盖按提交顺序保留最后一项，即使其时间戳更小，按原始字节键查询也能命中。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-values-upstream.log`。Rust 的公开 Graph 键和 Value 键仍为文本，字节读取与写入待接通，呈现时不能合并显示相同的原始键。
 
 ## SlowJobs 任务尝试计时
 
