@@ -140,7 +140,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 固定面板的 Servers、Cache、Queues、Usage、Exceptions 及四类慢操作模板均声明五秒轮询。原生面板由每十秒改为每五秒统一请求，保留请求尚未结束时跳过该轮的规则。真实 Chrome 使用可控浏览器时钟验证首次加载、五秒前未请求及五秒时响应成功，桌面和移动功能回归同时通过。证据为 `target/tmp/observability-parity/pulse-dashboard-polling-verified.log`。 [固定面板模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)
 
-接续核对历史点提示与格式、集合字段排序以及 Carbon 复合时间表达式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+固定历史曲线以最近的采样点显示本地时间和数值。原生 SVG 为每个实际采样点提供覆盖最近区域的提示，显示本地日期、时间、时区和 CPU 百分比或内存 MiB。Chrome 在两个视口检查命中区域、时间和数值。触屏点选与键盘读取仍待验收。证据为 `target/tmp/observability-parity/pulse-dashboard-server-tooltip-verified.log`。 [固定 Servers 视图](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire/servers.blade.php)
+
+接续核对集合字段排序、Carbon 复合时间表达式和磁盘用量格式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
 
 ## SlowJobs 任务尝试计时
 

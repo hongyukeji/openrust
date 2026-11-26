@@ -40,9 +40,9 @@ function updateOption(parameter, value) {
 }
 function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof text==='object'&&text!==null?(text.name??JSON.stringify(text)):String(text??'—');return e}
 function meter(card,label,used,total){const item=document.createElement('div');item.className='reading';item.append(cell('p',label));const bar=document.createElement('progress');bar.max=100;bar.value=total>0?Math.min(100,used/total*100):0;bar.setAttribute('aria-label',label);item.append(bar);card.append(item)}
-function serverTrend(card, label, readings, limit) {
-    const values = Object.values(readings ?? {});
-    if (!values.some(Number.isFinite) || !(limit > 0)) return;
+function serverTrend(card, label, readings, limit, unit) {
+    const buckets = Object.entries(readings ?? {});
+    if (!(limit > 0)) return;
     const namespace = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(namespace, 'svg');
     svg.classList.add('server-trend');
@@ -51,16 +51,19 @@ function serverTrend(card, label, readings, limit) {
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', label);
     const commands = [];
-    values.forEach((value, index) => {
+    const samples = [];
+    buckets.forEach(([timestamp, value], index) => {
         if (!Number.isFinite(value)) return;
-        const x = 2 + index / Math.max(1, values.length - 1) * 596;
+        const x = 2 + index / Math.max(1, buckets.length - 1) * 596;
         const y = 37 - Math.min(1, Math.max(0, value / limit)) * 34;
-        const previous = Number.isFinite(values[index - 1]);
+        samples.push({timestamp, value, x});
+        const previous = Number.isFinite(buckets[index - 1]?.[1]);
         commands.push(`${previous ? 'L' : 'M'} ${x} ${y}`);
-        if (!previous && !Number.isFinite(values[index + 1])) {
+        if (!previous && !Number.isFinite(buckets[index + 1]?.[1])) {
             commands.push('h 0.01');
         }
     });
+    if (samples.length === 0) return;
     const line = document.createElementNS(namespace, 'path');
     line.setAttribute('d', commands.join(' '));
     line.setAttribute('fill', 'none');
@@ -69,6 +72,21 @@ function serverTrend(card, label, readings, limit) {
     line.setAttribute('stroke-linecap', 'round');
     line.setAttribute('vector-effect', 'non-scaling-stroke');
     svg.append(line);
+    for (const [index, {timestamp, value, x}] of samples.entries()) {
+        const left = index === 0 ? 0 : (samples[index - 1].x + x) / 2;
+        const right = index === samples.length - 1 ? 600 : (x + samples[index + 1].x) / 2;
+        const target = document.createElementNS(namespace, 'rect');
+        target.setAttribute('x', left);
+        target.setAttribute('y', '0');
+        target.setAttribute('width', right - left);
+        target.setAttribute('height', '40');
+        target.setAttribute('fill', 'transparent');
+        const title = document.createElementNS(namespace, 'title');
+        const date = new Date(timestamp.replace(' ', 'T') + 'Z');
+        title.textContent = `${date.toLocaleString(undefined, {timeZoneName: 'short'})} · ${value.toLocaleString()}${unit}`;
+        target.append(title);
+        svg.append(target);
+    }
     card.append(svg);
 }
 function servers(card, values, graphs) {
@@ -85,9 +103,9 @@ function servers(card, values, graphs) {
         card.append(cell('small', `${status} · Last reported ${new Date(Number(row.timestamp) * 1000).toLocaleString()}`));
         const series = Object.hasOwn(graphs, row.key) ? graphs[row.key] : undefined;
         meter(card, `CPU · ${data.cpu}%`, Number(data.cpu), 100);
-        serverTrend(card, `CPU history for ${data.name}`, series?.cpu, 100);
+        serverTrend(card, `CPU history for ${data.name}`, series?.cpu, 100, '%');
         meter(card, `Memory · ${data.memory_used} / ${data.memory_total} MiB`, Number(data.memory_used), Number(data.memory_total));
-        serverTrend(card, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total));
+        serverTrend(card, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total), ' MiB');
         for (const disk of data.storage ?? []) {
             meter(card, `${disk.directory} · ${disk.used} / ${disk.total} MiB`, Number(disk.used), Number(disk.total));
         }

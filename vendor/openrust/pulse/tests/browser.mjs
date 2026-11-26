@@ -20,10 +20,16 @@ try{
   assert.equal(await page.locator('.card').count(),10);
   assert.equal(await page.locator('progress').count(),5);
   assert.equal(await page.locator('svg').count(),3);
-  for (const name of [/^CPU history for /, /^Memory history for /]) {
+  for (const [name, value, unit] of [[/^CPU history for /, 25, '%'], [/^Memory history for /, 2048, ' MiB']]) {
    const graph=page.getByRole('img',{name});
    assert(await graph.isVisible());
    assert.match(await graph.locator('path').getAttribute('d'), /^M [\d.]+ [\d.]+ h 0\.01$/);
+   const target=graph.locator('rect');
+   await target.hover();
+   const tooltip=await target.locator('title').textContent();
+   const measurement=await page.evaluate(value=>value.toLocaleString(),value);
+   assert(tooltip.endsWith(' · '+measurement+unit));
+   assert.match(tooltip.split(' · ')[0], /\d+:\d+:\d+/);
   }
   assert(await page.getByText(/^Recently reported · Last reported /).isVisible());
   assert(await page.getByText(/^Stale · Last reported /).isVisible());
