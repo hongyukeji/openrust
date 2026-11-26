@@ -60,7 +60,7 @@ let answer = response.text;
 
 `POST /v1/chat/completions` 支援 OpenAI 和相容連線。`POST /v1/responses` 可原生轉發至 OpenAI 連線，也可將請求轉換為 Anthropic Messages。兩個入口皆支援 JSON 和 SSE。Responses 也可路由至只提供 Chat Completions 的連線。這條轉換支援無狀態文字、系統指令、基本生成參數、JSON 物件模式和用戶端函式工具。工具呼叫 ID 原樣回傳，參數增量會串流傳送。附件與 JSON Schema 需要支援對應功能的連線或轉換。Responses 目前採用無狀態模式，將 `store` 設為 `false`，並拒絕上游會話、舊 Response ID 和伺服器端工具。閘道使用結構化日誌 `ai_gateway.call` 記錄呼叫結果和上游回報的 Token 數。可用 `usage_channel` 指定日誌通道，通道必須允許 `info` 層級。未回報的計數記為 `null`。
 
-使用 Anthropic 用戶端時，基礎 URL 指向應用程式網域，下游 Key 透過 `x-api-key` 提交。閘道支援 `/v1/messages` 和 `/v1/messages/count_tokens`，模型可對應到 Anthropic 原生連線。Messages 請求也可轉送至已發佈的 OpenAI Responses 模型。附帶 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目錄使用 OpenAI 格式。
+使用 Anthropic 用戶端時，基礎 URL 指向應用程式網域，下游 Key 透過 `x-api-key` 提交。閘道支援 `/v1/messages` 和 `/v1/messages/count_tokens`，模型可對應到 Anthropic 原生連線。Messages 請求也可路由至已發佈的 OpenAI Responses 或 Chat Completions 模型。閘道保留用戶端工具呼叫 ID，並依序傳送每個工具的內容區塊。附帶 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目錄使用 OpenAI 格式。
 
 兩個方向的轉換都支援一般 JSON 和 SSE，並向用戶端回傳公開模型名稱。上游回報快取讀寫用量時，閘道會依目標協定回傳相應的計數。
 

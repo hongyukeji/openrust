@@ -2,6 +2,7 @@ mod chat;
 mod chat_messages;
 mod chat_tools;
 mod messages;
+mod messages_chat;
 mod responses;
 mod tools;
 
@@ -14,6 +15,7 @@ pub(super) enum Bridge {
     ResponsesToChat,
     ChatToMessages,
     MessagesToResponses,
+    MessagesToChat,
 }
 
 impl Bridge {
@@ -23,6 +25,7 @@ impl Bridge {
             (TextEndpoint::Responses, TextEndpoint::ChatCompletions) => Some(Self::ResponsesToChat),
             (TextEndpoint::ChatCompletions, TextEndpoint::Messages) => Some(Self::ChatToMessages),
             (TextEndpoint::Messages, TextEndpoint::Responses) => Some(Self::MessagesToResponses),
+            (TextEndpoint::Messages, TextEndpoint::ChatCompletions) => Some(Self::MessagesToChat),
             _ => None,
         }
     }
@@ -67,6 +70,7 @@ impl Bridge {
             Self::ResponsesToChat => chat::from_responses(data)?,
             Self::ChatToMessages => chat_messages::to_messages(data)?,
             Self::MessagesToResponses => messages::to_responses(data)?,
+            Self::MessagesToChat => messages_chat::request(data)?,
         };
         Ok((
             request,
@@ -101,6 +105,7 @@ impl Translation {
             Bridge::MessagesToResponses => {
                 messages::Message::new(name, self.allows_tools).buffered(data)
             }
+            Bridge::MessagesToChat => messages_chat::response(name, self.allows_tools, data),
         }
     }
 
@@ -122,6 +127,9 @@ impl Translation {
                 messages::Message::new(name, self.allows_tools),
                 messages::StreamState::default(),
             ),
+            Bridge::MessagesToChat => Stream::MessagesClient(Box::new(
+                messages_chat::StreamState::new(name, self.allows_tools),
+            )),
         }
     }
 }
@@ -131,6 +139,7 @@ pub(super) enum Stream {
     Chat(Box<chat::StreamState>),
     ChatClient(Box<chat_messages::StreamState>),
     Messages(messages::Message, messages::StreamState),
+    MessagesClient(Box<messages_chat::StreamState>),
 }
 
 impl Stream {
@@ -140,11 +149,13 @@ impl Stream {
             Self::Chat(state) => state.convert(data).map(response_wire),
             Self::ChatClient(state) => state.convert(data),
             Self::Messages(message, state) => state.convert(message, data),
+            Self::MessagesClient(state) => state.convert(data),
         }
     }
     pub(super) fn finish(&mut self) -> Option<(Vec<String>, bool)> {
         match self {
             Self::Chat(state) => state.finish().map(response_wire),
+            Self::MessagesClient(state) => state.finish(),
             _ => None,
         }
     }
