@@ -699,6 +699,44 @@ impl openrust::contracts::events::Listener for RejectAuditListener {
         })
     }
 }
+struct RecordReceiptObservation(std::path::PathBuf);
+impl openrust::contracts::events::Listener for RecordReceiptObservation {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn openrust::contracts::events::Event,
+        _: &'a mut openrust::events::EventContext<'_>,
+    ) -> openrust::events::EventFuture<
+        'a,
+        openrust::events::EventResult<Option<openrust::events::ListenerResponse>>,
+    > {
+        Box::pin(async move {
+            use std::io::Write as _;
+            let event = event
+                .downcast_ref::<openrust_webhook_client::events::WebhookReceiptObserved>()
+                .expect("使用接收指标事件名称注册");
+            let record = format!(
+                "{}\n",
+                serde_json::to_string(event).expect("接收指标可序列化")
+            );
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.0)
+                .and_then(|mut file| file.write_all(record.as_bytes()))
+                .and_then(|()| {
+                    if std::env::var_os("FIXTURE_RECEIPT_OBSERVATION_FAIL").is_some() {
+                        Err(std::io::Error::other("private-observation-error-fixture"))
+                    } else {
+                        Ok(())
+                    }
+                })
+                .map_err(|source| openrust::events::EventError::Listener {
+                    source: Box::new(source),
+                })?;
+            Ok(None)
+        })
+    }
+}
 struct ControlAfterRedisEnqueue;
 impl openrust::contracts::events::Listener for ControlAfterRedisEnqueue {
     fn handle<'a>(
@@ -1034,6 +1072,15 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         std::sync::Arc::new(RejectAuditListener),
                         openrust::events::Delivery::Sync,
                     )?;
+            }
+            if let Some(path) = std::env::var_os("FIXTURE_RECEIPT_OBSERVATION") {
+                use openrust::contracts::events::Dispatcher as _;
+                let events = app.make::<openrust::events::Dispatcher>().await?;
+                events.listen(
+                    openrust_webhook_client::events::WebhookReceiptObserved::NAME,
+                    std::sync::Arc::new(RecordReceiptObservation(path.into())),
+                    openrust::events::Delivery::Sync,
+                )?;
             }
             if std::env::var_os("FIXTURE_CRASH_AFTER_REDIS_ENQUEUE").is_some()
                 || std::env::var_os("FIXTURE_HOLD_AFTER_REDIS_ENQUEUE").is_some()
@@ -1694,6 +1741,11 @@ async fn main() -> ExitCode {
                     "signature_validator": "default", "webhook_profile": "process-everything",
                     "webhook_model": "database",
                 }));
+            }
+            if env.get_utf8("FIXTURE_RECEIPT_OBSERVATION")?.is_some() {
+                for profile in profiles {
+                    profile["observe_receipts"] = json!(true);
+                }
             }
             if let Some(value) = env.get_utf8("FIXTURE_PRUNE_POLICY")? {
                 config.get_mut("webhook-client").unwrap()["delete_after_days"] = serde_json::from_str(value).expect("夹具配置必须是有效 JSON");

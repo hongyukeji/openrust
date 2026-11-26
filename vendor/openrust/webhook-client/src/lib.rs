@@ -59,7 +59,7 @@ pub use migration::CreateWebhookCallsTable;
 pub use processor::{VerifiedWebhook, WebhookJobDispatcher, WebhookProcessor, WebhookRuntime};
 pub use storage::{
     AttachmentCleanupReport, DatabaseWebhookStore, ProcessingAttempt, ProcessingAttemptsPage,
-    ReceiptDiagnostics, ReceiptState, WebhookStore,
+    ReceiptDiagnostics, ReceiptDispatchMode, ReceiptPersistence, ReceiptState, WebhookStore,
 };
 
 pub use contracts::{

@@ -83,6 +83,24 @@ impl WebhookConfig {
         self.max_body_bytes
     }
 
+    /// 是否在接收流程结束后派发脱敏观测事件。
+    pub fn observe_receipts(&self) -> Result<bool> {
+        match self.options.get("observe_receipts") {
+            None | Some(Value::Null) => Ok(false),
+            Some(Value::Bool(value)) => Ok(*value),
+            _ => Err(Error::InvalidConfig("observe_receipts")),
+        }
+    }
+
+    /// 为手动创建的接收配置启用观测事件。
+    pub fn with_receipt_observation(mut self) -> Self {
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["observe_receipts"] = Value::Bool(true);
+        self
+    }
+
     pub fn verified_requests_per_minute(&self) -> Result<Option<u32>> {
         match self.options.get("verified_requests_per_minute") {
             None | Some(Value::Null) => Ok(None),
@@ -462,6 +480,7 @@ impl WebhookConfig {
             )?;
         }
         config.options = value.clone();
+        config.observe_receipts()?;
         if config.verified_requests_per_minute()?.is_some() {
             config.verified_rate_scope()?;
         }

@@ -291,6 +291,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):
+    from collections import Counter
     from concurrent.futures import ThreadPoolExecutor
 
     secret = base64.b64decode(STANDARD.removeprefix("whsec_"))
@@ -300,6 +301,8 @@ def check_verified_event_identity(binary, env, root, port, driver, sql):
     path = "/api/package/event-dedup"
     now = int(time.time())
     original = int(sql("SELECT COUNT(*) FROM webhook_calls"))
+    observed = root / "receipt-observation.jsonl"
+    env = env | {"FIXTURE_RECEIPT_OBSERVATION": str(observed)}
 
     def send(target, event, value=body, timestamp=now, expected=200, listen=port, unsigned=False):
         signature = hmac.new(secret, f"{event}.{timestamp}.".encode() + value, hashlib.sha256)
@@ -346,6 +349,8 @@ def check_verified_event_identity(binary, env, root, port, driver, sql):
         try:
             peer = http_helpers["serve"](binary, env | {
                 "APP_PORT": str(other_port), "APP_URL": f"http://127.0.0.1:{other_port}",
+                "FIXTURE_RECEIPT_OBSERVATION_FAIL": "1",
+                "LOG_LEVEL": "warning",
             }, peer_log)
             try:
                 with ThreadPoolExecutor(max_workers=2) as clients:
@@ -397,6 +402,12 @@ def check_verified_event_identity(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](first)
+    measurements = [json.loads(line) for line in observed.read_text().splitlines()]
+    assert all(set(entry) == {"outcome", "elapsed"} and entry["elapsed"]["nanos"] >= 0 for entry in measurements)
+    assert Counter(entry["outcome"] for entry in measurements) == {
+        "accepted": 4, "duplicate": 4, "conflict": 2, "rejected": 2, "failed": 1,
+    }, measurements
+    assert "private-observation-error-fixture" not in (root / "identity-peer.log").read_text()
     print("已签名事件去重 13 个真实 HTTP、4 个独立 Worker；两进程并发、原子回滚、冲突、大小写、配置隔离和自定义验证器通过")
 
 
@@ -818,9 +829,13 @@ def check_retention(binary, env, root, port, driver, sql):
 
 
 def check_unverified_hints(binary, env, root, port, driver, sql):
+    from collections import Counter
+
     target = "/api/package/hint"
     before = sql("SELECT COUNT(*) FROM webhook_calls")
     log_path = root / "hints.log"
+    observed = root / "hint-observation.jsonl"
+    env = env | {"FIXTURE_RECEIPT_OBSERVATION": str(observed)}
 
     def send(path, expected, body=b"known", headers=None):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
@@ -906,6 +921,10 @@ def check_unverified_hints(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
+    outcomes = Counter(json.loads(line)["outcome"] for line in observed.read_text().splitlines())
+    assert outcomes == {
+        "invalid_signature": 4, "failed": 2, "unverified_hint": 4, "rate_limited": 1, "accepted": 1,
+    }, outcomes
     print(f"{driver}: 无签名提示 12 个真实 HTTP、5 次 Worker；限额、签名和范围隔离、入队回滚、重复、过期及撤销通过")
 
 

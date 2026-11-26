@@ -12,6 +12,7 @@ pub fn load(_: &Environment) -> Result<Value, ConfigError> {
             "atomic_database_queue":false, "recover_dispatch":false, "recover_processing":null, "deduplicate_verified_events":false, "deduplicate_body_seconds":null, "store_headers":[], "store_attachments":true,
             "max_body_bytes":1048576,
             "verified_requests_per_minute":null,
+            "observe_receipts":false,
             "verification_secrets":[]
         }],
         "delete_after_days":30,

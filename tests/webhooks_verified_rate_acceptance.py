@@ -1,5 +1,6 @@
 """真实 Webhook HTTP 节点、共享限流、Artisan 和 Worker。"""
 import concurrent.futures
+from collections import Counter
 from contextlib import ExitStack, closing
 import base64
 import hashlib
@@ -133,6 +134,7 @@ def main():
                 "APP_CONFIG_CACHE": str(folder / "config.json"), "APP_ROUTES_CACHE": str(folder / "routes.json"),
                 "FIXTURE_SPATIE_SECRET": secret, "FIXTURE_STANDARD_SECRET": routes["STANDARD"],
                 "FIXTURE_VERIFIED_RATE_SCOPE": scope, "FIXTURE_VERIFIED_RATE_REVISION": revision,
+                "FIXTURE_RECEIPT_OBSERVATION": str(folder / "receipts.jsonl"),
             } | shared_cache | settings
             if url:
                 env["DB_URL"] = url
@@ -183,6 +185,14 @@ def main():
         assert submit(other) == (200, None)
         assert sql("SELECT COUNT(*) FROM webhook_calls") == "5"
         assert sql("SELECT COUNT(*) FROM jobs") == "5"
+        outcomes = Counter(
+            json.loads(line)["outcome"]
+            for env in (first, second, other, broken)
+            for line in Path(env["FIXTURE_RECEIPT_OBSERVATION"]).read_text().splitlines()
+        )
+        assert outcomes == {
+            "accepted": 5, "invalid_signature": 4, "ignored": 4, "failed": 2, "rate_limited": 8,
+        }, outcomes
 
         for row in sql("SELECT id,scope FROM webhook_calls ORDER BY id").splitlines():
             identifier, scope = row.split("\t")

@@ -1,16 +1,17 @@
 use crate::{
     DefaultRespondsTo, DefaultSignatureValidator, Error, ProcessEverythingWebhookProfile,
-    RespondsToWebhook, Result, SignatureValidator, WebhookConfig, WebhookProfile, WebhookRequest,
-    WebhookStore,
+    ReceiptDispatchMode, ReceiptPersistence, RespondsToWebhook, Result, SignatureValidator,
+    WebhookConfig, WebhookProfile, WebhookRequest, WebhookStore,
+    events::{ReceiptOutcome, WebhookReceiptObserved},
     models::WebhookCall,
     verification::{DatabaseVerificationAudit, VerificationDecision},
 };
 use openrust::{
     contracts::events::Dispatcher,
     events::EventContext,
-    http::{HttpFuture, Response},
+    http::{HttpError, HttpFuture, Response, StatusCode},
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 /// 仅由 Processor 在验签及 Profile 通过后产生；不是可反序列化的输入 DTO。
 pub struct VerifiedWebhook<'a> {
@@ -150,17 +151,58 @@ impl<'a> WebhookProcessor<'a> {
         if let Some(app) = &self.runtime.application {
             app.call(
                 openrust::container::Callback::new(&[], |_| async {
-                    Ok(self.process_inner().await)
+                    Ok(self.process_observed().await)
                 }),
                 Default::default(),
             )
             .await
             .map_err(Error::binding)?
         } else {
-            self.process_inner().await
+            self.process_observed().await
         }
     }
-    async fn process_inner(&self) -> Result<Response> {
+
+    async fn process_observed(&self) -> Result<Response> {
+        let mut outcome = ReceiptOutcome::Accepted;
+        if !self.config.observe_receipts()? {
+            return self.process_inner(&mut outcome).await;
+        }
+        let started = Instant::now();
+        let result = self.process_inner(&mut outcome).await;
+        let outcome = match &result {
+            Ok(_) => outcome,
+            Err(Error::VerifiedEventConflict) => ReceiptOutcome::Conflict,
+            Err(Error::InvalidSignature) => ReceiptOutcome::InvalidSignature,
+            Err(Error::MissingVerifiedEventId | Error::PayloadTooLarge) => ReceiptOutcome::Rejected,
+            Err(Error::Http(
+                HttpError::Aborted {
+                    status: StatusCode::TOO_MANY_REQUESTS,
+                    ..
+                }
+                | HttpError::Throttled { .. },
+            )) => ReceiptOutcome::RateLimited,
+            Err(_) => ReceiptOutcome::Failed,
+        };
+        let event = WebhookReceiptObserved {
+            outcome,
+            elapsed: started.elapsed(),
+        };
+        if self
+            .runtime
+            .events
+            .dispatch(Arc::new(event), &mut EventContext::new())
+            .await
+            .is_err()
+        {
+            let _ = openrust::support::facades::Log::warning(
+                "Webhook 接收结果监听器失败",
+                &Default::default(),
+            );
+        }
+        result
+    }
+
+    async fn process_inner(&self, outcome: &mut ReceiptOutcome) -> Result<Response> {
         // 资源预算由流程入口再次检查，自定义验证器不能绕过正文上限。
         if self.request.body().len() > self.config.max_body_bytes() {
             return Err(Error::PayloadTooLarge);
@@ -176,6 +218,7 @@ impl<'a> WebhookProcessor<'a> {
             receiver
                 .receive(crate::hints::UnverifiedHint::new(self.request, self.config))
                 .await?;
+            *outcome = ReceiptOutcome::UnverifiedHint;
             return Ok(Response::json(
                 openrust::http::StatusCode::ACCEPTED,
                 serde_json::json!({"message":"accepted"}),
@@ -228,6 +271,7 @@ impl<'a> WebhookProcessor<'a> {
             .profile
             .should_process(self.request, self.config)?
         {
+            *outcome = ReceiptOutcome::Ignored;
             return self.create_response();
         }
         let event_id = if self.config.deduplicate_verified_events()? {
@@ -254,18 +298,22 @@ impl<'a> WebhookProcessor<'a> {
             body_deduplication_window: self.config.body_deduplication_window()?,
             processing_recovery: self.config.processing_recovery()?,
         };
-        if self.config.recover_dispatch()? {
-            self.runtime
+        let mode = if self.config.recover_dispatch()? {
+            Some(ReceiptDispatchMode::Recoverable)
+        } else if self.config.atomic_database_queue()? {
+            Some(ReceiptDispatchMode::Atomic)
+        } else {
+            None
+        };
+        if let Some(mode) = mode {
+            let persistence = self
+                .runtime
                 .store
-                .store_for_dispatch_recovery(&verified, self.runtime.job.as_ref())
+                .store_with_dispatch_outcome(&verified, self.runtime.job.as_ref(), mode)
                 .await?;
-            return self.create_response();
-        }
-        if self.config.atomic_database_queue()? {
-            self.runtime
-                .store
-                .store_and_dispatch_atomic(&verified, self.runtime.job.as_ref())
-                .await?;
+            if persistence == ReceiptPersistence::Duplicate {
+                *outcome = ReceiptOutcome::Duplicate;
+            }
             return self.create_response();
         }
         let mut call = WebhookCall::store_webhook(self.runtime.store.as_ref(), &verified).await?;

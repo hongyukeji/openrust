@@ -331,25 +331,15 @@ impl DeferredStore {
     }
 }
 impl WebhookStore for DeferredStore {
-    fn store_and_dispatch_atomic<'a>(
+    fn store_with_dispatch_outcome<'a>(
         &'a self,
         webhook: &'a crate::VerifiedWebhook<'_>,
         dispatcher: &'a dyn WebhookJobDispatcher,
-    ) -> HttpFuture<'a, Result<()>> {
+        mode: crate::ReceiptDispatchMode,
+    ) -> HttpFuture<'a, Result<crate::ReceiptPersistence>> {
         Box::pin(async move {
             self.resolve()?
-                .store_and_dispatch_atomic(webhook, dispatcher)
-                .await
-        })
-    }
-    fn store_for_dispatch_recovery<'a>(
-        &'a self,
-        webhook: &'a crate::VerifiedWebhook<'_>,
-        dispatcher: &'a dyn WebhookJobDispatcher,
-    ) -> HttpFuture<'a, Result<()>> {
-        Box::pin(async move {
-            self.resolve()?
-                .store_for_dispatch_recovery(webhook, dispatcher)
+                .store_with_dispatch_outcome(webhook, dispatcher, mode)
                 .await
         })
     }

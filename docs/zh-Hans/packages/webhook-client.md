@@ -117,6 +117,8 @@ pub async fn process_named(
 
 ## 自定义实现与快照 {#customization}
 
+在具名接收配置中启用 `"observe_receipts": true`，或者调用 `WebhookConfig::with_receipt_observation()`，可通过原生事件监听 `events::WebhookReceiptObserved`。事件只包含固定结果分类和处理耗时。数据库存储能区分首次接收、去重和冲突，旧的自定义存储可继续使用原有接口。事件在接收流程返回之前触发，监听器返回错误时原响应和已提交记录照常保留。路由匹配或请求读取阶段提前拒绝的请求不进入该事件。
+
 外部 crate 可实现 `SignatureValidator`、`WebhookProfile`、`RespondsToWebhook`、`WebhookStore` 和 `WebhookJobDispatcher`。`ProcessEverythingWebhookProfile` 选择所有请求，`DefaultRespondsTo` 生成 `{"message":"ok"}`。`WebhookRuntime::new` 接受显式依赖；`WebhookRuntime::from_application` 按当前应用的类型化工厂解析选定名称，不执行类名字符串，也不使用全局注册表。
 
 `WebhookConfigRepository::add_config` 按名称替换配置，已取得的 `Arc<WebhookConfig>` 保留原修订与密钥快照。未知名称返回 `Ok(None)`，解析错误仍为错误。Provider 将仓库绑定到当前 HTTP、Artisan 或 Worker 生命周期，运行时追加不会泄漏到下一生命周期。`WebhookConfig::new` 接受运行时注入的密钥，私有保存并对 Debug 脱敏；不要把密钥序列化到任务或日志。`with_verification_secrets` 最多增加七个旧密钥，同一配置总共最多八个。

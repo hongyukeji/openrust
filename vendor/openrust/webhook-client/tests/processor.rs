@@ -132,6 +132,7 @@ struct Case {
     job_fails: bool,
     response_fails: bool,
     clear_fails: bool,
+    observe: bool,
 }
 impl Default for Case {
     fn default() -> Self {
@@ -142,6 +143,7 @@ impl Default for Case {
             job_fails: false,
             response_fails: false,
             clear_fails: false,
+            observe: false,
         }
     }
 }
@@ -170,15 +172,34 @@ async fn run(
     .with_signature_validator(Arc::new(Validator(trace.clone(), case.valid)))
     .with_webhook_profile(Arc::new(Profile(trace.clone(), case.process)))
     .with_webhook_response(Arc::new(Respond(trace.clone(), case.response_fails)));
-    let result = WebhookProcessor::new(
-        &request(),
-        &WebhookConfig::new("supplier", "private-secret").unwrap(),
-        &runtime,
-    )
-    .process()
-    .await;
+    let mut config = WebhookConfig::new("supplier", "private-secret").unwrap();
+    if case.observe {
+        config = config.with_receipt_observation();
+    }
+    let result = WebhookProcessor::new(&request(), &config, &runtime)
+        .process()
+        .await;
     assert_eq!(*trace.lock().unwrap(), expected);
     (store, fake, result)
+}
+#[tokio::test]
+async fn receipt_observation_can_be_tested_with_native_event_fake() {
+    use openrust_webhook_client::events::{ReceiptOutcome, WebhookReceiptObserved};
+    let (_, fake, result) = run(
+        Case {
+            observe: true,
+            valid: Some(false),
+            ..Default::default()
+        },
+        &["validate"],
+    )
+    .await;
+    assert!(matches!(result, Err(Error::InvalidSignature)));
+    let events = fake.dispatched(WebhookReceiptObserved::NAME);
+    assert_eq!(events.len(), 1);
+    let event = events[0].downcast_ref::<WebhookReceiptObserved>().unwrap();
+    assert_eq!(event.outcome, ReceiptOutcome::InvalidSignature);
+    assert!(events[0].properties().is_none());
 }
 #[tokio::test]
 async fn processor_preserves_storage_dispatch_response_order_and_original_payload() {

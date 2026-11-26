@@ -28,6 +28,21 @@ use openrust::{
 };
 use serde_json::Value as Json;
 
+/// 已验签接收记录及派发意图的持久化方式。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReceiptDispatchMode {
+    Atomic,
+    Recoverable,
+}
+
+/// 存储可明确报告新接收记录或被去重的请求。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReceiptPersistence {
+    Stored,
+    Duplicate,
+    Unreported,
+}
+
 /// 存储适配不执行签名验证、业务回调或任务派发。
 pub trait WebhookStore: Send + Sync {
     fn store_webhook<'a>(
@@ -47,6 +62,25 @@ pub trait WebhookStore: Send + Sync {
         _dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
         Box::pin(async { Err(Error::InvalidConfig("recover_dispatch")) })
+    }
+    fn store_with_dispatch_outcome<'a>(
+        &'a self,
+        webhook: &'a VerifiedWebhook<'_>,
+        dispatcher: &'a dyn crate::WebhookJobDispatcher,
+        mode: ReceiptDispatchMode,
+    ) -> HttpFuture<'a, Result<ReceiptPersistence>> {
+        Box::pin(async move {
+            match mode {
+                ReceiptDispatchMode::Atomic => {
+                    self.store_and_dispatch_atomic(webhook, dispatcher).await?
+                }
+                ReceiptDispatchMode::Recoverable => {
+                    self.store_for_dispatch_recovery(webhook, dispatcher)
+                        .await?
+                }
+            }
+            Ok(ReceiptPersistence::Unreported)
+        })
     }
     fn payload<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
         Box::pin(async { Err(Error::PayloadUnsupported) })
@@ -217,14 +251,14 @@ impl DatabaseWebhookStore {
         &self,
         webhook: &VerifiedWebhook<'_>,
         dispatcher: &dyn crate::WebhookJobDispatcher,
-        recover: bool,
-    ) -> Result<()> {
+        mode: ReceiptDispatchMode,
+    ) -> Result<ReceiptPersistence> {
         let identity = identity::EventIdentity::from_verified(&self.scope, webhook);
         let clock = self.clock();
         if let Some(identity) = &identity
             && identity.already_received(&self.connection, clock).await?
         {
-            return Ok(());
+            return Ok(ReceiptPersistence::Duplicate);
         }
         let PreparedReceipt {
             call,
@@ -251,7 +285,7 @@ impl DatabaseWebhookStore {
                 self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
                     .await?;
                 if identity.already_received(&self.connection, clock).await? {
-                    return Ok(());
+                    return Ok(ReceiptPersistence::Duplicate);
                 }
                 return Err(error);
             }
@@ -261,7 +295,7 @@ impl DatabaseWebhookStore {
                 self.finish_attachment(&mut transaction, call.id()).await?;
             }
             dispatcher.prepare(&call)?;
-            if recover {
+            if mode == ReceiptDispatchMode::Recoverable {
                 let route = dispatcher.recovery_route()?.encode()?;
                 self.record_dispatch_intent(
                     &mut transaction,
@@ -278,7 +312,10 @@ impl DatabaseWebhookStore {
         }
         .await;
         match queued {
-            Ok(()) => transaction.commit().await.map_err(Into::into),
+            Ok(()) => {
+                transaction.commit().await?;
+                Ok(ReceiptPersistence::Stored)
+            }
             Err(error) => {
                 self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
                     .await?;
@@ -333,7 +370,11 @@ impl WebhookStore for DatabaseWebhookStore {
         webhook: &'a VerifiedWebhook<'_>,
         dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
-        Box::pin(self.store_with_dispatch(webhook, dispatcher, false))
+        Box::pin(async move {
+            self.store_with_dispatch(webhook, dispatcher, ReceiptDispatchMode::Atomic)
+                .await
+                .map(|_| ())
+        })
     }
 
     fn store_for_dispatch_recovery<'a>(
@@ -341,7 +382,20 @@ impl WebhookStore for DatabaseWebhookStore {
         webhook: &'a VerifiedWebhook<'_>,
         dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
-        Box::pin(self.store_with_dispatch(webhook, dispatcher, true))
+        Box::pin(async move {
+            self.store_with_dispatch(webhook, dispatcher, ReceiptDispatchMode::Recoverable)
+                .await
+                .map(|_| ())
+        })
+    }
+
+    fn store_with_dispatch_outcome<'a>(
+        &'a self,
+        webhook: &'a VerifiedWebhook<'_>,
+        dispatcher: &'a dyn crate::WebhookJobDispatcher,
+        mode: ReceiptDispatchMode,
+    ) -> HttpFuture<'a, Result<ReceiptPersistence>> {
+        Box::pin(self.store_with_dispatch(webhook, dispatcher, mode))
     }
     fn prunable(&self, days: u32, limit: u32) -> HttpFuture<'_, Result<Vec<String>>> {
         Box::pin(self.prunable_ids(days, limit))
