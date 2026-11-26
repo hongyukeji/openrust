@@ -2,6 +2,7 @@ use crate::{Error, Result, label};
 use openrust::redis::{Value, connections::Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::time::{Duration, Instant};
 
 pub(crate) mod command_queue;
 mod jobs;
@@ -18,6 +19,33 @@ pub(crate) use processes::{MasterLease, MasterOwnership};
 pub use processes::{MasterSupervisorRepository, ProcessRepository, SupervisorRepository};
 pub use tags::TagRepository;
 pub use workload::WorkloadRepository;
+
+#[derive(Default)]
+pub(crate) struct MetadataRecovery(Option<Instant>);
+
+impl MetadataRecovery {
+    pub(crate) fn recovered(&mut self) {
+        self.0 = None;
+    }
+
+    pub(crate) async fn retry(&mut self, started: Instant, error: Error) -> Result<()> {
+        if !matches!(error, Error::RedisUnavailable(_)) {
+            return Err(error);
+        }
+        // 最长等待一个所有权租期；恢复后各入口仍须在 Redis 验证令牌。
+        let deadline = self.0.get_or_insert(started + Duration::from_secs(15));
+        if Instant::now() >= *deadline {
+            return Err(error);
+        }
+        if openrust::support::report(error).await.is_err() {
+            let _ = openrust::support::facades::Log::warning(
+                "Horizon 元数据 Redis 暂不可用，监控循环将重试。",
+                &Default::default(),
+            );
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JobRecord {
@@ -177,7 +205,13 @@ impl Repository {
                 &args.iter().map(|s| s.as_bytes()).collect::<Vec<_>>(),
             )
             .await
-            .map_err(|_| Error::Redis)
+            .map_err(|error| {
+                if error.is_temporarily_unavailable() {
+                    Error::RedisUnavailable(error)
+                } else {
+                    Error::Redis
+                }
+            })
     }
     async fn eval(&self, script: &str, keys: Vec<String>, args: Vec<String>) -> Result<Value> {
         let mut parameters = vec![script.into(), keys.len().to_string()];

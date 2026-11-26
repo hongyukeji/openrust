@@ -550,21 +550,38 @@ impl MasterSupervisor {
         }
         started();
         let mut next_poll = Instant::now() + Duration::from_secs(1);
+        let mut recovery = crate::repository::MetadataRecovery::default();
+        let mut pending_pause = None;
         let result = loop {
             tokio::select! {
                 _ = shutdown.cancelled() => break Ok(()),
                 _ = tokio::time::sleep_until(next_poll) => {},
-                paused = control.next() => {
-                    if let Err(error) = lease.set_paused(paused).await {
-                        break Err(error);
+                paused = control.next() => pending_pause = Some(paused),
+            }
+            let started = Instant::now();
+            if let Some(paused) = pending_pause {
+                match lease.set_paused(paused).await {
+                    Ok(()) => pending_pause = None,
+                    Err(error) => {
+                        if let Err(error) = recovery.retry(started, error).await {
+                            break Err(error);
+                        }
+                        next_poll = Instant::now() + Duration::from_secs(1);
+                        continue;
                     }
+                }
+                if Instant::now() < next_poll {
                     continue;
                 }
             }
             match self.tick(&generation, &lease).await {
-                Ok(true) => {}
+                Ok(true) => recovery.recovered(),
                 Ok(false) => break Ok(()),
-                Err(error) => break Err(error),
+                Err(error) => {
+                    if let Err(error) = recovery.retry(started, error).await {
+                        break Err(error);
+                    }
+                }
             }
             next_poll = Instant::now() + Duration::from_secs(1);
         };
@@ -767,15 +784,17 @@ impl MasterSupervisor {
         for supervisor in &self.supervisors {
             failed |= supervisor.terminate().await.is_err();
         }
-        let wait = !self.fast_termination
-            || self
-                .repository
+        let wait = if self.fast_termination {
+            self.repository
                 .master_supervisors()
                 .termination_wait(Some(&self.id))
-                .await?;
+                .await
+        } else {
+            Ok(true)
+        };
         for supervisor in &mut self.supervisors {
             if let Some(process) = supervisor.process.take() {
-                if wait {
+                if wait.as_ref().copied().unwrap_or(true) {
                     failed |= crate::signals::drain(process, deadline).await.is_err();
                 } else {
                     failed |= process.detach().await.is_err();
@@ -783,6 +802,7 @@ impl MasterSupervisor {
             }
             failed |= lease.forget_supervisor(&supervisor.name).await.is_err();
         }
+        wait?;
         if failed { Err(Error::Process) } else { Ok(()) }
     }
 }

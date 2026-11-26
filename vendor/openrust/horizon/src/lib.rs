@@ -67,6 +67,7 @@ pub enum Error {
     InvalidConfiguration,
     InvalidRecord,
     Redis,
+    RedisUnavailable(openrust::redis::RedisError),
     Queue,
     Process,
     MemoryLimitExceeded,
@@ -80,6 +81,7 @@ impl std::fmt::Display for Error {
             Self::InvalidConfiguration => "Invalid Horizon configuration",
             Self::InvalidRecord => "Invalid Horizon record",
             Self::Redis => "Horizon metadata storage failed",
+            Self::RedisUnavailable(_) => "Horizon 元数据 Redis 暂不可用。",
             Self::Queue => "Horizon queue operation failed",
             Self::MemoryLimitExceeded => "Horizon memory limit exceeded",
             Self::MasterAlreadyRunning => "A master supervisor is already running on this machine.",
@@ -89,7 +91,14 @@ impl std::fmt::Display for Error {
         })
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RedisUnavailable(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 pub(crate) fn label(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128

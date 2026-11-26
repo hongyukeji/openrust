@@ -37,6 +37,25 @@ pub enum RedisError {
 }
 
 impl RedisError {
+    /// 连接暂不可用，或服务端正在加载、尚未允许写入。
+    pub fn is_temporarily_unavailable(&self) -> bool {
+        use ::redis::{ErrorKind, ServerErrorKind};
+
+        self.source()
+            .and_then(|source| source.downcast_ref::<::redis::RedisError>())
+            .is_some_and(|error| {
+                matches!(
+                    error.kind(),
+                    ErrorKind::Io
+                        | ErrorKind::Server(
+                            ServerErrorKind::BusyLoading
+                                | ServerErrorKind::ReadOnly
+                                | ServerErrorKind::TryAgain
+                        )
+                )
+            })
+    }
+
     pub(crate) fn is_cluster_redirect(&self) -> bool {
         matches!(self.source().and_then(|cause| cause.downcast_ref::<::redis::RedisError>()), Some(error) if error.redirect_node().is_some())
     }

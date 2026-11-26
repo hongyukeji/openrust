@@ -60,7 +60,11 @@ macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor �
 
 macOS 的原生 Artisan Master 通过固定地址访问两台独占 Redis 8.10.3。初始 Worker 完成真实任务后，在主节点执行写入和 `WAIT 1`，并从副本读回确认值。切断已有连接，在提升副本期间暂时拒绝重连并停止原主节点，随后将固定地址转发到提升后的主节点。Rust Master 在约三秒的断连期间以状态码 1 退出。提升后的节点仍显示一条 Master 心跳。证据为 `target/tmp/observability-parity/horizon-redis-promotion-baseline.log`。
 
-接续验收需让短时故障后仍持有效所有权的进程恢复，以及继续验证确认失去所有权、长时间不可达、提升副本缺少令牌和故障窗口内不得继续领取的边界。当前单节点持续断连时退出并回收 Worker 的验收继续保留。固定地址由夹具代理提供，发布时仍需实测实际的 Redis 故障转移入口和拓扑。
+Rust 区分 Redis 连接中断、加载中、只读和稍后重试等暂时错误。监控进程报告异常并在最长一个租期的窗口内重试。重新连接后沿用已有的原子令牌校验。受管 Worker 无法确认所有权时等待领取。持续故障触发正常排空；读取终止选项失败时，按等待排空处理并保留错误。
+
+macOS 用实际 Artisan 和两台 Redis 8.10.3 通过四组进程验收。短时切换保留同一个 Master，两项任务各完成一次。提升后的令牌缺失或被替换时，旧进程退出，待处理任务无保留、尝试次数为零，由普通 Worker 后续处理。持续断连时，启用快速终止的进程树也完成回收，待处理任务同样保留。单节点的完整 Artisan、进程与 HTTP 专项通过。三个扩展默认 114 项通过、25 项按环境跳过，其中 Horizon 的 23 项 Redis 专项另行实跑通过。三语站点构建与六组桌面／移动正文检查通过。证据为 `target/tmp/observability-parity/horizon-metadata-recovery-{macos-initial,macos-final,docs}.log`。
+
+隔离快照全仓格式、框架库与 Horizon 全目标严格 Clippy 通过。Linux ARM64 的 Release 进程与切换专项继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
 
 ### Master 命令队列与动态部署
 

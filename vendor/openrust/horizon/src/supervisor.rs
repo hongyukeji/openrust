@@ -421,23 +421,40 @@ impl Supervisor {
         #[cfg(not(windows))]
         let parent_closed = std::future::pending::<std::io::Result<()>>();
         tokio::pin!(parent_closed);
+        let mut recovery = crate::repository::MetadataRecovery::default();
+        let mut pending_pause = None;
         let result = loop {
             tokio::select! {
                 biased;
                 closed = &mut parent_closed => break closed.map(|()| 0).map_err(|_| Error::Process),
                 _=shutdown.cancelled()=>break Ok(0),
-                paused=control.next()=>{
-                    if let Err(error) = self.set_paused(paused).await {
-                        break Err(error);
-                    }
-                    continue;
-                },
+                paused=control.next()=>pending_pause = Some(paused),
                 _=tokio::time::sleep_until(next_poll)=>{},
             }
+            let started = Instant::now();
+            if let Some(paused) = pending_pause {
+                match self.set_paused(paused).await {
+                    Ok(()) => pending_pause = None,
+                    Err(error) => {
+                        if let Err(error) = recovery.retry(started, error).await {
+                            break Err(error);
+                        }
+                        next_poll = Instant::now() + Duration::from_secs(1);
+                        continue;
+                    }
+                }
+                if Instant::now() < next_poll {
+                    continue;
+                }
+            }
             match self.tick(&generation, queue.as_deref()).await {
-                Ok(None) => {}
+                Ok(None) => recovery.recovered(),
                 Ok(Some(status)) => break Ok(status),
-                Err(error) => break Err(error),
+                Err(error) => {
+                    if let Err(error) = recovery.retry(started, error).await {
+                        break Err(error);
+                    }
+                }
             }
             next_poll = Instant::now() + Duration::from_secs(1);
         };
@@ -861,30 +878,33 @@ impl Supervisor {
             failed |= worker.terminate().await.is_err();
         }
         let master = self.master_name();
-        let wait = !self.fast_termination
+        let wait = if !self.fast_termination
             || matches!(
                 self.repository
                     .check_master_ownership(self.ownership.as_ref())
                     .await,
                 Err(Error::MasterOwnershipLost)
-            )
-            || self
-                .repository
+            ) {
+            Ok(true)
+        } else {
+            self.repository
                 .master_supervisors()
                 .termination_wait(master)
-                .await?;
+                .await
+        };
         for process in self
             .pools
             .values_mut()
             .flat_map(|pool| pool.workers.drain(..))
             .filter_map(|worker| worker.process)
         {
-            if !wait {
+            if wait.as_ref().copied().unwrap_or(true) {
+                failed |= crate::signals::drain(process, deadline).await.is_err();
+            } else {
                 failed |= process.detach().await.is_err();
-                continue;
             }
-            failed |= crate::signals::drain(process, deadline).await.is_err();
         }
+        wait?;
         if failed { Err(Error::Process) } else { Ok(()) }
     }
 
