@@ -7351,10 +7351,11 @@ limitations under the License.
 
 ## BLAKE3 native hashing code
 
-The Windows x64 standalone build can include BLAKE3 1.8.7 AVX-512, AVX2,
-SSE4.1 and SSE2 assembly from the locked `blake3` crate. This distribution
-uses the upstream CC0-1.0 option. Upstream also offers Apache-2.0 and
-Apache-2.0 WITH LLVM-exception.
+Windows standalone builds can include material from the locked BLAKE3 1.8.7
+crate. The audited ARM64 build includes read-only data from the NEON
+object. The audited x64 build includes AVX-512, AVX2, SSE4.1 and SSE2 assembly
+and associated read-only data. This distribution uses the upstream CC0-1.0
+option. Upstream also offers Apache-2.0 and Apache-2.0 WITH LLVM-exception.
 
 [Locked BLAKE3 1.8.7 archive](https://static.crates.io/crates/blake3/blake3-1.8.7.crate)
 

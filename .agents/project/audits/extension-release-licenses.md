@@ -75,6 +75,10 @@
 
 本机证据位于 `target/tmp/goal-extension-linux-elf-provenance/amd64/`。范围为此 ELF 的 Cargo 归档 `.text`。原生 x86_64 主机、其他节、工具链和发布渠道仍按各自验收口径跟踪。
 
+### 两种 Linux ELF 的已分配区段复查
+
+复用同一对 ELF 和链接映射，逐一匹配 ARM64 的 27 个与 AMD64 的 28 个 `SHF_ALLOC` 区段的地址和长度。把非零归档贡献投到实际 ELF 区段，区分文件内容及零填充。两种 ELF 的 BLAKE3 原生归档和 ring 测试归档在这些区段均无正长度贡献。其他原生归档的归属集合与 `.text` 核对一致。两种映射的 `.rodata` 都有重叠范围，非代码区段日志保留原始贡献记录，避免重复计入占用。证据见各架构的 `allocated.log`。
+
 ## Windows ARM64 组合预检
 
 在现有 Windows 11 ARM64 虚机上核对 `ab1d2b4c8` 归档和 Rust 1.94.0。首次离线解析缺少 `mago-syntax`，按锁文件补齐公开依赖后，用 `cargo tree --locked --offline --target aarch64-pc-windows-msvc --edges normal --depth 1` 复验，九个扩展依赖均出现，联网与离线树输出逐字节一致。专用验收盘有 34,179,629,056 字节可用，虚机未检测到 Docker CLI。组合 PE、运行与许可随附仍需实际构建验收。
@@ -128,6 +132,10 @@
 ARM64 的 BLAKE3 NEON 对象在 PDB 中可见，`.text` 贡献为空。x64 两个汇编归档分别贡献 15,243 和 33,070 字节。按 `Cargo.lock` 校验 BLAKE3 归档 SHA-256，核对四份 MSVC 汇编源及可选的 CC0-1.0，原样将该许可文本收入根发行声明。表格仅统计这两份 PE 从 Cargo 构建脚本归档取得的 `.text`，其余节、工具链和发布渠道沿用各自的审核范围。压缩 PDB 转储与验收脚本在本机 `target/tmp/goal-extension-combined-windows/pdb-provenance/`。 [锁定 BLAKE3 1.8.7 归档](https://static.crates.io/crates/blake3/blake3-1.8.7.crate) · [根发行声明](../../../THIRD_PARTY_NOTICES.md)
 
 用相同 x64 EXE 加新发行声明重新生成 ZIP，归档 SHA-256 为 `b688f04959bac8b30d0a6212dee4188c31832b540e4d0da1c8959db3fbe69b9f`。10 份许可文件正确随附，直接从 ZIP 读取的 CC0 段与锁定归档逐字节一致。解包实测 58 项迁移、缓存前后 HTTP、Reverb、独立 Artisan Worker 与 Ctrl+C 退出均通过，仍运行在 ARM64 虚机的 x64 兼容层。
+
+继续核对两份 PE 的全部 PDB 正长度贡献。按 PE 节编号和虚拟长度校验边界，并检查同节范围不重叠。ARM64 的 BLAKE3 NEON 对象保留 144 字节 `.rdata`，x64 的两组 BLAKE3 汇编另有合计 992 字节 `.rdata`。ring 测试归档在两种制品的所有已核对节均无正长度贡献。根发行声明明确覆盖两种 Windows 架构，CC0 原文保持逐字节一致。
+
+用原 ARM64 EXE 和更新后的声明生成 ZIP，归档 SHA-256 为 `49a876f4adfefeea52a026b32bffe1e36c5533c734ab5b494c488159bc5bd3cc`。10 份许可和锁定 CC0 原文通过比对，解包复验 58 项迁移、缓存前后 HTTP、Reverb、Artisan Worker 与 Ctrl+C 退出。数据区段复查保存在 Windows PDB 证据目录的 `allocated.log`，运行证据在本机 `target/tmp/goal-extension-combined-windows/blake3-notice/`。
 
 ## macOS ARM64 组合候选制品
 
