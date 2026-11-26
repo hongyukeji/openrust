@@ -711,6 +711,8 @@ After approval completes, `ApprovalResponse::Completed(response)` contains a box
 
 Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
 
+Rejecting with `Decision::reject(None)`, boolean `false`, or a blank result ends the turn after saving the approval decisions and completed tool results. The resumed call incurs zero model usage. Pass a nonempty result if the model should continue based on the rejection, for example `Decision::reject(Some("The user requested the original amount.".into()))`. Tools explicitly approved in the same batch still run.
+
 When a turn pauses for approval, history immediately shows its user message and a `paused` assistant message. After approval, the SDK saves the tool results on that assistant message. The message keeps its ID through further pauses, completion, or failure. The original user message retains its attachment references.
 
 Resuming approval saves the step’s tool results before the next model request. Call `approval_results_for` with the same participant, agent, conversation, and approval ID to read the saved results while the turn is active. After completion, read them from conversation history. If the resuming process exits before it finishes, the saved results remain available and duplicate approval calls are rejected to prevent repeating tools.

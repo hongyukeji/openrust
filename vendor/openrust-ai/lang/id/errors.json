@@ -1,6 +1,7 @@
 {
   "stream": "Terjadi kesalahan.",
   "approval": {
+    "rejected_result": "Pemanggilan alat tidak disetujui.",
     "invalid_decisions": "Keputusan persetujuan alat AI tidak valid.",
     "not_found": "Persetujuan alat AI yang sesuai tidak ditemukan untuk percakapan ini.",
     "expired": "Persetujuan alat AI telah kedaluwarsa.",

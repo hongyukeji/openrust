@@ -605,6 +605,12 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的独立 Artisan／HTTP 实测暂停�
 
 - [固定 Laravel DatabaseConversationStore::resumePausedRow](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php#L214)
 
+直接拒绝、布尔 `false`、空白结果都结束本轮续跑。混合决定仍执行明确批准的工具。已有结果按原审批流程落库，原历史转为完成并保留暂停前的步骤及用量。非流式返回空文本、当前审批结果和零新增用量，原生流发送工具结果及零新增用量的 `stop`。具有非空结果的拒绝可将该结果交给模型继续。拒绝的默认结果随应用语言解析，可覆写 `ai::errors.approval.rejected_result`。Rust 公开工具结果沿用现有 `failed` 字段，单独的 `denied` 契约仍待核对。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan 和 HTTP 验证批量、布尔、空白字符串、混合决定，以及默认／Vercel／AG-UI 流。模拟上游确认直接拒绝时零次续跑请求，混合批次仅执行一次批准的工具，原历史保留 31／20 Token。附带结果的拒绝继续生成。SQLite 另用实际 HTTP 逐项核对 18 种默认拒绝文案。SDK 16 项、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel Decision::reject](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Approvals/Decision.php) · [固定 Laravel 审批续跑](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php#L978)
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。

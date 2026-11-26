@@ -1,6 +1,7 @@
 {
   "stream": "Er is een fout opgetreden.",
   "approval": {
+    "rejected_result": "De toolaanroep is niet goedgekeurd.",
     "invalid_decisions": "De goedkeuringsbesluiten voor AI-tools zijn ongeldig.",
     "not_found": "Er is geen bijbehorende goedkeuring voor AI-tools gevonden voor dit gesprek.",
     "expired": "De goedkeuring voor de AI-tool is verlopen.",

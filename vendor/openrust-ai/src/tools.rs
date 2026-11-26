@@ -269,6 +269,7 @@ pub(crate) struct ResolvedApproval {
     pub(crate) definitions: Vec<ToolDefinition>,
     pub(crate) tools: ToolHandlers,
     pub(crate) stored: AiResult<()>,
+    pub(crate) rejected: bool,
 }
 
 impl ApprovalCheckpoint {
@@ -307,7 +308,7 @@ impl ApprovalCheckpoint {
         if plan.pending != self.pending {
             return Err(AiError::InvalidApprovalDecisions);
         }
-        plan.apply_decisions(decisions)?;
+        let rejected = plan.apply_decisions(decisions)?;
         let mut edits = plan.edited_arguments();
         session.claim(pending_record.0, pending_record.1).await?;
         let results = plan.run().await;
@@ -334,6 +335,7 @@ impl ApprovalCheckpoint {
             definitions,
             tools,
             stored,
+            rejected,
         })
     }
 
@@ -352,12 +354,21 @@ impl ApprovalCheckpoint {
             definitions,
             tools,
             stored,
+            rejected,
         } = self
             .resolve(registered, decisions, session, pending_record)
             .await?;
         let prompt = prompt.as_prompt(0);
         let model = prompt.text.model;
         let outcome = match stored {
+            Ok(()) if rejected => {
+                let response = run.completed_response(provider, model)?;
+                Ok(BufferedOutcome {
+                    response,
+                    stopped: true,
+                    approval_rejected: true,
+                })
+            }
             Ok(()) => {
                 run.generate(
                     provider,
@@ -378,11 +389,24 @@ impl ApprovalCheckpoint {
 pub(crate) struct BufferedOutcome {
     pub(crate) response: AgentResponse,
     pub(crate) stopped: bool,
+    approval_rejected: bool,
 }
 
 impl BufferedOutcome {
     pub(crate) fn should_persist(&self) -> bool {
         !self.stopped || !self.response.steps.is_empty()
+    }
+
+    pub(crate) fn into_approval_response(self) -> AgentResponse {
+        if !self.approval_rejected {
+            return self.response;
+        }
+        let response = self.response;
+        let mut stopped = AgentResponse::new("", Usage::zero(), response.provider, response.model);
+        if let Some(step) = response.steps.into_iter().last() {
+            stopped.tool_results = step.tool_results;
+        }
+        stopped
     }
 }
 
@@ -391,6 +415,7 @@ impl From<AgentResponse> for BufferedOutcome {
         Self {
             response,
             stopped: false,
+            approval_rejected: false,
         }
     }
 }
@@ -582,6 +607,7 @@ impl ToolRun {
                 return Ok(BufferedOutcome {
                     response,
                     stopped: true,
+                    approval_rejected: false,
                 });
             }
             validate_calls(&generated.response.tool_calls, &mut seen)?;
@@ -838,7 +864,7 @@ impl ExecutionPlan<'_> {
         }
     }
 
-    fn apply_decisions(&mut self, decisions: &Decisions) -> AiResult<()> {
+    fn apply_decisions(&mut self, decisions: &Decisions) -> AiResult<bool> {
         let pending: BTreeSet<_> = self
             .pending
             .iter()
@@ -851,6 +877,7 @@ impl ExecutionPlan<'_> {
         {
             return Err(AiError::InvalidApprovalDecisions);
         }
+        let mut rejected = false;
         for (call, action) in self.calls.iter().zip(&mut self.actions) {
             if !pending.contains(call.id.as_str()) {
                 continue;
@@ -862,9 +889,15 @@ impl ExecutionPlan<'_> {
             match decision {
                 Decision::Approve => {}
                 Decision::Reject { result } => {
-                    *action = ToolAction::Reject(
-                        result.clone().unwrap_or_else(|| "工具调用未获批准".into()),
-                    );
+                    let result = result.as_ref().filter(|text| !text.trim().is_empty());
+                    rejected |= result.is_none();
+                    *action = ToolAction::Reject(result.cloned().unwrap_or_else(|| {
+                        crate::localization::text(
+                            "ai::errors.approval.rejected_result",
+                            &Default::default(),
+                            "工具调用未获批准",
+                        )
+                    }));
                 }
                 Decision::Edit { arguments } => {
                     let ToolAction::Run { edit, .. } = action else {
@@ -874,7 +907,7 @@ impl ExecutionPlan<'_> {
                 }
             }
         }
-        Ok(())
+        Ok(rejected)
     }
 
     fn edited_arguments(&self) -> BTreeMap<String, Map<String, Value>> {

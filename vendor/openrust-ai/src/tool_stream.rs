@@ -25,6 +25,7 @@ pub(crate) struct PreparedToolStream {
     run: tools::ToolRun,
     max_steps: usize,
     opened: Option<PreparedStreamStep>,
+    approval_rejected: bool,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     agent: Option<&'static str>,
 }
@@ -57,6 +58,7 @@ pub(crate) async fn prepare(
         run,
         max_steps,
         opened: Some(opened),
+        approval_rejected: false,
         middleware,
         agent: crate::request_context::agent_invocation().map(|(agent, _)| agent),
     })
@@ -87,6 +89,7 @@ pub(crate) fn resume(
             run: resolved.run,
             max_steps,
             opened: None,
+            approval_rejected: resolved.rejected,
             middleware,
             agent: Some(agent),
         },
@@ -110,6 +113,7 @@ fn events(
         mut run,
         max_steps,
         mut opened,
+        approval_rejected,
         middleware,
         agent,
     } = prepared;
@@ -128,6 +132,13 @@ fn events(
             for result in prefix.steps.last().into_iter().flat_map(|step| &step.tool_results) {
                 yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });
             }
+        }
+        if approval_rejected {
+            observed.mark_stopped();
+            yield event(&invocation_id, StreamEventData::StreamEnd {
+                reason: "stop".into(), usage: Usage::zero(),
+            });
+            return;
         }
         for step in first_step..=max_steps {
             let PreparedStreamStep { result, model, allowed, choice } = match opened.take() {

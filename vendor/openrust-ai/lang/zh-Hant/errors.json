@@ -1,6 +1,7 @@
 {
   "stream": "發生錯誤",
   "approval": {
+    "rejected_result": "工具呼叫未獲核准",
     "invalid_decisions": "AI 工具審批決定無效",
     "not_found": "找不到目前對話的 AI 工具審批",
     "expired": "AI 工具審批已逾期",

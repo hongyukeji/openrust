@@ -1,6 +1,7 @@
 {
   "stream": "An error occurred.",
   "approval": {
+    "rejected_result": "The tool call was not approved.",
     "invalid_decisions": "The AI tool approval decisions are invalid.",
     "not_found": "No matching AI tool approval was found for this conversation.",
     "expired": "The AI tool approval has expired.",

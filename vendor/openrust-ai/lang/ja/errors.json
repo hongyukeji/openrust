@@ -1,6 +1,7 @@
 {
   "stream": "エラーが発生しました。",
   "approval": {
+    "rejected_result": "ツールの呼び出しは承認されませんでした。",
     "invalid_decisions": "AI ツールの承認判断が無効です。",
     "not_found": "この会話に該当する AI ツールの承認が見つかりませんでした。",
     "expired": "AI ツールの承認期限が切れています。",

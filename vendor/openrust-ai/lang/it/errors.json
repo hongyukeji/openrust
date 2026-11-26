@@ -1,6 +1,7 @@
 {
   "stream": "Si è verificato un errore.",
   "approval": {
+    "rejected_result": "La chiamata allo strumento non è stata approvata.",
     "invalid_decisions": "Le decisioni di approvazione degli strumenti IA non sono valide.",
     "not_found": "Non è stata trovata un’approvazione corrispondente per gli strumenti IA di questa conversazione.",
     "expired": "L’approvazione dello strumento IA è scaduta.",

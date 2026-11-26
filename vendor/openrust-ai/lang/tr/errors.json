@@ -1,6 +1,7 @@
 {
   "stream": "Bir hata oluştu.",
   "approval": {
+    "rejected_result": "Araç çağrısı onaylanmadı.",
     "invalid_decisions": "Yapay zekâ aracı onay kararları geçersiz.",
     "not_found": "Bu konuşmaya ait yapay zekâ aracı onayı bulunamadı.",
     "expired": "Yapay zekâ aracı onayının süresi doldu.",
