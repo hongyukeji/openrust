@@ -6,13 +6,16 @@ use std::{
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt};
 use openrust::{
-    http::{HeaderMap, Response, StatusCode, client::ResponseStream},
+    http::{Response, StatusCode, client::ResponseStream},
     support::Str,
 };
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::{AgentResponse, AiError, AiResult, TextEndpoint, Usage, text::transport_error};
+
+mod protocols;
+pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
 
 pub type AgentEventStream = Pin<Box<dyn Stream<Item = AiResult<StreamEvent>> + Send>>;
 
@@ -37,6 +40,7 @@ pub enum StreamEventData {
 
 pub struct StreamableAgentResponse {
     events: AgentEventStream,
+    protocol: Option<Box<dyn StreamProtocol>>,
 }
 
 impl StreamableAgentResponse {
@@ -44,8 +48,28 @@ impl StreamableAgentResponse {
         self.events
     }
 
+    pub fn using_protocol(mut self, protocol: impl StreamProtocol + 'static) -> Self {
+        self.protocol = Some(Box::new(protocol));
+        self
+    }
+
+    pub fn using_vercel_data_protocol(self, message_id: Option<String>) -> Self {
+        self.using_protocol(VercelDataProtocol::new(message_id))
+    }
+
+    pub fn using_agent_user_interaction_protocol(
+        self,
+        thread_id: Option<String>,
+        run_id: Option<String>,
+    ) -> Self {
+        self.using_protocol(AgentUserInteractionProtocol::new(thread_id, run_id))
+    }
+
     /// 以 Laravel 默认的 SSE 数据帧返回 Agent 事件。
     pub fn to_response(self) -> Response {
+        if let Some(protocol) = self.protocol {
+            return protocol.response(self.events);
+        }
         let mut events = self.events;
         let body = async_stream::try_stream! {
             while let Some(event) = events.next().await {
@@ -54,16 +78,7 @@ impl StreamableAgentResponse {
             }
             yield "data: [DONE]\n\n".to_owned();
         };
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "content-type",
-            "text/event-stream".parse().expect("valid header"),
-        );
-        headers.insert(
-            "cache-control",
-            "no-cache, no-transform".parse().expect("valid header"),
-        );
-        Response::stream::<String, AiError>(StatusCode::OK, body).with_headers(headers)
+        Response::stream::<String, AiError>(StatusCode::OK, body).with_headers(protocols::headers())
     }
 
     pub(crate) fn from_text(response: AgentResponse) -> Self {
@@ -88,6 +103,7 @@ impl StreamableAgentResponse {
             },
         ];
         Self {
+            protocol: None,
             events: Box::pin(futures_util::stream::iter(
                 events.map(|data| Ok(event(&invocation, data))),
             )),
@@ -153,6 +169,7 @@ impl StreamableAgentResponse {
             yield event(&invocation, StreamEventData::StreamEnd { reason, usage });
         };
         Self {
+            protocol: None,
             events: Box::pin(events),
         }
     }

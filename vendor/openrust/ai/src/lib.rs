@@ -41,7 +41,10 @@ pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use models::{ModelCatalog, ModelInfo};
-pub use streaming::{AgentEventStream, StreamEvent, StreamEventData, StreamableAgentResponse};
+pub use streaming::{
+    AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,
+    StreamableAgentResponse, VercelDataProtocol,
+};
 pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
 };

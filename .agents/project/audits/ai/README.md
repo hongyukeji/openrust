@@ -24,7 +24,7 @@
 
 ## AI-02 两种文本 SSE 协议
 
-`Agent::stream`、`stream_with`、`StreamableAgentResponse::into_stream` 与默认 HTTP SSE 响应已消费 OpenAI Chat Completions 与 Responses 文本事件，复用上游出站流和 `eventsource-stream` 解析。验收覆盖真实 TCP、首段文本在上游结束前读取、跨 UTF-8 边界、终止与用量，以及真实应用 HTTP Kernel 的默认 SSE 响应。待补 Vercel／AG-UI、结构化输出、工具／推理／引用事件及完整的 StreamableAgentResponse 成员。
+`Agent::stream`、`stream_with`、`StreamableAgentResponse::into_stream` 与默认 HTTP SSE 响应已消费 OpenAI Chat Completions 与 Responses 文本事件，复用上游出站流和 `eventsource-stream` 解析。验收覆盖真实 TCP、首段文本在上游结束前读取、跨 UTF-8 边界、终止与用量，以及真实应用 HTTP Kernel 的默认 SSE 响应。Vercel／AG-UI 文本和结构化流分别在后续批次验收。待补工具／推理／引用事件及其余 StreamableAgentResponse 成员。
 
 ## GW-02 OpenAI 自托管网关
 
@@ -101,3 +101,9 @@ HTTP Kernel 与多个实际 TCP 模拟上游验证非流式和流式回退、400
 固定 `AiManager.php::build` 与 `flushState` 已对应为 `Ai::build`、`AiManager::build`、`flush_state`，沿用 `ondemand_` 名称规则和固定 `Lab` 保留名。状态置于框架容器当前请求／命令作用域。按需配置可用名字解析并刷新实例，构造失败保留原先有效实例。清理只针对当前作用域的按需连接。已有常驻配置走应用级实例缓存。
 
 HTTP Kernel 及本地协议上游覆盖具名与自动命名、同名重建、失败保持、普通实例保留、实际提示和后续请求查找失败。独立 Artisan 通过应用注册的命令验证按需查找与清理。Worker 等生命周期的独立实测归 AI-04。
+
+## AI-02 Vercel 与 AG-UI 文本格式
+
+固定 `StreamableAgentResponse.php` 与 `Streaming/Protocols` 的 `usingProtocol`、`usingVercelDataProtocol`、`usingAgentUserInteractionProtocol` 分别由对应 Rust 方法及公开 `StreamProtocol` 实现。Vercel 使用 UI Stream `v1` 响应头、步进帧、文本增量、结束用量及 `[DONE]`。AG-UI 映射 run、step、assistant message 与结束／错误；支持线程和运行 ID。序列化流中错误按协议返回脱敏终止帧。未报告计数保持缺失。
+
+HTTP Kernel 及独立应用进程经实际 TCP 模拟服务验收格式、首段提前、用量与终止。Artisan 验证两个正常路由。工具、审批、引用、推理、浏览器 SDK 集成及其余高级事件仍待对应批次。
