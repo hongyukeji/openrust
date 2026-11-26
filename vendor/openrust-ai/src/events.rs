@@ -10,6 +10,11 @@ use crate::{
     StreamedAgentResponse, ToolResult, error::ProviderAttemptError, messages::OwnedPrompt,
 };
 
+mod step;
+
+pub(crate) use step::StepObservation;
+pub use step::{ModelStep, StartingStep, StepCompleted, StepFailed};
+
 /// 事件监听器可读取本次尝试的 Agent、连接和提示参数。
 pub struct AgentPromptSnapshot {
     pub agent: &'static str,

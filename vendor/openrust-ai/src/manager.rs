@@ -711,10 +711,30 @@ impl AiManager {
                     request,
                     move |request| async move {
                         let choice = request.tool_choice;
-                        let response = provider
-                            .generate(request)
-                            .await
-                            .map_err(ProviderAttemptError::BeforeCommit)?;
+                        let observation = crate::events::StepObservation::start(
+                            provider.name(),
+                            &request,
+                            &[],
+                            0,
+                            true,
+                        )
+                        .await;
+                        let outcome = provider.generate(request).await;
+                        if let Some(observation) = observation {
+                            match &outcome {
+                                Ok(response) => {
+                                    observation
+                                        .complete(|_| {
+                                            response.steps.last().cloned().unwrap_or_else(|| {
+                                                response.public_step(Default::default())
+                                            })
+                                        })
+                                        .await;
+                                }
+                                Err(error) => observation.fail(error).await,
+                            }
+                        }
+                        let response = outcome.map_err(ProviderAttemptError::BeforeCommit)?;
                         if let Some(choice) = choice {
                             choice.validate_calls(&response.tool_calls)?;
                         }
@@ -928,9 +948,10 @@ impl AiManager {
                 ..request
             };
             let can_fail_over = options.provider.is_none() && next.peek().is_some();
-            match crate::request_context::in_invocation(
+            match crate::request_context::in_agent_invocation(
                 &invocation_id,
                 0,
+                Some(std::any::type_name::<A>()),
                 send(&provider, attempt, approvals, can_fail_over),
             )
             .await

@@ -99,6 +99,8 @@ Anthropic Messages 的 HTTP 529 可触发重试或切换。Messages 返回符合
 
 流式调用在每次供应商尝试启动前分派 `StreamingAgent`。完整消费的流分派携带结果的 `AgentStreamed`，启动或读取出错时分派 `AgentFailed`。暂停等候审批时会带上已保存的审批批次。持久会话先写入再分派成功事件，事件带会话 ID。请在发起请求前注册监听器。客户端提前停止消费时，可能收不到成功事件。
 
+非流式生成可监听 `StartingStep`、`StepCompleted` 和 `StepFailed`，查看实际发起的模型步骤。步骤编号从零开始。起始事件携带步骤中间件处理后的请求及此前的工具结果。完成事件在本步工具执行前分派，携带供应商报告的模型、用量和结束原因。中间件直接返回响应时不会产生模型步骤事件。
+
 ### 接入 Responses 网关 {#responses-gateway}
 
 接入提供 OpenAI Responses 的 Sub2API 实例时，使用 `driver: "openai"` 和实例的 v1 基础地址。SDK 使用 `/models` 发现模型，通过 `/responses` 发起生成请求。设置 `store: false` 可请求上游关闭响应存储。

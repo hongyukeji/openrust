@@ -8,7 +8,7 @@ use openrust::{
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, Message, ProviderOptions, StepResponse,
     StructuredOutput, TextGenerationOptions, TextPrompt, TextProvider, ToolChoice, ToolDefinition,
-    ToolStep, Usage,
+    ToolStep, Usage, events::StepObservation,
 };
 
 /// Agent 中间件可以读取、修改或拦截单个模型生成步骤。
@@ -113,6 +113,7 @@ impl<'a, 'step: 'a> NextStep<'a, 'step> {
 struct StepContext<'a> {
     provider: &'a dyn TextProvider,
     allowed: BTreeSet<String>,
+    observation: Option<StepObservation>,
 }
 
 pub(crate) async fn generate_step(
@@ -123,6 +124,7 @@ pub(crate) async fn generate_step(
     let mut context = StepContext {
         provider,
         allowed: BTreeSet::new(),
+        observation: None,
     };
     let mut pipeline = Pipeline::send(step);
     for middleware in middleware {
@@ -160,6 +162,14 @@ pub(crate) async fn generate_step(
                     attachments: &step.attachments,
                     structured_output: step.structured_output,
                 };
+                context.observation = StepObservation::start(
+                    context.provider.name(),
+                    &request,
+                    step.steps,
+                    step.number,
+                    step.is_final_step,
+                )
+                .await;
                 if step.tools.is_empty() && step.steps.is_empty() {
                     let response = crate::request_context::in_invocation(
                         step.invocation_id,
@@ -204,6 +214,19 @@ pub(crate) async fn generate_step(
                 Ok(response)
             })
         })
-        .await?;
-    Ok((response, context.allowed))
+        .await;
+    if let Some(observation) = context.observation {
+        match &response {
+            Ok(response) => {
+                observation
+                    .complete(|step| {
+                        response
+                            .public_step(&step.prompt.provider, step.prompt.as_prompt().text.model)
+                    })
+                    .await;
+            }
+            Err(error) => observation.fail(error).await,
+        }
+    }
+    Ok((response?, context.allowed))
 }

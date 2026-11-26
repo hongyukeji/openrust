@@ -8,6 +8,7 @@ pub const MODEL_TURN_HEADER: &str = "x-openrust-ai-model-turn";
 struct Context {
     invocation: String,
     step: usize,
+    agent: Option<&'static str>,
 }
 
 tokio::task_local! {
@@ -19,15 +20,44 @@ pub(crate) async fn in_invocation<T>(
     step: usize,
     operation: impl Future<Output = T>,
 ) -> T {
+    let agent = ACTIVE
+        .try_with(|context| {
+            (context.invocation == invocation)
+                .then_some(context.agent)
+                .flatten()
+        })
+        .ok()
+        .flatten();
+    in_agent_invocation(invocation, step, agent, operation).await
+}
+
+pub(crate) async fn in_agent_invocation<T>(
+    invocation: &str,
+    step: usize,
+    agent: Option<&'static str>,
+    operation: impl Future<Output = T>,
+) -> T {
     ACTIVE
         .scope(
             Context {
                 invocation: invocation.into(),
                 step,
+                agent,
             },
             operation,
         )
         .await
+}
+
+pub(crate) fn agent_invocation() -> Option<(&'static str, String)> {
+    ACTIVE
+        .try_with(|context| {
+            context
+                .agent
+                .map(|agent| (agent, context.invocation.clone()))
+        })
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn invocation_id() -> Option<String> {

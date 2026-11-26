@@ -99,6 +99,8 @@ Buffered prompts dispatch `PromptingAgent` before each provider attempt, followe
 
 The SDK dispatches `StreamingAgent` before starting each provider attempt for a stream. A fully consumed stream dispatches `AgentStreamed` with the result, and startup or read errors dispatch `AgentFailed`. Approval pauses carry the saved approval batch. A remembered conversation is saved before the success event, and the event includes its conversation ID. Register listeners before starting the request. A client that stops consuming a stream can leave it without a success event.
 
+For buffered generation, listen to `StartingStep`, `StepCompleted`, and `StepFailed` to inspect actual model attempts. Step numbers start at zero. The starting event carries the request after step middleware and the preceding tool results. The completion event carries the provider’s reported model, usage, and finish reason before the step’s tools run. Middleware that returns a response directly produces no model-step event.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

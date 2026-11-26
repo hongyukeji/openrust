@@ -229,16 +229,21 @@ impl<A: Agent> PendingConversation<'_, A> {
             store,
         };
         let mut session = ApprovalSession::new(turn.store.approval_store(), scope, turn.existing);
-        let outcome = checkpoint
-            .resume(
+        let invocation_id = checkpoint.invocation_id().to_owned();
+        let outcome = crate::request_context::in_agent_invocation(
+            &invocation_id,
+            0,
+            Some(type_name::<A>()),
+            checkpoint.resume(
                 provider.as_ref(),
                 crate::load_skill::tools_for(self.agent)?,
                 self.agent.middleware(),
                 &decisions,
                 &mut session,
                 (id, revision),
-            )
-            .await;
+            ),
+        )
+        .await;
         if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
             session.settle().await?;
         }

@@ -99,7 +99,12 @@ impl AgentResponse {
     }
 
     pub(crate) fn with_step(mut self, finish_reason: FinishReason) -> Self {
-        self.steps.push(Step {
+        self.steps.push(self.public_step(finish_reason));
+        self
+    }
+
+    pub(crate) fn public_step(&self, finish_reason: FinishReason) -> Step {
+        Step {
             text: self.text.clone(),
             tool_calls: self.tool_calls.clone(),
             tool_results: self.tool_results.clone(),
@@ -109,8 +114,7 @@ impl AgentResponse {
             model: self.model.clone(),
             citations: self.citations.clone(),
             reasoning: self.reasoning.clone(),
-        });
-        self
+        }
     }
 }
 

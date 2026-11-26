@@ -663,13 +663,17 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 ### AI-02 Agent 生成事件
 
-非流式 SDK 每次供应商尝试分派 `PromptingAgent`，成功后交付含逐步响应的 `AgentPrompted`，失败时交付含原类型错误的 `AgentFailed`。事件使用已解析的连接与请求模型、当前 Agent 类型及出站请求的调用 ID。提示参数为步骤中间件执行前的快照。由 SDK Fake 直接提供结果的路径沿用各自的断言入口。逐模型步骤和逐工具的生命周期事件继续按固定契约核对。
+非流式 SDK 每次供应商尝试分派 `PromptingAgent`，成功后交付含逐步响应的 `AgentPrompted`，失败时交付含原类型错误的 `AgentFailed`。事件使用已解析的连接与请求模型、当前 Agent 类型及出站请求的调用 ID。提示参数为步骤中间件执行前的快照。由 SDK Fake 直接提供结果的路径沿用各自的断言入口。
 
 隔离服务经实际 Artisan 及 HTTP 验证普通和结构化请求、401、跨协议切换、全部候选失败、两步工具成功和续轮失败。监听器看到每次尝试先开始、再成功或失败，出站请求与监听器记录的调用 ID 一致。两步工具成功事件带两个步骤及一个工具结果。续轮 503 后只分派原连接的失败事件。SDK 文本、工具和会话回归及严格 Clippy 通过。
 
 流式供应商起始分派 `StreamingAgent`，完全消费分派 `AgentStreamed`，启动和消费错误分派 `AgentFailed`。有完成事件监听器或对应 Event Fake 时收集完整响应。只有失败事件监听器时仍逐帧传输。实际 Artisan 与 HTTP 核对 Responses 到 Chat 切换、两轮工具调用、首事件交付前失败和已发送部分内容后断开。SQLite 会话监听器用事件中的会话 ID 当场查到已写入的消息，数据库触发器注入落库失败时只收到错误事件。Artisan Event Fake 记录一条完整成功事件。SQLite 审批从首选连接 503 切换后暂停，原生／Vercel／AG-UI 仍交付审批终帧，Artisan 验证完成事件、回调和已存审批批次一致。SDK 与框架 Event 回归通过 27 项，框架事件缓存的两个子进程用例由各自主测试启动。SDK 严格 Clippy 和三语站点通过。
 
 - [固定 Laravel GeneratesText](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/GeneratesText.php) · [固定 Laravel StreamsText](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/StreamsText.php)
+
+非流式 SDK 的 `StartingStep` 在步骤中间件处理后交付请求快照及此前的工具结果，`StepCompleted` 在本步工具执行前报告响应，`StepFailed` 持有类型化错误。两个终态事件提供耗时，步骤从零开始。Artisan 与 HTTP 覆盖结构化及普通文本、两步工具、首步与续轮 503、401、连接切换、每步改写模型及短路中间件。事件区分请求模型和供应商实际模型。短路响应无出站请求及逐步事件。SQLite 审批由独立 HTTP 进程恢复时，模型步骤事件沿用存档调用 ID、原连接、Agent 类型和续轮编号，工具仍只执行一次。SDK 回归、严格 Clippy 和三语站点通过。流式逐步事件和逐工具事件待补。
+
+- [固定 Laravel TextGenerationLoop](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php) · [固定 Laravel RunContext](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/RunContext.php)
 
 ### AI-02 具名供应商故障转移
 

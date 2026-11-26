@@ -114,6 +114,22 @@ pub struct ToolStep {
     pub provider_content: Option<Value>,
 }
 
+impl ToolStep {
+    pub(crate) fn public_step(&self, provider: &str) -> Step {
+        Step {
+            text: self.text.clone().unwrap_or_default(),
+            tool_calls: self.calls.clone(),
+            tool_results: self.results.clone(),
+            finish_reason: self.finish_reason,
+            usage: self.usage.clone(),
+            provider: provider.into(),
+            model: self.model.clone().unwrap_or_default(),
+            citations: self.citations.clone(),
+            reasoning: self.reasoning.clone(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct StepResponse {
     pub model: Option<String>,
@@ -127,6 +143,22 @@ pub struct StepResponse {
     pub citations: Vec<crate::UrlCitation>,
     pub tool_calls: Vec<ToolCall>,
     pub provider_content: Option<Value>,
+}
+
+impl StepResponse {
+    pub(crate) fn public_step(&self, provider: &str, requested_model: &str) -> Step {
+        Step {
+            text: self.text.clone().unwrap_or_default(),
+            tool_calls: self.tool_calls.clone(),
+            finish_reason: self.finish_reason,
+            usage: self.usage.clone(),
+            provider: provider.into(),
+            model: self.model.as_deref().unwrap_or(requested_model).into(),
+            citations: self.citations.clone(),
+            reasoning: self.reasoning.clone(),
+            ..Step::default()
+        }
+    }
 }
 
 pub enum StepEvent {
