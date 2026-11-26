@@ -5408,6 +5408,72 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
 }
 
 #[tokio::test]
+async fn mysql_bulk_drop_restores_the_leased_session_after_cancellation() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let admin = connection(json!({"url":url}));
+    let name = format!("schema_cancel_{:x}", fastrand::u64(..));
+    admin
+        .get_schema_builder()
+        .create_database(&name)
+        .await
+        .unwrap();
+    let mut target = url::Url::parse(&url).unwrap();
+    target.set_path(&format!("/{name}"));
+    let db = connection(json!({"url":target.as_str(),"max_connections":1}));
+    db.statement("create table parent (id int primary key)", &[])
+        .await
+        .unwrap();
+    db.statement("create table child (id int references parent(id))", &[])
+        .await
+        .unwrap();
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let hook_entered = entered.clone();
+    let hook_release = release.clone();
+    db.before_executing(move |sql, _, _, _| {
+        let entered = hook_entered.clone();
+        let release = hook_release.clone();
+        Box::pin(async move {
+            if sql.starts_with("drop table ") {
+                entered.notify_one();
+                release.notified().await;
+            }
+            Ok(())
+        })
+    });
+    let worker = db.clone();
+    let drop_task =
+        tokio::spawn(async move { worker.get_schema_builder().drop_all_tables().await });
+    let deadline = std::time::Duration::from_secs(5);
+    tokio::time::timeout(deadline, entered.notified())
+        .await
+        .unwrap();
+    drop_task.abort();
+    assert!(drop_task.await.unwrap_err().is_cancelled());
+    release.notify_one();
+
+    // 只有一个写连接，后续查询必须等后台清理完成并归还会话。
+    let mut schema = db.get_schema_builder();
+    let restored = tokio::time::timeout(deadline, db.scalar("select @@foreign_key_checks", &[]))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        restored,
+        Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true)
+    ));
+    assert!(schema.get_tables(Some(&name)).await.unwrap().is_empty());
+    admin
+        .get_schema_builder()
+        .drop_database_if_exists(&name)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     let db = connection(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
     let mut schema = db.get_schema_builder();

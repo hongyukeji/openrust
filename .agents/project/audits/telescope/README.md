@@ -133,7 +133,9 @@ macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五�
 
 修复前，Rust 通过物理连接直接批量清理，实际 HTTP 回归中缺少这些查询条目。现复用 `SchemaSession`、MySQL 目录读取和 DDL 入口，在同一独占写会话保留外键初始状态。后台任务继承查询来源和有效应用作用域。空结果只查询目录。
 
-最终 macOS 隔离快照使用真实 MySQL 8.4.13，Telescope HTTP 验证四个调用点、八条 SQL 的文件与行号以及清理后约束状态。原生 Schema 回归确认跨库隔离、前缀与无前缀对象、独立视图保留及单写连接外键恢复。SQLite 默认 Watchers、隔离快照全仓格式及相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-mysql-cleanup-{baseline,final}.log`。MySQL 取消路径和目标平台继续验收。
+最终 macOS 隔离快照使用真实 MySQL 8.4.13，Telescope HTTP 验证四个调用点、八条 SQL 的文件与行号以及清理后约束状态。原生 Schema 回归确认跨库隔离、前缀与无前缀对象、独立视图保留及单写连接外键恢复。SQLite 默认 Watchers、隔离快照全仓格式及相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-mysql-cleanup-{baseline,final}.log`。
+
+真实 MySQL 回归在停用外键后、发送批量删除前挂起操作。取消调用方 Future 后放行后台任务，单写连接池的下一条查询确认外键检查已恢复且两张表已删除。两项批量清理和严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-mysql-cleanup-cancellation.log`。目标平台继续验收。
 
 ### PostgreSQL 约束包装的查询来源
 
