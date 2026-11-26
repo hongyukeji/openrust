@@ -18,7 +18,9 @@ use serde_json::{Map, Value};
 use crate::{
     AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, Decision, Decisions,
     FinishReason, PendingApproval, PendingStep, PendingToolApprovals, Step, TextProvider, Usage,
-    approval_turn::ApprovalSession, error::ProviderAttemptError, messages::OwnedPrompt,
+    approval_turn::ApprovalSession,
+    error::ProviderAttemptError,
+    messages::{OwnedPrompt, PromptAttachmentArchive},
 };
 
 /// 由应用声明并执行的 Agent 工具。
@@ -220,6 +222,8 @@ pub(crate) struct ApprovalCheckpoint {
     pub(crate) prompt: OwnedPrompt,
     pub(crate) pending: Vec<PendingApproval>,
     pub(crate) existing: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) attachments: Option<PromptAttachmentArchive>,
     replay_scope: String,
     run: ToolRun,
     response: StepResponse,
@@ -232,6 +236,17 @@ impl ApprovalCheckpoint {
         &self.run.invocation_id
     }
 
+    pub(crate) fn verify_connection(&self, provider: &dyn TextProvider) -> AiResult<()> {
+        let replay_scope = provider
+            .step_text_gateway()
+            .ok_or(AiError::ApprovalNotFound)?
+            .approval_replay_scope()?;
+        if replay_scope.as_deref() != Some(&self.replay_scope) {
+            return Err(AiError::ApprovalNotFound);
+        }
+        Ok(())
+    }
+
     pub(crate) async fn resume(
         self,
         provider: &dyn TextProvider,
@@ -241,13 +256,8 @@ impl ApprovalCheckpoint {
         session: &mut ApprovalSession,
         pending_record: (&str, i64),
     ) -> AiResult<AgentResponse> {
-        let replay_scope = provider
-            .step_text_gateway()
-            .ok_or(AiError::ApprovalNotFound)?
-            .approval_replay_scope()?;
-        if replay_scope.as_deref() != Some(&self.replay_scope) {
-            return Err(AiError::ApprovalNotFound);
-        }
+        let prompt = self.prompt.as_prompt(0);
+        crate::attachments::validate_prompt_attachments(prompt.attachments, prompt.messages)?;
         let (definitions, tools) = prepare(registered)?;
         let mut plan = plan_execution(
             &self.response.tool_calls,
@@ -273,7 +283,7 @@ impl ApprovalCheckpoint {
         run.add_step(self.response, results);
         run.generate(
             provider,
-            self.prompt.as_prompt(0),
+            prompt,
             &definitions,
             &tools,
             &middleware,
@@ -376,13 +386,7 @@ impl ToolRun {
         plan: ApprovalPlan,
         allowed: BTreeSet<String>,
     ) -> AiResult<PendingToolApprovals> {
-        let Some(session) = approval.filter(|_| {
-            prompt.attachments.is_empty()
-                && prompt
-                    .messages
-                    .iter()
-                    .all(|message| message.attachments.is_empty())
-        }) else {
+        let Some(session) = approval else {
             return Err(AiError::ApprovalNotResumable {
                 pending: plan.pending,
             });
@@ -397,11 +401,12 @@ impl ToolRun {
             });
         };
         session
-            .pause(&ApprovalCheckpoint {
+            .pause(ApprovalCheckpoint {
                 provider: provider.name().to_owned(),
                 prompt: OwnedPrompt::from(prompt),
                 pending: plan.pending,
                 existing: session.existing,
+                attachments: None,
                 replay_scope,
                 run: self,
                 response,

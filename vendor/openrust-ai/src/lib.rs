@@ -19,6 +19,7 @@ mod anthropic;
 mod approval_store;
 mod approval_turn;
 mod approvals;
+mod attachment_storage;
 mod attachments;
 mod audio;
 pub mod classification;
@@ -209,10 +210,6 @@ impl ServiceProvider for AiServiceProvider {
                     (
                         "database/migrations/2026_01_11_000002_create_agent_tool_approvals_table.rs",
                         include_bytes!("../database/migrations/2026_01_11_000002_create_agent_tool_approvals_table.rs"),
-                    ),
-                    (
-                        "database/migrations/2026_01_11_000003_expand_agent_conversation_attachments.rs",
-                        include_bytes!("../database/migrations/2026_01_11_000003_expand_agent_conversation_attachments.rs"),
                     ),
                 ],
                 "ai-migrations",

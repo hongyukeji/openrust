@@ -1,6 +1,7 @@
 use futures_util::StreamExt;
 use openrust::{
-    database::migrations::MigrationEntry,
+    database::{Db, Value, migrations::MigrationEntry},
+    filesystem::{Storage, Visibility},
     foundation::configuration::Routing,
     http::{HttpError, Response, StatusCode},
     json_schema::{JsonSchemaTypeFactory, types::ObjectType},
@@ -65,6 +66,7 @@ async fn conversation_history_uses_configured_tables()
         "AI_CONVERSATIONS_CONNECTION=agent_store\n",
         "AI_CONVERSATIONS_TABLE=support_threads\n",
         "AI_CONVERSATION_MESSAGES_TABLE=support_messages\n",
+        "AI_CONVERSATION_ATTACHMENTS_DISK=ai_private\n",
     ))
     .await
 }
@@ -76,18 +78,27 @@ async fn assert_conversation_history(
         builder
             .with_migrations(MIGRATIONS)
             .with_providers(openrust_ai::openrust_providers())
-            .with_config(|_, _| {
-                Ok([(
-                    "database".into(),
-                    json!({
-                        "default":"sqlite",
-                        "connections":{
-                            "sqlite":{"driver":"sqlite","database":":memory:"},
-                            "agent_store":{"driver":"sqlite","database":":memory:"},
-                        },
-                        "migrations":{"table":"migrations"},
-                    }),
-                )]
+            .with_config(|base, _| {
+                Ok([
+                    (
+                        "filesystems".into(),
+                        json!({"default":"public","disks":{
+                            "local":{"driver":"local","root":base.join("private"),"throw":true},
+                            "ai_private":{"driver":"local","root":base.join("ai-files"),"throw":true},
+                        }}),
+                    ),
+                    (
+                        "database".into(),
+                        json!({
+                            "default":"sqlite",
+                            "connections":{
+                                "sqlite":{"driver":"sqlite","database":":memory:"},
+                                "agent_store":{"driver":"sqlite","database":":memory:"},
+                            },
+                            "migrations":{"table":"migrations"},
+                        }),
+                    ),
+                ]
                 .into())
             })
             .with_routing(Routing::default().web(|| {
@@ -180,6 +191,37 @@ async fn assert_conversation_history(
                     let source = &page.messages[3].message;
                     assert_eq!(source.attachments, calls[0].attachments);
                     assert_eq!(json!(source), json!({"role":"user","content":""}));
+                    let messages = Config::get("ai.conversations.tables.messages")
+                        .unwrap()
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_owned();
+                    let row = Db::connection(Some("agent_store"))
+                        .unwrap()
+                        .table(&messages)
+                        .r#where("id", "=", page.messages[3].id.as_str())
+                        .first()
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    let Some(Value::Text(attachments)) = row.get("attachments") else {
+                        panic!("attachments metadata missing");
+                    };
+                    let references: serde_json::Value = serde_json::from_str(attachments).unwrap();
+                    let reference = &references[0];
+                    assert!(reference.get("base64").is_none());
+                    let selected = Config::get("ai.conversations.attachments.disk")
+                        .unwrap().unwrap();
+                    assert_eq!(reference["disk"], selected);
+                    assert_eq!(reference["name"], "report.pdf");
+                    let path = reference["path"].as_str().unwrap();
+                    let disk = Storage::disk(selected.as_str()).unwrap();
+                    assert_eq!(disk.get(path).await.unwrap().unwrap(), b"%PDF-1.4");
+                    assert_eq!(
+                        disk.get_visibility(path).await.unwrap(),
+                        Visibility::Private
+                    );
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;
                 Route::get("/conversation-stream", || async {

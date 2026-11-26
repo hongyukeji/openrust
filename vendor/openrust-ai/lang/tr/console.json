@@ -20,6 +20,9 @@
     "model_required": "Bir model kimliği girin."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Kayıtlı yapay zekâ eklerini özel depolamaya taşı"
+    },
     "ai:models": {
       "description": "Bir yapay zekâ bağlantısında kullanılabilen modelleri listele"
     },

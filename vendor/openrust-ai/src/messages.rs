@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    Attachment, ProviderOptions, StructuredOutput, TextGenerationOptions, TextPrompt, ToolChoice,
+    AiError, AiResult, Attachment, ProviderOptions, StructuredOutput, TextGenerationOptions,
+    TextPrompt, ToolChoice,
+    attachment_storage::{self, StoredFiles},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,9 +95,14 @@ pub(crate) struct OwnedPrompt {
     options: crate::TextGenerationOptions,
     provider_options: Option<crate::ProviderOptions>,
     tool_choice: Option<crate::ToolChoice>,
+    #[serde(deserialize_with = "deserialize_checkpoint_messages")]
     messages: Vec<Message>,
-    #[serde(skip)]
-    attachments: Vec<crate::Attachment>,
+    #[serde(
+        default,
+        skip_serializing,
+        deserialize_with = "deserialize_inline_attachments"
+    )]
+    pub(crate) attachments: Vec<Attachment>,
     schema: Option<(Value, bool)>,
 }
 
@@ -154,4 +161,109 @@ impl OwnedPrompt {
                 }),
         }
     }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub(crate) struct PromptAttachmentArchive {
+    files: StoredFiles,
+    current: usize,
+    history: Vec<usize>,
+}
+
+impl PromptAttachmentArchive {
+    pub(crate) async fn store(
+        disk: &str,
+        record: &str,
+        prompt: &OwnedPrompt,
+    ) -> AiResult<Option<Self>> {
+        let input = prompt.as_prompt(0);
+        crate::attachments::validate_prompt_attachments(input.attachments, input.messages)?;
+        let attachments: Vec<_> = input
+            .attachments
+            .iter()
+            .chain(
+                input
+                    .messages
+                    .iter()
+                    .flat_map(|message| &message.attachments),
+            )
+            .cloned()
+            .collect();
+        if attachments.is_empty() {
+            return Ok(None);
+        }
+        let files = attachment_storage::write(disk, record, &attachments).await?;
+        Ok(Some(Self {
+            files,
+            current: input.attachments.len(),
+            history: input
+                .messages
+                .iter()
+                .map(|message| message.attachments.len())
+                .collect(),
+        }))
+    }
+
+    pub(crate) async fn restore(&self, record: &str, prompt: &mut OwnedPrompt) -> AiResult<()> {
+        let files = self.files.read(record).await?;
+        let count = self
+            .history
+            .iter()
+            .fold(self.current, |total, count| total.saturating_add(*count));
+        if self.history.len() != prompt.messages.len() || count != files.len() {
+            return Err(AiError::ConversationStorageUnavailable);
+        }
+        let mut files = files.into_iter();
+        prompt.attachments = files.by_ref().take(self.current).collect();
+        for (message, count) in prompt.messages.iter_mut().zip(&self.history) {
+            message.attachments = files.by_ref().take(*count).collect();
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn verify(&self, record: &str, prompt: &OwnedPrompt) -> AiResult<()> {
+        let saved = self.files.read(record).await?;
+        let expected = prompt.attachments.iter().chain(
+            prompt
+                .messages
+                .iter()
+                .flat_map(|message| &message.attachments),
+        );
+        if !saved.iter().eq(expected) {
+            return Err(AiError::ConversationStorageUnavailable);
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn discard(&self) {
+        self.files.discard().await;
+    }
+}
+
+fn deserialize_inline_attachments<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<Attachment>, D::Error> {
+    crate::attachments::restore_inline_attachments(Vec::deserialize(deserializer)?)
+        .map_err(serde::de::Error::custom)
+}
+
+fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<Message>, D::Error> {
+    #[derive(Deserialize)]
+    struct OldMessage {
+        role: MessageRole,
+        content: String,
+        #[serde(default, deserialize_with = "deserialize_inline_attachments")]
+        attachments: Vec<Attachment>,
+    }
+
+    Ok(Vec::<OldMessage>::deserialize(deserializer)?
+        .into_iter()
+        .map(|message| Message {
+            role: message.role,
+            content: message.content,
+            attachments: message.attachments,
+        })
+        .collect())
 }

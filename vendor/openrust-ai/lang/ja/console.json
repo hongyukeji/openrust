@@ -20,6 +20,9 @@
     "model_required": "モデル ID を入力してください。"
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "保存済みの AI 添付ファイルを非公開ストレージへ移行する"
+    },
     "ai:models": {
       "description": "AI 接続で利用できるモデルを一覧表示"
     },

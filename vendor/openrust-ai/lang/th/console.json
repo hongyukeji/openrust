@@ -20,6 +20,9 @@
     "model_required": "ป้อนรหัสโมเดล"
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "ย้ายไฟล์แนบ AI ที่บันทึกไว้ไปยังพื้นที่จัดเก็บส่วนตัว"
+    },
     "ai:models": {
       "description": "แสดงรายการโมเดลที่ใช้ได้ผ่านการเชื่อมต่อ AI"
     },

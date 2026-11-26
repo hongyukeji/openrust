@@ -20,6 +20,9 @@
     "model_required": "Voer een model-ID in."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Opgeslagen AI-bijlagen naar privéopslag migreren"
+    },
     "ai:models": {
       "description": "Toon de modellen die beschikbaar zijn via een AI-verbinding"
     },

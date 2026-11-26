@@ -95,6 +95,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "conversations": {
             "connection": env.get_utf8("AI_CONVERSATIONS_CONNECTION")?,
             "max_messages": 100,
+            "attachments": {
+                "disk": env.get_utf8("AI_CONVERSATION_ATTACHMENTS_DISK")?.unwrap_or("local"),
+            },
             "tables": {
                 "conversations": env.get_utf8("AI_CONVERSATIONS_TABLE")?.unwrap_or("agent_conversations"),
                 "messages": env.get_utf8("AI_CONVERSATION_MESSAGES_TABLE")?.unwrap_or("agent_conversation_messages"),

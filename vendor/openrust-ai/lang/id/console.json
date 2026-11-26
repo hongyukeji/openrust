@@ -20,6 +20,9 @@
     "model_required": "Masukkan ID model."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Migrasikan lampiran AI tersimpan ke penyimpanan privat"
+    },
     "ai:models": {
       "description": "Tampilkan model yang tersedia melalui koneksi AI"
     },

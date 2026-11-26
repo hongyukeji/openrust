@@ -20,6 +20,9 @@
     "model_required": "Saisissez un identifiant de modèle."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Migrer les pièces jointes IA vers le stockage privé"
+    },
     "ai:models": {
       "description": "Lister les modèles disponibles via une connexion IA"
     },

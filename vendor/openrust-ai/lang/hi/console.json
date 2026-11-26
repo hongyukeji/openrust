@@ -20,6 +20,9 @@
     "model_required": "मॉडल आईडी दर्ज करें।"
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "सहेजे गए AI अटैचमेंट को निजी स्टोरेज में माइग्रेट करें"
+    },
     "ai:models": {
       "description": "AI कनेक्शन पर उपलब्ध मॉडल दिखाएँ"
     },

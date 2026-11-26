@@ -7,14 +7,17 @@ use openrust::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::ConversationParticipant;
-use crate::conversation_store::now;
+use crate::{
+    ConversationParticipant, conversation_store::now, messages::PromptAttachmentArchive,
+    tools::ApprovalCheckpoint,
+};
 
 const TABLE: &str = "agent_tool_approvals";
 const TTL_SECONDS: i64 = 86_400;
 
 pub(crate) struct ApprovalStore {
     connection: Connection,
+    disk: String,
 }
 
 pub(crate) struct ApprovalScope<'a> {
@@ -30,8 +33,12 @@ pub(crate) enum SavedApproval<T> {
 }
 
 impl ApprovalStore {
-    pub(crate) fn new(connection: Connection) -> Self {
-        Self { connection }
+    pub(crate) fn new(connection: Connection, disk: String) -> Self {
+        Self { connection, disk }
+    }
+
+    pub(crate) fn disk(&self) -> &str {
+        &self.disk
     }
 
     fn query(&self, scope: &ApprovalScope<'_>, id: &str) -> Builder<'static> {
@@ -41,12 +48,12 @@ impl ApprovalStore {
     pub(crate) async fn insert(
         &self,
         scope: &ApprovalScope<'_>,
+        id: &str,
         snapshot: &impl Serialize,
-    ) -> DatabaseResult<String> {
-        let id = Str::ulid().to_string();
+    ) -> DatabaseResult<()> {
         let timestamp = now();
         let row = Record::from([
-            ("id".into(), id.as_str().into()),
+            ("id".into(), id.into()),
             ("conversation_id".into(), scope.conversation_id.into()),
             (
                 "participant_key".into(),
@@ -65,7 +72,7 @@ impl ApprovalStore {
         if !self.connection.table(TABLE).insert(&[row]).await? {
             return Err(DatabaseError::InvalidQuery("AI 工具审批记录未保存"));
         }
-        Ok(id)
+        Ok(())
     }
 
     pub(crate) async fn load<T: DeserializeOwned>(
@@ -90,6 +97,79 @@ impl ApprovalStore {
             },
             _ => SavedApproval::Consumed,
         }))
+    }
+
+    pub(crate) async fn migrate_attachments(&self) -> DatabaseResult<u64> {
+        if !self
+            .connection
+            .get_schema_builder()
+            .has_table(TABLE)
+            .await?
+        {
+            return Ok(0);
+        }
+        let mut migrated = 0;
+        let mut after = None::<String>;
+        loop {
+            let mut query = self
+                .connection
+                .table(TABLE)
+                .use_write_pdo()
+                .select(["id", "snapshot", "revision"])
+                .r#where("state", "=", "pending")
+                .where_like("snapshot", "%base64-%", true)
+                .order_by("id", "asc");
+            if let Some(after) = &after {
+                query = query.r#where("id", ">", after.as_str());
+            }
+            let Some(row) = query.first().await? else {
+                return Ok(migrated);
+            };
+            let id = text(&row, "id")?;
+            let legacy = text(&row, "snapshot")?;
+            let mut snapshot: ApprovalCheckpoint =
+                serde_json::from_str(legacy).map_err(|_| DatabaseError::InvalidScalar)?;
+            after = Some(id.to_owned());
+            if snapshot.attachments.is_some() {
+                continue;
+            }
+            let Some(archive) = PromptAttachmentArchive::store(&self.disk, id, &snapshot.prompt)
+                .await
+                .map_err(|_| DatabaseError::InvalidQuery("AI 审批附件迁移写入失败"))?
+            else {
+                continue;
+            };
+            if archive.verify(id, &snapshot.prompt).await.is_err() {
+                archive.discard().await;
+                return Err(DatabaseError::InvalidQuery("AI 审批附件迁移校验失败"));
+            }
+            snapshot.attachments = Some(archive.clone());
+            let encoded = match encode(&snapshot) {
+                Ok(encoded) => encoded,
+                Err(error) => {
+                    archive.discard().await;
+                    return Err(error);
+                }
+            };
+            let revision = integer(&row, "revision")?;
+            match self
+                .connection
+                .table(TABLE)
+                .r#where("id", "=", id)
+                .r#where("state", "=", "pending")
+                .r#where("revision", "=", revision)
+                .update(Record::from([
+                    ("snapshot".into(), encoded.into()),
+                    ("revision".into(), revision.saturating_add(1).into()),
+                ]))
+                .await
+            {
+                Ok(1) => migrated += 1,
+                Ok(_) => archive.discard().await,
+                // 数据库结果未知时保留可能被引用的文件。
+                Err(error) => return Err(error),
+            }
+        }
     }
 
     pub(crate) async fn claim(

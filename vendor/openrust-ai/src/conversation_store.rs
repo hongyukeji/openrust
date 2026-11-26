@@ -14,10 +14,8 @@ use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AgentResponse, AiError, AiResult, Message, MessageRole,
-    approval_store::ApprovalScope,
-    approval_turn::ApprovalSession,
-    attachments::{AttachmentBudget, decode_stored_attachments, encode_stored_attachments},
+    AgentResponse, AiError, AiResult, Message, MessageRole, approval_store::ApprovalScope,
+    approval_turn::ApprovalSession, attachment_storage, attachments::AttachmentBudget,
 };
 
 const CONVERSATIONS: &str = "agent_conversations";
@@ -159,6 +157,7 @@ pub struct DatabaseConversationStore {
     connection: Connection,
     conversations: String,
     messages: String,
+    attachment_disk: String,
 }
 
 impl DatabaseConversationStore {
@@ -167,6 +166,7 @@ impl DatabaseConversationStore {
             connection,
             conversations: CONVERSATIONS.to_owned(),
             messages: MESSAGES.to_owned(),
+            attachment_disk: attachment_storage::DEFAULT_DISK.to_owned(),
         }
     }
 
@@ -182,15 +182,25 @@ impl DatabaseConversationStore {
                 "ai.conversations.tables.messages",
             ));
         }
+        const DISK_KEY: &str = "ai.conversations.attachments.disk";
+        let attachment_disk = match config.get(DISK_KEY) {
+            None | Some(Json::Null) => attachment_storage::DEFAULT_DISK.to_owned(),
+            Some(Json::String(disk)) if attachment_storage::valid_disk(&disk) => disk,
+            _ => return Err(AiError::InvalidConfiguration(DISK_KEY)),
+        };
         Ok(Self {
             connection,
             conversations,
             messages,
+            attachment_disk,
         })
     }
 
     pub(crate) fn approval_store(&self) -> crate::approval_store::ApprovalStore {
-        crate::approval_store::ApprovalStore::new(self.connection.clone())
+        crate::approval_store::ApprovalStore::new(
+            self.connection.clone(),
+            self.attachment_disk.clone(),
+        )
     }
 
     pub async fn conversation_belongs_to(
@@ -250,7 +260,7 @@ impl DatabaseConversationStore {
             .connection
             .table(&self.messages)
             .use_write_pdo()
-            .select(["role", "content", "attachments"])
+            .select(["id", "role", "content", "attachments"])
             .r#where("conversation_id", "=", conversation)
             .order_by_desc("id")
             .limit(limit)
@@ -258,7 +268,7 @@ impl DatabaseConversationStore {
         let mut messages = Vec::new();
         let mut budget = AttachmentBudget::default();
         while let Some(row) = rows.try_next().await? {
-            let message = message(&row)?;
+            let message = message(&row).await?;
             budget
                 .include(&message.attachments)
                 .map_err(|_| DatabaseError::InvalidQuery("AI 会话历史附件超限"))?;
@@ -304,16 +314,74 @@ impl DatabaseConversationStore {
                 ..CursorOptions::default()
             })
             .await?;
-        let messages = page
-            .items()
-            .iter()
-            .map(stored_message)
-            .collect::<DatabaseResult<_>>()?;
+        let mut messages = Vec::with_capacity(page.items().len());
+        for row in page.items() {
+            messages.push(stored_message(row).await?);
+        }
         Ok(Some(ConversationPage {
             messages,
             next_cursor: page.next_cursor().map(Cursor::encode).transpose()?,
             previous_cursor: page.previous_cursor().map(Cursor::encode).transpose()?,
         }))
+    }
+
+    pub(crate) async fn migrate_attachments(&self) -> DatabaseResult<u64> {
+        let mut migrated = 0;
+        let mut after = None::<String>;
+        loop {
+            let mut query = self
+                .connection
+                .table(&self.messages)
+                .use_write_pdo()
+                .select(["id", "attachments"])
+                .r#where("role", "=", "user")
+                .where_like("attachments", "%base64-%", true)
+                .order_by("id", "asc");
+            if let Some(after) = &after {
+                query = query.r#where("id", ">", after.as_str());
+            }
+            let Some(row) = query.first().await? else {
+                return Ok(migrated);
+            };
+            let id = text(&row, "id")?;
+            let legacy = text(&row, "attachments")?;
+            after = Some(id.to_owned());
+            if !attachment_storage::is_inline(legacy).map_err(attachment_error)? {
+                continue;
+            }
+            let attachments = attachment_storage::read(id, legacy)
+                .await
+                .map_err(attachment_error)?;
+            let files = attachment_storage::write(&self.attachment_disk, id, &attachments)
+                .await
+                .map_err(attachment_error)?;
+            let references = match files.json() {
+                Ok(references) => references,
+                Err(error) => {
+                    files.discard().await;
+                    return Err(attachment_error(error));
+                }
+            };
+            if !matches!(attachment_storage::read(id, &references).await, Ok(verified) if verified == attachments)
+            {
+                files.discard().await;
+                return Err(DatabaseError::InvalidQuery("AI 会话附件迁移校验失败"));
+            }
+            // 更新条件保证两个迁移进程不会互相覆盖引用。
+            match self
+                .connection
+                .table(&self.messages)
+                .r#where("id", "=", id)
+                .r#where("attachments", "=", legacy)
+                .update(Record::from([("attachments".into(), references.into())]))
+                .await
+            {
+                Ok(1) => migrated += 1,
+                Ok(_) => files.discard().await,
+                // 驱动未确认结果时保留文件，避免删除已更新的引用。
+                Err(error) => return Err(error),
+            }
+        }
     }
 
     pub(crate) async fn store_turn_with_approval(
@@ -336,98 +404,115 @@ impl DatabaseConversationStore {
         if user.role != MessageRole::User {
             return Err(DatabaseError::InvalidQuery("AI 会话首条消息角色无效"));
         }
-        let attachments = encode_stored_attachments(&user.attachments)
-            .map_err(|_| DatabaseError::InvalidQuery("AI 会话附件无效"))?;
         let user_id = uuid();
-        let assistant_id = uuid();
-        let timestamp = now();
-        let rows = [
-            message_record(
-                &user_id,
-                id,
-                participant,
-                agent,
-                user,
-                attachments,
-                timestamp,
-            ),
-            message_record(
-                &assistant_id,
-                id,
-                participant,
-                agent,
-                &Message::assistant(&response.text),
-                "[]".into(),
-                timestamp,
-            ),
-        ];
-        let mut rows = rows;
-        let steps = if response.steps.is_empty() {
-            json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
-        } else {
-            json!(response.steps)
-        };
-        rows[1].extend([
-            ("usage".into(), json!(response.usage).to_string().into()),
-            ("meta".into(), json!(response.meta()).to_string().into()),
-            ("steps".into(), steps.to_string().into()),
-        ]);
         let mut transaction = self.connection.begin_transaction().await?;
-        if existing {
-            let Some(row) = transaction
-                .table(&self.conversations)
-                .select(["participant_type", "participant_id"])
-                .r#where("id", "=", id)
-                .first()
-                .await?
-            else {
-                transaction.roll_back(None).await?;
-                return Ok(false);
+        let files = attachment_storage::write(&self.attachment_disk, &user_id, &user.attachments)
+            .await
+            .map_err(|_| DatabaseError::InvalidQuery("AI 会话附件写入失败"))?;
+        let write = async {
+            let attachments = files.json().map_err(|_| DatabaseError::InvalidScalar)?;
+            let assistant_id = uuid();
+            let timestamp = now();
+            let rows = [
+                message_record(
+                    &user_id,
+                    id,
+                    participant,
+                    agent,
+                    user,
+                    attachments,
+                    timestamp,
+                ),
+                message_record(
+                    &assistant_id,
+                    id,
+                    participant,
+                    agent,
+                    &Message::assistant(&response.text),
+                    "[]".into(),
+                    timestamp,
+                ),
+            ];
+            let mut rows = rows;
+            let steps = if response.steps.is_empty() {
+                json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
+            } else {
+                json!(response.steps)
             };
-            if !owns(&row, participant)? {
-                transaction.roll_back(None).await?;
+            rows[1].extend([
+                ("usage".into(), json!(response.usage).to_string().into()),
+                ("meta".into(), json!(response.meta()).to_string().into()),
+                ("steps".into(), steps.to_string().into()),
+            ]);
+            if existing {
+                let Some(row) = transaction
+                    .table(&self.conversations)
+                    .select(["participant_type", "participant_id"])
+                    .r#where("id", "=", id)
+                    .first()
+                    .await?
+                else {
+                    return Ok(false);
+                };
+                if !owns(&row, participant)? {
+                    return Ok(false);
+                }
+                transaction
+                    .table(&self.conversations)
+                    .r#where("id", "=", id)
+                    .update(Record::from([("updated_at".into(), timestamp.into())]))
+                    .await?;
+            } else {
+                let title: String = user
+                    .content
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .chars()
+                    .take(80)
+                    .collect();
+                if !transaction
+                    .table(&self.conversations)
+                    .insert(&[Record::from([
+                        ("id".into(), id.into()),
+                        ("participant_type".into(), participant.kind().into()),
+                        ("participant_id".into(), participant.id().into()),
+                        ("title".into(), title.into()),
+                        ("created_at".into(), timestamp.into()),
+                        ("updated_at".into(), timestamp.into()),
+                    ])])
+                    .await?
+                {
+                    return Err(DatabaseError::InvalidQuery("AI 会话未保存"));
+                }
+            }
+            if !transaction.table(&self.messages).insert(&rows).await? {
+                return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
+            }
+            if let Some(approval) = approval
+                && !approval.complete(&mut transaction).await?
+            {
                 return Ok(false);
             }
-            transaction
-                .table(&self.conversations)
-                .r#where("id", "=", id)
-                .update(Record::from([("updated_at".into(), timestamp.into())]))
-                .await?;
-        } else {
-            let title: String = user
-                .content
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .chars()
-                .take(80)
-                .collect();
-            if !transaction
-                .table(&self.conversations)
-                .insert(&[Record::from([
-                    ("id".into(), id.into()),
-                    ("participant_type".into(), participant.kind().into()),
-                    ("participant_id".into(), participant.id().into()),
-                    ("title".into(), title.into()),
-                    ("created_at".into(), timestamp.into()),
-                    ("updated_at".into(), timestamp.into()),
-                ])])
-                .await?
-            {
-                return Err(DatabaseError::InvalidQuery("AI 会话未保存"));
+            Ok(true)
+        }
+        .await;
+        match write {
+            Ok(true) => {
+                // 提交结果不明时保留文件，避免已提交的引用失效。
+                transaction.commit().await?;
+                if let Some(approval) = approval {
+                    approval.discard_archived_attachments().await;
+                }
+                Ok(true)
+            }
+            result => {
+                let rollback = transaction.roll_back(None).await;
+                files.discard().await;
+                rollback?;
+                result
             }
         }
-        if !transaction.table(&self.messages).insert(&rows).await? {
-            return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
-        }
-        if let Some(approval) = approval
-            && !approval.complete(&mut transaction).await?
-        {
-            transaction.roll_back(None).await?;
-            return Ok(false);
-        }
-        transaction.commit().await?;
-        Ok(true)
     }
 }
 
@@ -536,6 +621,10 @@ impl ConversationStore for DatabaseConversationStore {
     }
 }
 
+fn attachment_error(_: AiError) -> DatabaseError {
+    DatabaseError::InvalidQuery("AI 会话附件迁移失败")
+}
+
 fn storage_error(_: DatabaseError) -> AiError {
     AiError::ConversationStorageUnavailable
 }
@@ -573,7 +662,7 @@ fn owns(row: &Row, participant: &ConversationParticipant) -> DatabaseResult<bool
         && text(row, "participant_id")? == participant.id())
 }
 
-fn message(row: &Row) -> DatabaseResult<Message> {
+async fn message(row: &Row) -> DatabaseResult<Message> {
     let role = match text(row, "role")? {
         "user" => MessageRole::User,
         "assistant" => MessageRole::Assistant,
@@ -581,7 +670,8 @@ fn message(row: &Row) -> DatabaseResult<Message> {
     };
     let content = text(row, "content")?;
     if role == MessageRole::User {
-        let attachments = decode_stored_attachments(text(row, "attachments")?)
+        let attachments = attachment_storage::read(text(row, "id")?, text(row, "attachments")?)
+            .await
             .map_err(|_| DatabaseError::InvalidScalar)?;
         Ok(Message::user_with_attachments(content, attachments))
     } else {
@@ -589,7 +679,7 @@ fn message(row: &Row) -> DatabaseResult<Message> {
     }
 }
 
-fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
+async fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
     let json =
         |key| serde_json::from_str(text(row, key)?).map_err(|_| DatabaseError::InvalidScalar);
     let Some(Value::Integer(created_at)) = row.get("created_at") else {
@@ -598,7 +688,7 @@ fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
     Ok(StoredMessage {
         id: text(row, "id")?.into(),
         agent: text(row, "agent")?.into(),
-        message: message(row)?,
+        message: message(row).await?,
         usage: json("usage")?,
         meta: json("meta")?,
         steps: json("steps")?,

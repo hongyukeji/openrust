@@ -20,6 +20,9 @@
     "model_required": "Nhập ID mô hình."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Di chuyển tệp đính kèm AI đã lưu sang bộ nhớ riêng tư"
+    },
     "ai:models": {
       "description": "Liệt kê các mô hình có sẵn qua kết nối AI"
     },

@@ -2,7 +2,7 @@ use std::{fmt, path::Path};
 
 use bytes::Bytes;
 use openrust::{http::UploadedFile, support::Str};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::{AiError, AiResult, ImageAttachment, Message, MessageRole, media_storage};
 
@@ -79,9 +79,9 @@ pub(crate) fn validate_prompt_attachments(
     Ok(())
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(tag = "type")]
-enum StoredAttachment<'a> {
+pub(crate) enum StoredAttachment<'a> {
     #[serde(rename = "base64-image")]
     Image {
         base64: String,
@@ -95,25 +95,6 @@ enum StoredAttachment<'a> {
     },
 }
 
-pub(crate) fn encode_stored_attachments(attachments: &[Attachment]) -> AiResult<String> {
-    validate_prompt_attachments(attachments, &[])?;
-    let stored: Vec<_> = attachments
-        .iter()
-        .map(|attachment| match attachment {
-            Attachment::Image(image) => StoredAttachment::Image {
-                base64: Str::to_base64(image.content()),
-                mime: image.mime().into(),
-            },
-            Attachment::Document(document) => StoredAttachment::Document {
-                base64: Str::to_base64(document.content()),
-                mime: document.mime().into(),
-                name: document.filename().into(),
-            },
-        })
-        .collect();
-    serde_json::to_string(&stored).map_err(|_| AiError::InvalidResponse)
-}
-
 pub(crate) fn decode_stored_attachments(json: &str) -> AiResult<Vec<Attachment>> {
     const MAX_JSON_BYTES: usize = MAX_ATTACHMENT_BYTES.div_ceil(3) * 4 + MAX_ATTACHMENTS * 4096;
     if json.len() > MAX_JSON_BYTES {
@@ -121,6 +102,12 @@ pub(crate) fn decode_stored_attachments(json: &str) -> AiResult<Vec<Attachment>>
     }
     let stored: Vec<StoredAttachment<'_>> =
         serde_json::from_str(json).map_err(|_| AiError::InvalidResponse)?;
+    restore_inline_attachments(stored)
+}
+
+pub(crate) fn restore_inline_attachments(
+    stored: Vec<StoredAttachment<'_>>,
+) -> AiResult<Vec<Attachment>> {
     if stored.len() > MAX_ATTACHMENTS {
         return Err(AiError::TooManyAttachments);
     }

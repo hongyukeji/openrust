@@ -1,10 +1,14 @@
-use openrust::database::{DatabaseError, DatabaseResult, Transaction};
+use openrust::{
+    database::{DatabaseError, DatabaseResult, Transaction},
+    support::Str,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval, ToolResult,
     approval_store::{ApprovalScope, ApprovalStore},
     events::{ToolApprovalRequested, ToolApprovalResolved, dispatch_tool_approval},
+    messages::PromptAttachmentArchive,
     tools::ApprovalCheckpoint,
 };
 
@@ -27,6 +31,7 @@ pub(crate) struct ApprovalSession {
     pub(crate) existing: bool,
     claim: Option<ApprovalClaim>,
     resolved: Option<ToolApprovalResolved>,
+    archive: Option<PromptAttachmentArchive>,
 }
 
 struct ApprovalClaim {
@@ -45,6 +50,7 @@ impl ApprovalSession {
             existing,
             claim: None,
             resolved: None,
+            archive: None,
         }
     }
 
@@ -71,33 +77,49 @@ impl ApprovalSession {
         Ok(())
     }
 
+    pub(crate) fn set_archive(&mut self, archive: Option<PromptAttachmentArchive>) {
+        self.archive = archive;
+    }
+
     pub(crate) async fn pause(
         &self,
-        checkpoint: &ApprovalCheckpoint,
+        mut checkpoint: ApprovalCheckpoint,
     ) -> AiResult<PendingToolApprovals> {
-        let id = match &self.claim {
-            Some(claim) => {
-                if !self
-                    .store
-                    .settle(
-                        &self.scope(),
-                        &claim.id,
-                        &claim.token,
-                        Some((claim.revision, checkpoint)),
-                    )
-                    .await
-                    .map_err(|_| AiError::ConversationStorageUnavailable)?
-                {
-                    return Err(AiError::ApprovalConsumed);
-                }
-                claim.id.clone()
+        let id = self
+            .claim
+            .as_ref()
+            .map_or_else(|| Str::ulid().to_string(), |claim| claim.id.clone());
+        checkpoint.attachments = match &self.archive {
+            Some(archive) => Some(archive.clone()),
+            None => {
+                PromptAttachmentArchive::store(self.store.disk(), &id, &checkpoint.prompt).await?
             }
-            None => self
-                .store
-                .insert(&self.scope(), checkpoint)
-                .await
-                .map_err(|_| AiError::ConversationStorageUnavailable)?,
         };
+        if let Some(claim) = &self.claim {
+            if !self
+                .store
+                .settle(
+                    &self.scope(),
+                    &id,
+                    &claim.token,
+                    Some((claim.revision, &checkpoint)),
+                )
+                .await
+                .map_err(|_| AiError::ConversationStorageUnavailable)?
+            {
+                if self.archive.is_none()
+                    && let Some(archive) = &checkpoint.attachments
+                {
+                    archive.discard().await;
+                }
+                return Err(AiError::ApprovalConsumed);
+            }
+        } else {
+            self.store
+                .insert(&self.scope(), &id, &checkpoint)
+                .await
+                .map_err(|_| AiError::ConversationStorageUnavailable)?;
+        }
         let pending = PendingToolApprovals {
             id,
             approvals: checkpoint.pending.clone(),
@@ -136,6 +158,12 @@ impl ApprovalSession {
         }
     }
 
+    pub(crate) async fn discard_archived_attachments(&self) {
+        if let Some(archive) = &self.archive {
+            archive.discard().await;
+        }
+    }
+
     pub(crate) async fn settle(&self) -> AiResult<()> {
         let Some(claim) = &self.claim else {
             return Ok(());
@@ -146,6 +174,7 @@ impl ApprovalSession {
             .await
             .map_err(|_| AiError::ConversationStorageUnavailable)?
         {
+            self.discard_archived_attachments().await;
             Ok(())
         } else {
             Err(AiError::ApprovalConsumed)

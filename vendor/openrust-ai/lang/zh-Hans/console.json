@@ -20,6 +20,9 @@
     "model_required": "请提供模型 ID"
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "将已保存的 AI 附件迁移到私有存储"
+    },
     "ai:models": {
       "description": "列出 AI 连接中可用的模型"
     },

@@ -20,6 +20,9 @@
     "model_required": "Enter a model ID."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Migrate saved AI attachments to private storage"
+    },
     "ai:models": {
       "description": "List the models available through an AI connection"
     },

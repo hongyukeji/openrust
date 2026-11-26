@@ -202,7 +202,7 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 沿用 `for_participant` 和 `r#continue` 的归属校验与历史构造。持久会话的 `stream` 与 `stream_structured` 在返回流时提供会话 ID，采用任一已有 SSE 渲染器。流式正文照常交付。最后的完成事件在成功落库后发送，截断或客户端提前丢弃的流不会生成半轮记录。工具流的各步用量按已报告的值合并，结构化调用使用现有 Schema 和 JSON 对象解析后再写入。
 
-包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。附件和原始工具步骤重放继续核对。
+包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。附件复验见对应批次，原始工具步骤重放继续核对。
 
 完成的助手消息保存公开的逐步响应。流使用与回调、Worker 一致的汇总，持久化之后才交付终帧。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 Artisan 生成两步工具流，独立 HTTP 进程读到两步模型、结束原因及工具结果，汇总 16 输入／6 输出 Token。旧 SQLite 记录维持原 `steps` 形状，另复验审批快照恢复、结构化入口、截断后无新增消息与迁移回滚。历史记录使用公开元数据和步骤，私有协议重放保留在原审批快照。SDK 回归 13 项、严格 Clippy 和三语站点通过。
 
@@ -382,15 +382,17 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel Image](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Image.php)
 
-手动历史通过 `Message::user_with_attachments` 与 `with_messages` 传入。四种协议复用各自的用户附件内容构造，保留消息角色、附件顺序以及其后的无附件提示结构。普通消息 JSON 继续只有角色和文本，Fake 可直接断言历史附件。历史与本轮共用 16 个文件和小于 50 MB 的原始数据上限。独立 Artisan 发送图片和 PDF 并验证 Fake、超限拒绝。真实 HTTP 通过 multipart 接收 PDF 和 Markdown 并验证四路原生协议的普通响应与 PDF SSE，Chat 的 Markdown 在发送前拒绝。OpenAI 请求结构回归、SDK 15 项、严格 Clippy、三语站点通过。会话落库及历史回填见下文。含附件的审批恢复继续核对。
+手动历史通过 `Message::user_with_attachments` 与 `with_messages` 传入。四种协议复用各自的用户附件内容构造，保留消息角色、附件顺序以及其后的无附件提示结构。普通消息 JSON 继续只有角色和文本，Fake 可直接断言历史附件。历史与本轮共用 16 个文件和小于 50 MB 的原始数据上限。独立 Artisan 发送图片和 PDF 并验证 Fake、超限拒绝。真实 HTTP 通过 multipart 接收 PDF 和 Markdown 并验证四路原生协议的普通响应与 PDF SSE，Chat 的 Markdown 在发送前拒绝。OpenAI 请求结构回归、SDK 15 项、严格 Clippy、三语站点通过。会话落库、历史回填和审批恢复见下文。
 
 - [固定 Laravel UserMessage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Messages/UserMessage.php)
 
-默认 `ConversationStore` 同一事务保存用户消息、内联图片和文档，以及助手响应。历史逐行读取并按请求附件预算校验，保存格式对应固定 Laravel Base64 图片及文档类型，普通 JSON 消息不带附件字节。自定义存储可通过 `supports_attachments` 和 `store_turn_with_message` 启用附件。已发布的 MySQL／MariaDB 迁移把附件列扩为 `LONGTEXT`，单独回滚保留宽列以保存既有数据。
+默认 `ConversationStore` 先写私有 Storage 文件，再在同一数据库事务提交用户消息、附件引用和助手响应。审批快照以同一机制保存本轮及历史附件。两者按所属消息或审批 ID 校验路径，按记录的磁盘、类型、字节数和 SHA-256 回读。同一审批再次暂停复用原归档，完成事务后清理审批归档。新增记录使用引用格式。普通消息 JSON 保留角色和内容。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测自定义表上的旧文本数据、110 KB PDF 和图片随 Artisan 落库、独立 HTTP 自动回放以及分页读取和跨参与者拒绝。三库均验证 SSE 终帧前完成落库、截断无半轮记录。MySQL 另验证预演 DDL、实际扩容以及单独回滚后仍能读取附件。默认／自定义表的 SDK 回归、严格 Clippy、三语文档通过。MariaDB 的扩容沿用 MySQL 方言，未另行实机验收。
+`bddf1fb04` 的旧会话 Base64 记录和早期审批快照仍可读取。实际运行 `ai:migrate-attachments` 会在文件核验通过后条件更新原记录。数据库确认未更新时删除本次文件，结果不明时保留文件。移除只为内联写入添加的包扩容迁移。应用已运行的列宽和数据可继续使用。自定义存储可通过 `supports_attachments` 和 `store_turn_with_message` 启用。
 
-- [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan／HTTP 实测文件私有权限、SHA-256、数据库仅保留引用、旧会话回放、旧审批直接恢复、两种旧记录迁移、失败保留及重复迁移。通过默认 SSE、Vercel 和 AG-UI 验证暂停，跨进程恢复准确回送本轮和历史附件。跨参与者及变更连接的请求在恢复前被拒绝，并发审批只执行一次。三库复验再次暂停复用同一归档，最终落库后清理。另复验旧纯文本快照、默认和自定义表的 SDK 回归、严格 Clippy、Artisan 18 语帮助及三语站点。本批实际文件后端为私有本地磁盘。
+
+- [固定 Laravel StoredImage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/StoredImage.php) · [固定 Laravel StoredDocument](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/StoredDocument.php)
 
 ## AI-02 模型档位与文本摘要
 

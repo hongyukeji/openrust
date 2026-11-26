@@ -482,7 +482,9 @@ SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示�
 
 已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
 
-預設資料庫儲存會將內嵌圖片和文件與使用者訊息一併儲存，相同參與者繼續對話時會自動帶入歷史。更新套件後請發佈並執行 `ai-migrations`。MySQL 和 MariaDB 會將附件欄位擴充為 `LONGTEXT`。單獨回復該遷移時會保留已擴充的欄位和附件資料。
+對話訊息和待審批快照在資料庫儲存檔案參照。附件預設寫入 `local` 磁碟，檔案可見性為私人。可在 `config/ai.rs` 設定 `conversations.attachments.disk`，或使用 `AI_CONVERSATION_ATTACHMENTS_DISK` 為多個應用程式程序設定共用的私人磁碟。變更設定時，須保留既有紀錄所參照的磁碟。
+
+已有 Base64 內嵌附件的應用程式可以執行 `./artisan ai:migrate-attachments`。命令寫入並驗證檔案後才更新資料庫參照。移轉失敗的紀錄可繼續依舊格式讀取。命令可以重複執行，JSON 輸出提供移轉的訊息與審批數量。
 
 需要其他對話後端時，實作 `ConversationStore`，並在應用程式啟動時透過 `Ai::set_conversation_store(Arc::new(store))` 登錄。`Ai::conversation_store()` 回傳目前的儲存實作。實作負責檢查參與者歸屬，並以原子操作儲存使用者和助手訊息。需要持久工具審批時使用 `DatabaseConversationStore`。自訂儲存可實作 `supports_attachments` 和 `store_turn_with_message` 以支援附件。
 
@@ -703,7 +705,7 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 保留對話 ID 和審批 ID。在同一已驗證的參與者和 Agent 下，用 `pending_approvals_for` 重新讀取待審批項目，再顯示給使用者。使用 `resume_approval` 提交每筆請求的決定。`Decisions::new` 支援逐項核准、拒絕或編輯參數，也可為其餘項目套用預設決定。
 
-SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批次只能由一個請求領取。目前審批有效期為 24 小時。領取後的請求失敗或中斷時，工具可能已執行，SDK 不會自動重播。目前審批快照支援文字提示詞。
+SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批次只能由一個請求領取。目前審批有效期為 24 小時。領取後的請求失敗或中斷時，工具可能已執行，SDK 不會自動重播。審批快照透過私人檔案參照保留本輪與歷史中的圖片及文件。恢復時先驗證參與者、Agent 和連線，再讀取檔案。
 
 需要串流輸出時，透過 `stream_with_approvals` 建立回應，並使用既有的 SSE 配接器。SDK 先儲存快照，再發出審批事件。預設的 `tool_approval_request` 事件包含 `conversation_id` 與 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，並為每個呼叫傳送 `tool-approval-request`。AG-UI 在各中斷項目的中繼資料中交付 ID。用 `resume_approval` 提交決定，恢復對話並接收一般回應。
 

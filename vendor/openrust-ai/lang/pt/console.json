@@ -20,6 +20,9 @@
     "model_required": "Informe o ID do modelo."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Migrar anexos de IA salvos para o armazenamento privado"
+    },
     "ai:models": {
       "description": "Listar os modelos disponíveis numa ligação de IA"
     },

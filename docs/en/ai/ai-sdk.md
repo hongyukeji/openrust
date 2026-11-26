@@ -482,7 +482,9 @@ Override the table names before running the published migration. Set `conversati
 
 Assistant history for completed SDK turns includes the model, total usage, and `steps` with each step’s reported model, usage, finish reason, and tool outcomes. Older records retain their stored steps.
 
-The database store saves inline pictures and documents with the user message and replays them when the same participant continues. Run the published `ai-migrations` after updating the package. On MySQL and MariaDB, the attachment migration widens the column to `LONGTEXT`. Rolling back only that migration preserves the wider column and any saved files.
+Conversation messages and pending approval checkpoints store file references in the database. Files are written with private visibility to the `local` disk by default. Set `conversations.attachments.disk` in `config/ai.rs` or `AI_CONVERSATION_ATTACHMENTS_DISK` to select a private disk shared by your application processes. Keep disks referenced by existing records available when changing the setting.
+
+If you have older records with inline Base64 attachments, run `./artisan ai:migrate-attachments`. The command writes and verifies each file before replacing its database value with a reference. Failed records remain readable in the previous format. You can run the command again, and its JSON output reports the migrated message and approval counts.
 
 Implement `ConversationStore` and install it during application boot with `Ai::set_conversation_store(Arc::new(store))` to use a different backend. `Ai::conversation_store()` returns the configured store. Each implementation checks participant ownership and saves the user and assistant messages atomically. Use `DatabaseConversationStore` for durable tool approvals. A custom store can opt into attachments through `supports_attachments` and `store_turn_with_message`.
 
@@ -703,7 +705,7 @@ After approval completes, `ApprovalResponse::Completed(response)` contains a box
 
 Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
 
-The SDK verifies participant, agent and provider connection before resuming. Only one request can claim a pending batch. The current approval window is 24 hours. A failed or interrupted request after claiming approval may already have executed a tool. The SDK does not automatically replay it. Approval checkpoints currently support text prompts.
+The SDK verifies participant, agent and provider connection before resuming. Only one request can claim a pending batch. The current approval window is 24 hours. A failed or interrupted request after claiming approval may already have executed a tool. The SDK does not automatically replay it. Approval checkpoints preserve current and historical pictures and documents through private file references. Resuming verifies the participant, Agent and connection before loading the files.
 
 For streamed text, start with `stream_with_approvals` and pass the result through your usual SSE response adapter. The SDK saves the checkpoint before sending the approval event. The default `tool_approval_request` event carries `conversation_id` and `approval_id`. Vercel sends the batch IDs in `data-tool-approval` and one `tool-approval-request` per call. AG-UI sends the IDs in each interrupt's metadata. Submit the decisions with `resume_approval` to continue the conversation and receive the buffered result.
 

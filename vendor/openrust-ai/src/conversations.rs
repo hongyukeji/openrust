@@ -234,7 +234,7 @@ impl<A: Agent> PendingConversation<'_, A> {
         let manager = Ai::manager()?;
         let (store, _) = manager.conversation_store()?;
         let scope = self.approval_scope()?;
-        let (checkpoint, revision) = load_approval(store.as_ref(), &scope, id).await?;
+        let (mut checkpoint, revision) = load_approval(store.as_ref(), &scope, id).await?;
         if store
             .conversation_belongs_to(scope.conversation_id, scope.participant)
             .await?
@@ -243,16 +243,26 @@ impl<A: Agent> PendingConversation<'_, A> {
             return Err(AiError::ApprovalNotFound);
         }
         let provider = manager.text_provider(Some(&checkpoint.provider))?;
+        checkpoint.verify_connection(provider.as_ref())?;
+        if let Some(archive) = &checkpoint.attachments
+            && let Err(error) = archive.restore(id, &mut checkpoint.prompt).await
+        {
+            // 另一个请求可能已经处理并删除了同一审批的归档。
+            load_approval(store.as_ref(), &scope, id).await?;
+            return Err(error);
+        }
         let prompt = checkpoint.prompt.text.clone();
+        let archive = checkpoint.attachments.clone();
         let turn = ConversationTurn {
             id: scope.conversation_id.to_owned(),
             existing: checkpoint.existing,
             participant: self.participant.clone(),
             agent_name: type_name::<A>(),
-            attachments: Vec::new(),
+            attachments: checkpoint.prompt.attachments.clone(),
             store,
         };
         let mut session = turn.approval_session().ok_or(AiError::ApprovalNotFound)?;
+        session.set_archive(archive);
         let invocation_id = checkpoint.invocation_id().to_owned();
         let outcome = crate::request_context::in_agent_invocation(
             &invocation_id,

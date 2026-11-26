@@ -20,6 +20,9 @@
     "model_required": "Geben Sie eine Modell-ID ein."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "Gespeicherte KI-Anhänge in privaten Speicher migrieren"
+    },
     "ai:models": {
       "description": "Verfügbare Modelle einer KI-Verbindung auflisten"
     },

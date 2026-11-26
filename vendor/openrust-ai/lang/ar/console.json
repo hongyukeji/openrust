@@ -20,6 +20,9 @@
     "model_required": "أدخل معرّف النموذج."
   },
   "commands": {
+    "ai:migrate-attachments": {
+      "description": "ترحيل مرفقات الذكاء الاصطناعي المحفوظة إلى التخزين الخاص"
+    },
     "ai:models": {
       "description": "عرض النماذج المتاحة عبر اتصال الذكاء الاصطناعي"
     },

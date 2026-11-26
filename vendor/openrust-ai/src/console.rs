@@ -28,8 +28,51 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息} {--schema= : JSON 对象模式}",
         )?.with_help_namespace("ai"),
     }))?;
+    Artisan::add(Box::new(MigrateAttachments {
+        definition: CommandDefinition::from_signature("ai:migrate-attachments")?
+            .with_help_namespace("ai"),
+    }))?;
     make::register()?;
     select_model::register()
+}
+
+struct MigrateAttachments {
+    definition: CommandDefinition,
+}
+
+impl Command for MigrateAttachments {
+    fn definition(&self) -> &CommandDefinition {
+        &self.definition
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = Ai::conversation_store().map_err(console_error)?;
+            let store = store
+                .as_database()
+                .ok_or_else(|| console_error(AiError::ConversationStorageUnavailable))?;
+            let messages = store
+                .migrate_attachments()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let approvals = store
+                .approval_store()
+                .migrate_attachments()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            write_line(
+                output,
+                &json!({"migrated_messages": messages, "migrated_approvals": approvals})
+                    .to_string(),
+            )?;
+            Ok(0)
+        })
+    }
 }
 
 struct Models {
