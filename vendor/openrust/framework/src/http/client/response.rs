@@ -27,7 +27,11 @@ impl TransferStats {
     }
 }
 
-/// A response whose body is available for repeated inspection.
+/// 出站响应正文的异步字节流。
+pub type ResponseStream =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<axum::body::Bytes>> + Send>>;
+
+/// 出站 HTTP 响应。普通正文可重复读取，流式正文可消费一次。
 #[derive(Clone)]
 pub struct Response {
     pub transfer_stats: Option<TransferStats>,
@@ -78,6 +82,11 @@ impl Response {
     /// 按需读取完整正文；文件响应在调用此方法时才分配完整内存。
     pub fn body(&self) -> Result<axum::body::Bytes> {
         self.body.read().map_err(Error::ResponseBody)
+    }
+
+    /// 读取流式正文；缓冲响应（包括 HTTP Fake）作为单块读取。
+    pub fn into_stream(self) -> Result<ResponseStream> {
+        self.body.take_stream()
     }
 
     pub fn resource(&self) -> Result<super::ResponseResource> {
@@ -220,6 +229,38 @@ impl Response {
         } else {
             Ok(Self::new(response.status(), headers, body))
         }
+    }
+
+    pub(super) fn from_transport_stream(
+        mut response: reqwest::Response,
+        limit: usize,
+        deadline: tokio::time::Instant,
+    ) -> Result<Self> {
+        if response
+            .content_length()
+            .is_some_and(|size| size > limit as u64)
+        {
+            return Err(Error::BodyTooLarge);
+        }
+        let status = response.status();
+        let headers = std::mem::take(response.headers_mut());
+        let stream = async_stream::try_stream! {
+            let mut remaining = limit;
+            while let Some(chunk) = tokio::time::timeout_at(deadline, response.chunk())
+                .await
+                .map_err(|_| Error::Timeout)?
+                .map_err(transport_error)?
+            {
+                remaining = remaining.checked_sub(chunk.len()).ok_or(Error::BodyTooLarge)?;
+                yield chunk;
+            }
+        };
+        Ok(Self {
+            transfer_stats: None,
+            status,
+            headers,
+            body: super::body::Body::stream(Box::pin(stream)),
+        })
     }
 
     pub fn from_json(status: StatusCode, value: &impl serde::Serialize) -> Result<Self> {

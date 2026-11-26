@@ -31,7 +31,7 @@ pub use pending_request::PendingRequest;
 pub use pool::Pool;
 pub use reqwest::multipart::{Form, Part};
 pub use reqwest::{Certificate as TlsCertificate, Identity as TlsIdentity, Request};
-pub use response::{Response, TransferStats};
+pub use response::{Response, ResponseStream, TransferStats};
 pub use retry_after::RetryAfter;
 pub use sink::Sink;
 

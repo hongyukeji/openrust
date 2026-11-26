@@ -9,6 +9,7 @@ pub(super) struct Body(Arc<Mutex<State>>);
 enum State {
     Memory { bytes: Bytes, position: u64 },
     File(std::fs::File),
+    Stream(super::ResponseStream),
     Closed,
 }
 
@@ -18,6 +19,22 @@ impl Body {
     }
     pub fn file(file: std::fs::File) -> Self {
         Self(Arc::new(Mutex::new(State::File(file))))
+    }
+    pub fn stream(stream: super::ResponseStream) -> Self {
+        Self(Arc::new(Mutex::new(State::Stream(stream))))
+    }
+
+    pub fn take_stream(&self) -> super::Result<super::ResponseStream> {
+        let mut state = self.lock().map_err(super::Error::ResponseBody)?;
+        if matches!(*state, State::Stream(_))
+            && let State::Stream(stream) = std::mem::replace(&mut *state, State::Closed)
+        {
+            return Ok(stream);
+        }
+        drop(state);
+        // Fake 和中间件可以直接返回已有缓冲的响应。
+        let bytes = self.read().map_err(super::Error::ResponseBody)?;
+        Ok(Box::pin(futures_util::stream::once(async { Ok(bytes) })))
     }
     fn lock(&self) -> io::Result<std::sync::MutexGuard<'_, State>> {
         self.0
@@ -37,6 +54,7 @@ impl Body {
                 file.read_to_end(&mut bytes)?;
                 Ok(bytes.into())
             }
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Err(io::Error::other("HTTP 响应正文已关闭")),
         }
     }
@@ -44,12 +62,15 @@ impl Body {
         match &*self.lock()? {
             State::Memory { bytes, .. } => Ok(bytes.len() as u64),
             State::File(file) => Ok(file.metadata()?.len()),
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Ok(0),
         }
     }
     pub fn resource(&self) -> io::Result<ResponseResource> {
-        if matches!(*self.lock()?, State::Closed) {
-            return Err(io::Error::other("HTTP 响应正文已关闭"));
+        match &*self.lock()? {
+            State::Stream(_) => return Err(stream_error()),
+            State::Closed => return Err(io::Error::other("HTTP 响应正文已关闭")),
+            _ => {}
         }
         Ok(ResponseResource(self.clone()))
     }
@@ -57,6 +78,10 @@ impl Body {
         *self.lock()? = State::Closed;
         Ok(())
     }
+}
+
+fn stream_error() -> io::Error {
+    io::Error::other("HTTP 流式响应正文须通过异步流读取")
 }
 
 /// 共享正文游标的可读、可定位资源；文件正文不会为此转换为内存缓冲。
@@ -74,6 +99,7 @@ impl Read for ResponseResource {
                 Ok(length)
             }
             State::File(file) => file.read(buffer),
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Err(io::Error::other("HTTP 响应正文已关闭")),
         }
     }
@@ -93,6 +119,7 @@ impl Seek for ResponseResource {
                 Ok(*position)
             }
             State::File(file) => file.seek(from),
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Err(io::Error::other("HTTP 响应正文已关闭")),
         }
     }
@@ -123,6 +150,7 @@ impl Write for ResponseResource {
                 Ok(input.len())
             }
             State::File(file) => file.write(input),
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Err(io::Error::other("HTTP 响应正文已关闭")),
         }
     }
@@ -130,6 +158,7 @@ impl Write for ResponseResource {
         match &mut *self.0.lock()? {
             State::Memory { .. } => Ok(()),
             State::File(file) => file.flush(),
+            State::Stream(_) => Err(stream_error()),
             State::Closed => Err(io::Error::other("HTTP 响应正文已关闭")),
         }
     }

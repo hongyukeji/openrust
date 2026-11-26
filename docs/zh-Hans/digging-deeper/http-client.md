@@ -205,3 +205,20 @@ TLS 校验默认开启。`without_verifying()` 仅为当前构建的请求关闭
 `as_multipart().post(data)` 接受由标量字段组成的对象。布尔值按 PHP 方式编码为 `1` 或空字符串，null 编码为空字符串。嵌套对象或数组返回 `InvalidRequest`；文件使用 `attach`。该入口不接收 Guzzle 的全部 multipart 选项。
 
 使用 `attach_file(name, path).await?` 附加常规文件，自动设置文件名、大小和媒体类型。每次尝试均从同一已打开文件串流读取。所有部件均为缓冲数据或常规文件时，multipart 请求在 307、308 跳转及重试中沿用原正文和 boundary。配置重试后，含一次性流部件的请求返回 `UnreplayableRequest`。
+
+## 流式读取响应 {#streaming-a-response}
+
+在待发送请求上调用 `stream()`，用 `into_stream()` 消费成功响应。响应头就绪后请求即返回，读取正文时仍受请求超时和响应字节上限约束。丢弃流会取消尚未读完的传输。
+
+```rust
+use futures_util::StreamExt;
+use openrust::http::client::Http;
+
+let response = Http::pending_request()?.stream().get(url).await?.throw()?;
+let mut chunks = response.into_stream()?;
+while let Some(chunk) = chunks.next().await {
+    consume(chunk?);
+}
+```
+
+网络流只可消费一次。非成功响应仍保留缓冲正文用于错误处理。同一个请求可选择 `stream()` 或 `sink()`。

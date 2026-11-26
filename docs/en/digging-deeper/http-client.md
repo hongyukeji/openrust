@@ -205,3 +205,20 @@ TLS verification is enabled by default. `without_verifying()` disables certifica
 `as_multipart().post(data)` accepts an object of scalar fields. Booleans use PHP-style `1`/empty-string encoding and null becomes an empty string. Nested objects and arrays return `InvalidRequest`; use `attach` for files. This entry does not accept every Guzzle multipart option.
 
 Use `attach_file(name, path).await?` to add a regular file with its filename, length, and media type. Each attempt streams from the same open file. Buffered parts and regular files can keep the original body and boundary across a 307 or 308 redirect or a configured retry. A multipart request built with a one-shot stream returns `UnreplayableRequest` if retries are configured.
+
+## Streaming a response {#streaming-a-response}
+
+Call `stream()` on the pending request and consume the successful response with `into_stream()`. The request returns when the headers are ready. The timeout and configured response byte limit continue to apply while reading the body. Dropping the stream cancels the unread transfer.
+
+```rust
+use futures_util::StreamExt;
+use openrust::http::client::Http;
+
+let response = Http::pending_request()?.stream().get(url).await?.throw()?;
+let mut chunks = response.into_stream()?;
+while let Some(chunk) = chunks.next().await {
+    consume(chunk?);
+}
+```
+
+A live stream can be consumed once. Failed HTTP responses keep their buffered body for error handling. Use either `stream()` or `sink()` on a request.

@@ -110,6 +110,7 @@ pub struct PendingRequest {
     timeout: Duration,
     redirects: Option<usize>,
     sink: Option<super::Sink>,
+    stream: bool,
     body_limit: usize,
     payload: Payload,
     retry: Retry,
@@ -143,6 +144,7 @@ impl PendingRequest {
             timeout: TIMEOUT,
             redirects: Some(5),
             sink: None,
+            stream: false,
             body_limit: BODY_LIMIT,
             payload: Payload::Json,
             retry: Retry::default(),
@@ -154,6 +156,12 @@ impl PendingRequest {
 
     pub fn base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = Some(url.into());
+        self
+    }
+
+    /// 成功响应在头部就绪后返回，正文通过 `Response::into_stream` 消费。
+    pub fn stream(mut self) -> Self {
+        self.stream = true;
         self
     }
 
@@ -637,7 +645,10 @@ impl PendingRequest {
         if self.invalid_header {
             return Err(Error::InvalidRequest);
         }
-        if self.timeout.is_zero() || self.connect_timeout.is_zero() {
+        if self.timeout.is_zero()
+            || self.connect_timeout.is_zero()
+            || (self.stream && self.sink.is_some())
+        {
             return Err(Error::Configuration);
         }
         let pinned_https = self
@@ -820,6 +831,7 @@ impl PendingRequest {
             timeout: self.timeout,
             body_limit: self.body_limit,
             sink: self.sink.as_ref(),
+            stream: self.stream,
         };
         let mut request = request;
         loop {

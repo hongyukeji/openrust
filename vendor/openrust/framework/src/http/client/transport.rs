@@ -77,6 +77,7 @@ pub(super) struct Transport<'a> {
     pub timeout: Duration,
     pub body_limit: usize,
     pub sink: Option<&'a super::Sink>,
+    pub stream: bool,
 }
 
 impl Transport<'_> {
@@ -87,6 +88,14 @@ impl Transport<'_> {
             .then(|| self.event_source(&request))
             .flatten();
         let started_at = Instant::now();
+        let stream_deadline = self
+            .stream
+            .then(|| {
+                started_at
+                    .checked_add(self.timeout)
+                    .ok_or(Error::Configuration)
+            })
+            .transpose()?;
         let mut redirects = 0;
         let mut authentications = 0;
         loop {
@@ -159,7 +168,9 @@ impl Transport<'_> {
                                 || redirect.as_ref().is_some_and(|redirect| {
                                     redirect.can_follow(incoming.status(), incoming.headers())
                                 });
-                            incoming.finish(self.body_limit, following, sink).await
+                            incoming
+                                .finish(self.body_limit, following, sink, stream_deadline)
+                                .await
                         })
                         .await?;
                     let measured = super::TransferStats {
@@ -272,8 +283,13 @@ impl Transport<'_> {
     }
 
     fn observed_response(&self, response: &Response) -> Response {
-        if self.redact_response {
-            let mut redacted = Response::new(response.status(), http::HeaderMap::new(), Vec::new());
+        if self.redact_response || (self.stream && response.successful()) {
+            let headers = if self.redact_response {
+                HeaderMap::new()
+            } else {
+                response.headers().clone()
+            };
+            let mut redacted = Response::new(response.status(), headers, Vec::new());
             redacted.transfer_stats.clone_from(&response.transfer_stats);
             redacted
         } else {
@@ -432,6 +448,7 @@ impl Incoming {
         limit: usize,
         following: bool,
         sink: Option<super::sink::Writer>,
+        stream_deadline: Option<Instant>,
     ) -> Result<Response> {
         match self {
             Self::Network(mut response) if following && sink.is_none() => {
@@ -439,7 +456,13 @@ impl Incoming {
                 let headers = std::mem::take(response.headers_mut());
                 Ok(Response::new(status, headers, Vec::new()))
             }
-            Self::Network(response) => Response::from_transport(response, limit, sink).await,
+            Self::Network(response) => {
+                if let Some(deadline) = stream_deadline.filter(|_| response.status().is_success()) {
+                    Response::from_transport_stream(response, limit, deadline)
+                } else {
+                    Response::from_transport(response, limit, sink).await
+                }
+            }
             Self::Fake(response) => {
                 if !(following && sink.is_none()) && response.body_len()? > limit as u64 {
                     return Err(Error::BodyTooLarge);

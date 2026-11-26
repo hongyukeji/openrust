@@ -205,3 +205,20 @@ TLS 驗證預設開啟。`without_verifying()` 僅為目前建構的請求關閉
 `as_multipart().post(data)` 接受由純量欄位組成的物件。布林值按 PHP 方式編碼為 `1` 或空字串，null 編碼為空字串。巢狀物件或陣列傳回 `InvalidRequest`；檔案使用 `attach`。該入口不接收 Guzzle 全部 multipart 選項。
 
 使用 `attach_file(name, path).await?` 附加一般檔案，自動設定檔名、大小和媒體類型。每次嘗試均從同一已開啟檔案串流讀取。所有部件皆為緩衝資料或一般檔案時，multipart 請求在 307、308 重新導向及重試中沿用原本文與 boundary。設定重試後，含一次性串流部件的請求會傳回 `UnreplayableRequest`。
+
+## 串流讀取回應 {#streaming-a-response}
+
+在待送出請求上呼叫 `stream()`，再用 `into_stream()` 消費成功回應。回應標頭就緒後請求即返回，讀取本文時仍受請求逾時和回應位元組上限約束。捨棄串流會取消尚未讀完的傳輸。
+
+```rust
+use futures_util::StreamExt;
+use openrust::http::client::Http;
+
+let response = Http::pending_request()?.stream().get(url).await?.throw()?;
+let mut chunks = response.into_stream()?;
+while let Some(chunk) = chunks.next().await {
+    consume(chunk?);
+}
+```
+
+網路串流只能消費一次。非成功回應仍保留緩衝本文供錯誤處理。同一個請求可選擇 `stream()` 或 `sink()`。
