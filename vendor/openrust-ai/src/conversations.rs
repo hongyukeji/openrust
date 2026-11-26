@@ -9,7 +9,7 @@ use crate::{
     Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
     ConversationParticipant, ConversationStore, Decisions, HasStructuredOutput, Message,
     PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
-    StructuredOutput,
+    StructuredOutput, ToolResult,
     approval_store::{ApprovalScope, SavedApproval},
     approval_turn::ApprovalSession,
     conversation_store::TurnPersistence,
@@ -291,6 +291,18 @@ impl<A: Agent> PendingConversation<'_, A> {
         })
     }
 
+    /// 读取当前审批步骤已持久化、尚待写入会话历史的工具结果。
+    pub async fn approval_results_for(&self, id: &str) -> AiResult<Option<Vec<ToolResult>>> {
+        let (store, _) = Ai::manager()?.conversation_store()?;
+        let scope = self.approval_scope()?;
+        store
+            .as_database()
+            .ok_or(AiError::ApprovalNotFound)?
+            .approval_store()
+            .approval_results(&scope, id)
+            .await
+    }
+
     pub async fn resume_approval(
         self,
         id: &str,
@@ -353,7 +365,6 @@ impl<A: Agent> PendingConversation<'_, A> {
                 {
                     session.publish_resolution().await;
                 } else {
-                    let _ = session.settle().await;
                     let _ =
                         Log::warning("AI 审批恢复后的已完成工具步骤保存失败", &Default::default());
                 }

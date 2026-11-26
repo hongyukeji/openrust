@@ -206,7 +206,7 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 | `storeConversation` | `ConversationStore::store_conversation` 接收参与者、标题及可选 ID，省略 ID 时生成 UUIDv7。按 OpenRust 已有会话归属契约，参与者必填。 |
 | `storeUserMessage` | `store_user_message` 检查参与者与消息角色，保存用户消息并更新会话时间。附件继续使用私有 Storage。 |
 | `storeAssistantMessage` | `store_assistant_message` 保存助手消息、用量、模型与步骤，接受可选的 `AiError`，失败时保留 `meta.error`。普通会话仍用原子整轮写入并复用相同的助手记录结构。审批后的续写仍经专用审批入口，暂停记录的逐项对齐待验。 |
-| `storeApprovalResults` | 待补模型续跑前的持久工具结果契约，现有最终事务与再次暂停的保存行为详见审批批次。 |
+| `storeApprovalResults` | `ConversationStore::store_approval_results` 对已领取的会话及审批写入同一步的工具结果。SDK 在下一次模型请求前完成写入，归属、领取者及快照版本一同约束更新。保存于既有审批快照，最终转入会话历史。 |
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan 与 HTTP 验证明确定义和生成 ID、重复 ID 拒绝、大小写不同参与者拒绝且不落附件、时间更新、私有附件逐字节回读、助手完成和失败状态。SQLite 另验证普通、流式结构化失败留下已有工具步骤和错误摘要，并复验跨进程审批及附件迁移。SDK 回归 16 项，默认及自定义表、具名连接、严格 Clippy 和三语站点通过。
 
@@ -586,6 +586,12 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan／HTTP 实测文件�
 独立 Artisan 发布并安装迁移，在隔离应用创建待审批。SQLite 和原生 PostgreSQL 18.7 的实际 HTTP 进程核对参与者、连接凭证变更、过期、缺失与额外决定，跨两个进程并发提交仅一个调用完成。验证编辑、拒绝、上游仅续接一次、会话历史和累计用量。包测试、严格 Clippy 和三语文档均通过。
 
 - [固定 Laravel ResolvesPendingApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ResolvesPendingApprovals.php) · [固定 Laravel ResumesToolApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/ResumesToolApprovals.php)
+
+审批领取后将该步骤的完整结果按工具调用 ID、名称和顺序核对，写入私有快照的 `resolved_results`。同结果可重复提交，变更结果会被拒绝。旧快照原 JSON 的附件内容或引用随原记录保留，新快照继续只使用附件引用。独立进程通过 `PendingConversation::approval_results_for` 可在模型续跑期间读取结果。正常完成、失败历史提交或再次暂停继续走原事务边界。进程中断后仍可读取结果，领取状态防止再次执行工具。审批恢复后的单行暂停历史合并及编辑参数在重放历史中的契约仍单独核对。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测独立 Artisan 创建审批、HTTP 领取、本地 Responses 上游阻塞、独立 HTTP／Artisan 读取与身份隔离。强制终止续跑进程后保留结果并拒绝重复执行。SQLite 注入快照写入失败时，上游收到零次后续请求，独立 HTTP 读取含原工具结果的失败历史。三库复验旧附件、重复审批、SSE 三种格式、并发领取及私有附件归档；SDK 16 项、严格 Clippy 和三语文档构建通过。
+
+- [固定 Laravel DatabaseConversationStore::storeApprovalResults](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php#L635)
 
 ## AI-03 流式工具审批事件
 

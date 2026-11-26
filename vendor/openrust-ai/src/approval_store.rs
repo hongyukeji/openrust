@@ -6,10 +6,11 @@ use openrust::{
     support::Str,
 };
 use serde::{Serialize, de::DeserializeOwned};
+use serde_json::Value as Json;
 
 use crate::{
-    ConversationParticipant, conversation_store::now, messages::PromptAttachmentArchive,
-    tools::ApprovalCheckpoint,
+    AiError, AiResult, ConversationParticipant, ToolResult, conversation_store::now,
+    messages::PromptAttachmentArchive, tools::ApprovalCheckpoint,
 };
 
 const TABLE: &str = "agent_tool_approvals";
@@ -194,6 +195,95 @@ impl ApprovalStore {
         Ok((written == 1).then_some(claim_id))
     }
 
+    pub(crate) async fn store_approval_results(
+        &self,
+        scope: &ApprovalScope<'_>,
+        id: &str,
+        claim: Option<&str>,
+        results: &[ToolResult],
+    ) -> AiResult<i64> {
+        let row = self
+            .query(scope, id)
+            .select(["state", "claim_id", "snapshot", "revision"])
+            .first()
+            .await
+            .map_err(storage_error)?
+            .ok_or(AiError::ApprovalNotFound)?;
+        if text(&row, "state").map_err(storage_error)? != "running" {
+            return Err(AiError::ApprovalConsumed);
+        }
+        let current_claim = text(&row, "claim_id").map_err(storage_error)?;
+        if claim.is_some_and(|claim| claim != current_claim) {
+            return Err(AiError::ApprovalConsumed);
+        }
+        let revision = integer(&row, "revision").map_err(storage_error)?;
+        // 在原始快照上追加结果，保留旧记录中的附件直到正常归档或结算。
+        let mut snapshot = snapshot_json(&row)?;
+        if let Some(recorded) = snapshot.get("resolved_results") {
+            return if recorded == &serde_json::json!(results) {
+                Ok(revision)
+            } else {
+                Err(AiError::InvalidApprovalDecisions)
+            };
+        }
+        let calls = snapshot
+            .pointer("/response/tool_calls")
+            .and_then(Json::as_array)
+            .ok_or(AiError::ConversationStorageUnavailable)?;
+        if calls.len() != results.len()
+            || calls.iter().zip(results).any(|(call, result)| {
+                call.get("id").and_then(Json::as_str) != Some(result.id.as_str())
+                    || call.get("name").and_then(Json::as_str) != Some(result.name.as_str())
+            })
+        {
+            return Err(AiError::InvalidApprovalDecisions);
+        }
+        let next = revision
+            .checked_add(1)
+            .ok_or(AiError::ConversationStorageUnavailable)?;
+        snapshot["resolved_results"] = serde_json::json!(results);
+        let fields = Record::from([
+            ("snapshot".into(), snapshot.to_string().into()),
+            ("revision".into(), next.into()),
+            ("updated_at".into(), now().into()),
+        ]);
+        if !replace_claim(
+            self.query(scope, id).r#where("revision", "=", revision),
+            current_claim,
+            fields,
+        )
+        .await
+        .map_err(storage_error)?
+        {
+            return Err(AiError::ApprovalConsumed);
+        }
+        Ok(next)
+    }
+
+    pub(crate) async fn approval_results(
+        &self,
+        scope: &ApprovalScope<'_>,
+        id: &str,
+    ) -> AiResult<Option<Vec<ToolResult>>> {
+        let row = self
+            .query(scope, id)
+            .select(["state", "snapshot"])
+            .first()
+            .await
+            .map_err(storage_error)?
+            .ok_or(AiError::ApprovalNotFound)?;
+        if text(&row, "state").map_err(storage_error)? != "running" {
+            return Ok(None);
+        }
+        snapshot_json(&row)?
+            .as_object_mut()
+            .and_then(|snapshot| snapshot.remove("resolved_results"))
+            .map(|results| {
+                serde_json::from_value(results).map_err(|_| AiError::ConversationStorageUnavailable)
+            })
+            .transpose()
+    }
+
     pub(crate) async fn settle<T: Serialize>(
         &self,
         scope: &ApprovalScope<'_>,
@@ -258,6 +348,15 @@ async fn replace_claim(query: Builder<'_>, claim: &str, fields: Record) -> Datab
 
 fn encode(snapshot: &impl Serialize) -> DatabaseResult<String> {
     serde_json::to_string(snapshot).map_err(|_| DatabaseError::InvalidScalar)
+}
+
+fn storage_error(_: DatabaseError) -> AiError {
+    AiError::ConversationStorageUnavailable
+}
+
+fn snapshot_json(row: &Row) -> AiResult<Json> {
+    serde_json::from_str(text(row, "snapshot").map_err(storage_error)?)
+        .map_err(|_| AiError::ConversationStorageUnavailable)
 }
 
 fn text<'a>(row: &'a Row, field: &str) -> DatabaseResult<&'a str> {

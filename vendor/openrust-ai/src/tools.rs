@@ -302,6 +302,7 @@ impl ApprovalCheckpoint {
         plan.apply_decisions(decisions)?;
         session.claim(pending_record.0, pending_record.1).await?;
         let results = plan.run().await;
+        let stored = session.store_approval_results(&results).await;
         let approved_ids: BTreeSet<_> = self.pending.iter().map(|approval| &approval.id).collect();
         let resolved = results
             .iter()
@@ -313,16 +314,20 @@ impl ApprovalCheckpoint {
         let requested_model = self.requested_model.or_else(|| self.response.model.clone());
         run.add_step(self.response, results, requested_model);
         let model = prompt.text.model;
-        let outcome = run
-            .generate(
-                provider,
-                prompt,
-                &definitions,
-                &tools,
-                &middleware,
-                Some(session),
-            )
-            .await;
+        let outcome = match stored {
+            Ok(()) => {
+                run.generate(
+                    provider,
+                    prompt,
+                    &definitions,
+                    &tools,
+                    &middleware,
+                    Some(session),
+                )
+                .await
+            }
+            Err(error) => Err(error.into()),
+        };
         run.preserve_completed_error(outcome, provider, model)
     }
 }

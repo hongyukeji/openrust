@@ -136,6 +136,16 @@ impl ApprovalSession {
         Ok(pending)
     }
 
+    pub(crate) async fn store_approval_results(&mut self, results: &[ToolResult]) -> AiResult<()> {
+        let claim = self.claim.as_ref().ok_or(AiError::ApprovalConsumed)?;
+        let revision = self
+            .store
+            .store_approval_results(&self.scope(), &claim.id, Some(&claim.token), results)
+            .await?;
+        self.claim.as_mut().expect("审批已领取").revision = revision;
+        Ok(())
+    }
+
     pub(crate) fn record_resolution(
         &mut self,
         invocation_id: &str,

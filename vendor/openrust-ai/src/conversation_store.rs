@@ -153,6 +153,24 @@ pub trait ConversationStore: Any + Send + Sync {
         Box::pin(async { Err(AiError::ConversationStorageUnavailable) })
     }
 
+    /// 持久化已领取审批的步骤结果，供可信应用端的工具执行流程调用。
+    fn store_approval_results<'a>(
+        &'a self,
+        _conversation: &'a str,
+        _participant: &'a ConversationParticipant,
+        _agent: &'a str,
+        _approval: &'a str,
+        results: &'a [ToolResult],
+    ) -> HttpFuture<'a, AiResult<()>> {
+        Box::pin(async move {
+            if results.is_empty() {
+                Ok(())
+            } else {
+                Err(AiError::ConversationStorageUnavailable)
+            }
+        })
+    }
+
     fn get_latest_conversation_messages<'a>(
         &'a self,
         conversation: &'a str,
@@ -738,6 +756,31 @@ impl ConversationStore for DatabaseConversationStore {
             }
             transaction.commit().await.map_err(storage_error)?;
             Ok(Some(id))
+        })
+    }
+
+    fn store_approval_results<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        approval: &'a str,
+        results: &'a [ToolResult],
+    ) -> HttpFuture<'a, AiResult<()>> {
+        Box::pin(async move {
+            if results.is_empty() {
+                return Ok(());
+            }
+            let scope = ApprovalScope {
+                conversation_id: conversation,
+                participant,
+                agent,
+            };
+            validate_message_scope(&scope).map_err(storage_error)?;
+            self.approval_store()
+                .store_approval_results(&scope, approval, None, results)
+                .await?;
+            Ok(())
         })
     }
 
