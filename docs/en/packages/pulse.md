@@ -46,6 +46,8 @@ The Queues card shows the peak count for each queue in the selected period. At s
 
 Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
 
+Slow operations, exceptions, and application usage show estimated counts when their recorder sample rate is between zero and one. The tooltip shows the sample rate and raw count. The JSON endpoint exposes the current rates in `sample_rates` and keeps the stored counts in the card data.
+
 The Servers card shows average CPU and memory history for the selected period alongside the latest snapshot. A server is marked as recently reported if it reported less than 30 seconds ago. Configure `pulse.dashboard.servers.ignore_after` with seconds or a relative duration such as `15 seconds` or `1 minute and 15 seconds` to hide older snapshots. The default `null` keeps them visible. The default sort is by name in ascending order. Set `sort_direction` to `asc` or `desc`. The `sort_by` field can be `name`, `cpu_current`, `memory_current`, `memory_total`, `updated_at`, `recently_reported`, `cpu`, `memory` or `storage`. Nested paths such as `storage.0.used` select a specific reading. Numeric host names sort by numeric value.
 
 ## Recorders {#recorders}

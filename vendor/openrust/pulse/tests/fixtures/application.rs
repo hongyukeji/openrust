@@ -92,6 +92,18 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Pulse::record("slow_user_request", "99", None, None)
             .await?
             .count();
+        Pulse::record("user_job", "77", None, None).await?.count();
+        for metric in [
+            "slow_query",
+            "slow_job",
+            "slow_outgoing_request",
+            "exception",
+        ] {
+            Pulse::record(metric, "fixture", Some(1200), None)
+                .await?
+                .count()
+                .max();
+        }
         Pulse::record("cache_hit", unsafe_text, None, None)
             .await?
             .count();
@@ -155,7 +167,18 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":if std::env::var("PULSE_PROBE_TRANSPORT").as_deref() == Ok("1") {
             json!({"Servers":false,"SlowQueries":false,"UserRequests":{},"SlowRequests":{"threshold":{"#^/api/stream$#":100}}})
         } else {
-            json!({"Servers":false,"SlowQueries":false,"CacheInteractions":{"enabled":false,"sample_rate":0.5},"Queues":{"enabled":false,"sample_rate":0.4}})
+            json!({
+                "Servers":false,
+                "SlowRequests":{"enabled":false,"sample_rate":0.25},
+                "SlowQueries":{"enabled":false,"sample_rate":0.5},
+                "SlowJobs":{"enabled":false,"sample_rate":0.2},
+                "SlowOutgoingRequests":{"enabled":false,"sample_rate":0.125},
+                "Exceptions":{"enabled":false,"sample_rate":0.4},
+                "UserRequests":{"enabled":false,"sample_rate":0.4},
+                "UserJobs":{"enabled":false,"sample_rate":0},
+                "CacheInteractions":{"enabled":false,"sample_rate":0.5},
+                "Queues":{"enabled":false,"sample_rate":0.4}
+            })
         },"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
     ]);
         match env.get("PULSE_PROBE_CONFIG") {

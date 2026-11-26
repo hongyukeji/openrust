@@ -46,6 +46,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 缓存卡片显示所选时段的命中、未命中和命中率，汇总包括 100 行明细以外的键。启用采样时，面板用 `~` 标记估算次数。JSON 指标的 `cache_totals` 返回原始总量和采样率。
 
+慢操作、异常和应用用量在记录器采样率大于零且小于一时显示估算次数。提示中可查看采样率和原始计数。JSON 指标通过 `sample_rates` 返回当前采样率，卡片数据保留入库计数。
+
 服务器卡片同时显示最近一次快照和所选时段内的 CPU、内存平均历史。距上报不足 30 秒时标为最近上报。可为 `pulse.dashboard.servers.ignore_after` 设置秒数或 `15 seconds`、`1 minute and 15 seconds` 等相对时长来隐藏过期快照，默认 `null` 会保留。默认按主机名升序。`sort_direction` 可设为 `asc` 或 `desc`。`sort_by` 支持 `name`、`cpu_current`、`memory_current`、`memory_total`、`updated_at`、`recently_reported`、`cpu`、`memory` 和 `storage`。用 `storage.0.used` 等嵌套路径可选择具体读数。数值主机名按数值排序。
 
 ## 记录器 {#recorders}

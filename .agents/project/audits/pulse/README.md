@@ -122,6 +122,12 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 慢操作、异常和用量的采样计数
+
+固定 PHP 8.5.12 使用实际 Blade 编译器渲染四类慢操作、异常和用量计数。采样率 0.4 时原始计数 3 显示为 `~8`，提示包含采样率与原始值。全量计数按千位分隔。用量的请求、慢请求、任务分别读 UserRequests、SlowRequests、UserJobs。Rust 的 `sample_rates` 随当前配置返回，卡片原始行及五秒缓存仍保留数据库计数。面板识别数据库返回的数值和数字文本。采样率为零时保留历史原始计数。 [固定卡片模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)
+
+原生前态的 JSON 缺少采样率。SQLite、PostgreSQL 18.7、MySQL 8.4.13 和具名 Redis 8.10.3 通过实际授权 HTTP，验证各 Recorder 的采样率、三种用量及缓存命中时的配置刷新。真实 SQLite 看板在桌面和移动浏览器验证估算、提示、零采样率和排序切换。Pulse Provider 26 项、Telescope Provider 30 项、隔离快照格式、Pulse 全目标严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-card-counts-{upstream,macos-baseline,macos-verified,docs}.log`。
+
 ### 周期链接和浏览器历史
 
 固定 PHP 8.5.12 的 `HasPeriod` 以 `1_hour`、`6_hours`、`24_hours`、`7_days` 选择四个周期。实际 Blade 中选择最近一小时会清除 URL 的 `period`，其他周期写入固定名称，并保留其余查询参数。原生前态打开 `?period=6_hours` 仍请求最近一小时。修复后面板接受固定链接及已有短写，切换周期保留浏览器前进和后退记录；JSON 指标接口把两种写法归到同一查询周期和缓存项。 [固定周期选择器](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire/period-selector.blade.php) [固定周期区间](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Concerns/HasPeriod.php)

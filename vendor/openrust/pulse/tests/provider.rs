@@ -1024,6 +1024,87 @@ async fn dashboard_usage_cache_and_queue_cards_share_five_second_query_results()
 }
 
 #[tokio::test]
+async fn dashboard_sample_rates_follow_each_recorder_without_scaling_cached_rows() {
+    use openrust::{contracts::foundation::Application as _, support::php_float_cast};
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(dashboard_cache_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let store = app.app().make::<DatabaseStorage>().await.unwrap();
+    let config = app.app().config().unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let configured = [
+        ("requests", "user_request", "UserRequests", 0.4),
+        ("slow_requests", "slow_request", "SlowRequests", 0.5),
+        ("slow_queries", "slow_query", "SlowQueries", 0.25),
+        ("slow_jobs", "slow_job", "SlowJobs", 0.1),
+        (
+            "slow_outgoing_requests",
+            "slow_outgoing_request",
+            "SlowOutgoingRequests",
+            0.2,
+        ),
+        ("exceptions", "exception", "Exceptions", 0.8),
+        ("jobs", "user_job", "UserJobs", 0.6),
+    ];
+    for (_, _, recorder, rate) in configured {
+        config
+            .set(
+                &format!("pulse.recorders.{recorder}"),
+                json!({"enabled":false,"sample_rate":rate}),
+            )
+            .unwrap();
+    }
+    for kind in configured
+        .map(|(_, kind, _, _)| kind)
+        .into_iter()
+        .chain(["slow_user_request"])
+    {
+        let entries = [(); 3].map(|()| {
+            openrust_pulse::Entry::new(timestamp, kind, "42", Some(timestamp))
+                .count()
+                .max()
+                .into()
+        });
+        store.store(&entries).await.unwrap();
+    }
+
+    let target = "/pulse/api/metrics?period=1h";
+    let first = app.get(target).await.unwrap();
+    first.assert_ok();
+    let first = first.json::<serde_json::Value>().unwrap();
+    for (card, _, _, rate) in configured {
+        assert_eq!(first["sample_rates"][card], rate, "{card}");
+        assert_eq!(php_float_cast(&first[card][0]["count"]), 3.0, "{card}");
+    }
+    for (usage, rate) in [("slow_requests", 0.5), ("jobs", 0.6)] {
+        let selected = app.get(&format!("{target}&usage={usage}")).await.unwrap();
+        selected.assert_ok();
+        let selected = selected.json::<serde_json::Value>().unwrap();
+        assert_eq!(selected["sample_rates"]["requests"], rate);
+        assert_eq!(php_float_cast(&selected["requests"][0]["count"]), 3.0);
+    }
+    config
+        .set("pulse.recorders.UserRequests.sample_rate", json!(0))
+        .unwrap();
+    let warm = app.get(target).await.unwrap();
+    warm.assert_ok();
+    let warm = warm.json::<serde_json::Value>().unwrap();
+    assert_eq!(warm["sample_rates"]["requests"], 0.0);
+    assert_eq!(warm["requests"], first["requests"]);
+    assert_eq!(
+        warm["query_timing"]["requests"],
+        first["query_timing"]["requests"]
+    );
+}
+
+#[tokio::test]
 async fn dashboard_cards_follow_fixed_orderings_and_usage_limits() {
     let mut app = TestApp::create(|builder| {
         builder

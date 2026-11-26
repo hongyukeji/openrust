@@ -63,6 +63,19 @@ try{
   assert.equal(await cache.locator('.cache-summary dd').first().getAttribute('title'), 'Sample rate: 0.5, raw count: 1');
   assert.equal(await cache.locator('td[data-column="hits"]').first().getAttribute('title'), 'Sample rate: 0.5, raw count: 1');
   assert.equal(await cache.locator('td[data-column="hit_rate"]').first().textContent(), '33.33%');
+  for (const [name,value,rate] of [
+   ['Application usage','~3',0.4], ['Slow requests','~4',0.25], ['Slow queries','~2',0.5],
+   ['Slow jobs','~5',0.2], ['Slow outgoing requests','~8',0.125], ['Exceptions','~3',0.4],
+  ]) {
+   const table=page.locator('.card').filter({has:page.getByRole('heading',{name,exact:true})});
+   const count=table.locator('td[data-column="count"]').first();
+   assert.equal(await count.textContent(), value);
+   assert.equal(await count.getAttribute('title'), `Sample rate: ${rate}, Raw value: 1`);
+  }
+  const jobs=page.locator('.card').filter({has:page.getByRole('heading',{name:'Application usage · Jobs',exact:true})});
+  const jobCount=jobs.locator('td[data-column="count"]').first();
+  assert.equal(await jobCount.textContent(),'1');
+  assert.equal(await jobCount.getAttribute('title'),null);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   for(const [period,link] of [['6h','6_hours'],['24h','24_hours'],['7d','7_days'],['1h',null]]){
    const response=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period='+period));
@@ -83,9 +96,11 @@ try{
   await page.getByLabel('Order slow requests', {exact:true}).selectOption('count');
   assert.equal((await filterResponse).status(),200);
   await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
+  assert.equal(await slow.locator('td[data-column="count"]').first().textContent(),'~8');
   await page.getByLabel('Usage type', {exact:true}).selectOption('slow_requests');
   const usage = page.locator('.card').filter({has: page.getByRole('heading',{name:'Application usage',exact:true})});
   await usage.getByText('ID: 99',{exact:true}).waitFor();
+  assert.equal(await usage.locator('td[data-column="count"]').first().textContent(),'~4');
   await page.reload();
   await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
   await usage.getByText('ID: 99',{exact:true}).waitFor();

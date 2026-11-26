@@ -46,6 +46,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 快取卡片顯示所選時段的命中、未命中和命中率，彙總包括 100 列明細以外的鍵。啟用取樣時，面板用 `~` 標記估算次數。JSON 指標的 `cache_totals` 傳回原始總量和取樣率。
 
+慢速操作、例外和應用程式用量在記錄器取樣率大於零且小於一時顯示估算次數。提示中可查看取樣率和原始計數。JSON 指標透過 `sample_rates` 傳回目前的取樣率，卡片資料保留入庫計數。
+
 伺服器卡片同時顯示最近一次快照和所選時段內的 CPU、記憶體平均歷史。距回報不足 30 秒時標為最近回報。可為 `pulse.dashboard.servers.ignore_after` 設定秒數或 `15 seconds`、`1 minute and 15 seconds` 等相對時長來隱藏過期快照，預設 `null` 會保留。預設按主機名稱升冪。`sort_direction` 可設為 `asc` 或 `desc`。`sort_by` 支援 `name`、`cpu_current`、`memory_current`、`memory_total`、`updated_at`、`recently_reported`、`cpu`、`memory` 和 `storage`。用 `storage.0.used` 等巢狀路徑可選擇特定讀數。數值主機名稱依數值排序。
 
 ## 記錄器 {#recorders}

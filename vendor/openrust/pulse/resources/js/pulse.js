@@ -264,7 +264,18 @@ function queues(card, values, rate) {
         card.append(legend);
     }
 }
-function renderRows(card, values, headings = {}) {
+const countFormat = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0});
+function renderCount(td, raw, rate) {
+    const value = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+    if (!Number.isFinite(value)) return;
+    if (rate > 0 && rate < 1) {
+        td.textContent = '~' + countFormat.format(value * (1 / rate));
+        td.title = `Sample rate: ${rate}, Raw value: ${countFormat.format(value)}`;
+    } else {
+        td.textContent = countFormat.format(value);
+    }
+}
+function renderRows(card, values, headings = {}, countRate) {
     const box = document.createElement('div');
     box.className = 'rows';
     const table = document.createElement('table');
@@ -277,7 +288,11 @@ function renderRows(card, values, headings = {}) {
         for (const column of columns) {
             const value = row[column];
             const td = cell('td', value);
-            if (headings[column] && value?.title) td.title = value.title;
+            if (column === 'count' && Number.isFinite(countRate)) {
+                renderCount(td, value, countRate);
+            } else if (headings[column] && value?.title) {
+                td.title = value.title;
+            }
             td.dataset.column = column;
             tr.append(td);
         }
@@ -361,7 +376,7 @@ function render(data) {
         } else if (name === 'queues') {
             queues(card, values, data.queue_sample_rate);
         } else if (Array.isArray(values)) {
-            renderRows(card, values);
+            renderRows(card, values, undefined, data.sample_rates?.[name]);
         } else {
             for (const [key, types] of Object.entries(values)) {
                 card.append(cell('h3', key));

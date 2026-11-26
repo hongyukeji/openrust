@@ -94,10 +94,10 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             _ => return Err(HttpError::InvalidRequest),
         };
         let usage = request.query(Some("usage"))?;
-        let usage_type = match usage.as_ref().and_then(serde_json::Value::as_str) {
-            None | Some("requests") => "user_request",
-            Some("slow_requests") => "slow_user_request",
-            Some("jobs") => "user_job",
+        let (usage_type, usage_recorder) = match usage.as_ref().and_then(Value::as_str) {
+            None | Some("requests") => ("user_request", "UserRequests"),
+            Some("slow_requests") => ("slow_user_request", "SlowRequests"),
+            Some("jobs") => ("user_job", "UserJobs"),
             Some(_) => return Err(HttpError::InvalidRequest),
         };
         let pulse = crate::facades::Pulse::get_facade_root()?;
@@ -106,16 +106,27 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             .get("pulse.cache")
             .and_then(|value| value.as_str().map(str::to_owned));
         let cache = Cache::store(cache_name.as_deref())?;
+        let sample_rate = |recorder| {
+            config
+                .get(&format!("pulse.recorders.{recorder}.sample_rate"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(1.0)
+        };
         let mut cards = serde_json::Map::new();
         let mut timings = BTreeMap::new();
-        for (name, kind) in [
-            ("slow_requests", "slow_request"),
-            ("slow_queries", "slow_query"),
-            ("slow_jobs", "slow_job"),
-            ("slow_outgoing_requests", "slow_outgoing_request"),
-            ("exceptions", "exception"),
-            ("requests", usage_type),
-            ("jobs", "user_job"),
+        let mut rates = serde_json::Map::new();
+        for (name, kind, recorder) in [
+            ("slow_requests", "slow_request", "SlowRequests"),
+            ("slow_queries", "slow_query", "SlowQueries"),
+            ("slow_jobs", "slow_job", "SlowJobs"),
+            (
+                "slow_outgoing_requests",
+                "slow_outgoing_request",
+                "SlowOutgoingRequests",
+            ),
+            ("exceptions", "exception", "Exceptions"),
+            ("requests", usage_type, usage_recorder),
+            ("jobs", "user_job", "UserJobs"),
         ] {
             let is_usage = matches!(name, "requests" | "jobs");
             let aggregates = if is_usage {
@@ -186,7 +197,9 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             .await?;
             cards.insert(name.into(), rows.value);
             timings.insert(name, rows.timing);
+            rates.insert(name.into(), sample_rate(recorder).into());
         }
+        cards.insert("sample_rates".into(), Value::Object(rates));
         let cache_types = ["cache_hit".into(), "cache_miss".into()];
         let keys = remember_card(&pulse, &cache, &format!("cache:keys:{period}"), async {
             let rows = pulse
@@ -207,15 +220,14 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             }))
         })
         .await?;
-        let sample_rate = config
-            .get("pulse.recorders.CacheInteractions.sample_rate")
-            .and_then(|value| value.as_f64())
-            .unwrap_or(1.0);
         totals
             .value
             .as_object_mut()
             .ok_or(CacheError::InvalidValue)?
-            .insert("sample_rate".into(), sample_rate.into());
+            .insert(
+                "sample_rate".into(),
+                sample_rate("CacheInteractions").into(),
+            );
         cards.insert("cache_totals".into(), totals.value);
         timings.insert("cache_totals", totals.timing);
         let queues = remember_card(&pulse, &cache, &format!("queues:{period}"), async {
@@ -230,11 +242,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         })
         .await?;
         cards.insert("queues".into(), queues.value);
-        let queue_sample_rate = config
-            .get("pulse.recorders.Queues.sample_rate")
-            .and_then(|value| value.as_f64())
-            .unwrap_or(1.0);
-        cards.insert("queue_sample_rate".into(), queue_sample_rate.into());
+        cards.insert("queue_sample_rate".into(), sample_rate("Queues").into());
         timings.insert("queues", queues.timing);
         let options = config.get("pulse.dashboard.servers").unwrap_or_default();
         let ignore_after = match &options["ignore_after"] {
