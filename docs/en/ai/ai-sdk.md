@@ -754,6 +754,8 @@ Declare reusable middleware with `Agent::middleware`, or pass it to an anonymous
 
 Implement `handle` for buffered calls and `handle_stream` for streaming calls. The generated middleware stub includes both. In `handle_stream`, `NextStreamStep::run` returns a `StepResult` that keeps the upstream stream live. Use `StepResult::then` to inspect the terminal response or `StepResult::from_response` to supply a response from middleware. A middleware that defines only `handle` returns `StreamingMiddlewareNotSupported` on a streaming call.
 
+Call `result.response().await` to inspect a complete step before returning it. This buffers that step and preserves its events for the caller. Return `StepResult::stop()` before `next.run` to end the stream with a cancellation status. The response retains the steps and usage already produced.
+
 ## Embeddings {#embeddings}
 
 Set `AI_EMBEDDINGS_PROVIDER=openai` and `OPENAI_EMBEDDING_MODEL` to the model ID from your provider. The SDK sends text inputs as a batch and orders the vectors by the original input index.

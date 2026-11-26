@@ -154,6 +154,12 @@ impl<'a, 'step: 'a> NextStep<'a, 'step> {
 pub enum StepResult {
     Stream(StepEventStream),
     Response(Box<StepResponse>),
+    Resolved {
+        events: Vec<StepEvent>,
+        response: Box<StepResponse>,
+    },
+    Failed(AiError),
+    Stop,
 }
 
 impl StepResult {
@@ -162,7 +168,49 @@ impl StepResult {
     }
 
     pub fn streamed(&self) -> bool {
-        matches!(self, Self::Stream(_))
+        matches!(
+            self,
+            Self::Stream(_) | Self::Resolved { .. } | Self::Failed(_)
+        )
+    }
+
+    /// 结束本轮生成。中间件须在调用 `next.run` 前返回此结果。
+    pub fn stop() -> Self {
+        Self::Stop
+    }
+
+    pub fn stopped(&self) -> bool {
+        matches!(self, Self::Stop)
+    }
+
+    /// 按需消费并保留步骤事件，后续仍可通过正常响应重放这些事件。
+    pub async fn response(&mut self) -> AiResult<Option<&StepResponse>> {
+        let result = std::mem::replace(self, Self::Failed(AiError::InvalidResponse));
+        *self = match result {
+            Self::Stream(mut source) => {
+                let mut events = Vec::new();
+                loop {
+                    let event = match source.next().await {
+                        Some(Ok(event)) => event,
+                        Some(Err(error)) => break Self::Failed(error),
+                        None => break Self::Failed(AiError::InvalidResponse),
+                    };
+                    if let StepEvent::Finished { response, .. } = &event {
+                        let response = response.clone();
+                        events.push(event);
+                        break Self::Resolved { events, response };
+                    }
+                    events.push(event);
+                }
+            }
+            result => result,
+        };
+        match self {
+            Self::Response(response) | Self::Resolved { response, .. } => Ok(Some(response)),
+            Self::Failed(error) => Err(error.clone()),
+            Self::Stop => Ok(None),
+            Self::Stream(_) => Err(AiError::InvalidResponse),
+        }
     }
 
     pub(crate) async fn probe(self) -> AiResult<Self> {
@@ -180,6 +228,11 @@ impl StepResult {
     pub(crate) fn into_stream(self) -> StepEventStream {
         match self {
             Self::Stream(source) => source,
+            Self::Resolved { events, .. } => {
+                Box::pin(futures_util::stream::iter(events.into_iter().map(Ok)))
+            }
+            Self::Failed(error) => Box::pin(futures_util::stream::iter([Err(error)])),
+            Self::Stop => Box::pin(futures_util::stream::empty()),
             Self::Response(response) => Box::pin(async_stream::stream! {
                 if let Some(text) = &response.text
                     && !text.is_empty()
@@ -207,6 +260,10 @@ impl StepResult {
                 callback(&response);
                 Self::Response(response)
             }
+            Self::Resolved { events, response } => {
+                callback(&response);
+                Self::Resolved { events, response }
+            }
             Self::Stream(mut source) => {
                 let app = openrust::support::facades::App::get_instance().ok();
                 Self::Stream(Box::pin(async_stream::try_stream! {
@@ -226,6 +283,7 @@ impl StepResult {
                     }
                 }))
             }
+            result => result,
         }
     }
 }
@@ -245,6 +303,7 @@ struct StreamStepContext<'a> {
     model: String,
     allowed: BTreeSet<String>,
     choice: Option<ToolChoice>,
+    attempted: bool,
 }
 
 pub(crate) struct PreparedStreamStep {
@@ -264,6 +323,7 @@ pub(crate) async fn generate_stream_step(
         model: step.model.to_string(),
         allowed: step.tools.iter().map(|tool| tool.name.clone()).collect(),
         choice: step.tool_choice.clone(),
+        attempted: false,
     };
     let mut pipeline = Pipeline::send(step);
     for middleware in middleware {
@@ -279,6 +339,7 @@ pub(crate) async fn generate_stream_step(
                 context.model = step.model.to_string();
                 context.allowed = step.tools.iter().map(|tool| tool.name.clone()).collect();
                 context.choice = step.tool_choice.clone();
+                context.attempted = true;
                 crate::tool_stream::stream_step(
                     context.provider,
                     &step.as_prompt(),
@@ -291,6 +352,9 @@ pub(crate) async fn generate_stream_step(
             })
         })
         .await?;
+    if result.stopped() && context.attempted {
+        return Err(AiError::InvalidResponse);
+    }
     Ok(PreparedStreamStep {
         result,
         model: context.model,

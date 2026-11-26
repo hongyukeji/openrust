@@ -75,7 +75,13 @@ impl StreamedAgentResponse {
 
 /// 供完成回调读取上游终帧的元数据，流的对外事件仍按原协议交付。
 #[derive(Clone, Default)]
-pub(crate) struct StreamMetadata(Arc<Mutex<Vec<StepMetadata>>>);
+pub(crate) struct StreamMetadata(Arc<Mutex<ObservedSteps>>);
+
+#[derive(Default)]
+struct ObservedSteps {
+    steps: Vec<StepMetadata>,
+    stopped: bool,
+}
 
 struct StepMetadata {
     model: Option<String>,
@@ -88,6 +94,7 @@ impl StreamMetadata {
         self.0
             .lock()
             .expect("模型步骤元数据锁中毒")
+            .steps
             .push(StepMetadata {
                 model,
                 usage,
@@ -95,9 +102,24 @@ impl StreamMetadata {
             });
     }
 
+    pub(crate) fn mark_stopped(&self) {
+        self.0.lock().expect("模型步骤元数据锁中毒").stopped = true;
+    }
+
+    pub(crate) fn stopped(&self) -> bool {
+        self.0.lock().expect("模型步骤元数据锁中毒").stopped
+    }
+
+    fn discard_stop_placeholder(&self, steps: &mut Vec<Step>) {
+        let observed = self.0.lock().expect("模型步骤元数据锁中毒");
+        if observed.stopped {
+            steps.truncate(observed.steps.len());
+        }
+    }
+
     pub(super) fn apply(&self, steps: &mut [Step]) {
         let observed = self.0.lock().expect("模型步骤元数据锁中毒");
-        for (step, meta) in steps.iter_mut().zip(observed.iter()) {
+        for (step, meta) in steps.iter_mut().zip(&observed.steps) {
             if let Some(model) = &meta.model
                 && !model.trim().is_empty()
             {
@@ -178,6 +200,7 @@ impl StreamResponse {
         response.reasoning = self.reasoning.finish();
         response.usage = self.usage.unwrap_or_default();
         if let Some(metadata) = metadata {
+            metadata.discard_stop_placeholder(&mut response.steps);
             metadata.apply(&mut response.steps);
             if let Some((first, remaining)) = response.steps.split_first() {
                 response

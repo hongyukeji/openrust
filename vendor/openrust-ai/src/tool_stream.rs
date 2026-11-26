@@ -8,7 +8,7 @@ use openrust::{
 
 use crate::{
     AgentMiddleware, AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
-    StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep,
+    StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep, Usage,
     approval_turn::ApprovalSession,
     events::StepObservation,
     messages::OwnedPrompt,
@@ -86,6 +86,18 @@ pub(crate) fn response(
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
             let PreparedStreamStep { result, model, allowed, choice } = opened;
+            if result.stopped() {
+                observed.mark_stopped();
+                if step == 1 {
+                    yield event(&invocation_id, StreamEventData::StreamStart {
+                        provider: provider.name().into(), model,
+                    });
+                }
+                yield event(&invocation_id, StreamEventData::StreamEnd {
+                    reason:"cancelled".into(), usage:Usage::zero(),
+                });
+                return;
+            }
             yield event(&invocation_id, StreamEventData::StreamStart {
                 provider: provider.name().into(),
                 model,

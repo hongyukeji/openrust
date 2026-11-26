@@ -14,6 +14,16 @@ pub struct Usage {
 }
 
 impl Usage {
+    pub(crate) fn zero() -> Self {
+        Self {
+            prompt_tokens: Some(0),
+            completion_tokens: Some(0),
+            cache_read_input_tokens: Some(0),
+            cache_write_input_tokens: Some(0),
+            reasoning_tokens: Some(0),
+        }
+    }
+
     pub fn new(prompt_tokens: Option<u64>, completion_tokens: Option<u64>) -> Self {
         Self {
             prompt_tokens,

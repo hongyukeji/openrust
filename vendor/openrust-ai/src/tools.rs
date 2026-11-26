@@ -130,7 +130,7 @@ impl ToolStep {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StepResponse {
     pub model: Option<String>,
     pub text: Option<String>,

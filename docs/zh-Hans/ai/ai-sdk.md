@@ -754,6 +754,8 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 非流式调用实现 `handle`，流式调用实现 `handle_stream`。生成的中间件模板包含两个入口。在 `handle_stream` 中，`NextStreamStep::run` 返回持续读取上游的 `StepResult`。用 `StepResult::then` 读取终帧响应，也可用 `StepResult::from_response` 由中间件直接返回结果。只实现 `handle` 的中间件用于流式调用时会返回 `StreamingMiddlewareNotSupported`。
 
+可在返回前用 `result.response().await` 读取完整步骤。这会缓冲该步并将事件保留给调用方。要结束流，在调用 `next.run` 前返回 `StepResult::stop()`，流会以取消状态结束，响应保留已经产生的步骤和用量。
+
 ## Embeddings {#embeddings}
 
 设置 `AI_EMBEDDINGS_PROVIDER=openai`，并将供应商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批量发送文本，按输入顺序返回向量。

@@ -134,7 +134,9 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 
 `make:agent-middleware` 生成到 `app/ai/middleware`，Agent 中间件模板加到 `ai-stubs`。独立 Artisan 验证生成、发布及生成文件编译后的真实调用。
 
-流式中间件通过 `AgentMiddleware::handle_stream` 复用 `PendingStep` 和异步 Pipeline。可继续实时上游，使用 `StepResult::then` 检查终帧，也可直接返回应用生成的响应。真实 Artisan 和 HTTP 检查三步模型及指令改写、历史传入、实时首段、上下文恢复、禁用工具后的返回结果、非流式原请求契约、应用响应的引文和摘要，以及中间件参与时 503 后只调用首选连接。原生、Vercel、AG-UI 通过。SDK 回归 14 项、严格 Clippy 和三语文档通过。新生成模板提供两种入口，Artisan 实际生成文件通过编译，18 语生成回归再次通过。只提供非流式实现的中间件继续获得明确的流式不支持错误。固定上游的显式停止和完整步骤结果读取仍待补。
+流式中间件通过 `AgentMiddleware::handle_stream` 复用 `PendingStep` 和异步 Pipeline。可继续实时上游，使用 `StepResult::then` 检查终帧，也可直接返回应用生成的响应。真实 Artisan 和 HTTP 检查三步模型及指令改写、历史传入、实时首段、上下文恢复、禁用工具后的返回结果、非流式原请求契约、应用响应的引文和摘要，以及中间件参与时 503 后只调用首选连接。原生、Vercel、AG-UI 通过。SDK 回归 14 项、严格 Clippy 和三语文档通过。新生成模板提供两种入口，Artisan 实际生成文件通过编译，18 语生成回归再次通过。只提供非流式实现的中间件继续获得明确的流式不支持错误。
+
+流式 `StepResult::response().await` 显式缓冲当前步骤，后续重放原有事件。Artisan 与 HTTP 验证重复读取、读取后登记完成回调、文本只交付一次、上游断开时重复获得同一类型化错误。中间件可在调用下一处理器前返回 `StepResult::stop()`。首步停止用量为零，续步停止保留此前的工具和用量，本轮只到达一次上游。调用下一处理器后返回停止结果会报错，防止将已经发出的尝试计为零。原生、Vercel、AG-UI 验收终态和用量。SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证首步停止不会创建空会话；SDK 回归 14 项、严格 Clippy 和三语站点通过。
 
 - [固定 Laravel StepResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/StepResult.php)
 

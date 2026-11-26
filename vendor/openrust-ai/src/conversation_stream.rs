@@ -66,6 +66,10 @@ where
         }
         let end = final_event.ok_or(AiError::InvalidResponse)?;
         let mut response = response.finish(metadata.as_ref());
+        if response.steps.is_empty() && metadata.as_ref().is_some_and(StreamMetadata::stopped) {
+            yield end;
+            return;
+        }
         if structured {
             if let Some(last) = response.steps.last() {
                 response.text.clone_from(&last.text);

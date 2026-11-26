@@ -754,6 +754,8 @@ Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組
 
 非串流呼叫實作 `handle`，串流呼叫實作 `handle_stream`。產生的中介層範本包含兩個進入點。在 `handle_stream` 中，`NextStreamStep::run` 回傳持續讀取上游的 `StepResult`。用 `StepResult::then` 讀取終止訊框的回應，也可用 `StepResult::from_response` 由中介層直接回傳結果。只實作 `handle` 的中介層用於串流呼叫時會回傳 `StreamingMiddlewareNotSupported`。
 
+可在回傳前用 `result.response().await` 讀取完整步驟。這會緩衝該步驟並將事件保留給呼叫方。若要結束串流，在呼叫 `next.run` 前回傳 `StepResult::stop()`，串流會以取消狀態結束，回應保留已產生的步驟和用量。
+
 ## Embeddings {#embeddings}
 
 設定 `AI_EMBEDDINGS_PROVIDER=openai`，並將供應商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批次傳送文字，並依輸入順序回傳向量。
