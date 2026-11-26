@@ -26,6 +26,7 @@ use crate::{
 };
 
 mod embeddings;
+mod image;
 
 pub(crate) struct GeminiTextProvider(Arc<Connection>);
 
@@ -264,6 +265,10 @@ impl TextProvider for GeminiTextProvider {
         Some(Arc::new(embeddings::GeminiEmbeddingProvider(
             self.0.clone(),
         )))
+    }
+
+    fn image_provider(&self) -> Option<Arc<dyn crate::ImageProvider>> {
+        Some(Arc::new(image::GeminiImageProvider(self.0.clone())))
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {

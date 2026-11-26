@@ -110,6 +110,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "GEMINI_API_KEY",
         "GEMINI_MODEL",
     )?;
+    gemini["models"]["images"] = json!({"default": env.get_utf8("GEMINI_IMAGE_MODEL")?});
     gemini["models"]["embeddings"] = json!({"default":env.get_utf8("GEMINI_EMBEDDING_MODEL")?});
 
     gemini["models"]["classification"] =

@@ -272,7 +272,7 @@ pub struct ImagePrompt<'a> {
 }
 
 impl ImagePrompt<'_> {
-    fn validate(&self) -> AiResult<()> {
+    pub(crate) fn validate(&self) -> AiResult<()> {
         if self.prompt.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
