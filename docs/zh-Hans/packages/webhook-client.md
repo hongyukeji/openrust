@@ -204,6 +204,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 数据库按接收记录和代次保存每次领取。完成、释放、延期、失败或停止会与相应的接收状态变更一起记录。崩溃后由另一 Worker 重新领取时，前一次领取标记为过期。尝试记录保存时间和状态，随接收记录保留。只有当前租约持有者能写入结果。旧代次 Worker 延迟返回时，无法覆盖后续代次的完成状态或诊断。
 
+集群中的 Worker 应使用同一主写数据库领取接收记录，租约期限以该库的时间为准。入站验签器检查签名时间戳时，各节点仍应保持时钟同步。
+
 ### 按已验签事件去重 {#verified-event-deduplication}
 
 在 profile 中选择 `atomic_database_queue: true` 或 `recover_dispatch: true`，再启用 `deduplicate_verified_events: true`，并运行 `./artisan migrate`。运行时配置可结合所选派发选项使用 `with_verified_event_deduplication(true)`。`standard` 验证器提供签名覆盖的 `webhook-id`，该模式要求 ID 不含半角句点。自定义验证器可在确认签名覆盖稳定事件 ID 后，通过 `SignatureValidator::verified_event_id` 提供该 ID。默认 HMAC 仅覆盖正文，无法提供事件 ID。启用去重时，验证器不能提供有效 ID 则拒绝接收。为每个来源账号配置独立的 scope 或 profile。

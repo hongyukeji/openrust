@@ -33,7 +33,7 @@
 
 在 `699ad83cd` 冻结 Rust 源码上实测 PostgreSQL 18.7、MySQL 8.4.13 各搭配 database 及 Redis 8.10.3，四组均通过。MySQL＋Redis 首轮在磁盘停线时由守卫中断，持锁清理后用同一源码及 Rust 1.94.0 重新构建并单独通过。Rust 源码沿用前述格式与严格 Clippy 结果，本批另核对 Python 语法和改动差异。
 
-此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
+此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。[Worker 时钟偏差](#clock-skew)已在共享 PostgreSQL／MySQL 的双容器拓扑复验。真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
 
 <a id="separate-vm-guests"></a>
 
@@ -43,4 +43,15 @@
 
 在 Windows 执行 Artisan 迁移、配置缓存和路由缓存。实际 HTTP 写入出站记录，Artisan 入队，Windows 出站 Worker 将签名 JSON 发送到 Linux 的 `retention-digest` 接收配置。Linux 验签后同库原子入队，Windows 接收 Worker 执行领取和完成，在独立目录输出逐字节相同的正文。Artisan 查询确认出站成功。PostgreSQL 保留一条已处理记录和一条完成的领取尝试，双方队列和失败账本为空。
 
-前两次使用普通接收配置和通用原子配置，均完成跨虚机投递及读取。两个配置的测试 Job 不写租约完成字段，最终用同时启用原子入队和领取的配置验证持久终态。日志保存在 `target/tmp/webhook-guest-topology/`，本批应用目录、数据库、容器和网络已清理。双虚机共享同一物理宿主，物理跨机、托管服务、生产 TLS 入口和独立节点时钟仍按发布部署复验。
+前两次使用普通接收配置和通用原子配置，均完成跨虚机投递及读取。两个配置的测试 Job 不写租约完成字段，最终用同时启用原子入队和领取的配置验证持久终态。日志保存在 `target/tmp/webhook-guest-topology/`，本批应用目录、数据库、容器和网络已清理。双虚机共享同一物理宿主，物理跨机、托管服务、生产 TLS 入口和真实节点时钟仍按发布部署复验。
+
+## Worker 时钟偏差 {#clock-skew}
+
+两个独立 Linux ARM64 应用容器使用相同的 Rust 1.94.0 Webhook 验收制品。该制品来自 `ed8b63c7`，其后至本批记录提交的两包 Rust 实现和 Linux 验收入口无变动。每个容器各自生成配置与路由缓存并重启。独立数据库容器分别运行 PostgreSQL 18.7 和 MySQL 8.4.13，提供主写数据库、database 队列和 database 缓存。通过 Debian Bookworm ARM64 的 libfaketime `0.9.10-2.1` 只偏移两个 Worker 的实时时钟，保留其单调时钟。独立 Rust 探针测得两个 Worker 各比数据库慢、快 300 秒。数据库和宿主机系统时间均保持原样。 [libfaketime 源码](https://github.com/wolfcw/libfaketime)
+
+| 验收 | 两个数据库的结果 |
+| --- | --- |
+| 接收 | 真实签名 HTTP 写入收件记录并入队。慢节点的 Artisan Worker 已领取业务租约时，快节点获取重复任务后未进入业务处理。将测试记录的数据库租约标记为已过期后，快节点读取原始正文并完成第二代次。慢节点延迟返回错误后，数据库仍保留第一代次过期、第二代次完成及无异常的终态。 |
+| 发送 | 真实 HTTP 登记投递，由 `webhook-server:send --queue` 入队。慢节点在发送许可前暂停，快节点在有效租约内未发送。将测试投递标记为租约到期后，快节点成功投递，旧 Worker 返回后没有追加请求或改写终态。真实 HTTP 收件端只收到一份原文并验证 HMAC，`Timestamp` 与数据库时间相差小于 15 秒。尝试一标为 `unknown`，尝试二标为 `succeeded`。 |
+
+两次执行 Artisan 迁移、配置及路由缓存和原生 `queue:work --once`。测试为两个队列分别复制两条任务以模拟重复投递，并通过 SQL 将指定记录的 `processing_until` 或 `lease_until` 置零，确保旧 Worker 仍存活时可以确定地触发过期接手。发送测试启用了共享额度和发送许可。该测试覆盖有效租约、过期接手及旧持有者写回，实际等待租约到期的单独进程退出场景见上文。未模拟物理主机的 NTP 调整与生产入口，也未在 SQLite、其他队列或停用发送许可的组合执行时钟偏移复验。本批容器、临时数据库卷、网络与探针已清理，证据日志留在 `target/tmp/webhook-clock-skew/`。

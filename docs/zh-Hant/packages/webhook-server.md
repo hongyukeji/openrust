@@ -291,6 +291,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 恢復程序在入佇列前預留 60 秒喚醒視窗。未入列或遺失的工作可在視窗到期後補派。Worker 領取或提交重試結果時會清除視窗，下一次嘗試繼續受投遞租約與退避控制。單批選擇不超過 `--limit` 筆，派發預算為 30 秒。多個調度程序透過共用資料庫協調，各節點須提供記錄對應的 Worker 路由。調度程序在領取後結束時，另一節點可在視窗到期後的調度週期復原該投遞。
 
+叢集中的 Worker 應使用同一主寫資料庫處理投遞，租約期限以該資料庫的時間為準。各節點仍應保持時鐘同步，以驗證 TLS 憑證。
+
 ```sh
 ./artisan webhook-server:recover --scope=billing --limit=100
 ./artisan webhook-server:recover --scope=billing --pretend

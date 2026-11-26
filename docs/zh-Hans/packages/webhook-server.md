@@ -291,6 +291,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 恢复进程在入队前预留 60 秒唤醒窗口。未入队或丢失的任务可在窗口到期后补派。Worker 领取或提交重试结果时会清除窗口，下一次尝试继续受投递租约与退避控制。单批选择不超过 `--limit` 条，派发预算为 30 秒。多个调度进程通过共享数据库协调，各节点需提供记录对应的 Worker 路由。调度进程在领取后退出时，另一节点可在窗口到期后的调度周期恢复该投递。
 
+集群中的 Worker 应使用同一主写数据库处理投递，租约期限以该库的时间为准。各节点仍应保持时钟同步，以便验证 TLS 证书。
+
 ```sh
 ./artisan webhook-server:recover --scope=billing --limit=100
 ./artisan webhook-server:recover --scope=billing --pretend

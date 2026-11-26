@@ -291,6 +291,8 @@ Register `webhook-server:recover` with the application's scheduler and run `./ar
 
 Recovery reserves a 60-second wake-up window before pushing to the queue. A later scan can recover an unsent or lost job after that window. A Worker claim or a committed retry outcome clears the window, so the delivery's existing lease and retry schedule control the next attempt. Each scan selects at most `--limit` records and allows up to 30 seconds for dispatch. Multiple schedulers coordinate through the shared database. Keep the configured Worker route available on each node. If a scheduler exits after reserving a delivery, another scheduler can recover it on a later tick once the reservation expires.
 
+In a cluster, all Workers must use the same primary delivery database. Delivery lease deadlines use that database’s clock. Keep node clocks synchronized for TLS certificate validation.
+
 ```sh
 ./artisan webhook-server:recover --scope=billing --limit=100
 ./artisan webhook-server:recover --scope=billing --pretend

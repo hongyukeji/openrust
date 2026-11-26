@@ -204,6 +204,8 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 資料庫依接收記錄與代次保存每次領取。完成、釋放、延期、失敗或停止會與對應的接收狀態變更一併記錄。崩潰後由另一個 Worker 重新領取時，前一次領取標記為過期。嘗試記錄保存時間與狀態，隨接收記錄保留。只有目前租約持有者能寫入結果。舊代次 Worker 延遲回傳時，無法覆蓋後續代次的完成狀態或診斷。
 
+叢集中的 Worker 應使用同一主寫資料庫領取接收記錄，租約期限以該資料庫的時間為準。入站驗簽器檢查簽章時間戳記時，各節點仍應保持時鐘同步。
+
 ### 依已驗簽事件去重 {#verified-event-deduplication}
 
 在 profile 中選擇 `atomic_database_queue: true` 或 `recover_dispatch: true`，再啟用 `deduplicate_verified_events: true`，並執行 `./artisan migrate`。執行時設定可搭配所選派發選項使用 `with_verified_event_deduplication(true)`。`standard` 驗證器提供簽名涵蓋的 `webhook-id`，此模式要求 ID 不含半形句點。自訂驗證器可在確認簽名涵蓋穩定事件 ID 後，透過 `SignatureValidator::verified_event_id` 提供該 ID。預設 HMAC 僅涵蓋正文，無法提供事件 ID。啟用去重時，驗證器無法提供有效 ID 則拒絕接收。為每個來源帳號設定獨立的 scope 或 profile。

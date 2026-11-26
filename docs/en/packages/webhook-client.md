@@ -204,6 +204,8 @@ An active lease permits one Worker to enter the handler. A completed receipt is 
 
 The database records each lease attempt by receipt and generation. A completed, released, deferred, failed or stopped attempt records its outcome with the corresponding receipt change. If another Worker reclaims an expired lease after a crash, the previous attempt is marked expired. Attempt records contain timestamps and status and are retained with the receipt. Only the current lease holder can store the result. A delayed Worker from an earlier generation cannot replace a later completion or its diagnostic state.
 
+In a cluster, use the same primary database for receipt claims on every Worker. Receipt lease deadlines use that database’s clock. Synchronize node clocks for any inbound signature validator that checks a timestamp.
+
 ### Deduplicate a verified event {#verified-event-deduplication}
 
 For a profile with `atomic_database_queue: true` or `recover_dispatch: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with the corresponding dispatch option. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.
