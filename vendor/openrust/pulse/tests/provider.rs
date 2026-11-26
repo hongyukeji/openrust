@@ -2119,6 +2119,82 @@ async fn legacy_bulk_users_remain_application_scoped_and_reject_field_overrides(
 }
 
 #[tokio::test]
+async fn dashboard_server_cache_holds_matching_heartbeats_and_graphs_until_refresh() {
+    use openrust::contracts::foundation::Application as _;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(dashboard_cache_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let now = jiff::Timestamp::now().as_second();
+    let items = |timestamp, key, hostname, cpu| {
+        [
+            openrust_pulse::Value::new(
+                timestamp,
+                "system",
+                key,
+                json!({"name":hostname,"cpu":cpu,"memory_used":512,"memory_total":1024,"storage":[]})
+                    .to_string(),
+            )
+            .into(),
+            openrust_pulse::Entry::new(timestamp, "cpu", key, Some(cpu))
+                .avg()
+                .only_buckets()
+                .into(),
+        ]
+    };
+    let target = "/pulse/api/metrics?period=1h";
+    storage
+        .store(&items(now - 26, "node-a", "Alpha", 10))
+        .await
+        .unwrap();
+    let first = app.get(target).await.unwrap();
+    first.assert_ok();
+    let first = first.json::<serde_json::Value>().unwrap();
+    assert_eq!(first["servers"][0]["recently_reported"], true);
+    storage
+        .store(&items(now, "node-z", "Zulu", 70))
+        .await
+        .unwrap();
+
+    let cached = app.get(target).await.unwrap();
+    cached.assert_ok();
+    let cached = cached.json::<serde_json::Value>().unwrap();
+    assert_eq!(cached["servers"], first["servers"]);
+    assert_eq!(cached["server_graphs"], first["server_graphs"]);
+    let separate = app.get("/pulse/api/metrics?period=6h").await.unwrap();
+    separate.assert_ok();
+    let separate = separate.json::<serde_json::Value>().unwrap();
+    assert_eq!(separate["servers"].as_array().unwrap().len(), 2);
+    assert!(separate["server_graphs"]["node-z"]["cpu"].is_object());
+
+    tokio::time::sleep(std::time::Duration::from_millis(5200)).await;
+    let fresh = app.get(target).await.unwrap();
+    fresh.assert_ok();
+    let fresh = fresh.json::<serde_json::Value>().unwrap();
+    assert_eq!(fresh["servers"][0]["recently_reported"], false);
+    assert_eq!(fresh["servers"][1]["key"], "node-z");
+    assert!(fresh["server_graphs"]["node-z"]["cpu"].is_object());
+    app.app()
+        .config()
+        .unwrap()
+        .set("pulse.dashboard.servers.sort_direction", json!("desc"))
+        .unwrap();
+    let sorted = app.get(target).await.unwrap();
+    sorted.assert_ok();
+    assert_eq!(
+        sorted.json::<serde_json::Value>().unwrap()["servers"][0]["key"],
+        "node-z"
+    );
+}
+
+#[tokio::test]
 async fn dashboard_server_history_returns_average_series_and_heartbeat_state() {
     use openrust::contracts::foundation::Application as _;
     let mut app = TestApp::create(|builder| {

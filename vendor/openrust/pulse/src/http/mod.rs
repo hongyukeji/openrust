@@ -224,8 +224,23 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         })
         .await?;
         cards.insert("queues".into(), queues);
-        let (systems, graphs) = servers(&pulse, interval).await?;
-        cards.insert("servers".into(), Value::Array(systems));
+        let options = config.get("pulse.dashboard.servers").unwrap_or_default();
+        let ignore_after = match &options["ignore_after"] {
+            Value::Null => None,
+            value => Some(server_max_age(value)?),
+        };
+        let key = format!("servers:{period}:{:x}", md5::compute(options.to_string()));
+        let snapshot = remember_card(&cache, &key, async {
+            let (systems, graphs) = servers(&pulse, interval, &options, ignore_after).await?;
+            Ok(Value::Array(vec![Value::Array(systems), graphs]))
+        })
+        .await?;
+        let Value::Array(snapshot) = snapshot else {
+            return Err(CacheError::InvalidValue.into());
+        };
+        let [systems, graphs]: [Value; 2] =
+            snapshot.try_into().map_err(|_| CacheError::InvalidValue)?;
+        cards.insert("servers".into(), systems);
         cards.insert("server_graphs".into(), graphs);
         let mut response = Response::new(StatusCode::OK, Body::from(serde_json::to_vec(&cards)?));
         response.parts_mut().headers.insert(
@@ -258,13 +273,12 @@ async fn remember_card(
     };
     Ok(value)
 }
-async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Value), HttpError> {
-    let config = Config::get_facade_root()?;
-    let options = config.get("pulse.dashboard.servers").unwrap_or_default();
-    let ignore_after = match &options["ignore_after"] {
-        Value::Null => None,
-        value => Some(server_max_age(value)?),
-    };
+async fn servers(
+    pulse: &crate::Pulse,
+    interval: i64,
+    options: &Value,
+    ignore_after: Option<i128>,
+) -> crate::Result<(Vec<Value>, Value)> {
     let sort_by = options["sort_by"].as_str().unwrap_or("name");
     let descending = options["sort_direction"] == "desc";
     let now = jiff::Timestamp::now();

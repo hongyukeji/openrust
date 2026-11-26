@@ -132,7 +132,13 @@ Rust 前态在每次授权指标请求中查询四类慢操作及异常。当前
 
 固定用量卡片在五秒内共用同一类型及周期的计数与已解析用户，缓存卡片分别记忆总计和逐键查询，队列卡片按周期缓存历史。Rust 在已授权指标入口复用同一 Cache 记忆路径。用量按指标类型分键，缓存总计与明细分键，采样率继续随配置读取。 [固定 Usage](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Usage.php) [固定 Cache](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Cache.php) [固定 Queues](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Queues.php)
 
-SQLite、PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 的授权 HTTP 通过复用、切换周期和到期刷新回归。默认空总计读入缓存后，短时保留空结果，切换周期验证 102 个命中键的总计及 101 行明细上限。Pulse Provider 23 项、Telescope Provider 20 项通过，独占 Telescope Redis 用例按环境条件跳过。隔离快照格式、相关严格 Clippy、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-activity-card-cache-{macos-baseline,macos-final,macos-retry,docs}.log`。服务器卡片继续对账。
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 的授权 HTTP 通过复用、切换周期和到期刷新回归。默认空总计读入缓存后，短时保留空结果，切换周期验证 102 个命中键的总计及 101 行明细上限。Pulse Provider 23 项、Telescope Provider 20 项通过，独占 Telescope Redis 用例按环境条件跳过。隔离快照格式、相关严格 Clippy、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-activity-card-cache-{macos-baseline,macos-final,macos-retry,docs}.log`。服务器卡片见下节。
+
+### 服务器卡片的心跳与历史缓存
+
+固定 Servers 在同一次五秒缓存查询中读取系统当前值、指标曲线并判断最近上报。Rust 将心跳状态和 CPU／内存历史保存在同一缓存项，按周期及已加载的服务器配置分区，使配置改动可立即选择新结果。忽略期限的输入校验在读缓存前完成。 [固定 Servers::render](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Servers.php)
+
+真实 HTTP 前态会立即读到新增的第二台服务器。修复后，SQLite、PostgreSQL 18.7、MySQL 8.4.13 及具名 Redis 8.10.3 验证五秒内心跳和曲线一致、切换周期独立读取、到期后旧心跳变为失效且新节点与相应曲线出现，以及相同周期可立即采用改变后的服务器排序。Pulse Provider 24 项、Telescope Provider 20 项通过，独占 Telescope Redis 用例按环境条件跳过。首轮验收守卫在磁盘清理期间发现仍活跃的构建，恢复空间后重试。隔离快照全仓格式、相关严格 Clippy、三语站点构建及六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-server-card-cache-{macos-baseline,macos-final,macos-retry,docs}.log`。
 
 ### 缓存汇总和采样展示
 

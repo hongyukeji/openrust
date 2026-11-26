@@ -40,7 +40,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢操作卡片默认按最慢耗时排列，可切换为按次数排序。异常默认按次数排列，可切换为按最近发生时间排序。用量显示请求、慢请求或任务的前十名用户。面板选择保存在页面 URL。指标入口接受 `slow-requests=count`、`slow-queries=count`、`slow-jobs=count`、`slow-outgoing-requests=count`、`exceptions=latest` 和 `usage=requests|slow_requests|jobs`。
 
-慢操作、异常、用量、缓存和队列卡片将查询结果在 `pulse.cache` 中缓存五秒。不同时间范围、排序方式或用量类型分别缓存。缓存总计和逐键明细使用独立缓存项。
+慢操作、异常、用量、缓存和队列卡片将查询结果在 `pulse.cache` 中缓存五秒。不同时间范围、排序方式或用量类型分别缓存。缓存总计和逐键明细使用独立缓存项。服务器心跳与历史曲线共用一个缓存项，按时间范围和服务器配置区分。
 
 缓存卡片显示所选时段的命中、未命中和命中率，汇总包括 100 行明细以外的键。启用采样时，面板用 `~` 标记估算次数。JSON 指标的 `cache_totals` 返回原始总量和采样率。
 
