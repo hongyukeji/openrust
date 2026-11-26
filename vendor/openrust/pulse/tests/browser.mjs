@@ -10,6 +10,10 @@ try{
  for(const path of ['/operations/pulse','/operations/pulse/api/metrics','/operations/pulse/api/metrics?cards=queues']) assert.equal((await guest.request.get(base+path)).status(),403);
  await guest.close();
  const context=await browser.newContext({extraHTTPHeaders:{'x-test-operator':'operator'}});
+ await context.route('https://gravatar.com/**', route => route.fulfill({
+  contentType:'image/gif',
+  body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64'),
+ }));
  assert.equal((await context.request.get(base+'/api/probe')).status(),200);
  assert.equal((await context.request.get(base+'/operations/pulse/api/metrics?period=invalid')).status(),400);
  for(const mobile of [false,true]){
@@ -62,7 +66,18 @@ try{
 
   assert((await page.locator('#cards').innerText()).includes('ID: 42'));
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));
-  assert.equal(await page.locator('#cards img').count(),0);
+  assert.equal(await page.locator('[data-card]:not([data-card="requests"], [data-card="jobs"]) img').count(),0);
+  const userDetails=page.locator('[data-card="requests"] td[data-column="user"]');
+  const userImage=userDetails.getByRole('img',{name:'ID: 42',exact:true});
+  assert.equal(await userImage.getAttribute('loading'),'lazy');
+  assert.match(await userImage.getAttribute('src'),/^data:image\/gif/);
+  await userImage.scrollIntoViewIfNeeded();
+  assert.equal(await userImage.evaluate(async image=>{await image.decode();return image.naturalWidth;}),1);
+  assert.equal(await userDetails.locator('small').textContent(),'<img src=x onerror=window.compromised=true>');
+  const fallbackImage=page.locator('[data-card="jobs"]').getByRole('img',{name:'ID: 77',exact:true});
+  assert.equal(await fallbackImage.getAttribute('src'),'https://gravatar.com/avatar?d=mp');
+  await fallbackImage.scrollIntoViewIfNeeded();
+  assert.equal(await fallbackImage.evaluate(async image=>{await image.decode();return image.naturalWidth;}),1);
   assert.equal(await page.evaluate(()=>window.compromised),undefined);
   const cache = page.locator('.card').filter({has: page.getByRole('heading',{name:'Cache interactions',exact:true})});
   assert.deepEqual(await cache.locator('.cache-summary dd').allTextContents(), ['~2', '~4', '33.33%']);

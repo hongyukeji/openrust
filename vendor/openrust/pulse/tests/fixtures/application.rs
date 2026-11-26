@@ -58,6 +58,24 @@ impl ServiceProvider for Access {
                     })
                 })
             });
+            app.make::<openrust_pulse::Pulse>().await?.users(|keys| {
+                Ok(keys
+                    .iter()
+                    .filter(|key| key.as_str() == "42")
+                    .map(|key| {
+                        (
+                            key.clone(),
+                            openrust_pulse::User {
+                                name: "ID: 42".into(),
+                                extra: Some("<img src=x onerror=window.compromised=true>".into()),
+                                avatar: Some(
+                                    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7".into(),
+                                ),
+                            },
+                        )
+                    })
+                    .collect())
+            });
             Ok(())
         })
     }

@@ -12,6 +12,11 @@ th{white-space:nowrap}td:not([data-column="key"]){white-space:nowrap}td[data-col
 .cache-summary dt { color: #94a3b8; }
 .cache-summary dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
 
+.usage-user { display: flex; align-items: center; gap: 8px; max-width: 230px; }
+.usage-user img { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; flex: none; }
+.usage-user div { min-width: 0; }
+.usage-user span, .usage-user small { display: block; overflow: hidden; text-overflow: ellipsis; }
+
 .server-trend{height:40px;color:#38bdf8;background:#182238;border-radius:4px}
 .server-trend [data-selected],.queue-trend [data-selected]{fill:#38bdf82e}
 .server-reading,.queue-reading{font-size:13px;margin-top:4px;color:#cbd5e1}

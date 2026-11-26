@@ -122,6 +122,14 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 用量卡片的用户资料
+
+固定 `Users::find` 与 `LegacyUsers::find` 的 PHP 8.5.12 对照确认，未找到用户时返回 ID、空补充信息和 Gravatar 占位地址。原生认证资料的空邮箱和文本 `0` 使用占位地址，有效邮箱按 PHP 的 ASCII 小写和默认 `trim` 计算 SHA-256。显式头像包括空字符串，按原值返回。固定用量模板在用户名下显示补充信息，并按需加载头像。证据为 `target/tmp/observability-parity/pulse-user-display-upstream.log`。 [固定 Users](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Users.php) [固定用量卡片](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/components/user-card.blade.php)
+
+Rust 前态的授权 HTTP 返回空补充信息为 JSON `null`，改为与固定上游一致的空字符串并得到正确头像。真实认证 Provider 与用量聚合通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13 七组资料。移动和桌面 Chrome 验证头像可解码、按需加载、补充资料作为文本渲染，原有筛选与轮询仍通过。头像占位请求由浏览器内合成响应返回，使用假资料。Pulse Provider 28 项、Telescope Provider 33 项、相关格式、Pulse 全目标严格 Clippy 和三语文档的 6 个视口通过。日志为 `target/tmp/observability-parity/pulse-user-display-{baseline,macos-retry,docs}.log`。
+
+固定 PHP 从 Eloquent Provider 用 `findMany` 在一条 SQLite 查询中读取多个模型，Rust 默认仍按 ID 读取。证据为 `target/tmp/observability-parity/pulse-eloquent-users-upstream.log`。该批量读取和旧版回调单独提供邮箱的契约继续核对。原生自定义 Resolver 的已提供字段继续从自身接口读取。
+
 ### 首屏卡片的延迟加载与隔离
 
 固定 Pulse 的九类指标卡片声明 `#[Lazy]`。支持范围内的 Livewire 3.6.4 与 4.0.0 会为默认惰性组件生成占位框，在进入可视范围时启动加载，首轮使用独立更新。常规轮询更新可合并。 [固定 Pulse 组件](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire) [Livewire 3.6.4](https://github.com/livewire/livewire/blob/v3.6.4/src/Features/SupportLazyLoading/SupportLazyLoading.php) [Livewire 4.0.0](https://github.com/livewire/livewire/blob/v4.0.0/src/Features/SupportLazyLoading/SupportLazyLoading.php)

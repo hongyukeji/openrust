@@ -275,6 +275,28 @@ function renderCount(td, raw, rate) {
         td.textContent = countFormat.format(value);
     }
 }
+function renderUser(td, user) {
+    const profile = document.createElement('div');
+    profile.className = 'usage-user';
+    if (user.avatar && user.avatar !== '0') {
+        const image = document.createElement('img');
+        image.src = user.avatar;
+        image.alt = user.name;
+        image.loading = 'lazy';
+        profile.append(image);
+    }
+    const details = document.createElement('div');
+    const name = cell('span', user.name);
+    name.title = user.name;
+    details.append(name);
+    if (user.extra) {
+        const extra = cell('small', user.extra);
+        extra.title = user.name;
+        details.append(extra);
+    }
+    profile.append(details);
+    td.replaceChildren(profile);
+}
 function renderRows(card, values, headings = {}, countRate) {
     const box = document.createElement('div');
     box.className = 'rows';
@@ -290,6 +312,8 @@ function renderRows(card, values, headings = {}, countRate) {
             const td = cell('td', value);
             if (column === 'count' && Number.isFinite(countRate)) {
                 renderCount(td, value, countRate);
+            } else if (column === 'user' && typeof value?.name === 'string') {
+                renderUser(td, value);
             } else if (headings[column] && value?.title) {
                 td.title = value.title;
             }

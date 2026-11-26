@@ -100,7 +100,7 @@ let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 
 ## 使用者 {#users}
 
-用量記錄讀取原生認證已解析的身分。先執行認證中介層或 `Auth::user(request).await?`；投遞佇列工作時可用 `remember_user` 明確關聯操作者。預設面板透過認證 Provider 讀取姓名、電子郵件和頭像，找不到時顯示 ID。`Pulse::user` 自訂欄位，或在擴充啟動前綁定 `ResolvesUsers` 自訂使用者鍵與載入行為。預設通用認證 Provider 按 ID 載入；需要批次最佳化時實作該契約。
+用量記錄讀取原生認證已解析的身分。先執行認證中介層或 `Auth::user(request).await?`；投遞佇列工作時可用 `remember_user` 明確關聯操作者。用量卡片顯示姓名和補充資訊，頭像按需載入。預設認證 Provider 提供姓名、電子郵件和頭像。找不到使用者時顯示 ID 和預留頭像。有電子郵件但沒有頭像時，Pulse 使用 Gravatar 雜湊。`Pulse::user` 自訂欄位，或在擴充啟動前綁定 `ResolvesUsers` 自訂使用者鍵與載入行為。預設通用認證 Provider 按 ID 載入；需要批次最佳化時實作該契約。
 
 ## 命令 {#commands}
 

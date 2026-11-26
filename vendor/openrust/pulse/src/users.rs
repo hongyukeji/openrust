@@ -8,11 +8,21 @@ use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
+const DEFAULT_AVATAR: &str = "https://gravatar.com/avatar?d=mp";
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
     pub extra: Option<String>,
     pub avatar: Option<String>,
+}
+
+fn missing_user(key: &str) -> User {
+    User {
+        name: format!("ID: {key}"),
+        extra: Some(String::new()),
+        avatar: Some(DEFAULT_AVATAR.into()),
+    }
 }
 /// Resolves metric identifiers and dashboard user details in the active application.
 pub trait ResolvesUsers: Send + Sync {
@@ -61,19 +71,26 @@ impl Users {
         };
         use sha2::{Digest, Sha256};
         let email = text("email")?;
-        let avatar = text("avatar")?.unwrap_or_else(|| match &email {
-            Some(email) => format!(
-                "https://gravatar.com/avatar/{}?d=mp",
-                Sha256::digest(email.trim().to_lowercase().as_bytes())
-                    .iter()
-                    .map(|b| format!("{b:02x}"))
-                    .collect::<String>()
-            ),
-            None => "https://gravatar.com/avatar?d=mp".into(),
+        let avatar = text("avatar")?.unwrap_or_else(|| {
+            let email = email.as_deref().filter(|email| !matches!(*email, "" | "0"));
+            match email {
+                Some(email) => {
+                    // PHP 的 strtolower 和 trim 只处理这里的默认 ASCII 字节。
+                    let normalized = email
+                        .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
+                        .to_ascii_lowercase();
+                    let hash: String = Sha256::digest(normalized.as_bytes())
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect();
+                    format!("https://gravatar.com/avatar/{hash}?d=mp")
+                }
+                None => DEFAULT_AVATAR.into(),
+            }
         });
         Ok(User {
             name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.get_auth_identifier())),
-            extra: email,
+            extra: Some(email.unwrap_or_default()),
             avatar: Some(avatar),
         })
     }
@@ -116,11 +133,7 @@ impl ResolvesUsers for Users {
             .unwrap_or_else(|e| e.into_inner())
             .get(key)
             .cloned()
-            .unwrap_or_else(|| User {
-                name: format!("ID: {key}"),
-                extra: None,
-                avatar: None,
-            })
+            .unwrap_or_else(|| missing_user(key))
     }
 }
 
@@ -152,10 +165,6 @@ impl ResolvesUsers for LegacyUsers {
             .unwrap_or_else(|e| e.into_inner())
             .get(key)
             .cloned()
-            .unwrap_or_else(|| User {
-                name: format!("ID: {key}"),
-                extra: None,
-                avatar: None,
-            })
+            .unwrap_or_else(|| missing_user(key))
     }
 }

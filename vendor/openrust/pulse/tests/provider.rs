@@ -2345,6 +2345,108 @@ impl openrust_pulse::ResolvesUsers for ReadOnlyUsers {
         }
     }
 }
+
+fn usage_user_config(
+    root: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
+    let mut values = recorder_database_config(root, env)?;
+    let auth = values.get_mut("auth").unwrap();
+    auth["guards"]["web"]["provider"] = json!("pulse-users");
+    auth["providers"] = json!({"pulse-users":{"driver":"database","table":"pulse_test_users"}});
+    Ok(values)
+}
+
+#[tokio::test]
+async fn usage_resolves_fixed_user_details_and_gravatar_fallbacks_from_the_native_provider() {
+    use openrust::database::{DatabaseManager, Value as DbValue};
+
+    let mut app = TestApp::create(|b| {
+        b.with_config(usage_user_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let application = app.app();
+    let connection = application
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    connection
+        .get_schema_builder()
+        .create("pulse_test_users", |table| {
+            table.string("id", 100).primary();
+            table.string("name", 100);
+            table.string("email", 150).nullable();
+            table.string("avatar", 150).nullable();
+        })
+        .await
+        .unwrap();
+    let unicode_email = "\t \u{a0}ÉXAMPLE@EXAMPLE.TEST \t";
+    let avatar_url = "https://profile.example.test/face.png";
+    let users = [
+        ("missing-email", "No mail", None, None),
+        ("empty-email", "Empty", Some(""), None),
+        ("zero-email", "Zero", Some("0"), None),
+        ("unicode-email", "Unicode", Some(unicode_email), None),
+        ("explicit-avatar", "Explicit", None, Some(avatar_url)),
+        (
+            "empty-avatar",
+            "Blank",
+            Some("person@example.test"),
+            Some(""),
+        ),
+    ];
+    for (id, name, email, avatar) in users {
+        connection
+            .table("pulse_test_users")
+            .insert(&[BTreeMap::from([
+                ("id".into(), id.into()),
+                ("name".into(), name.into()),
+                ("email".into(), email.map_or(DbValue::Null, DbValue::from)),
+                ("avatar".into(), avatar.map_or(DbValue::Null, DbValue::from)),
+            ])])
+            .await
+            .unwrap();
+    }
+    let pulse = application.make::<Pulse>().await.unwrap();
+    for id in users
+        .map(|(id, _, _, _)| id)
+        .into_iter()
+        .chain(["missing-user"])
+    {
+        pulse.record("user_request", id, None, None).await.count();
+    }
+    assert_eq!(pulse.ingest().await, 7);
+    let response = app.get("/pulse/api/metrics?cards=requests").await.unwrap();
+    response.assert_ok();
+    let data: serde_json::Value = response.json().unwrap();
+    let rows = data["requests"].as_array().unwrap();
+    assert_eq!(rows.len(), 7);
+    let default_avatar = "https://gravatar.com/avatar?d=mp";
+    let unicode_avatar = "https://gravatar.com/avatar/5c1454e4b1681442b48245b957115af11f322bec92872d1aadd60e108603c313?d=mp";
+    for (key, name, extra, avatar) in [
+        ("missing-email", "No mail", "", default_avatar),
+        ("empty-email", "Empty", "", default_avatar),
+        ("zero-email", "Zero", "0", default_avatar),
+        ("unicode-email", "Unicode", unicode_email, unicode_avatar),
+        ("explicit-avatar", "Explicit", "", avatar_url),
+        ("empty-avatar", "Blank", "person@example.test", ""),
+        ("missing-user", "ID: missing-user", "", default_avatar),
+    ] {
+        let row = rows.iter().find(|row| row["key"] == key).unwrap();
+        assert_eq!(
+            row["user"],
+            json!({"name":name,"extra":extra,"avatar":avatar}),
+            "{key}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_observable() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -2443,7 +2545,13 @@ async fn legacy_bulk_users_remain_application_scoped_and_reject_field_overrides(
     });
     let users = pulse.resolve_users(&["42".into()]).await.unwrap();
     assert_eq!(users.find("42").name, "Bulk 42");
-    assert_eq!(users.find("43").name, "ID: 43");
+    let missing = users.find("43");
+    assert_eq!(missing.name, "ID: 43");
+    assert_eq!(missing.extra.as_deref(), Some(""));
+    assert_eq!(
+        missing.avatar.as_deref(),
+        Some("https://gravatar.com/avatar?d=mp")
+    );
     assert!(pulse.user(|_| unreachable!()).is_err());
     assert_eq!(users.find("42").name, "Bulk 42");
     let mut other = app();
