@@ -492,6 +492,52 @@ fn register_signal_command() -> Result<(), ConsoleError> {
 
 命令返回、失败或取消时会释放回调。调用 `io.untrap()` 可提前释放。嵌套命令与调用者共享信号订阅，结束时仅释放本次注册。进程级处理器由异步运行时管理，命令退出后可能仍处于安装状态。
 
+## 事件 {#events}
+
+### 启动 Artisan {#artisan-starting-event}
+
+应用首次调用控制台时，Artisan 在定型命令注册表前派发 `ArtisanStarting`。同步监听器可调用 `with_artisan` 注册命令。用 `with_events(DiscoverEvents::new(&[register_console_listeners]))` 注册监听器。启动事件返回后，注册表可用于执行命令。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    console::events::ArtisanStarting,
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+};
+
+struct RegisterReporting;
+
+impl Listener for RegisterReporting {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(event) = event.downcast_ref::<ArtisanStarting>() {
+                event.with_artisan(|artisan| {
+                    artisan.command("reports:about", |output| {
+                        output.stdout.push_str("Reporting commands available\n");
+                    })?;
+                    Ok(())
+                })
+                .map_err(|source| EventError::Listener { source: Box::new(source) })?;
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
+    registry.listen(ArtisanStarting::NAME, Arc::new(RegisterReporting), Delivery::Sync)
+}
+```
+
 ## 自定义生成模板 {#stub-customization}
 
 把生成器模板发布到应用的 `stubs/` 目录。命令会发布结构体、trait、枚举、命令、工厂、迁移、模型、策略、Seeder、功能测试和单元测试模板。编辑发布后的模板即可修改相应生成器下一次生成的内容。

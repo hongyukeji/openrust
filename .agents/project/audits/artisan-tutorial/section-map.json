@@ -602,7 +602,16 @@
     {
       "anchor": "events",
       "status": "pending_public_contract_review",
-      "evidence": []
+      "evidence": [
+        "artisan-starting-contracts.json",
+        "accepted-artisan-starting.json",
+        "console_artisan_starting",
+        "formal_artisan_starting_event_example"
+      ],
+      "remaining": [
+        "Events 下的每命令 CommandStarting／CommandFinished、嵌套及异常边界仍在下一核对批处理。",
+        "启动监听器用 Rust 短借用配置注册表。同应用递归执行命令返回错误，重试及并发请求复用现有 OnceCell 快照。"
+      ]
     }
   ],
   "component_mutators": {
@@ -940,6 +949,14 @@
     "remaining": [
       "匹配本节在容器内运行 Artisan 的用户操作，使用项目约定的原生 Docker Compose。独立 Sail 安装、包装脚本和更多服务功能仍按生态规划记录。",
       "容器验收复用已有 Linux ARM64 发布镜像，本批只改文档及浏览器断言；未重建容器镜像或声称原生工作区的 Linux 全量构建。"
+    ]
+  },
+  "artisan_starting_event": {
+    "status": "verified_artisan_starting",
+    "contract": "artisan-starting-contracts.json",
+    "remaining": [
+      "Events 下的每命令 CommandStarting／CommandFinished、嵌套及异常边界仍在下一核对批处理。",
+      "启动监听器用 Rust 短借用配置注册表。同应用递归执行命令返回错误，重试及并发请求复用现有 OnceCell 快照。"
     ]
   }
 }

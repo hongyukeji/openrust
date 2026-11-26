@@ -1,0 +1,26 @@
+{
+    "trace": [
+        [
+            "artisan",
+            "starting",
+            null,
+            null
+        ],
+        [
+            "handle",
+            "event-probe:dynamic",
+            null,
+            null
+        ],
+        [
+            "handle",
+            "event-probe:dynamic",
+            null,
+            null
+        ]
+    ],
+    "statuses": [
+        0,
+        0
+    ]
+}

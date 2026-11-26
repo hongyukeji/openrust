@@ -616,6 +616,28 @@ async fn formal_development_processes_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_development_processes{\n'+dev_snippet+dev_checks+'}\n')
 
+    starting_snippet=re.search(r'```rust\n(.*?)```',text.split('{#artisan-starting-event}',1)[1],re.S).group(1)
+    starting_checks=r'''
+use openrust::{foundation::{Application,events::DiscoverEvents},support::facades::{App,Artisan,Facade as _}};
+#[tokio::test]
+async fn formal_artisan_starting_event_example() {
+    let root=std::env::temp_dir().join(format!("artisan-starting-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=Application::configure(root.clone()).with_events(DiscoverEvents::new(&[register_console_listeners]))
+        .create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        for _ in 0..2 {
+            let (status,output)=Artisan::call_captured("reports:about",&[]).await.unwrap();
+            assert_eq!(status,0);
+            assert_eq!(output.stdout.trim(),"Reporting commands available");
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_starting_event{\n'+starting_snippet+starting_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

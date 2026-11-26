@@ -492,6 +492,52 @@ On Unix, use `kill -TERM <pid>` against a running `./artisan reports:watch`. On 
 
 Returning, failing, or cancelling the command releases its callbacks. Call `io.untrap()` to release them earlier. Nested commands share signal subscriptions with their caller and release only their own registrations. The async runtime owns the process-level handlers, which may stay installed after the command ends.
 
+## Events {#events}
+
+### Starting Artisan {#artisan-starting-event}
+
+Artisan dispatches `ArtisanStarting` before finalizing the command registry, on the first console invocation for the application. A synchronous listener may call `with_artisan` to register commands. Use `with_events(DiscoverEvents::new(&[register_console_listeners]))` to register the listener. The registry becomes available for command execution after the startup event returns.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    console::events::ArtisanStarting,
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+};
+
+struct RegisterReporting;
+
+impl Listener for RegisterReporting {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(event) = event.downcast_ref::<ArtisanStarting>() {
+                event.with_artisan(|artisan| {
+                    artisan.command("reports:about", |output| {
+                        output.stdout.push_str("Reporting commands available\n");
+                    })?;
+                    Ok(())
+                })
+                .map_err(|source| EventError::Listener { source: Box::new(source) })?;
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
+    registry.listen(ArtisanStarting::NAME, Arc::new(RegisterReporting), Delivery::Sync)
+}
+```
+
 ## Stub Customization {#stub-customization}
 
 Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for structs, traits, enums, commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.

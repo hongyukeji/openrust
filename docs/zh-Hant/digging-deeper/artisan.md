@@ -492,6 +492,52 @@ fn register_signal_command() -> Result<(), ConsoleError> {
 
 命令返回、失敗或取消時會釋放回呼。呼叫 `io.untrap()` 可提早釋放。巢狀命令與呼叫端共用訊號訂閱，結束時只釋放本次註冊。程序層級處理器由非同步執行環境管理，命令結束後可能仍處於安裝狀態。
 
+## 事件 {#events}
+
+### 啟動 Artisan {#artisan-starting-event}
+
+應用程式首次呼叫主控台時，Artisan 在定型命令註冊表前派送 `ArtisanStarting`。同步監聽器可呼叫 `with_artisan` 註冊命令。用 `with_events(DiscoverEvents::new(&[register_console_listeners]))` 註冊監聽器。啟動事件返回後，註冊表可用於執行命令。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    console::events::ArtisanStarting,
+    contracts::events::{Event, Listener},
+    events::{
+        Delivery, EventContext, EventError, EventFuture, EventResult,
+        ListenerRegistry, ListenerResponse,
+    },
+};
+
+struct RegisterReporting;
+
+impl Listener for RegisterReporting {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(event) = event.downcast_ref::<ArtisanStarting>() {
+                event.with_artisan(|artisan| {
+                    artisan.command("reports:about", |output| {
+                        output.stdout.push_str("Reporting commands available\n");
+                    })?;
+                    Ok(())
+                })
+                .map_err(|source| EventError::Listener { source: Box::new(source) })?;
+            }
+
+            Ok(None)
+        })
+    }
+}
+
+fn register_console_listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
+    registry.listen(ArtisanStarting::NAME, Arc::new(RegisterReporting), Delivery::Sync)
+}
+```
+
 ## 自訂產生樣板 {#stub-customization}
 
 將產生器樣板發佈到應用程式的 `stubs/` 目錄。命令會發佈結構體、trait、列舉、命令、工廠、遷移、模型、策略、Seeder、功能測試和單元測試樣板。編輯已發佈的樣板即可修改對應產生器下一次產生的內容。

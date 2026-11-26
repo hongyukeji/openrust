@@ -231,8 +231,16 @@ impl Kernel {
         ))
     }
     async fn bootstrap_commands(&mut self) -> Result<(), ConsoleError> {
-        if !self.register_planned || self.command_registration.is_some() {
+        if crate::console::events::artisan_is_starting(&self.application) {
+            return Err(ConsoleError::new(
+                "Artisan 启动事件期间只能配置命令注册表。",
+            ));
+        }
+        if self.command_registration.is_some() {
             return self.register_configured_commands().await;
+        }
+        if !self.register_planned {
+            return self.initialize_registry().await;
         }
         let application = self
             .application
@@ -242,7 +250,7 @@ impl Kernel {
         let registered = application
             .commands
             .get_or_try_init(|| async {
-                self.register_configured_commands().await?;
+                self.initialize_registry().await?;
                 Ok::<_, ConsoleError>(RegisteredCommands {
                     artisan: self.artisan.clone(),
                     has_scheduled_tasks: self.has_scheduled_tasks,
@@ -254,6 +262,12 @@ impl Kernel {
         self.command_registration = Some(Ok(()));
         Ok(())
     }
+    async fn initialize_registry(&mut self) -> Result<(), ConsoleError> {
+        crate::console::events::dispatch_artisan_starting(&self.application, &mut self.artisan)
+            .await?;
+        self.register_configured_commands().await
+    }
+
     async fn register_configured_commands(&mut self) -> Result<(), ConsoleError> {
         let mut commands = Vec::new();
         if self.command_registration.is_none()

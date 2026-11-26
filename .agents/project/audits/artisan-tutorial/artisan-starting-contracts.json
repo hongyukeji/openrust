@@ -1,0 +1,29 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_artisan_starting",
+  "bindings": {
+    "ArtisanStarting": [
+      "NAME",
+      "with_artisan"
+    ]
+  },
+  "runtime": {
+    "framework_and_application_parent_tests": 57,
+    "native_artisan_cli_invocations": 1,
+    "native_http_requests": 5,
+    "upstream_cli_calls": 2,
+    "formal_document_consumers": 252,
+    "browser_checks": 12
+  },
+  "source_oracle": "artisan-starting-oracle.json",
+  "decisions": [
+    "固定源码的真实 ArtisanStarting 监听器在构造期间添加命令；两个连续实际调用都找到同一条注册，启动事件出现一次。",
+    "在当前 Console Kernel 的注册表缓存初始化中派发。应用的同步监听器先配置，已有内置、包、用户配置顺序保持。",
+    "监听器错误、重入及取消保留本轮失败并释放快照，不会阻塞其他后续调用。",
+    "Docker 引擎暂时无法响应时，使用同版 PHP 8.5.12 的项目内源码构建执行固定 PHP 代码，无运行依赖变化。"
+  ],
+  "remaining": [
+    "Events 下的每命令 CommandStarting／CommandFinished、嵌套及异常边界仍在下一核对批处理。",
+    "启动监听器用 Rust 短借用配置注册表。同应用递归执行命令返回错误，重试及并发请求复用现有 OnceCell 快照。"
+  ]
+}
