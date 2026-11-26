@@ -13,7 +13,7 @@ use openrust::{
     foundation::Application,
     http::HttpFuture,
     queue::events::*,
-    support::{ProviderResult, ServiceProvider},
+    support::{ProviderResult, ServiceProvider, php_round_half_up},
 };
 use std::sync::Arc;
 
@@ -352,7 +352,7 @@ impl Listener for JobListener {
                         &e.job,
                         "finalize",
                         e.exception.as_deref(),
-                        (e.duration.unwrap_or_default() * 100.).round() / 100.,
+                        php_round_half_up(e.duration.unwrap_or_default(), 100.),
                     )
                 } else {
                     return Ok(None);

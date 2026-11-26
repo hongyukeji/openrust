@@ -220,6 +220,8 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 真实 Redis 8.10.3 保留回归在状态监听器前加入 800ms 等待。旧实现把等待算入，指标为 825.83ms。新实现在保留状态写入之后开始计时，记录了后续任务延迟且排除了前置监听器等待。同一应用通过公开 API 验证开始、重置和忘记，并核对成功、释放、终态失败与重试后的清理。默认运行用例 2 项、独立 Redis 20 项、快照格式、包全目标严格 Clippy 和三语文档桌面及移动检查通过。证据为 `target/tmp/observability-parity/horizon-reservation-timer-{baseline,verified-final,docs}.log`。最终 Release、目标平台及部署拓扑继续验收。
 
+原生 `JobAttempted` 可提供浮点毫秒。原先的浮点乘法将 `1.005` 毫秒记为 `1.0`。现在复用框架的 PHP 半值进位实现，与 PHP 8.5.12 的 `round(1.005, 2)` 一致。真实 HTTP 派发和 Redis 任务、队列仓储均得到 `1.01`。默认运行用例 2 项、独立 Redis 20 项、快照格式和包全目标严格 Clippy 通过。证据为 `target/tmp/observability-parity/horizon-fractional-tie-{baseline,verified}.log`。
+
 ## 当前实现
 
 - 可选 `HorizonServiceProvider` 通过包发现装配，懒绑定应用内服务、默认配置及发布模板。默认应用不预装扩展 Provider、配置或业务示例。面板必须显式注册路由、显式授权，默认拒绝；每次读写重新授权，写操作校验同源请求标识。

@@ -1144,7 +1144,10 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_completion_metrics_keep_hundredths_of_a_millisecond() {
     use openrust::{
-        queue::{Payload, events::JobSnapshot},
+        queue::{
+            Payload,
+            events::{JobAttempted, JobSnapshot},
+        },
         support::facades::{Event, Route},
     };
     use openrust_horizon::JobDeleted;
@@ -1165,6 +1168,18 @@ async fn redis_completion_metrics_keep_hundredths_of_a_millisecond() {
                 })
                 .await?;
             }
+            Event::dispatch(JobAttempted {
+                connection_name: "redis".into(),
+                job: JobSnapshot {
+                    id: "fallback".into(),
+                    queue: "fallback".into(),
+                    attempts: 1,
+                    payload: Payload::new("fallback", json!({})).unwrap(),
+                },
+                exception: None,
+                duration: Some(1.005),
+            })
+            .await?;
             Ok(openrust::http::Response::from("observed"))
         })
     }
@@ -1182,7 +1197,12 @@ async fn redis_completion_metrics_keep_hundredths_of_a_millisecond() {
     app.get("/api/complete").await.unwrap().assert_ok();
     let repository = app.app().make::<Repository>().await.unwrap();
     let metrics = repository.metrics_repository();
-    for (key, expected) in [("low", 1.23), ("tie", 1.24), ("high", 1.24)] {
+    for (key, expected) in [
+        ("low", 1.23),
+        ("tie", 1.24),
+        ("high", 1.24),
+        ("fallback", 1.01),
+    ] {
         assert_eq!(metrics.runtime_for_job(key).await.unwrap(), expected);
         assert_eq!(
             metrics
