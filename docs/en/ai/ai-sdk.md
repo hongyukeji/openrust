@@ -566,6 +566,8 @@ let response = agent("Review the quarterly report.")
 
 Use a document-capable model. Responses, Anthropic Messages, and Gemini accept these three document formats. Chat Completions accepts PDF only. Documents and images share the per-prompt count and size limits.
 
+Use `Message::user_with_attachments(text, attachments)` with `with_messages` to supply attachments on a specific earlier user message. The current turn and its history share the attachment limits of 16 files and less than 50 MB of raw data. Read the files through `Message::attachments` in Rust. The standard JSON representation of `Message` contains the role and text. Until conversation storage supports attachments, use this method to supply the history directly.
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

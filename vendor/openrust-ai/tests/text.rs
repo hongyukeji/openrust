@@ -9,8 +9,8 @@ use openrust::{
     testing::TestApp,
 };
 use openrust_ai::{
-    Agent, Ai, AiError, AiManager, Message, PromptOptions, StreamEventData, agent,
-    openrust_providers,
+    Agent, Ai, AiError, AiManager, DocumentAttachment, Message, PromptOptions, StreamEventData,
+    agent, openrust_providers,
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -147,8 +147,13 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                     Response::json(StatusCode::OK, json!({"output": result.text}))
                 })?;
                 Route::get("/responses", || async {
+                    let report =
+                        DocumentAttachment::from_bytes("report.pdf", b"%PDF-1.4".as_slice())
+                            .unwrap();
+                    let earlier = Message::user_with_attachments("Earlier", [report]);
+                    assert_eq!(json!(earlier), json!({"role":"user","content":"Earlier"}));
                     let result = agent("Use English")
-                        .with_messages([Message::user("Earlier"), Message::assistant("Answer")])
+                        .with_messages([earlier, Message::assistant("Answer")])
                         .prompt_with(
                             "Respond",
                             PromptOptions {
@@ -211,7 +216,10 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
     assert_eq!(
         responses[0]["input"],
         json!([
-            {"type":"message","role":"user","content":"Earlier"},
+            {"type":"message","role":"user","content":[
+                {"type":"input_text","text":"Earlier"},
+                {"type":"input_file","filename":"report.pdf","file_data":"data:application/pdf;base64,JVBERi0xLjQ="}
+            ]},
             {"type":"message","role":"assistant","content":"Answer"},
             {"type":"message","role":"user","content":"Respond"}
         ])

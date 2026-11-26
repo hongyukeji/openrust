@@ -368,49 +368,22 @@ impl OpenAiTextProvider {
         Ok(response.data)
     }
 
-    // OpenAI 兼容驱动沿用 Chat 兼容端点的 max_tokens 契约。
-    #[allow(deprecated)]
-    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<CreateChatCompletionRequest> {
-        let user = |text: &str| {
-            ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
-                content: ChatCompletionRequestUserMessageContent::Text(text.into()),
-                name: None,
-            })
-        };
-        let mut messages = Vec::new();
-        if !prompt.text.instructions.is_empty() {
-            messages.push(ChatCompletionRequestMessage::System(
-                ChatCompletionRequestSystemMessage {
-                    content: ChatCompletionRequestSystemMessageContent::Text(
-                        prompt.text.instructions.into(),
-                    ),
-                    name: None,
-                },
-            ));
-        }
-        messages.extend(prompt.messages.iter().map(|message| match message.role {
-            MessageRole::User => user(&message.content),
-            MessageRole::Assistant => {
-                ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
-                    content: Some(ChatCompletionRequestAssistantMessageContent::Text(
-                        message.content.clone(),
-                    )),
-                    ..Default::default()
-                })
-            }
-        }));
-        let latest = if prompt.attachments.is_empty() {
-            user(prompt.text.prompt)
+    fn chat_user_message(
+        text: &str,
+        attachments: &[Attachment],
+    ) -> AiResult<ChatCompletionRequestMessage> {
+        let content = if attachments.is_empty() {
+            ChatCompletionRequestUserMessageContent::Text(text.into())
         } else {
             use ChatCompletionRequestUserMessageContentPart::{File, ImageUrl as ImagePart, Text};
             let mut parts = Vec::new();
-            if !prompt.text.prompt.trim().is_empty() {
+            if !text.trim().is_empty() {
                 parts.push(Text(ChatCompletionRequestMessageContentPartText {
-                    text: prompt.text.prompt.into(),
+                    text: text.into(),
                     ..Default::default()
                 }));
             }
-            for attachment in prompt.attachments {
+            for attachment in attachments {
                 parts.push(match attachment {
                     Attachment::Image(image) => {
                         ImagePart(ChatCompletionRequestMessageContentPartImage {
@@ -434,12 +407,49 @@ impl OpenAiTextProvider {
                     Attachment::Document(_) => return Err(AiError::AttachmentsNotSupported),
                 });
             }
-            ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
-                content: ChatCompletionRequestUserMessageContent::Array(parts),
-                name: None,
-            })
+            ChatCompletionRequestUserMessageContent::Array(parts)
         };
-        messages.push(latest);
+        Ok(ChatCompletionRequestMessage::User(
+            ChatCompletionRequestUserMessage {
+                content,
+                name: None,
+            },
+        ))
+    }
+
+    // OpenAI 兼容驱动沿用 Chat 兼容端点的 max_tokens 契约。
+    #[allow(deprecated)]
+    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<CreateChatCompletionRequest> {
+        let mut messages = Vec::new();
+        if !prompt.text.instructions.is_empty() {
+            messages.push(ChatCompletionRequestMessage::System(
+                ChatCompletionRequestSystemMessage {
+                    content: ChatCompletionRequestSystemMessageContent::Text(
+                        prompt.text.instructions.into(),
+                    ),
+                    name: None,
+                },
+            ));
+        }
+        for message in prompt.messages {
+            messages.push(match message.role {
+                MessageRole::User => {
+                    Self::chat_user_message(&message.content, &message.attachments)?
+                }
+                MessageRole::Assistant => {
+                    ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
+                        content: Some(ChatCompletionRequestAssistantMessageContent::Text(
+                            message.content.clone(),
+                        )),
+                        ..Default::default()
+                    })
+                }
+            });
+        }
+        messages.push(Self::chat_user_message(
+            prompt.text.prompt,
+            prompt.attachments,
+        )?);
         Ok(CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
@@ -460,63 +470,63 @@ impl OpenAiTextProvider {
         })
     }
 
+    fn responses_content(text: &str, attachments: &[Attachment]) -> EasyInputContent {
+        if attachments.is_empty() {
+            return EasyInputContent::Text(text.into());
+        }
+        let mut parts = Vec::new();
+        if !text.trim().is_empty() {
+            parts.push(InputContent::InputText(InputTextContent {
+                text: text.into(),
+                ..Default::default()
+            }));
+        }
+        parts.extend(attachments.iter().map(|attachment| match attachment {
+            Attachment::Image(image) => InputContent::InputImage(InputImageContent {
+                image_url: Some(image.data_url()),
+                ..Default::default()
+            }),
+            Attachment::Document(document) => InputContent::InputFile(InputFileContent {
+                filename: Some(document.filename().into()),
+                file_data: Some(document.data_url()),
+                ..Default::default()
+            }),
+        }));
+        EasyInputContent::ContentList(parts)
+    }
+
     fn responses_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> CreateResponse {
-        let input =
-            if prompt.messages.is_empty() && prompt.attachments.is_empty() {
-                InputParam::Text(prompt.text.prompt.into())
-            } else {
-                let message = |role, content| {
-                    InputItem::EasyMessage(EasyInputMessage {
-                        r#type: Default::default(),
-                        role,
-                        content,
-                        phase: None,
-                    })
-                };
-                let mut history: Vec<_> = prompt
-                    .messages
-                    .iter()
-                    .map(|entry| {
-                        let role = match entry.role {
-                            MessageRole::User => Role::User,
-                            MessageRole::Assistant => Role::Assistant,
-                        };
-                        message(role, EasyInputContent::Text(entry.content.clone()))
-                    })
-                    .collect();
-                let content =
-                    if prompt.attachments.is_empty() {
-                        EasyInputContent::Text(prompt.text.prompt.into())
-                    } else {
-                        let mut parts = Vec::new();
-                        if !prompt.text.prompt.trim().is_empty() {
-                            parts.push(InputContent::InputText(InputTextContent {
-                                text: prompt.text.prompt.into(),
-                                ..Default::default()
-                            }));
-                        }
-                        parts.extend(prompt.attachments.iter().map(
-                            |attachment| match attachment {
-                                Attachment::Image(image) => {
-                                    InputContent::InputImage(InputImageContent {
-                                        image_url: Some(image.data_url()),
-                                        ..Default::default()
-                                    })
-                                }
-                                Attachment::Document(document) => {
-                                    InputContent::InputFile(InputFileContent {
-                                        filename: Some(document.filename().into()),
-                                        file_data: Some(document.data_url()),
-                                        ..Default::default()
-                                    })
-                                }
-                            },
-                        ));
-                        EasyInputContent::ContentList(parts)
-                    };
-                history.push(message(Role::User, content));
-                InputParam::Items(history)
+        let input = if prompt.messages.is_empty() && prompt.attachments.is_empty() {
+            InputParam::Text(prompt.text.prompt.into())
+        } else {
+            let message = |role, content| {
+                InputItem::EasyMessage(EasyInputMessage {
+                    r#type: Default::default(),
+                    role,
+                    content,
+                    phase: None,
+                })
             };
+            let mut history: Vec<_> = prompt
+                .messages
+                .iter()
+                .map(|entry| {
+                    let role = match entry.role {
+                        MessageRole::User => Role::User,
+                        MessageRole::Assistant => Role::Assistant,
+                    };
+                    message(
+                        role,
+                        Self::responses_content(&entry.content, &entry.attachments),
+                    )
+                })
+                .collect();
+            history.push(message(
+                Role::User,
+                Self::responses_content(prompt.text.prompt, prompt.attachments),
+            ));
+            InputParam::Items(history)
+        };
         CreateResponse {
             instructions: (!prompt.text.instructions.is_empty())
                 .then(|| prompt.text.instructions.into()),

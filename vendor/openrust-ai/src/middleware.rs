@@ -113,7 +113,7 @@ impl<'a> PendingStep<'a> {
         if self.model.trim().is_empty() {
             return Err(AiError::MissingModel);
         }
-        crate::attachments::validate_prompt_attachments(&self.attachments)?;
+        crate::attachments::validate_prompt_attachments(&self.attachments, &self.messages)?;
         self.options.validate()?;
         if let Some(choice) = &self.tool_choice {
             choice.validate(&self.tools)?;

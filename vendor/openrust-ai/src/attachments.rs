@@ -3,7 +3,7 @@ use std::{fmt, path::Path};
 use bytes::Bytes;
 use openrust::{http::UploadedFile, support::Str};
 
-use crate::{AiError, AiResult, ImageAttachment, media_storage};
+use crate::{AiError, AiResult, ImageAttachment, Message, MessageRole, media_storage};
 
 pub(crate) const MAX_ATTACHMENTS: usize = 16;
 pub(crate) const MAX_ATTACHMENT_BYTES: usize = 50_000_000;
@@ -37,16 +37,33 @@ impl Attachment {
     }
 }
 
-pub(crate) fn validate_prompt_attachments(attachments: &[Attachment]) -> AiResult<()> {
-    if attachments.len() > MAX_ATTACHMENTS {
-        return Err(AiError::TooManyAttachments);
-    }
-    if attachments
+pub(crate) fn validate_prompt_attachments(
+    attachments: &[Attachment],
+    messages: &[Message],
+) -> AiResult<()> {
+    let mut count = attachments.len();
+    let mut bytes = attachments
         .iter()
         .map(Attachment::len)
-        .fold(0usize, usize::saturating_add)
-        >= MAX_ATTACHMENT_BYTES
+        .fold(0usize, usize::saturating_add);
+    for message in messages
+        .iter()
+        .filter(|message| !message.attachments.is_empty())
     {
+        if message.role != MessageRole::User {
+            return Err(AiError::AttachmentsNotSupported);
+        }
+        count = count.saturating_add(message.attachments.len());
+        bytes = message
+            .attachments
+            .iter()
+            .map(Attachment::len)
+            .fold(bytes, usize::saturating_add);
+    }
+    if count > MAX_ATTACHMENTS {
+        return Err(AiError::TooManyAttachments);
+    }
+    if bytes >= MAX_ATTACHMENT_BYTES {
         return Err(AiError::MediaTooLarge);
     }
     Ok(())

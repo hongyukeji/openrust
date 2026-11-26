@@ -27,6 +27,8 @@ impl MessageRole {
 pub struct Message {
     pub role: MessageRole,
     pub content: String,
+    #[serde(skip)]
+    pub attachments: Vec<Attachment>,
 }
 
 impl Message {
@@ -34,11 +36,22 @@ impl Message {
         Self {
             role,
             content: content.into(),
+            attachments: Vec::new(),
         }
     }
 
     pub fn user(content: impl Into<String>) -> Self {
         Self::new(MessageRole::User, content)
+    }
+
+    pub fn user_with_attachments(
+        content: impl Into<String>,
+        attachments: impl IntoIterator<Item = impl Into<Attachment>>,
+    ) -> Self {
+        Self {
+            attachments: attachments.into_iter().map(Into::into).collect(),
+            ..Self::user(content)
+        }
     }
 
     pub fn assistant(content: impl Into<String>) -> Self {

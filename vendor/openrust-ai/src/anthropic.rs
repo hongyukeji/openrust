@@ -38,37 +38,40 @@ impl AnthropicTextProvider {
         )?)))
     }
 
+    fn message_content(text: &str, attachments: &[Attachment]) -> AiResult<Value> {
+        if attachments.is_empty() {
+            return Ok(Value::from(text));
+        }
+        let mut blocks = Vec::new();
+        if !text.trim().is_empty() {
+            blocks.push(json!({"type":"text","text":text}));
+        }
+        for attachment in attachments {
+            blocks.push(match attachment {
+                Attachment::Image(image) => json!({
+                    "type":"image",
+                    "source":{"type":"base64","media_type":image.mime(),"data":Str::to_base64(image.content())}
+                }),
+                Attachment::Document(document) if document.is_pdf() => json!({
+                    "type":"document","title":document.filename(),
+                    "source":{"type":"base64","media_type":document.mime(),"data":Str::to_base64(document.content())}
+                }),
+                Attachment::Document(document) => json!({
+                    "type":"document","title":document.filename(),
+                    "source":{"type":"text","media_type":"text/plain","data":document.text()?}
+                }),
+            });
+        }
+        Ok(Value::Array(blocks))
+    }
+
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
-        let mut messages: Vec<_> = prompt
-            .messages
-            .iter()
-            .map(|message| json!({"role":message.role.as_str(), "content":message.content}))
-            .collect();
-        let content = if prompt.attachments.is_empty() {
-            Value::from(prompt.text.prompt)
-        } else {
-            let mut blocks = Vec::new();
-            if !prompt.text.prompt.trim().is_empty() {
-                blocks.push(json!({"type":"text","text":prompt.text.prompt}));
-            }
-            for attachment in prompt.attachments {
-                blocks.push(match attachment {
-                    Attachment::Image(image) => json!({
-                        "type":"image",
-                        "source":{"type":"base64","media_type":image.mime(),"data":Str::to_base64(image.content())}
-                    }),
-                    Attachment::Document(document) if document.is_pdf() => json!({
-                        "type":"document","title":document.filename(),
-                        "source":{"type":"base64","media_type":document.mime(),"data":Str::to_base64(document.content())}
-                    }),
-                    Attachment::Document(document) => json!({
-                        "type":"document","title":document.filename(),
-                        "source":{"type":"text","media_type":"text/plain","data":document.text()?}
-                    }),
-                });
-            }
-            Value::Array(blocks)
-        };
+        let mut messages = Vec::with_capacity(prompt.messages.len() + 1);
+        for message in prompt.messages {
+            let content = Self::message_content(&message.content, &message.attachments)?;
+            messages.push(json!({"role":message.role.as_str(), "content":content}));
+        }
+        let content = Self::message_content(prompt.text.prompt, prompt.attachments)?;
         messages.push(json!({"role":"user","content":content}));
         let mut body = json!({
             "model": prompt.text.model,

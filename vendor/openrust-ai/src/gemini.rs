@@ -81,6 +81,21 @@ impl GeminiTextProvider {
         .await
     }
 
+    fn message_parts(text: &str, attachments: &[Attachment]) -> Vec<Value> {
+        let mut parts = Vec::new();
+        if attachments.is_empty() || !text.trim().is_empty() {
+            parts.push(json!({"text":text}));
+        }
+        parts.extend(attachments.iter().map(|attachment| {
+            let (mime, content) = match attachment {
+                Attachment::Image(image) => (image.mime(), image.content()),
+                Attachment::Document(document) => (document.mime(), document.content()),
+            };
+            json!({"inlineData":{"mimeType":mime,"data":Str::to_base64(content)}})
+        }));
+        parts
+    }
+
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
         let mut contents: Vec<_> = prompt
             .messages
@@ -90,20 +105,11 @@ impl GeminiTextProvider {
                     MessageRole::User => "user",
                     MessageRole::Assistant => "model",
                 };
-                json!({"role":role,"parts":[{"text":message.content}]})
+                let parts = Self::message_parts(&message.content, &message.attachments);
+                json!({"role":role,"parts":parts})
             })
             .collect();
-        let mut parts = Vec::new();
-        if prompt.attachments.is_empty() || !prompt.text.prompt.trim().is_empty() {
-            parts.push(json!({"text":prompt.text.prompt}));
-        }
-        parts.extend(prompt.attachments.iter().map(|attachment| {
-            let (mime, content) = match attachment {
-                Attachment::Image(image) => (image.mime(), image.content()),
-                Attachment::Document(document) => (document.mime(), document.content()),
-            };
-            json!({"inlineData":{"mimeType":mime,"data":Str::to_base64(content)}})
-        }));
+        let parts = Self::message_parts(prompt.text.prompt, prompt.attachments);
         contents.push(json!({"role":"user","parts":parts}));
         let mut body = json!({"contents":contents});
         if !prompt.text.instructions.is_empty() {

@@ -681,7 +681,7 @@ impl AiManager {
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
-        crate::attachments::validate_prompt_attachments(attachments)?;
+        crate::attachments::validate_prompt_attachments(attachments, messages)?;
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -823,7 +823,7 @@ impl AiManager {
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
-        crate::attachments::validate_prompt_attachments(attachments)?;
+        crate::attachments::validate_prompt_attachments(attachments, messages)?;
         let middleware = agent.middleware();
         let tools = crate::load_skill::tools_for(agent)?;
         if tools.is_empty()

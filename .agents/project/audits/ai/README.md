@@ -382,6 +382,10 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel Image](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Image.php)
 
+手动历史通过 `Message::user_with_attachments` 与 `with_messages` 传入。四种协议复用各自的用户附件内容构造，保留消息角色、附件顺序以及其后的无附件提示结构。普通消息 JSON 继续只有角色和文本，Fake 可直接断言历史附件。历史与本轮共用 16 个文件和小于 50 MB 的原始数据上限。独立 Artisan 发送图片和 PDF 并验证 Fake、超限拒绝。真实 HTTP 通过 multipart 接收 PDF 和 Markdown 并验证四路原生协议的普通响应与 PDF SSE，Chat 的 Markdown 在发送前拒绝。OpenAI 请求结构回归、SDK 15 项、严格 Clippy、三语站点通过。会话落库、数据库触发的历史回填和含附件的审批恢复继续核对。
+
+- [固定 Laravel UserMessage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Messages/UserMessage.php)
+
 ## AI-02 模型档位与文本摘要
 
 `Agent::model_tier` 及匿名 Agent 的 `with_model_tier` 对应固定 Laravel 的 `UseCheapestModel` 和 `UseSmartestModel`。连接在 `models.text.cheapest`、`models.text.smartest` 配置模型 ID，显式模型优先，未设置档位时使用已配置的默认模型。模型发现合并默认模型、档位模型和上游模型。内置连接预设通过既有模型环境变量加 `_CHEAPEST`、`_SMARTEST` 后缀读取对应配置。

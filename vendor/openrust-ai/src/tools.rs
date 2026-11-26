@@ -376,7 +376,13 @@ impl ToolRun {
         plan: ApprovalPlan,
         allowed: BTreeSet<String>,
     ) -> AiResult<PendingToolApprovals> {
-        let Some(session) = approval.filter(|_| prompt.attachments.is_empty()) else {
+        let Some(session) = approval.filter(|_| {
+            prompt.attachments.is_empty()
+                && prompt
+                    .messages
+                    .iter()
+                    .all(|message| message.attachments.is_empty())
+        }) else {
             return Err(AiError::ApprovalNotResumable {
                 pending: plan.pending,
             });

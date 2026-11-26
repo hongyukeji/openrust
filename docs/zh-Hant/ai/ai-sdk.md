@@ -566,6 +566,8 @@ let response = agent("Review the quarterly report.")
 
 請選擇支援文件的模型。Responses、Anthropic Messages 與 Gemini 接收這三種格式。Chat Completions 僅接收 PDF。圖片與文件共用每次提示詞的附件數量及大小上限。
 
+透過 `Message::user_with_attachments(text, attachments)` 和 `with_messages` 可為指定的歷史使用者訊息新增附件。歷史與本輪合計最多 16 個檔案，原始資料必須小於 50 MB。在 Rust 中透過 `Message::attachments` 讀取檔案。一般訊息的 JSON 表示包含角色和文字。對話儲存支援附件前，請透過此方法直接提供歷史。
+
 ## Agent 工具 {#agent-tools}
 
 實作 `Tool` 的名稱、描述、JSON Schema 和非同步 `handle`。用 `ToolRequest::validate` 執行框架驗證規則，或透過 `decode` 讀取 Rust 型別的參數。工具可以讀取上游呼叫 ID 和本次執行的獨立 ID。
