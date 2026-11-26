@@ -149,7 +149,7 @@ impl PendingEmbeddingsGeneration {
         };
         let prompt = EmbeddingsPrompt {
             inputs: &self.inputs,
-            model,
+            model: provider.normalize_embeddings_model(model)?,
             dimensions: self
                 .dimensions
                 .or_else(|| provider.default_embeddings_dimensions()),
@@ -192,6 +192,10 @@ pub trait EmbeddingProvider: Send + Sync {
     fn name(&self) -> &str;
     fn default_embeddings_model(&self) -> AiResult<&str>;
     fn default_embeddings_dimensions(&self) -> Option<usize>;
+
+    fn normalize_embeddings_model<'a>(&self, model: &'a str) -> AiResult<&'a str> {
+        Ok(model)
+    }
 
     /// 由驱动提供连接隔离标识。返回 None 时仅调用上游。
     fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {

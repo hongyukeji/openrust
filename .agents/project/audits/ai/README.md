@@ -365,3 +365,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 验证本地文件、命名磁盘、混合顺序、错误格式和 Fake 记录。真实 HTTP 逐协议发送 multipart，核对四个本地 TCP 上游收到的 PDF 原始字节、文件名、普通响应和 SSE，以及三种支持协议的 Markdown 映射。远端 URL、供应商文件 ID、会话历史及排队的文件恢复仍按独立契约验收。
 
 - [固定 Laravel Document](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Document.php) · [OpenAI File inputs](https://developers.openai.com/api/docs/guides/file-inputs) · [Anthropic PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support) · [Gemini Document understanding](https://ai.google.dev/gemini-api/docs/document-processing)
+
+## AI-05 Gemini 原生文本 Embeddings
+
+同一 `Embeddings::r#for` 支持 Gemini 原生 `batchEmbedContents`。使用连接的 `models.embeddings.default` 或显式模型，带 `models/` 的写法先规范为同一个模型标识，复用连接鉴权和独立协议缓存。请求保留文本顺序和维度。响应检查向量数量、长度和有限浮点值，只返回已报告的 Token 数。
+
+独立 Artisan 写入真实 File Cache，独立 HTTP 回读相同向量和模型标识，证明缓存命中没有出站。还验证原生 API Key、模型路径、批量顺序、显式覆盖、未报告用量、非法路径、超大维度及响应维度不符。本批覆盖文本 Embeddings，对外 Gemini 原生网关及多模态向量另行验收。
+
+- [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php#L179) · [Gemini Embeddings API](https://ai.google.dev/api/embeddings)

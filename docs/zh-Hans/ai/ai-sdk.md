@@ -370,6 +370,8 @@ let vectors = response.embeddings;
 
 所选模型支持指定维度时，可使用 `dimensions(n)`。使用 OpenAI 兼容连接生成向量前，先配置该连接的 `models.embeddings`。通过 `POST /v1/embeddings` 发布向量模型时，映射公开名并为该模型配置 `"endpoints": ["embeddings"]`，再将公开名授权给下游 Key。
 
+使用 Gemini 原生 API 时，设置 `AI_EMBEDDINGS_PROVIDER=gemini` 与 `GEMINI_EMBEDDING_MODEL`。SDK 通过 `batchEmbedContents` 发送文本，单条也使用同一入口。模型 ID 可带或省略 `models/` 前缀。结果按输入顺序返回，指定的维度会传给上游，Token 数量以 Gemini 实际报告为准。
+
 调用 `cache(Some(600), None)` 可将向量缓存 600 秒。在 `ai.caching.embeddings` 设置默认有效期、缓存存储以及是否为全部 SDK 调用启用缓存。逐条缓存能跨批次复用向量，只把未命中的输入发给供应商。第二个参数传 `Some(false)` 会按原顺序缓存整批。单次调用可用 `cache(Some(0), None)` 跳过缓存。部分命中时，用量只记录实际发给上游的输入。
 
 ### 测试 Embeddings {#embeddings-fake}

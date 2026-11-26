@@ -12,9 +12,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, MessageRole, ModelCatalog,
-    StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint,
-    TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole,
+    ModelCatalog, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
+    TextEndpoint, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep,
+    Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -22,6 +23,8 @@ use crate::{
     stores::StoreProvider,
     text::{transport_error, validate},
 };
+
+mod embeddings;
 
 pub(crate) struct GeminiTextProvider(Arc<Connection>);
 
@@ -49,18 +52,7 @@ impl GeminiTextProvider {
         if !self.supports_endpoint(endpoint) {
             return Err(AiError::EndpointNotSupported);
         }
-        let model = model_id(model);
-        if model.is_empty()
-            || !model
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-            || !model
-                .as_bytes()
-                .first()
-                .is_some_and(u8::is_ascii_alphanumeric)
-        {
-            return Err(AiError::InvalidConfiguration("providers.<name>.models"));
-        }
+        let model = validated_model_id(model)?;
         let path = format!("models/{model}:{}", endpoint.path());
         let mut request = self.0.request(timeout)?;
         if endpoint == TextEndpoint::GeminiStreamGenerateContent {
@@ -166,6 +158,12 @@ impl TextProvider for GeminiTextProvider {
 
     fn text_model(&self, tier: TextModelTier) -> AiResult<&str> {
         self.0.text_model(tier)
+    }
+
+    fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        Some(Arc::new(embeddings::GeminiEmbeddingProvider(
+            self.0.clone(),
+        )))
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
@@ -290,6 +288,22 @@ impl TextProvider for GeminiTextProvider {
             self.relay_model(endpoint, &model, &body, None).await
         })
     }
+}
+
+fn validated_model_id(model: &str) -> AiResult<&str> {
+    let model = model_id(model);
+    if model.is_empty()
+        || !model
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        || !model
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphanumeric)
+    {
+        return Err(AiError::InvalidConfiguration("providers.<name>.models"));
+    }
+    Ok(model)
 }
 
 fn model_id(name: &str) -> &str {
