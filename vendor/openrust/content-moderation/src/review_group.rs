@@ -141,6 +141,14 @@ impl VideoReviewGroup {
 
     /// 所有检查具备完整覆盖后，取各项结论中风险最高的一项。
     pub fn decision(&self) -> Option<Decision> {
+        if self.checks[0].profile().driver() == "sightengine"
+            && self
+                .segments
+                .as_ref()
+                .is_some_and(|plan| plan.original.video_audio_track_count() != Some(1))
+        {
+            return None;
+        }
         self.checks
             .iter()
             .try_fold(Decision::Allow, |result, check| {

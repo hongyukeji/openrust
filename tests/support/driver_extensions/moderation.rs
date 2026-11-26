@@ -1078,15 +1078,22 @@ fn render_decision(decision: ReviewDecision) -> Value {
 }
 
 fn fixture_video_source(version: &str) -> ModerationResult<StoredMedia> {
-    let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
-    match std::env::var("MODERATION_FIXTURE_VIDEO_DURATION_MS") {
-        Ok(value) => source.with_video_duration_ms(
+    let mut source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
+    if let Ok(value) = std::env::var("MODERATION_FIXTURE_VIDEO_DURATION_MS") {
+        source = source.with_video_duration_ms(
             value
                 .parse()
                 .map_err(|_| ModerationError::InvalidInput("fixture video duration"))?,
-        ),
-        Err(_) => Ok(source),
+        )?;
     }
+    if let Ok(value) = std::env::var("MODERATION_FIXTURE_VIDEO_AUDIO_TRACK_COUNT") {
+        source = source.with_video_audio_track_count(
+            value
+                .parse()
+                .map_err(|_| ModerationError::InvalidInput("fixture audio track count"))?,
+        );
+    }
+    Ok(source)
 }
 
 async fn stage_group(
@@ -1113,6 +1120,7 @@ struct FixtureSegment {
     start_ms: u32,
     duration_ms: u32,
     version: String,
+    audio_track_count: Option<u16>,
 }
 
 async fn stage_segments(
@@ -1131,8 +1139,11 @@ async fn stage_segments(
     let segments = plan
         .into_iter()
         .map(|segment| {
-            let source = StoredMedia::new("s3", "versions/clip.mp4", segment.version)?
+            let mut source = StoredMedia::new("s3", "versions/clip.mp4", segment.version)?
                 .with_video_duration_ms(segment.duration_ms)?;
+            if let Some(count) = segment.audio_track_count {
+                source = source.with_video_audio_track_count(count);
+            }
             Ok(VideoReviewSegment::new(segment.start_ms, source))
         })
         .collect::<ModerationResult<Vec<_>>>()?;

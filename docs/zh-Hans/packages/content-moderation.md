@@ -116,9 +116,13 @@ Hive 回调可以通过 Webhook Client 接收查单提示。将 `HiveLookupHint`
 
 调用 `StoredMedia::with_video_duration_ms`，把应用已核实的时长与准确素材版本一起传入。Sightengine 的短视频接口只接受不足 60 秒的素材。需要持久化时将该配置固定为 `required_modalities = ["speech"]`，按常规流程落单。送审 Worker 一次写入终态与结果。证据保留类别、严重程度标签和时间范围，记录与诊断不保存识别原文。缺少音轨结果时语音覆盖为不可用。同一素材还有其他必检模态时，在审核组中配置独立检查。 [语音审核](https://sightengine.com/docs/audio-moderation-model) · [短视频接口](https://sightengine.com/docs/moderate-stored-video)
 
+用 `StoredMedia::with_video_audio_track_count` 记录该版本已核实的音轨数。确认只有一条音轨且收到音频结果时，语音覆盖可标记为完整。存在多条音轨或轨数未知时，返回的音频结果只计部分覆盖，仍保留风险证据。确认无音轨时，语音覆盖为不可用。
+
 ### 长视频语音分段 {#sightengine-speech-segments}
 
 应用从同一原素材版本生成并核实 2–64 个片段。调用 `VideoReviewSegment::new` 传入各片段在原素材时间线上的起点。用 `StoredMedia::with_video_duration_ms` 为原素材和每个片段记录已核实的时长。每个片段不足 60 秒，使用不同素材版本，按顺序覆盖整条时间线。相邻片段可以重叠以保留语境。
+
+Sightengine 语音分段审核须确认原素材和每个片段各有一条音轨。执行迁移并重启 Worker 后再提交带音轨数的审核。历史证据仍可读取。需要重新取得发布决定时，用新的送审意图和已核实的音轨数登记审核。
 
 将原素材版本、固定语音配置和片段列表传给 `VideoReviewGroupRequest::for_speech_segments`，沿用审核组和 Worker 的落单与执行方式。用 `segment_window_ms(index)` 定位原素材区间，展示证据时把片段内的时间戳加上片段起点。发布时使用审核组和原内容修订，每个片段都须有完整语音覆盖。
 
@@ -208,7 +212,7 @@ let recommendation = result.decision(&[Modality::Text]);
 
 ## 持久化视频送审意图 {#video-review-storage}
 
-启用扩展后执行 `./artisan migrate`。需要将两份迁移源码发布到应用时，执行 `./artisan vendor:publish --tag=moderation-migrations`。
+启用扩展后执行 `./artisan migrate`。需要将迁移源码发布到应用时，执行 `./artisan vendor:publish --tag=moderation-migrations`。
 
 使用数据库连接和稳定的应用、租户标识构造 `ModerationStore`，HTTP 和 Worker 使用相同标识。用幂等键、业务内容 ID 与修订、原始 `StoredMedia`、已固定的配置和超时秒数构造 `VideoReviewRequest`。调用 `stage_video` 在同一事务写入待审核记录和点播子检查。重试相同请求可拿到原记录。同一范围内用相同的键提交不同内容会产生冲突。通过 `find` 按审核 ID 从同一范围读取。
 

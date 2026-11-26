@@ -107,7 +107,14 @@ impl SpeechService {
             return Err(ModerationError::Protocol);
         }
         let (coverage, evidence) = match response.data.audio {
-            Some(audio) => (Coverage::Complete, self.read(audio, u64::from(duration))?),
+            Some(audio) => {
+                let coverage = match input.source().video_audio_track_count() {
+                    Some(0) => Coverage::Unavailable,
+                    Some(1) => Coverage::Complete,
+                    _ => Coverage::Partial,
+                };
+                (coverage, self.read(audio, u64::from(duration))?)
+            }
             None => (Coverage::Unavailable, Vec::new()),
         };
         let decision = if coverage == Coverage::Complete && evidence.is_empty() {

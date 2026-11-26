@@ -101,6 +101,12 @@ pub struct Assessment {
 }
 
 impl Assessment {
+    pub(crate) fn limit_complete_coverage(&mut self, modality: Modality, limit: Coverage) {
+        if let Some(value @ Coverage::Complete) = self.coverage.get_mut(&modality) {
+            *value = limit;
+        }
+    }
+
     pub(crate) fn covers(&self, required: &BTreeSet<Modality>) -> bool {
         !required.is_empty()
             && required

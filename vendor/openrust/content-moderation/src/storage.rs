@@ -7,8 +7,9 @@ use openrust::{
 use sha2::{Digest as _, Sha256};
 
 use crate::{
-    ModerationError, ModerationResult, ReviewState, StoredMedia, TaskId, VideoReview,
-    VideoReviewRequest, VideoSubmission, credentials::valid_identifier,
+    Coverage, Modality, ModerationError, ModerationResult, ProfileRevision, ReviewState,
+    StoredMedia, TaskId, VideoReview, VideoReviewRequest, VideoSubmission,
+    credentials::valid_identifier,
 };
 
 mod assessment_record;
@@ -150,6 +151,7 @@ impl ModerationStore {
                 "object_key",
                 "object_version",
                 "video_duration_ms",
+                "video_audio_track_count",
                 "created_at",
                 "deadline_at",
                 "version",
@@ -237,6 +239,13 @@ async fn write_check(
                     .video_duration_ms()
                     .map_or(Value::Null, |duration| i64::from(duration).into()),
             ),
+            (
+                "video_audio_track_count".into(),
+                request
+                    .source
+                    .video_audio_track_count()
+                    .map_or(Value::Null, |count| i64::from(count).into()),
+            ),
             ("state".into(), "Pending".into()),
             ("created_at".into(), created_at.into()),
             ("deadline_at".into(), deadline_at.into()),
@@ -289,14 +298,33 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
             .with_video_duration_ms(duration)
             .map_err(|_| ModerationError::ReviewStorage)?;
     }
+    if row.get("video_audio_track_count") != Some(&Value::Null) {
+        let count = u16::try_from(number("video_audio_track_count")?)
+            .map_err(|_| ModerationError::ReviewStorage)?;
+        source = source.with_video_audio_track_count(count);
+    }
+    let profile: ProfileRevision = serde_json::from_str(text("profile_revision")?)
+        .map_err(|_| ModerationError::ReviewStorage)?;
+    let mut assessment = optional_text("assessment")?
+        .map(assessment_record::decode)
+        .transpose()?;
+    // 早期 Sightengine 语音记录未保存音轨数，原证据仍可读取，不能继续授权发布。
+    if profile.driver() == "sightengine"
+        && let Some(result) = &mut assessment
+    {
+        match source.video_audio_track_count() {
+            Some(0) => result.limit_complete_coverage(Modality::Speech, Coverage::Unavailable),
+            Some(1) => (),
+            _ => result.limit_complete_coverage(Modality::Speech, Coverage::Partial),
+        }
+    }
     Ok(VideoReview {
         id: text("review_id")?.into(),
         check_id: text("check_id")?.into(),
         content_id: text("content_id")?.into(),
         content_revision: text("content_revision")?.into(),
         source,
-        profile: serde_json::from_str(text("profile_revision")?)
-            .map_err(|_| ModerationError::ReviewStorage)?,
+        profile,
         created_at: number("created_at")?,
         deadline_at: number("deadline_at")?,
         version: number("version")?,
@@ -325,9 +353,7 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
             .map(|value| serde_json::from_value(serde_json::Value::String(value.into())))
             .transpose()
             .map_err(|_| ModerationError::ReviewStorage)?,
-        assessment: optional_text("assessment")?
-            .map(assessment_record::decode)
-            .transpose()?,
+        assessment,
         confirmation_callback_id: optional_text("confirmation_callback_id")?.map(str::to_owned),
         lookup_hint_id: optional_text("lookup_hint_id")?.map(str::to_owned),
         provider_cancellation: optional_text("provider_cancellation")?

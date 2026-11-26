@@ -55,6 +55,7 @@ pub struct StoredMedia {
     key: String,
     version: String,
     video_duration_ms: Option<u32>,
+    video_audio_track_count: Option<u16>,
 }
 
 impl StoredMedia {
@@ -71,6 +72,7 @@ impl StoredMedia {
             key,
             version,
             video_duration_ms: None,
+            video_audio_track_count: None,
         })
     }
 
@@ -85,6 +87,16 @@ impl StoredMedia {
 
     pub fn video_duration_ms(&self) -> Option<u32> {
         self.video_duration_ms
+    }
+
+    /// 记录应用已核实且与这个对象版本绑定的音轨数，零表示无音轨。
+    pub fn with_video_audio_track_count(mut self, count: u16) -> Self {
+        self.video_audio_track_count = Some(count);
+        self
+    }
+
+    pub fn video_audio_track_count(&self) -> Option<u16> {
+        self.video_audio_track_count
     }
 
     pub fn disk(&self) -> &str {

@@ -91,6 +91,26 @@ def probe_ms(path):
     return round(float(result) * 1000)
 
 
+def audio_track_count(path):
+    result = subprocess.check_output(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+         "-of", "json", str(path)], timeout=10,
+    )
+    return len(json.loads(result)["streams"])
+
+
+def upload_version(path, storage):
+    body = path.read_bytes()
+    storage("PUT", VIDEO["KEY"], content=body)
+    versions = XML.fromstring(storage("GET", query="versions="))
+    version, = [
+        node.findtext("{*}VersionId") for node in versions.findall("{*}Version")
+        if node.findtext("{*}Key") == VIDEO["KEY"] and node.findtext("{*}IsLatest") == "true"
+    ]
+    assert version not in {"", "null"}
+    return version, body
+
+
 def versioned_segments(root, storage):
     storage("PUT", query="versioning", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
@@ -114,37 +134,39 @@ def versioned_segments(root, storage):
     lengths = [probe_ms(path) for path in frames[1:]]
     assert 33_000 < lengths[0] < 60_000 and 33_000 + lengths[1] == probe_ms(source), lengths
 
-    def upload(path):
-        body = path.read_bytes()
-        storage("PUT", VIDEO["KEY"], content=body)
-        versions = XML.fromstring(storage("GET", query=f"versions&prefix={VIDEO['KEY']}"))
-        version, = [
-            node.findtext("{*}VersionId") for node in versions.findall("{*}Version")
-            if node.findtext("{*}Key") == VIDEO["KEY"] and node.findtext("{*}IsLatest") == "true"
-        ]
-        assert version not in {"", "null"}
-        return version, body
-
-    original_version, original = upload(frames[0])
-    first, second = map(upload, frames[1:])
+    tracks = [audio_track_count(path) for path in frames]
+    assert tracks == [1, 1, 1]
+    original_version, original = upload_version(frames[0], storage)
+    first, second = (upload_version(path, storage) for path in frames[1:])
     assert len({original_version, first[0], second[0]}) == 3
     storage("GET", VIDEO["KEY"], status=403, signed=False)
-    return original_version, original, (first, second), lengths
+    return original_version, original, (first, second), lengths, tracks
 
 
 def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=False):
     if test_segments:
-        version, original, clips, lengths = versioned_segments(root, storage)
+        version, original, clips, lengths, tracks = versioned_segments(root, storage)
         duration = 70_000
         timeline = [
-            {"start_ms": 0, "duration_ms": lengths[0], "version": clips[0][0]},
-            {"start_ms": 33_000, "duration_ms": lengths[1], "version": clips[1][0]},
+            {"start_ms": 0, "duration_ms": lengths[0], "version": clips[0][0], "audio_track_count": tracks[1]},
+            {"start_ms": 33_000, "duration_ms": lengths[1], "version": clips[1][0], "audio_track_count": tracks[2]},
         ]
     else:
         version, silent_version, original, silent = VIDEO["versioned_clips"](root, storage)
-        duration = probe_ms(root / "original.mp4")
-        silent_duration = probe_ms(root / "changed.mp4")
+        source = root / "video-with-audio.mp4"
+        silent_source = root / "video-visual-only.mp4"
+        duration = probe_ms(source)
+        silent_duration = probe_ms(silent_source)
+        assert audio_track_count(source) == 1 and audio_track_count(silent_source) == 0
         assert 980 <= duration < 60_000 and 0 < silent_duration < 60_000
+        multi_path = root / "two-audio-tracks.mp4"
+        subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                        "-i", str(source), "-f", "lavfi", "-i", "sine=frequency=660:duration=2",
+                        "-map", "0:v", "-map", "0:a", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
+                        str(multi_path)], timeout=10, check=True)
+        multi_count = audio_track_count(multi_path)
+        assert multi_count == 2
+        multi_version, multi_body = upload_version(multi_path, storage)
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.mode = threading.Lock(), "clean"
     supplier.expected_secret, supplier.gate = VIDEO["SECRET"], None
@@ -184,8 +206,10 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         "MODERATION_FIXTURE_GROUP": "1", "MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": PRIMARY,
     }
     env.pop("MODERATION_FIXTURE_VIDEO_DURATION_MS", None)
+    env.pop("MODERATION_FIXTURE_VIDEO_AUDIO_TRACK_COUNT", None)
     if test_segments:
         env["MODERATION_FIXTURE_VIDEO_DURATION_MS"] = str(duration)
+        env["MODERATION_FIXTURE_VIDEO_AUDIO_TRACK_COUNT"] = str(tracks[0])
         env["MODERATION_FIXTURE_SEGMENT_PLAN"] = json.dumps(timeline)
     if url:
         env["DB_URL"] = url
@@ -200,10 +224,12 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         assert (result.returncode == 0) == successful, output
         return result.stdout
 
-    def stage(intent, clip=version, ms=duration, profile=PRIMARY, successful=True):
+    def stage(intent, clip=version, ms=duration, profile=PRIMARY, successful=True, tracks=1):
         extra = {"MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": profile}
         if ms is not None:
             extra["MODERATION_FIXTURE_VIDEO_DURATION_MS"] = str(ms)
+        if tracks is not None:
+            extra["MODERATION_FIXTURE_VIDEO_AUDIO_TRACK_COUNT"] = str(tracks)
         result = artisan(COMMAND, "stage", "app", "tenant", intent, clip, extra=extra, successful=successful)
         return json.loads(result) if successful else None
 
@@ -306,6 +332,20 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         assert decision["revision"] == 1
         assert group_http(group_id=group["id"], operation="publish",
                           content_revision="content-v1", decision_revision=1)["permitted"]
+        # 旧分段计划即使所有子任务已有结论，也缺少原素材音轨证据。
+        for track_count in (None, 2):
+            plan = json.loads(encoded)
+            if track_count is None:
+                plan.pop("audio_track_count")
+            else:
+                plan["audio_track_count"] = track_count
+            altered = json.dumps(plan).replace("'", "''")
+            sql(f"UPDATE moderation_review_groups SET segment_plan = '{altered}' " + plan_query)
+            assert group_http(group_id=group["id"])["decision"] is None
+            group_http(group_id=group["id"], operation="publish",
+                       content_revision="content-v1", decision_revision=1, expected=403)
+        sql(f"UPDATE moderation_review_groups SET segment_plan = '{escaped}' " + plan_query)
+        assert group_http(group_id=group["id"]) == final
 
         no_audio = stage_group("incomplete-segments")
         supplier.mode = "clean"
@@ -352,7 +392,7 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         assert flagged["assessment"]["labels"][0]["modality"] == "Speech"
 
         supplier.mode = "missing-track"
-        missing = worker("submit", stage("silent-video", clip=silent_version, ms=silent_duration))
+        missing = worker("submit", stage("silent-video", clip=silent_version, ms=silent_duration, tracks=0))
         assert missing["state"] == "Failed" and missing["query_failure"] == "incomplete_coverage"
         assert missing["decision"] is None and missing["assessment"]["coverage"]["Speech"] == "Unavailable"
 
@@ -369,7 +409,8 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
 
         group = json.loads(artisan(COMMAND, "stage-group", "app", "tenant", "with-speech",
                                    version, f"group-visual,{PRIMARY}",
-                                   extra={"MODERATION_FIXTURE_VIDEO_DURATION_MS": str(duration)}))
+                                   extra={"MODERATION_FIXTURE_VIDEO_DURATION_MS": str(duration),
+                                          "MODERATION_FIXTURE_VIDEO_AUDIO_TRACK_COUNT": "1"}))
         visual, speech = group["checks"]
         assert worker("submit", speech)["state"] == "Succeeded"
         assert command("find-group", group)["decision"] is None
@@ -397,6 +438,26 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         assert PRIVATE_MATCH not in sql("SELECT assessment FROM moderation_checks WHERE assessment IS NOT NULL")
         assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
 
+        supplier.mode = "clean"
+        multiple = stage("short-two-tracks", clip=multi_version, ms=probe_ms(multi_path), tracks=multi_count)
+        assert stage("short-two-tracks", clip=multi_version, ms=probe_ms(multi_path),
+                     tracks=1, successful=False) is None
+        assert sql("SELECT video_audio_track_count FROM moderation_reviews "
+                   f"WHERE id = '{multiple['id']}'") == "2"
+        for result in (submit_http(multiple), worker("submit", stage("short-unknown-tracks", tracks=None))):
+            assert result["state"] == "Failed" and result["query_failure"] == "incomplete_coverage"
+            assert result["decision"] is None and result["assessment"]["coverage"]["Speech"] == "Partial"
+        assert supplier.posted[-2:] == [(multi_version, multi_body), (version, original)]
+        supplier.mode = "findings"
+        partial_findings = worker("submit", stage("short-two-tracks-findings", clip=multi_version,
+                                                  ms=probe_ms(multi_path), tracks=multi_count))
+        assert partial_findings["decision"] is None and partial_findings["assessment"]["coverage"]["Speech"] == "Partial"
+        assert {item["provider"] for item in partial_findings["assessment"]["labels"]} == {"insult/high", "phone_number"}
+        sql(f"UPDATE moderation_reviews SET video_audio_track_count = NULL WHERE id = '{clean['id']}'")
+        old = command("find", clean)
+        assert old["state"] == "Succeeded" and old["decision"] is None
+        assert old["assessment"]["coverage"]["Speech"] == "Partial"
+
     try:
         artisan("migrate", "--force")
         artisan("config:cache")
@@ -420,6 +481,9 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
         artisan("migrate:rollback", "--force",
                 "--path=vendor/openrust/content-moderation/database/migrations/" + migration,
                 successful=False)
+        artisan("migrate:rollback", "--force",
+                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "2026_11_26_000019_add_moderation_video_audio_track_count.rs", successful=False)
     finally:
         supplier.shutdown()
         supplier.server_close()

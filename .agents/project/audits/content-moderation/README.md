@@ -323,6 +323,16 @@ HTTP 发布入口是隔离应用消费者。生产应用持有内容、删除状
 
 本批消费应用生成的可信片段。应用侧自动切片、真实 Sightengine 账号及语言效果、长视频画面／OCR 的全覆盖仍需各自验收。
 
+### Sightengine 音轨证据与发布门禁 {#sightengine-audio-track-coverage}
+
+Sightengine 语音响应报告类别与时间证据，公开协议未提供可核对每条音轨覆盖的标识。基线夹具用 FFmpeg 生成含两条 AAC 音轨的 MP4，ffprobe 确认轨数为 2。旧版在真实 HTTP、Artisan 与私有 SeaweedFS 上收到模拟的干净语音结果后，错误标为完整覆盖并给出 `Allow`。复现结果见 `target/tmp/moderation-speech-track-coverage/reproduction.log`。[Sightengine 语音模型](https://sightengine.com/docs/audio-moderation-model) · [固定素材时长与异步审核](#sightengine-short-speech)
+
+复用应用核实素材时长的方式，由 `StoredMedia::with_video_audio_track_count` 将已核实的轨数绑定到确切对象版本。迁移加入可空的音轨数字段，分段计划同时保存原素材的轨数。确认单轨且收到音频结果时可提供完整语音覆盖。轨数未知或多轨时保留返回的风险证据，覆盖降为部分。已核实无音轨或供应商未返回音频结果时，覆盖为不可用。Sightengine 分段即使每段都已成功，原素材也须具有单轨证据。历史结论在读取时按证据重新判定，保留原始记录和风险证据。
+
+在 `cab874036` 隔离快照上使用 Rust 1.94.0 的 macOS ARM64 应用。SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 分别通过短片、长片及存储三组测试，实际运行 HTTP、Artisan 和独立数据库队列 Worker。覆盖双轨拒绝放行、未知轨数、无音轨、单轨兼容、双轨风险证据、音轨数幂等冲突、旧结果和旧分段计划的发布门禁。三库复验迁移、空库回滚再迁移、保留已发布的自定义迁移，以及有音轨证据时拒绝删除字段。
+
+素材由隔离的 SeaweedFS 私有桶提供，音轨和生成时长由 FFmpeg 与 ffprobe 验证。包的三项公开契约测试、包与应用严格 Clippy、全工作区格式、三语构建及根路径与 `/docs/` 下的浏览器复验通过。临时实例及源码快照已清理。厂商响应由本地协议夹具提供，实际厂商的多轨处理、字幕和语言效果仍须用授权账号与样本验证。
+
 ## CM-03AB 内容修订撤回发布授权 {#revision-withdrawal}
 
 应用鉴权后按准确的应用、租户、内容 ID 和修订撤回发布授权。数据库只保存加范围的登记摘要和首次撤回时间。人工裁决追加和撤回争用同一短事务锁。撤回后，无论原结论来自哪一个单项、审核组或人工修订，发布接缝都返回无有效决定。原评估保留供审计，新内容修订使用独立门禁。

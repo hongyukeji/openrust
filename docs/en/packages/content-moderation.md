@@ -116,9 +116,13 @@ Create a separate named `sightengine` profile with `video_speech_categories`, fo
 
 Attach the duration verified by your application to the exact source version with `StoredMedia::with_video_duration_ms`. Sightengine's short-video endpoint takes clips under 60 seconds. For a durable check, pin the profile with `required_modalities = ["speech"]` and stage it normally. The submit Worker saves the completed result in one transition. Categories, severity labels and time spans are retained. Transcribed matches stay out of durable records and application diagnostics. Missing audio leaves speech coverage unavailable. For other required modalities on the same source, configure separate checks in a review group. [Audio moderation](https://sightengine.com/docs/audio-moderation-model) · [Short-video API](https://sightengine.com/docs/moderate-stored-video)
 
+Attach the audio track count verified for that version with `StoredMedia::with_video_audio_track_count`. A result can establish complete speech coverage for a verified single track. With multiple tracks or an unknown count, a returned audio result establishes partial coverage and retains risk evidence. A verified count of zero leaves speech coverage unavailable.
+
 ### Speech segments for longer videos {#sightengine-speech-segments}
 
 Supply 2–64 clips generated and verified by your application from the same original media version. Use `VideoReviewSegment::new` with each clip’s start offset in the original timeline. Attach verified durations to the original and each clip with `StoredMedia::with_video_duration_ms`. Clips are shorter than 60 seconds, use distinct media versions, and cover the complete timeline in increasing order. Overlap can preserve context.
+
+For Sightengine speech coverage, verify one audio track on the original and on every clip. After running the migration, restart Workers before submitting reviews with track counts. If a historical review needs a publication decision, stage it with a new review intent and verified counts. Historical evidence remains readable.
 
 Use `VideoReviewGroupRequest::for_speech_segments` with the original version, fixed speech profile, and clip list. Stage and advance the checks through the usual group and Worker flow. `segment_window_ms(index)` locates each result on the original timeline. Add the window start to clip-relative evidence timestamps when rendering them. For publication, use the group target and the original content revision. Every clip needs complete speech coverage.
 
@@ -208,7 +212,7 @@ Check the requested modalities with `Assessment::decision`. Review and block can
 
 ## Persisting a video review {#video-review-storage}
 
-Run `./artisan migrate` after enabling the package. To publish the two migration sources into the application, run `./artisan vendor:publish --tag=moderation-migrations`.
+Run `./artisan migrate` after enabling the package. To publish the migration sources into the application, run `./artisan vendor:publish --tag=moderation-migrations`.
 
 Create a `ModerationStore` with the database connection and stable application and tenant identifiers shared by HTTP and worker processes. Build a `VideoReviewRequest` from an idempotency key, the business content ID and revision, the original `StoredMedia`, a pinned profile, and a timeout in seconds. Call `stage_video` to record the pending review and its video check in one transaction. Repeating the same request returns the original record. Reusing the key within the same scope for different inputs produces a conflict. Use `find` to load the record by review ID from the same scope.
 
