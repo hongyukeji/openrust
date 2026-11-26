@@ -340,7 +340,9 @@ impl StepTextGateway for GeminiTextProvider {
             let declarations: Vec<_> = tools.iter().map(|tool| json!({
                 "name":tool.name, "description":tool.description,"parametersJsonSchema":tool.schema,
             })).collect();
-            body["tools"] = json!([{"functionDeclarations":declarations}]);
+            if !declarations.is_empty() {
+                body["tools"] = json!([{"functionDeclarations":declarations}]);
+            }
 
             let mut value: Value = validate(Ok(self
                 .relay_model(

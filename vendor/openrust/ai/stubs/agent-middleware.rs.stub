@@ -1,0 +1,14 @@
+use openrust::http::HttpFuture;
+use openrust_ai::{AgentMiddleware, AiResult, NextStep, PendingStep, StepResponse};
+
+pub struct {{class}};
+
+impl AgentMiddleware for {{class}} {
+    fn handle<'a, 'step: 'a>(
+        &'a self,
+        step: PendingStep<'step>,
+        next: NextStep<'a, 'step>,
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        next.run(step)
+    }
+}

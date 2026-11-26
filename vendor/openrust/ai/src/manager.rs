@@ -325,10 +325,18 @@ impl AiManager {
             structured_output,
         };
         let tools = agent.tools();
-        if tools.is_empty() {
+        let middleware = agent.middleware();
+        if tools.is_empty() && middleware.is_empty() {
             provider.generate(request).await
         } else {
-            crate::tools::run(provider.as_ref(), request, tools, agent.max_steps()).await
+            crate::tools::run(
+                provider.as_ref(),
+                request,
+                tools,
+                agent.max_steps(),
+                middleware,
+            )
+            .await
         }
     }
 
@@ -356,6 +364,9 @@ impl AiManager {
                 .prompt_with_schema(agent, prompt, options, structured_output)
                 .await
                 .map(StreamableAgentResponse::from_text);
+        }
+        if !agent.middleware().is_empty() {
+            return Err(AiError::StreamingMiddlewareNotSupported);
         }
         if !agent.tools().is_empty() {
             return Err(AiError::ToolsNotSupported);

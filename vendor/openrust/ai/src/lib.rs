@@ -23,6 +23,7 @@ mod fake;
 mod gemini;
 mod manager;
 mod messages;
+mod middleware;
 mod models;
 mod on_demand;
 mod streaming;
@@ -42,6 +43,7 @@ pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
+pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,

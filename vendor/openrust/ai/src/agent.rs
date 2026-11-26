@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use openrust::{http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentResponse, Ai, AiResult, FakeTextGateway, Message, StreamableAgentResponse,
-    StructuredAnonymousAgent, Tool,
+    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, Message,
+    StreamableAgentResponse, StructuredAnonymousAgent, Tool,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -31,6 +31,10 @@ pub trait Agent: Send + Sync + 'static {
     }
 
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
+        Vec::new()
+    }
+
+    fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {
         Vec::new()
     }
 
@@ -92,6 +96,7 @@ pub struct AnonymousAgent {
     instructions: String,
     messages: Vec<Message>,
     tools: Vec<Arc<dyn Tool>>,
+    middleware: Vec<Arc<dyn AgentMiddleware>>,
     max_steps: Option<usize>,
 }
 
@@ -100,6 +105,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
         instructions: instructions.into(),
         messages: Vec::new(),
         tools: Vec::new(),
+        middleware: Vec::new(),
         max_steps: None,
     }
 }
@@ -107,6 +113,11 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
 impl AnonymousAgent {
     pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
         self.tools = tools;
+        self
+    }
+
+    pub fn with_middleware(mut self, middleware: Vec<Arc<dyn AgentMiddleware>>) -> Self {
+        self.middleware = middleware;
         self
     }
 
@@ -135,6 +146,10 @@ impl Agent for AnonymousAgent {
     }
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
         self.tools.clone()
+    }
+
+    fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {
+        self.middleware.clone()
     }
 
     fn max_steps(&self) -> Option<usize> {

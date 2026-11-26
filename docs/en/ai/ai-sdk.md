@@ -90,10 +90,13 @@ Agent tools work with buffered Chat Completions, Responses, Anthropic Messages, 
 ./artisan make:agent CatalogAgent
 ./artisan make:agent Products/StockAgent --structured
 ./artisan make:tool LookupInventory
+./artisan make:agent-middleware CheckInventory
 ./artisan vendor:publish --tag=ai-stubs
 ```
 
 Agents and tools are generated under `app/ai/agents` and `app/ai/tools`. Declare the generated modules in their parent Rust modules and recompile. Add `--force` to replace an existing generated file. Use the published files in `stubs/` to customize the templates.
+
+Declare reusable middleware with `Agent::middleware`, or pass it to an anonymous Agent using `with_middleware`. For each buffered generation step, `PendingStep` exposes the selected model, step number, previous steps and usage. Call `next.run(step)` to continue. Use `with_model`, `with_instructions` and `only_tools` to change that step.
 
 ## Embeddings {#embeddings}
 

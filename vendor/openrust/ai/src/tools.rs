@@ -12,7 +12,10 @@ use openrust::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value};
 
-use crate::{AgentPrompt, AgentResponse, AiError, AiResult, TextProvider, Usage};
+use crate::{
+    AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, PendingStep, TextProvider,
+    Usage,
+};
 
 /// 由应用声明并执行的 Agent 工具。
 pub trait Tool: Send + Sync {
@@ -69,6 +72,7 @@ pub struct ToolResult {
     pub failed: bool,
 }
 
+#[derive(Clone)]
 pub struct ToolDefinition {
     pub name: String,
     pub description: String,
@@ -106,10 +110,8 @@ pub(crate) async fn run(
     prompt: AgentPrompt<'_>,
     tools: Vec<Arc<dyn Tool>>,
     max_steps: Option<usize>,
+    middleware: Vec<Arc<dyn AgentMiddleware>>,
 ) -> AiResult<AgentResponse> {
-    let gateway = provider
-        .step_text_gateway()
-        .ok_or(AiError::ToolsNotSupported)?;
     let default_steps = tools.len().saturating_mul(3).div_ceil(2).min(25);
     let max_steps = max_steps.unwrap_or(default_steps).max(1);
     let mut definitions = Vec::with_capacity(tools.len());
@@ -134,13 +136,31 @@ pub(crate) async fn run(
         });
     }
 
+    let invocation_id = Str::ulid().to_string();
     let mut history = Vec::new();
     let mut seen = HashSet::new();
     let mut usage = None::<Usage>;
     for step in 1..=max_steps {
-        let response = gateway
-            .generate_text_step(&prompt, &definitions, &history)
-            .await?;
+        let (response, allowed) = crate::middleware::generate_step(
+            provider,
+            PendingStep {
+                number: step - 1,
+                is_final_step: step == max_steps,
+                provider: provider.name(),
+                model: prompt.text.model.into(),
+                instructions: prompt.text.instructions.into(),
+                prompt: prompt.text.prompt,
+                messages: prompt.messages.into(),
+                structured_output: prompt.structured_output,
+                steps: &history,
+                usage: usage.clone().unwrap_or_default(),
+                timeout: prompt.text.timeout,
+                invocation_id: &invocation_id,
+                tools: std::borrow::Cow::Borrowed(&definitions),
+            },
+            &middleware,
+        )
+        .await?;
         let mut totals = response.usage;
         if let Some(previous) = usage.as_ref() {
             totals.prompt_tokens = sum(previous.prompt_tokens, totals.prompt_tokens);
@@ -155,14 +175,14 @@ pub(crate) async fn run(
         for call in &response.tool_calls {
             let output = match names.get(call.name.as_str()) {
                 _ if step == max_steps => Err("已达到 Agent 的最大步骤数"),
-                Some(tool) => tool
+                Some(tool) if allowed.contains(&call.name) => tool
                     .handle(ToolRequest {
                         call,
                         invocation_id: &Str::ulid().to_string(),
                     })
                     .await
                     .map_err(|_| "工具执行失败"),
-                None => Err("该工具未注册"),
+                _ => Err("该步骤未启用该工具"),
             };
             let failed = output.is_err();
             results.push(ToolResult {

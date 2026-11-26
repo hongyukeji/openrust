@@ -296,3 +296,114 @@ async fn sdk_tools_roundtrip_through_anthropic_and_gemini() -> TestResult {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn agent_middleware_controls_each_step_without_replaying_disabled_tools() -> TestResult {
+    use openrust_ai::{AgentMiddleware, NextStep, PendingStep, StepResponse};
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct RestrictLookup(Mutex<Vec<(usize, String)>>);
+
+    impl AgentMiddleware for RestrictLookup {
+        fn handle<'a, 'step: 'a>(
+            &'a self,
+            step: PendingStep<'step>,
+            next: NextStep<'a, 'step>,
+        ) -> HttpFuture<'a, AiResult<StepResponse>> {
+            Box::pin(async move {
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push((step.number, step.invocation_id.into()));
+                let step = match step.number {
+                    0 => {
+                        assert!(step.is_first_step());
+                        assert!(step.steps.is_empty());
+                        assert_eq!(step.tools()[0].name, "lookup");
+                        step.with_model("first-step")
+                            .with_instructions("Inspect the catalog")
+                    }
+                    1 => {
+                        assert_eq!(step.usage.prompt_tokens, Some(2));
+                        assert!(!step.steps[0].results[0].failed);
+                        step.without_tools(&["lookup"])
+                    }
+                    2 => {
+                        assert!(step.is_final_step);
+                        assert_eq!(step.usage.prompt_tokens, Some(4));
+                        assert!(step.steps[1].results[0].failed);
+                        step.only_tools(&[])
+                    }
+                    _ => panic!("unexpected step"),
+                };
+                let mut response = next.run(step).await?;
+                if let Some(text) = &mut response.text {
+                    text.push_str(" (checked)");
+                }
+                Ok(response)
+            })
+        }
+    }
+
+    let tool_response = |id| {
+        json!({
+            "choices":[{"message":{"content":null,"tool_calls":[{
+                "id":id,"type":"function","function":{"name":"lookup","arguments":"{\"sku\":\"demo\"}"}
+            }]}}],
+            "usage":{"prompt_tokens":2,"completion_tokens":1}
+        })
+    };
+    let (url, calls) = fixture("chat/completions", vec![
+        tool_response("call_fixture"),
+        tool_response("should_not_run"),
+        json!({"choices":[{"message":{"content":"available"}}],"usage":{"prompt_tokens":3,"completion_tokens":1}}),
+    ]).await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/middleware", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let middleware = Arc::new(RestrictLookup::default());
+                    let agent = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .with_middleware(vec![middleware.clone()])
+                        .with_max_steps(3);
+                    let response = agent.prompt("Check demo.").await.unwrap();
+                    assert_eq!(response.text, "available (checked)");
+                    assert_eq!(response.tool_results[1].id, "should_not_run");
+                    assert!(response.tool_results[1].failed);
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    assert!(matches!(
+                        agent.stream("Check demo.").await,
+                        Err(openrust_ai::AiError::StreamingMiddlewareNotSupported)
+                    ));
+                    let steps = middleware.0.lock().unwrap();
+                    assert_eq!(
+                        steps.iter().map(|(step, _)| *step).collect::<Vec<_>>(),
+                        [0, 1, 2]
+                    );
+                    assert!(steps.iter().all(|(_, id)| *id == steps[0].1));
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=deepseek\nDEEPSEEK_API_KEY=fixture-key\nDEEPSEEK_MODEL=default-model\nDEEPSEEK_URL={url}\n"
+        ),
+    )?;
+    assert_eq!(app.get("/middleware").await?.status(), StatusCode::OK);
+    let requests = calls.await?;
+    assert_eq!(requests[0]["model"], "first-step");
+    assert_eq!(requests[0]["messages"][0]["content"], "Inspect the catalog");
+    assert_eq!(requests[1]["model"], "default-model");
+    assert_eq!(requests[1]["tools"], json!([]));
+    assert_eq!(
+        requests[2]["messages"].as_array().unwrap().last().unwrap()["tool_call_id"],
+        "should_not_run"
+    );
+    Ok(())
+}

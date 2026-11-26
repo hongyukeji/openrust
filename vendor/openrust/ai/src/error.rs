@@ -23,6 +23,7 @@ pub enum AiError {
     ToolsNotSupported,
     InvalidStructuredResponse,
     StreamingNotSupported,
+    StreamingMiddlewareNotSupported,
     EndpointNotSupported,
     EmbeddingsNotSupported,
     Transport,
@@ -56,6 +57,9 @@ impl fmt::Display for AiError {
             Self::ToolsNotSupported => formatter.write_str("当前 AI 连接或调用方式未提供工具执行"),
             Self::InvalidStructuredResponse => formatter.write_str("AI 响应不是预期的 JSON 对象"),
             Self::StreamingNotSupported => formatter.write_str("该 AI 协议驱动未提供流式输出"),
+            Self::StreamingMiddlewareNotSupported => {
+                formatter.write_str("流式生成尚未接入 Agent 中间件")
+            }
             Self::EndpointNotSupported => formatter.write_str("该 AI 协议驱动未提供所选端点"),
             Self::EmbeddingsNotSupported => formatter.write_str("该 AI 连接不支持 Embeddings"),
             Self::Transport => formatter.write_str("AI 供应商请求失败"),

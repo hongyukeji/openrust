@@ -90,10 +90,13 @@ let answer = response.text;
 ./artisan make:agent CatalogAgent
 ./artisan make:agent Products/StockAgent --structured
 ./artisan make:tool LookupInventory
+./artisan make:agent-middleware CheckInventory
 ./artisan vendor:publish --tag=ai-stubs
 ```
 
 Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块中声明生成的 Rust 模块，再重新编译。加 `--force` 可覆盖已有文件。发布后可编辑 `stubs/` 下的文件，自定义生成模板。
+
+在 Agent 上通过 `Agent::middleware` 配置中间件，匿名 Agent 则使用 `with_middleware`。非流式生成的每一步都会收到 `PendingStep`，其中包含当前模型、步骤编号、已完成步骤和用量。调用 `next.run(step)` 继续执行。用 `with_model`、`with_instructions` 和 `only_tools` 修改当前步骤。
 
 ## Embeddings {#embeddings}
 

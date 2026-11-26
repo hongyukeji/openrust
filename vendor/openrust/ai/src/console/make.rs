@@ -24,10 +24,16 @@ const TOOL: (&str, &str) = (
     include_str!("../../stubs/tool.rs.stub"),
 );
 
+const MIDDLEWARE: (&str, &str) = (
+    "stubs/agent-middleware.rs.stub",
+    include_str!("../../stubs/agent-middleware.rs.stub"),
+);
+
 pub(crate) const STUBS: &[(&str, &[u8])] = &[
     (AGENT.0, AGENT.1.as_bytes()),
     (STRUCTURED.0, STRUCTURED.1.as_bytes()),
     (TOOL.0, TOOL.1.as_bytes()),
+    (MIDDLEWARE.0, MIDDLEWARE.1.as_bytes()),
 ];
 
 pub(super) fn register() -> Result<(), ConsoleError> {
@@ -39,6 +45,10 @@ pub(super) fn register() -> Result<(), ConsoleError> {
         (
             Kind::Tool,
             "make:tool {name? : 工具类型名称} {--f|force : 覆盖已有文件}",
+        ),
+        (
+            Kind::Middleware,
+            "make:agent-middleware {name? : 中间件类型名称} {--f|force : 覆盖已有文件}",
         ),
     ] {
         Artisan::add(Box::new(Make {
@@ -53,6 +63,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
 enum Kind {
     Agent,
     Tool,
+    Middleware,
 }
 
 struct Make {
@@ -156,6 +167,7 @@ impl Make {
             Kind::Agent if structured => STRUCTURED,
             Kind::Agent => AGENT,
             Kind::Tool => TOOL,
+            Kind::Middleware => MIDDLEWARE,
         }
     }
 }
@@ -171,6 +183,7 @@ fn location(kind: Kind, name: &str) -> (&'static str, &str) {
     let root = match kind {
         Kind::Agent => "app/ai/agents",
         Kind::Tool => "app/ai/tools",
+        Kind::Middleware => "app/ai/middleware",
     };
     (root, name)
 }

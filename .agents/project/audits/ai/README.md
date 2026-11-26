@@ -121,3 +121,9 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 固定 `MakeAgentCommand` 和 `MakeToolCommand` 对应 `make:agent` 与 `make:tool`。默认目录映射到 `app/ai/agents` 和 `app/ai/tools`。支持嵌套 PascalCase 类型、显式 `App/` 根路径、`--force/-f` 与 Agent 的 `--structured/-s`。缺少名称时复用 Artisan 交互，未传生成选项时再询问是否使用结构化模板。生成只写 Rust 源文件，模块声明由应用维护。
 
 `vendor:publish --tag=ai-stubs` 发布当前三个模板，生成时优先读取应用模板。`ai` 与 `ai-config` 继续发布配置。独立 Artisan 验证缺参、命名、交互、路径、覆盖与发布，生成的普通 Agent、结构化 Agent 和工具通过独立进程编译并经 HTTP 与本地协议上游运行。`make:agent-middleware`、中间件模板、会话迁移发布及 Worker 验收仍待后续批次。
+
+## AI-03 单步 Agent 中间件与 AI-04 模板
+
+固定 `HasMiddleware::middleware` 在 Rust 普通 Agent 契约上由 `Agent::middleware` 装配，匿名 Agent 提供 `with_middleware`。复用框架异步 Pipeline；中间件可以读取 `PendingStep` 的编号、模型、历史、累积用量和调用 ID，在本步修改模型、指令、历史或筛选工具，再调用 `NextStep::run` 继续并处理结果。实际执行核对本步启用的应用工具，即使上游仍返回被禁用的工具，也只记录失败。HTTP Kernel 加本地上游验收三步修改、上下文与工具约束。
+
+`make:agent-middleware` 生成到 `app/ai/middleware`，Agent 中间件模板加到 `ai-stubs`。独立 Artisan 验证生成、发布及生成文件编译后的真实调用。流式入口在配置中间件时显式返回未支持错误。Agent Fake 中间件、Provider 选项编辑及流式步骤待后续批次。

@@ -8,10 +8,11 @@ use serde::{Serialize, Serializer, de::DeserializeOwned};
 use serde_json::{Map, Value};
 
 use crate::{
-    Agent, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message, PromptOptions,
-    StreamableAgentResponse, Tool,
+    Agent, AgentMiddleware, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message,
+    PromptOptions, StreamableAgentResponse, Tool,
 };
 
+#[derive(Clone, Copy)]
 pub struct StructuredOutput<'a> {
     pub schema: &'a Value,
     pub strict: bool,
@@ -149,6 +150,10 @@ impl Agent for StructuredAnonymousAgent {
     }
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
         self.agent.tools()
+    }
+
+    fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {
+        self.agent.middleware()
     }
 
     fn max_steps(&self) -> Option<usize> {
