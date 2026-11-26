@@ -12,9 +12,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog, StepResponse,
-    StepTextGateway, StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider, ToolCall,
-    ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog, StepEventStream,
+    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider,
+    ToolCall, ToolDefinition, ToolStep, Usage,
     connection::{Authorization, Connection},
     models::ListedModel,
     text::{transport_error, validate},
@@ -306,45 +306,9 @@ impl StepTextGateway for GeminiTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            let mut body = Self::prompt_body(prompt);
-            let contents = body["contents"]
-                .as_array_mut()
-                .ok_or(AiError::InvalidResponse)?;
-            for step in history {
-                let content = step
-                    .provider_content
-                    .as_ref()
-                    .ok_or(AiError::InvalidResponse)?;
-                let parts = content["parts"]
-                    .as_array()
-                    .ok_or(AiError::InvalidResponse)?;
-                let calls = parts.iter().filter_map(|part| part.get("functionCall"));
-                let results = calls
-                    .zip(&step.results)
-                    .map(|(call, result)| {
-                        let payload = if result.failed {
-                            json!({"error":result.result})
-                        } else {
-                            json!({"output":result.result})
-                        };
-                        let mut response = json!({"name":result.name,"response":payload});
-                        if let Some(id) = call.get("id") {
-                            response["id"] = id.clone();
-                        }
-                        json!({"functionResponse":response})
-                    })
-                    .collect::<Vec<_>>();
-                contents.push(content.clone());
-                contents.push(json!({"role":"user","parts":results}));
-            }
-            let declarations: Vec<_> = tools.iter().map(|tool| json!({
-                "name":tool.name, "description":tool.description,"parametersJsonSchema":tool.schema,
-            })).collect();
-            if !declarations.is_empty() {
-                body["tools"] = json!([{"functionDeclarations":declarations}]);
-            }
+            let body = Self::tool_payload(prompt, tools, history)?;
 
-            let mut value: Value = validate(Ok(self
+            let value: Value = validate(Ok(self
                 .relay_model(
                     TextEndpoint::GeminiGenerateContent,
                     prompt.text.model,
@@ -354,50 +318,135 @@ impl StepTextGateway for GeminiTextProvider {
                 .await?))?
             .json()
             .map_err(|_| AiError::InvalidResponse)?;
-            let candidate = &value["candidates"][0];
-            let reason = finish_reason(&value, candidate)?;
-            let text = text_parts(candidate).fold(None::<String>, |mut text, part| {
-                text.get_or_insert_default().push_str(part);
-                text
-            });
-            let mut tool_calls = Vec::new();
-            let content = value["candidates"][0]["content"].take();
-            for function in content["parts"]
-                .as_array()
-                .ok_or(AiError::InvalidResponse)?
-                .iter()
-                .filter_map(|part| part.get("functionCall"))
-            {
-                if reason.as_deref() != Some("stop") {
-                    return Err(AiError::InvalidResponse);
-                }
-                let id = match function.get("id") {
-                    Some(id) => id.as_str().ok_or(AiError::InvalidResponse)?.into(),
-                    None => Str::ulid().to_string(),
-                };
-                let arguments = match function.get("args") {
-                    Some(args) => args
-                        .as_object()
-                        .ok_or(AiError::InvalidToolArguments)?
-                        .clone(),
-                    None => Default::default(),
-                };
-                tool_calls.push(ToolCall {
-                    id,
-                    name: function["name"]
-                        .as_str()
-                        .ok_or(AiError::InvalidResponse)?
-                        .into(),
-                    arguments,
-                });
-            }
-            Ok(StepResponse {
-                model: value["modelVersion"].as_str().map(str::to_owned),
-                text,
-                usage: usage(&value),
-                tool_calls,
-                provider_content: Some(content),
-            })
+            parse_step(value)
         })
     }
+
+    fn stream_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        Box::pin(async move {
+            let body = Self::tool_payload(prompt, tools, history)?;
+            let response = validate(Ok(self
+                .relay_model(
+                    TextEndpoint::GeminiStreamGenerateContent,
+                    prompt.text.model,
+                    &body,
+                    prompt.text.timeout,
+                )
+                .await?))?;
+            if !crate::streaming::is_event_stream(&response) {
+                return Err(AiError::InvalidResponse);
+            }
+            Ok(crate::native_tool_stream::gemini(
+                response.into_stream().map_err(transport_error)?,
+            ))
+        })
+    }
+}
+
+impl GeminiTextProvider {
+    fn tool_payload(
+        prompt: &AgentPrompt<'_>,
+        tools: &[ToolDefinition],
+        history: &[ToolStep],
+    ) -> AiResult<Value> {
+        let mut body = Self::prompt_body(prompt);
+        let contents = body["contents"]
+            .as_array_mut()
+            .ok_or(AiError::InvalidResponse)?;
+        for step in history {
+            let content = step
+                .provider_content
+                .as_ref()
+                .ok_or(AiError::InvalidResponse)?;
+            let parts = content["parts"]
+                .as_array()
+                .ok_or(AiError::InvalidResponse)?;
+            let calls = parts.iter().filter_map(|part| part.get("functionCall"));
+            let results = calls
+                .zip(&step.results)
+                .map(|(call, result)| {
+                    let payload = if result.failed {
+                        json!({"error":result.result})
+                    } else {
+                        json!({"output":result.result})
+                    };
+                    let mut response = json!({"name":result.name,"response":payload});
+                    if let Some(id) = call.get("id") {
+                        response["id"] = id.clone();
+                    }
+                    json!({"functionResponse":response})
+                })
+                .collect::<Vec<_>>();
+            contents.push(content.clone());
+            contents.push(json!({"role":"user","parts":results}));
+        }
+        let declarations: Vec<_> = tools.iter().map(|tool| json!({
+                "name":tool.name, "description":tool.description,"parametersJsonSchema":tool.schema,
+            })).collect();
+        if !declarations.is_empty() {
+            body["tools"] = json!([{"functionDeclarations":declarations}]);
+        }
+
+        Ok(body)
+    }
+}
+pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
+    let candidate = &value["candidates"][0];
+    let reason = finish_reason(&value, candidate)?;
+    let text = text_parts(candidate).fold(None::<String>, |mut text, part| {
+        text.get_or_insert_default().push_str(part);
+        text
+    });
+    let mut tool_calls = Vec::new();
+    let content = value
+        .get_mut("candidates")
+        .and_then(Value::as_array_mut)
+        .and_then(|candidates| candidates.first_mut())
+        .and_then(|candidate| candidate.get_mut("content"))
+        .map(Value::take)
+        .ok_or(AiError::InvalidResponse)?;
+    for function in content["parts"]
+        .as_array()
+        .ok_or(AiError::InvalidResponse)?
+        .iter()
+        .filter_map(|part| part.get("functionCall"))
+    {
+        if reason.as_deref() != Some("stop") {
+            return Err(AiError::InvalidResponse);
+        }
+        let id = match function.get("id") {
+            Some(id) => id.as_str().ok_or(AiError::InvalidResponse)?.into(),
+            None => Str::ulid().to_string(),
+        };
+        if function["willContinue"] == true || !function["partialArgs"].is_null() {
+            return Err(AiError::InvalidToolArguments);
+        }
+        let arguments = match function.get("args") {
+            Some(args) => args
+                .as_object()
+                .ok_or(AiError::InvalidToolArguments)?
+                .clone(),
+            None => Default::default(),
+        };
+        tool_calls.push(ToolCall {
+            id,
+            name: function["name"]
+                .as_str()
+                .ok_or(AiError::InvalidResponse)?
+                .into(),
+            arguments,
+        });
+    }
+    Ok(StepResponse {
+        model: value["modelVersion"].as_str().map(str::to_owned),
+        text,
+        usage: usage(&value),
+        tool_calls,
+        provider_content: Some(content),
+    })
 }

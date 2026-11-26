@@ -584,3 +584,96 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
     assert_eq!(responses[1]["input"][3]["type"], "function_call_output");
     Ok(())
 }
+
+#[tokio::test]
+async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult {
+    use futures_util::StreamExt;
+
+    let tool = json!({
+        "candidates":[{"content":{"parts":[
+            {"text":"Checking"},
+            {"functionCall":{"id":"call_fixture","name":"lookup","args":{"sku":"demo"}}}
+        ]}}]
+    });
+    let sse = |frames: &[Value]| {
+        (
+            "text/event-stream",
+            frames
+                .iter()
+                .map(|frame| format!("data: {frame}\n\n"))
+                .collect::<String>(),
+        )
+    };
+    let (url, calls) = http_fixture(
+        "v1beta",
+        "models/gemini-fixture:streamGenerateContent?alt=sse",
+        "x-goog-api-key",
+        "fixture-key",
+        vec![
+            sse(&[
+                tool.clone(),
+                json!({"candidates":[{"finishReason":"STOP"}]}),
+                json!({"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2}}),
+            ]),
+            sse(&[
+                json!({"candidates":[{"content":{"parts":[{"text":"four remaining"}]},"finishReason":"STOP"}]}),
+                json!({"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":3}}),
+            ]),
+            sse(&[tool]),
+        ],
+    ).await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/gemini-stream-tools", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let response = agent("")
+                        .with_tools(vec![tool])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap();
+                    Ok::<_, HttpError>(response.using_vercel_data_protocol(None).to_response())
+                })?;
+                Route::get("/gemini-incomplete-tools", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let mut events = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap()
+                        .into_stream();
+                    let mut interrupted = false;
+                    while let Some(event) = events.next().await {
+                        if matches!(event, Err(openrust_ai::AiError::InvalidResponse)) {
+                            interrupted = true;
+                            break;
+                        }
+                        assert!(event.is_ok());
+                    }
+                    assert!(interrupted);
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 0);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=gemini\nGEMINI_URL={url}\nGEMINI_MODEL=gemini-fixture\nGEMINI_API_KEY=fixture-key\n"
+        ),
+    )?;
+    let response = app.get("/gemini-stream-tools").await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = std::str::from_utf8(response.streamed_content())?;
+    assert!(body.contains("four remaining") && body.contains("\"totalTokens\":14"));
+    assert_eq!(
+        app.get("/gemini-incomplete-tools").await?.status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        calls.await?[1]["contents"][2]["parts"][0]["functionResponse"]["id"],
+        "call_fixture"
+    );
+    Ok(())
+}

@@ -153,3 +153,11 @@ HTTP Kernel 和独立 Artisan／HTTP 进程经真实 TCP 上游模拟验证四�
 OpenAI Responses 和兼容 Chat Completions 的 `StepTextGateway::stream_text_step` 复用已有协议请求、SSE 传输及具名工具。第一个 HTTP 请求在 SDK 返回流前建立。流式文本先到达消费者；工具须等上游结束帧及完整对象参数后执行。复用非流式工具的参数校验、重复 ID 检查、工具白名单和最大步骤限制。结果按原 ID 带回模型。SDK SSE、Vercel 和 AG-UI 输出工具事件，后两种汇总实际报告的步骤用量。
 
 HTTP 响应体在请求作用域结束后才消费。流式 Tool 通过框架 `Application::scope` 在所属应用作用域内执行，可正常使用 Validator。请求需要的业务身份由应用在构造工具时显式携带。包测试覆盖真实 TCP 两协议、无结束帧不执行和 UI 事件；独立 Artisan 与 HTTP 验证真实校验、首段文本提前、工具回送和最终用量。Claude／Gemini 流式工具及流式中间件留在相应后续批次。
+
+## AI-03 Anthropic 与 Gemini Agent 流式工具循环
+
+Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `StepTextGateway` 工具循环。Claude 组装分片对象参数及 thinking 签名，等 `message_stop` 才执行工具。Gemini 保留原始 functionCall 和 thoughtSignature，读取末尾用量帧后确认本轮终止。工具结果和原始模型内容按供应商协议一起回传，执行时沿用同一参数校验和步骤限制。
+
+独立 HTTP 进程通过 Vercel UI 协议及时收到 Claude 首段文本，并验证分片参数、签名、调用 ID、下一轮结果和合计用量。独立 Artisan 验证 Gemini 的原始签名及工具结果回送。包测试覆盖 Gemini 独立用量帧及缺少结束标志时不执行工具。两路上游均使用真实 TCP 连接的协议模拟。Gemini 分片函数参数、Interactions 和流式中间件待后续批次。
+
+- [Anthropic Messages Streaming](https://platform.claude.com/docs/en/build-with-claude/streaming) · [Gemini GenerateContent](https://aistudio.google.com/api-reference/generate-content)

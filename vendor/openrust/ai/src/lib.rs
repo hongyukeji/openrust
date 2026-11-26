@@ -27,6 +27,7 @@ mod manager;
 mod messages;
 mod middleware;
 mod models;
+mod native_tool_stream;
 mod on_demand;
 mod reranking;
 mod streaming;
