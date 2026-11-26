@@ -609,10 +609,7 @@ impl NativeWatcher {
                 "response_headers".into(),
                 telescope.headers(event.response.headers()),
             );
-            let limit = self
-                .option("ClientRequestWatcher", "size_limit")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(64);
+            let limit = self.option("ClientRequestWatcher", "size_limit");
             let body = match event.response.resource() {
                 Ok(mut resource) => {
                     let body = event.response.body().map_err(crate::Error::Http)?;
@@ -624,8 +621,7 @@ impl NativeWatcher {
                 Err(_) => None,
             };
             let bytes = body.as_deref().unwrap_or_default();
-            let within_limit =
-                String::from_utf8_lossy(bytes).chars().count() as u64 <= limit.saturating_mul(1000);
+            let within_limit = client_response_within_limit(bytes, limit.as_ref());
             let response = {
                 match body
                     .as_ref()
@@ -634,7 +630,7 @@ impl NativeWatcher {
                     None => "Stream Response".into(),
                     Some(Ok(value @ (Value::Array(_) | Value::Object(_)))) => {
                         if within_limit {
-                            telescope.response_parameters(value)
+                            client_json_shape(telescope.response_parameters(value))
                         } else {
                             "Purged By Telescope".into()
                         }
@@ -660,7 +656,7 @@ impl NativeWatcher {
                             .unwrap_or("")
                     )
                     .into(),
-                    _ if bytes.is_empty() => "Empty Response".into(),
+                    _ if bytes.is_empty() || bytes == b"0" => "Empty Response".into(),
                     _ => "HTML Response".into(),
                 }
             };
@@ -780,6 +776,45 @@ fn priority(level: &str) -> u16 {
         _ => 100,
     }
 }
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "沿用 PHP 用浮点千字符与配置上限比较的语义"
+)]
+fn client_response_within_limit(bytes: &[u8], limit: Option<&Value>) -> bool {
+    let characters = String::from_utf8_lossy(bytes).chars().count();
+    let limit = limit
+        .and_then(|value| match value {
+            Value::String(text) => openrust::support::php_numeric_json_string(text, false)
+                .and_then(|number| number.parse::<f64>().ok()),
+            _ => value.as_f64(),
+        })
+        .unwrap_or(64.0);
+    characters as f64 / 1000.0 <= limit
+}
+
+fn client_json_shape(value: Value) -> Value {
+    match value {
+        Value::Array(values) => Value::Array(values.into_iter().map(client_json_shape).collect()),
+        Value::Object(values) => {
+            if values
+                .keys()
+                .enumerate()
+                .all(|(index, key)| key == &index.to_string())
+            {
+                Value::Array(values.into_values().map(client_json_shape).collect())
+            } else {
+                Value::Object(
+                    values
+                        .into_iter()
+                        .map(|(key, value)| (key, client_json_shape(value)))
+                        .collect(),
+                )
+            }
+        }
+        other => other,
+    }
+}
+
 fn client_content(
     telescope: &Telescope,
     request: &openrust::http::client::RecordedRequest,

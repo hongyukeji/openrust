@@ -116,3 +116,9 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 浮点专项通过两种真实输入验证 12 个发送样例和对应部件字节长度，覆盖正负零、舍入后的指数切换、极大值和次正规数。框架录制核对原浮点位值，Telescope 入库核对长小数诊断。macOS 和 Linux ARM64 各通过客户端 25 项、Provider 15 项，Windows 11 ARM64 通过四项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照格式及三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-float-{macos,macos-redis,linux,windows,docs}.log`。
 
 中间件回归在实际回环传输和拒绝连接上逐项验证 23 条入库记录，其中 10 条为失败，另有 3 条空列表回退。断言覆盖线上媒体类型和正文、原始描述顺序和重复项、附件、字节替换及嵌套脱敏。macOS 与 Linux ARM64 各通过客户端 25 项和 Provider 16 项，Windows 11 ARM64 通过客户端 multipart 四项及 23 条记录的 SQLite 回归。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照全仓格式、三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-media-{macos,macos-redis,linux,windows,docs}.log`。
+
+### 出站响应内容形状与大小限制
+
+固定 PHP 8.5.12 的真实 PSR 响应和 `ClientRequestWatcher::response` 确认，`0` 在 HTML 和 JSON 标量回退时为 `Empty Response`，`text/plain` 保留字符串，302 优先报告目标地址。关联式 JSON 解码会把空对象以及从 0 开始且按顺序排列的数字键对象变成数组。逆序和带前导零的对象键保留。上限按千字符比较，整数、带小数的数字和数值文本均可设置。证据为 `target/tmp/observability-parity/telescope-client-response-shape-upstream.log`。 [固定 ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php)
+
+Rust 响应诊断先按原始键脱敏，再递归保持上游 JSON 输出形状。真实回环 HTTP 与 SQLite、PostgreSQL 18.7、MySQL 8.4.13 各验证 11 项入库，包含 40 个字符时保留、41 个字符时清除及多字节对照。默认 Provider 回归 17 项通过，独占 Redis 项按条件跳过。隔离快照全仓格式与相关严格 Clippy 通过。其他平台与 Release 继续验收。证据为 `target/tmp/observability-parity/{telescope-client-response-shape-macos-verified,observability-response-restart-verified}.log`。

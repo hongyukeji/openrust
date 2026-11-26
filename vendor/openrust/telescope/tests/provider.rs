@@ -26,6 +26,10 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/redis", redis_handler)?;
     openrust::support::facades::Route::get("/client", client_handler)?;
     openrust::support::facades::Route::get(
+        "/client-response-shape",
+        client_response_shape_handler,
+    )?;
+    openrust::support::facades::Route::get(
         "/client-multipart-middleware",
         multipart_middleware_handler,
     )?;
@@ -218,29 +222,79 @@ fn handler(
         ))
     })
 }
+type FixtureConfig =
+    Result<std::collections::BTreeMap<String, serde_json::Value>, openrust::config::ConfigError>;
+
+fn provider_config(base: &std::path::Path, env: &openrust::config::Environment) -> FixtureConfig {
+    let mut telescope = telescope_config::load(env)?;
+    telescope["ignore_paths"] = json!(["api/ignore/*"]);
+    telescope["watchers"]["QueryWatcher"]["ignore_packages"] = false.into();
+    Ok(std::collections::BTreeMap::from([
+        (
+            "app".into(),
+            json!({"env":"testing","url":"http://localhost","debug":true,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"}),
+        ),
+        (
+            "database".into(),
+            json!({"default":"testing","connections":{"testing":database_config(base)},"redis":{"default":{"url":std::env::var("TELESCOPE_TEST_REDIS_URL").ok()},"options":{"prefix":"telescope-test:"}}}),
+        ),
+        (
+            "cache".into(),
+            json!({"default":std::env::var("TELESCOPE_TEST_CACHE_DRIVER").unwrap_or("file".into()),"stores":{"file":{"driver":"file","path":base.join("cache/data"),"lock_path":base.join("cache/data")},"database":{"driver":"database","connection":"testing","table":"cache","lock_table":"cache_locks"},"redis":{"driver":"redis","connection":"default","lock_connection":"default"}}}),
+        ),
+        ("session".into(), json!({"driver":"array"})),
+        (
+            "auth".into(),
+            json!({"defaults":{"guard":"probe"},"guards":{"probe":{"driver":"cached"}}}),
+        ),
+        (
+            "queue".into(),
+            json!({"default":"sync","connections":{"sync":{"driver":"sync"},"async":{"driver":"database","connection":"testing","table":"jobs","queue":"default","retry_after":30}},"batching":{"database":"testing","table":"job_batches"}}),
+        ),
+        (
+            "mail".into(),
+            json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"sender@example.org","name":"Sender"}}),
+        ),
+        ("telescope".into(), telescope),
+    ]))
+}
+
+fn client_response_config(
+    base: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> FixtureConfig {
+    let mut config = provider_config(base, env)?;
+    config.get_mut("telescope").unwrap()["watchers"]["ClientRequestWatcher"]["size_limit"] =
+        "0.04".into();
+    Ok(config)
+}
+
 fn application() -> openrust::testing::TestApp {
-    let app = openrust::testing::TestApp::create(|builder| builder
-        .with_config(|base, env| {
-            let mut telescope = telescope_config::load(env)?;
-            telescope["ignore_paths"] = json!(["api/ignore/*"]);
-            telescope["watchers"]["QueryWatcher"]["ignore_packages"] = false.into();
-            Ok(std::collections::BTreeMap::from([
-            ("app".into(), json!({"env":"testing","url":"http://localhost","debug":true,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
-            ("database".into(), json!({"default":"testing","connections":{"testing":database_config(base)},"redis":{"default":{"url":std::env::var("TELESCOPE_TEST_REDIS_URL").ok()},"options":{"prefix":"telescope-test:"}}})),
-            ("cache".into(), json!({"default":std::env::var("TELESCOPE_TEST_CACHE_DRIVER").unwrap_or("file".into()),"stores":{"file":{"driver":"file","path":base.join("cache/data"),"lock_path":base.join("cache/data")},"database":{"driver":"database","connection":"testing","table":"cache","lock_table":"cache_locks"},"redis":{"driver":"redis","connection":"default","lock_connection":"default"}}})),
-            ("session".into(),json!({"driver":"array"})),
-            ("auth".into(),json!({"defaults":{"guard":"probe"},"guards":{"probe":{"driver":"cached"}}})),
-            ("queue".into(),json!({"default":"sync","connections":{"sync":{"driver":"sync"},"async":{"driver":"database","connection":"testing","table":"jobs","queue":"default","retry_after":30}},"batching":{"database":"testing","table":"job_batches"}})),
-            ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"sender@example.org","name":"Sender"}})),
-            ("telescope".into(), telescope),
-        ])) })
-        .with_providers(vec![Box::new(TelescopeServiceProvider)])
-        .with_middleware(|middleware| {
-            middleware.skip_trim_strings_when(|request|request.path().trim_start_matches('/')=="api/unread");
-            middleware.convert_empty_strings_to_null(|request|request.path().trim_start_matches('/')=="api/unread");
-        })
-        .with_routing(openrust::foundation::configuration::Routing::default().api(routes).commands(commands))
-    ).unwrap();
+    application_with_config(provider_config)
+}
+
+fn application_with_config(
+    config: fn(&std::path::Path, &openrust::config::Environment) -> FixtureConfig,
+) -> openrust::testing::TestApp {
+    let app = openrust::testing::TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_middleware(|middleware| {
+                middleware.skip_trim_strings_when(|request| {
+                    request.path().trim_start_matches('/') == "api/unread"
+                });
+                middleware.convert_empty_strings_to_null(|request| {
+                    request.path().trim_start_matches('/') == "api/unread"
+                });
+            })
+            .with_routing(
+                openrust::foundation::configuration::Routing::default()
+                    .api(routes)
+                    .commands(commands),
+            )
+    })
+    .unwrap();
     std::fs::File::create(app.root().join("telescope.sqlite")).unwrap();
     app
 }
@@ -1950,6 +2004,153 @@ async fn multipart_media_rewrites_preserve_the_correct_telescope_diagnostic() {
                 .starts_with(media.unwrap_or("multipart/form-data; boundary=")),
             "{uri}"
         );
+    }
+}
+
+fn client_response_shape_handler(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    let target = request.headers()["x-origin-url"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    Box::pin(async move {
+        openrust::http::client::Http::pending_request()
+            .unwrap()
+            .without_redirecting()
+            .get(&target)
+            .await
+            .unwrap();
+        Ok(openrust::http::Response::from("observed"))
+    })
+}
+
+#[tokio::test]
+async fn real_client_responses_preserve_php_body_shape_and_configured_size_limit() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let cases = [
+        ("html-zero", 200, "text/html", "0", json!("Empty Response")),
+        (
+            "html-spaced-zero",
+            200,
+            "text/html",
+            " 0",
+            json!("HTML Response"),
+        ),
+        ("plain-zero", 200, "text/plain", "0", json!("0")),
+        (
+            "json-zero",
+            200,
+            "application/json",
+            "0",
+            json!("Empty Response"),
+        ),
+        (
+            "zero-redirect",
+            302,
+            "text/html",
+            "0",
+            json!("Redirected to /next"),
+        ),
+        ("empty-object", 200, "application/json", "{}", json!([])),
+        (
+            "container-list",
+            200,
+            "application/json",
+            r#"{"0":{"0":"zero","1":"hidden"},"1":{}}"#,
+            json!([["zero", "********"], []]),
+        ),
+        (
+            "out-of-order-object",
+            200,
+            "application/json",
+            r#"{"1":"one","0":"zero"}"#,
+            json!({"1":"one","0":"zero"}),
+        ),
+        (
+            "leading-zero-object",
+            200,
+            "application/json",
+            r#"{"00":"first","1":"one"}"#,
+            json!({"00":"first","1":"one"}),
+        ),
+        (
+            "fractional-limit",
+            200,
+            "text/plain",
+            "1234567890123456789012345678901234567890é",
+            json!("Purged By Telescope"),
+        ),
+        (
+            "fractional-limit-boundary",
+            200,
+            "text/plain",
+            "123456789012345678901234567890123456789é",
+            json!("123456789012345678901234567890123456789é"),
+        ),
+    ];
+    let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = origin.local_addr().unwrap();
+    let wire = tokio::spawn({
+        let cases = cases.clone();
+        async move {
+            for (name, status, media, body, _) in cases {
+                let (mut socket, _) = origin.accept().await.unwrap();
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut buffer = [0; 4096];
+                    let size = socket.read(&mut buffer).await.unwrap();
+                    assert_ne!(size, 0);
+                    request.extend_from_slice(&buffer[..size]);
+                }
+                assert!(request.starts_with(format!("GET /{name} ").as_bytes()));
+                let response = format!(
+                    "HTTP/1.1 {status} Response\r\nContent-Type: {media}\r\nContent-Length: {}\r\nLocation: /next\r\nConnection: close\r\n\r\n{body}",
+                    body.len(),
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        }
+    });
+    let mut app = application_with_config(client_response_config);
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .make::<Telescope>()
+        .await
+        .unwrap()
+        .hide_response_parameters(&["0.1"]);
+    for (name, _, _, _, _) in &cases {
+        let request = http::Request::builder()
+            .uri("/api/client-response-shape")
+            .header("x-origin-url", format!("http://{address}/{name}"));
+        let response = app
+            .call(request.body(openrust::http::Body::empty()).unwrap())
+            .await
+            .unwrap();
+        response.assert_ok();
+    }
+    wire.await.unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), cases.len());
+    for (name, status, _, _, expected) in cases {
+        let entry = entries
+            .iter()
+            .find(|entry| {
+                entry.content["uri"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with(&format!("/{name}"))
+            })
+            .unwrap();
+        assert_eq!(entry.content["response_status"], json!(status));
+        assert_eq!(entry.content["response"], expected, "{name}");
     }
 }
 
