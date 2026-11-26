@@ -274,6 +274,29 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 部分账单使用 `complete: false`。更正时沿用来源、账单 ID 和时间窗口并增加版本号。同版本同内容可重复导入。用量清单中的 `amount` 保留费率计算值，`actual` 展示有证据的供应商成本。币种不符或报告冲突会保留供运维核对。
 
+### 分组每日货币预算 {#billing-budget}
+
+在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。
+
+```json
+{
+  "groups": {
+    "team": {
+      "models": ["published"],
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "20.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+网关限制出站生成的输出 Token，并按应收上界预占。成功后按记录的费率结算并释放差额。未形成下游应收的失败尝试释放应收预占。缺少最终用量或出站后进程停止时，预占留在原 UTC 账期。供应商实际回报导致应收超过声明上界时，该分组在本账期停止准入，实际费用仍可从账本查看。
+
+运行 `./artisan ai:gateway:budget:show team` 查看当前 UTC 账期的限额、预占、已在限额内入账的金额和可用余额。余额不足返回 HTTP 429 和 `budget_exceeded`。无法确认上界的路由返回 `budget_unbounded`，也可通过 `unknown: "monitor"` 放行，并保留常规用量及计费。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。

@@ -639,6 +639,7 @@ async fn relay(
     let mut admitted = false;
     let mut failure = None;
     let mut conversion_error = None;
+    let mut budget_error = None;
     let mut cooling = None::<u64>;
     let mut busy = false;
     let cache_store = gateway.account_cache_store.as_deref();
@@ -698,6 +699,14 @@ async fn relay(
             } else {
                 (Value::Object(payload), None)
             };
+        let budget =
+            match gateway.budget_reservation(key, &name, target, upstream_endpoint, &mut payload) {
+                Ok(reservation) => reservation,
+                Err(message) => {
+                    budget_error = Some(message);
+                    continue;
+                }
+            };
         let reservation = match key.output_reservation(upstream_endpoint, target, &mut payload) {
             Ok(reservation) => reservation,
             Err(message) => {
@@ -747,7 +756,7 @@ async fn relay(
                     request_id: &request_id,
                     invocation: invocation.as_ref(),
                 },
-                (lease, reservation),
+                (lease, reservation, budget),
             )
             .await
         {
@@ -758,6 +767,17 @@ async fn relay(
                         StatusCode::TOO_MANY_REQUESTS,
                         "output_quota_exceeded",
                         "分组输出 Token 配额不足",
+                    )
+                    .map(|response| {
+                        response.header(header::RETRY_AFTER, HeaderValue::from(retry_after))
+                    });
+            }
+            Err(UsageAdmission::BudgetLimited(retry_after)) => {
+                return protocol
+                    .error(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "budget_exceeded",
+                        "分组货币预算不足",
                     )
                     .map(|response| {
                         response.header(header::RETRY_AFTER, HeaderValue::from(retry_after))
@@ -824,6 +844,9 @@ async fn relay(
                 "上游连接正在冷却",
             )
             .map(|response| response.header(header::RETRY_AFTER, HeaderValue::from(seconds)));
+    }
+    if let Some(message) = budget_error {
+        return protocol.error(StatusCode::BAD_REQUEST, "budget_unbounded", message);
     }
     protocol.error(
         StatusCode::BAD_REQUEST,

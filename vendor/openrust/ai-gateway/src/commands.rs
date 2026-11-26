@@ -121,6 +121,30 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             })
         }),
     )?;
+    Artisan::command_with(
+        "ai:gateway:budget:show {group : 授权分组}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let group =
+                    argument(input, "group").ok_or_else(|| ConsoleError::new("请指定授权分组"))?;
+                let budget = gateway
+                    .group_budget(group)
+                    .ok_or_else(|| ConsoleError::new("此分组未配置货币预算"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let balance = store
+                    .budget_balance(group, budget)
+                    .await
+                    .map_err(|_| ConsoleError::new("无法读取网关预算余额"))?;
+                write_json(output, json!(balance))?;
+                Ok(0)
+            })
+        }),
+    )?;
     Ok(())
 }
 

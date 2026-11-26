@@ -274,6 +274,29 @@ Use `./artisan ai:gateway:billing:import invoice.json --actor=operator` for a pr
 
 Use `complete: false` for a partial statement. For a corrected statement, keep its source, statement ID and time window, then increase the revision. Reimporting the same revision and contents is idempotent. The usage list's original `amount` preserves the rate-based estimate, and `actual` shows the confirmed supplier cost when available. A currency mismatch or conflicting report is visible for operator review.
 
+### Daily group billing budget {#billing-budget}
+
+In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.
+
+```json
+{
+  "groups": {
+    "team": {
+      "models": ["published"],
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "20.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+The gateway caps outgoing text generation before reserving the maximum receivable. Successful calls settle at the recorded rate and release the difference. Failed attempts without a downstream charge release their receivable reservation. If final usage is missing or the process stops after dispatch, the reservation stays in its original UTC day. An upstream amount above the declared maximum stops further admissions for that group in that window and remains visible in the charge ledger.
+
+Run `./artisan ai:gateway:budget:show team` to see the current UTC window's limit, reserved amount, amount booked within the limit and available balance. Exhaustion returns HTTP 429 with `budget_exceeded`. Routes without a verified ceiling return `budget_unbounded` unless you set `unknown` to `monitor`. Monitor routes keep their regular usage and billing behavior.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

@@ -35,43 +35,50 @@ impl OutputQuota {
         {
             return Ok(None);
         }
-        let fields: &[&str] = match endpoint {
-            TextEndpoint::ChatCompletions if native_openai => {
-                &["max_completion_tokens", "max_tokens"]
-            }
-            TextEndpoint::ChatCompletions => &["max_tokens", "max_completion_tokens"],
-            TextEndpoint::Responses => &["max_output_tokens"],
-            TextEndpoint::Messages => &["max_tokens"],
-            _ => return Err("分组输出配额不支持此上游生成端点"),
-        };
-        let data = payload.as_object_mut().ok_or("上游请求格式无效")?;
-        let present: Vec<_> = fields
-            .iter()
-            .copied()
-            .filter(|field| data.get(*field).is_some_and(|value| !value.is_null()))
-            .collect();
-        if present.len() > 1 {
-            return Err("请只设置一种输出 Token 限制");
-        }
-        let field = present.first().copied().unwrap_or(fields[0]);
-        let candidates = if endpoint == TextEndpoint::ChatCompletions {
-            positive(data.get("n"))?.unwrap_or(1)
-        } else {
-            1
-        };
-        let max_each = self.max_output_tokens / candidates;
-        if max_each == 0 {
-            return Err("候选数量超出分组的单次输出 Token 上限");
-        }
-        let cap = positive(data.get(field))?.unwrap_or(max_each).min(max_each);
-        if fields.len() == 2 {
-            for field in fields {
-                data.remove(*field);
-            }
-        }
-        data.insert(field.into(), json!(cap));
-        Ok(Some(cap * candidates))
+        limit_output(self.max_output_tokens, endpoint, native_openai, payload).map(Some)
     }
+}
+
+pub(crate) fn limit_output(
+    max_output_tokens: i64,
+    endpoint: TextEndpoint,
+    native_openai: bool,
+    payload: &mut Value,
+) -> Result<i64, &'static str> {
+    let fields: &[&str] = match endpoint {
+        TextEndpoint::ChatCompletions if native_openai => &["max_completion_tokens", "max_tokens"],
+        TextEndpoint::ChatCompletions => &["max_tokens", "max_completion_tokens"],
+        TextEndpoint::Responses => &["max_output_tokens"],
+        TextEndpoint::Messages => &["max_tokens"],
+        _ => return Err("分组输出配额不支持此上游生成端点"),
+    };
+    let data = payload.as_object_mut().ok_or("上游请求格式无效")?;
+    let present: Vec<_> = fields
+        .iter()
+        .copied()
+        .filter(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+        .collect();
+    if present.len() > 1 {
+        return Err("请只设置一种输出 Token 限制");
+    }
+    let field = present.first().copied().unwrap_or(fields[0]);
+    let candidates = if endpoint == TextEndpoint::ChatCompletions {
+        positive(data.get("n"))?.unwrap_or(1)
+    } else {
+        1
+    };
+    let max_each = max_output_tokens / candidates;
+    if max_each == 0 {
+        return Err("候选数量超出分组的单次输出 Token 上限");
+    }
+    let cap = positive(data.get(field))?.unwrap_or(max_each).min(max_each);
+    if fields.len() == 2 {
+        for field in fields {
+            data.remove(*field);
+        }
+    }
+    data.insert(field.into(), json!(cap));
+    Ok(cap * candidates)
 }
 
 fn positive(value: Option<&Value>) -> Result<Option<i64>, &'static str> {

@@ -5,8 +5,12 @@ use std::{
 };
 
 use openrust::{
-    cache::limiters::ConcurrencyLease, config::Environment, container::ServiceKey,
-    database::DatabaseResult, log::Logger, support::facades::Facade,
+    cache::limiters::ConcurrencyLease,
+    config::Environment,
+    container::ServiceKey,
+    database::{DatabaseError, DatabaseResult},
+    log::Logger,
+    support::facades::Facade,
 };
 use openrust_ai::{AiManager, TextEndpoint, TextProvider};
 use serde::Deserialize;
@@ -16,7 +20,8 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     accounts::{Account, MAX_SECONDS},
-    billing::PriceBook,
+    billing::{ChargePlan, PriceBook},
+    budget::{Budget, BudgetReservation},
     codex_catalog::CodexMetadata,
     invocation::CallIdentity,
     managed_keys::KeyStore,
@@ -78,6 +83,7 @@ struct AccountConfiguration {
 #[derive(Deserialize)]
 struct GroupConfiguration {
     quota: Option<OutputQuota>,
+    budget: Option<Budget>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
@@ -85,6 +91,7 @@ struct GroupConfiguration {
 struct Group {
     name: String,
     quota: Option<OutputQuota>,
+    budget: Option<Budget>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
@@ -397,6 +404,7 @@ impl Gateway {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 
+        let billing = config.billing.enabled(usage_store.is_some())?;
         let mut groups = BTreeMap::new();
         for (name, group) in config.groups {
             if name.trim().is_empty()
@@ -419,11 +427,21 @@ impl Gateway {
                     "网关分组 {name} 的输出配额无效或用量账本未启用"
                 )));
             }
+            if group
+                .budget
+                .as_ref()
+                .is_some_and(|budget| billing.is_none() || !budget.valid())
+            {
+                return Err(invalid(format!(
+                    "网关分组 {name} 的货币预算无效或计费未启用"
+                )));
+            }
             groups.insert(
                 name.clone(),
                 Arc::new(Group {
                     name,
                     quota: group.quota,
+                    budget: group.budget,
                     models: group.models,
                     providers: group.providers,
                 }),
@@ -488,7 +506,7 @@ impl Gateway {
             keys,
             groups,
             managed_keys,
-            billing: config.billing.enabled(usage_store.is_some())?,
+            billing,
             usage_store,
             logger,
         }))
@@ -496,6 +514,10 @@ impl Gateway {
 
     pub(crate) fn has_group(&self, name: &str) -> bool {
         self.groups.contains_key(name)
+    }
+
+    pub(crate) fn group_budget(&self, name: &str) -> Option<&Budget> {
+        self.groups.get(name)?.budget.as_ref()
     }
 
     pub(crate) async fn authorize(&self, bearer: &str) -> DatabaseResult<Option<Arc<Key>>> {
@@ -541,10 +563,14 @@ impl Gateway {
         target: &Target,
         endpoints: (TextEndpoint, TextEndpoint),
         identity: CallIdentity<'_>,
-        admission: (Option<ConcurrencyLease>, Option<QuotaReservation>),
+        admission: (
+            Option<ConcurrencyLease>,
+            Option<QuotaReservation>,
+            Option<BudgetReservation>,
+        ),
     ) -> Result<Call, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
-        let (lease, reservation) = admission;
+        let (lease, reservation, budget) = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
             ("key_id".into(), json!(key.managed_id)),
@@ -570,28 +596,19 @@ impl Gateway {
         let attempt = match &self.usage_store {
             Some(store) => {
                 let retry_after = reservation.as_ref().map(QuotaReservation::retry_after);
+                let budget_retry = budget.as_ref().map(BudgetReservation::retry_after);
                 if let Some(reservation) = &reservation {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
-                let text_billing = matches!(
-                    upstream_endpoint,
-                    TextEndpoint::Responses
-                        | TextEndpoint::ChatCompletions
-                        | TextEndpoint::Messages
-                        | TextEndpoint::GeminiGenerateContent
-                        | TextEndpoint::GeminiStreamGenerateContent
-                );
-                let charges = self
-                    .billing
-                    .as_ref()
-                    .filter(|_| text_billing)
-                    .map(|billing| {
-                        billing.select(&target.provider_name, &target.upstream_model, name)
-                    });
+                let charges = self.charge_plan(name, target, upstream_endpoint);
                 let attempt = store
-                    .begin(&context, reservation, key.usage_owner(), charges)
+                    .begin(&context, reservation, key.usage_owner(), charges, budget)
                     .await
-                    .map_err(|_| UsageAdmission::Unavailable)?
+                    .map_err(|error| match error {
+                        DatabaseError::InvalidQuery(crate::budget::DENIED) => budget_retry
+                            .map_or(UsageAdmission::Unavailable, UsageAdmission::BudgetLimited),
+                        _ => UsageAdmission::Unavailable,
+                    })?
                     .ok_or_else(|| {
                         retry_after
                             .map(UsageAdmission::Limited)
@@ -612,10 +629,56 @@ impl Gateway {
             lease,
         })
     }
+
+    pub(crate) fn budget_reservation(
+        &self,
+        key: &Key,
+        model: &str,
+        target: &Target,
+        endpoint: TextEndpoint,
+        payload: &mut Value,
+    ) -> Result<Option<BudgetReservation>, &'static str> {
+        let Some((group, budget)) = key
+            .group
+            .as_ref()
+            .and_then(|group| group.budget.as_ref().map(|budget| (group, budget)))
+        else {
+            return Ok(None);
+        };
+        budget.prepare(
+            &group.name,
+            endpoint,
+            target.provider.supports_endpoint(TextEndpoint::Responses),
+            payload,
+            self.charge_plan(model, target, endpoint).as_ref(),
+            group.quota.map(|quota| quota.max_output_tokens),
+        )
+    }
+
+    fn charge_plan(
+        &self,
+        name: &str,
+        target: &Target,
+        endpoint: TextEndpoint,
+    ) -> Option<ChargePlan> {
+        let billable = matches!(
+            endpoint,
+            TextEndpoint::Responses
+                | TextEndpoint::ChatCompletions
+                | TextEndpoint::Messages
+                | TextEndpoint::GeminiGenerateContent
+                | TextEndpoint::GeminiStreamGenerateContent
+        );
+        self.billing
+            .as_ref()
+            .filter(|_| billable)
+            .map(|prices| prices.select(&target.provider_name, &target.upstream_model, name))
+    }
 }
 
 pub(crate) enum UsageAdmission {
     Limited(u64),
+    BudgetLimited(u64),
     Unavailable,
 }
 

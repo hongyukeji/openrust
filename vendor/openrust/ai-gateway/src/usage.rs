@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     billing::{self, ChargePlan, ChargeRecord},
+    budget::{Budget, BudgetBalance, BudgetReservation},
     managed_keys::{now, nullable},
     output_quota::QuotaReservation,
     reconciliation,
@@ -137,6 +138,7 @@ pub(crate) struct UsageAttempt {
     pub(crate) id: String,
     quota: Option<QuotaReservation>,
     charges: Option<ChargePlan>,
+    budget: Option<BudgetReservation>,
 }
 
 #[derive(Clone)]
@@ -276,6 +278,14 @@ impl UsageStore {
         Self { connection }
     }
 
+    pub(crate) async fn budget_balance(
+        &self,
+        group: &str,
+        budget: &Budget,
+    ) -> DatabaseResult<BudgetBalance> {
+        budget.balance(&self.connection, group).await
+    }
+
     pub(crate) async fn import_cost_report(
         &self,
         report: crate::reconciliation::CostReport,
@@ -290,6 +300,7 @@ impl UsageStore {
         quota: Option<QuotaReservation>,
         owner: UsageOwner<'_>,
         charges: Option<ChargePlan>,
+        budget: Option<BudgetReservation>,
     ) -> DatabaseResult<Option<UsageAttempt>> {
         let id = Str::ulid().to_string();
         let field = |key: &str| {
@@ -338,9 +349,14 @@ impl UsageStore {
             record.insert("output_quota_id".into(), reservation.id.as_str().into());
             record.insert("reserved_output_tokens".into(), reservation.amount.into());
         }
-        if quota.is_some() || charges.is_some() {
+        if let Some(reservation) = &budget {
+            record.insert("budget_id".into(), reservation.id.as_str().into());
+            record.insert("reserved_receivable_atoms".into(), reservation.atoms.into());
+        }
+        if quota.is_some() || charges.is_some() || budget.is_some() {
             let reservation = quota.clone();
             let plan = charges.clone();
+            let budget_reservation = budget.clone();
             let attempt = id.clone();
             let reserved = self
                 .connection
@@ -348,6 +364,7 @@ impl UsageStore {
                     move |transaction| {
                         let reservation = reservation.clone();
                         let plan = plan.clone();
+                        let budget = budget_reservation.clone();
                         let attempt = attempt.clone();
                         let record = record.clone();
                         Box::pin(async move {
@@ -355,6 +372,9 @@ impl UsageStore {
                                 && !reservation.reserve(transaction).await?
                             {
                                 return Ok(false);
+                            }
+                            if let Some(budget) = budget {
+                                budget.reserve(transaction).await?;
                             }
                             insert_usage(transaction.table(TABLE), record).await?;
                             if let Some(plan) = plan {
@@ -377,6 +397,7 @@ impl UsageStore {
             id,
             quota,
             charges,
+            budget,
         }))
     }
 
@@ -604,9 +625,10 @@ impl UsageAttempt {
     }
 
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
-        let changed = if self.quota.is_some() || self.charges.is_some() {
+        let changed = if self.quota.is_some() || self.charges.is_some() || self.budget.is_some() {
             let reservation = self.quota.clone();
             let plan = self.charges.clone();
+            let budget = self.budget.clone();
             let id = self.id.clone();
             self.store
                 .connection
@@ -614,13 +636,14 @@ impl UsageAttempt {
                     move |transaction| {
                         let reservation = reservation.clone();
                         let plan = plan.clone();
+                        let budget = budget.clone();
                         let id = id.clone();
                         let settlement = settlement.clone();
                         Box::pin(async move {
                             let changed =
                                 finish_usage(transaction.table(TABLE), &id, &settlement).await?;
                             if changed == 1 {
-                                if let Some(plan) = plan {
+                                if let Some(plan) = &plan {
                                     plan.settle(transaction, &id, &settlement).await?;
                                 }
                                 if let Some(reservation) = reservation
@@ -628,6 +651,11 @@ impl UsageAttempt {
                                 {
                                     reservation
                                         .settle(transaction, settlement.output_tokens)
+                                        .await?;
+                                }
+                                if let (Some(budget), Some(plan)) = (budget, plan) {
+                                    budget
+                                        .settle(transaction, plan.receivable(&settlement))
                                         .await?;
                                 }
                             }

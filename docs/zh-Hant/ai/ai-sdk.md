@@ -274,6 +274,29 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 部分帳單使用 `complete: false`。更正時沿用來源、帳單 ID 和時間範圍並增加版本號。同版本同內容可重複匯入。用量清單的 `amount` 保留費率計算值，`actual` 顯示已有證據的供應商成本。幣別不符或報表衝突會保留供維運核對。
 
+### 分組每日貨幣預算 {#billing-budget}
+
+在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。
+
+```json
+{
+  "groups": {
+    "team": {
+      "models": ["published"],
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "20.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+閘道限制對外生成的輸出 Token，並按應收上限預留。成功後按儲存的費率結算並釋放差額。未形成下游應收的失敗嘗試會釋放應收預留。缺少最終用量或請求送出後程序停止時，預留留在原 UTC 帳期。供應商實際回報導致應收超過聲明上限時，該群組在本帳期停止受理，實際費用仍可從帳本查看。
+
+執行 `./artisan ai:gateway:budget:show team` 可查看目前 UTC 帳期的限額、預留、已在限額內入帳的金額及可用餘額。餘額不足時回傳 HTTP 429 和 `budget_exceeded`。無法確認上限的路由會回傳 `budget_unbounded`，也可透過 `unknown: "monitor"` 允許通過，並保留通常的用量與計費。
+
 ### 群組輸出 Token 配額 {#gateway-output-quota}
 
 啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。

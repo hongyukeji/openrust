@@ -22,6 +22,16 @@ const PER_MILLION: i128 = 1_000_000;
 #[serde(try_from = "String", into = "String")]
 pub(crate) struct Amount(i128);
 
+impl Amount {
+    pub(crate) fn from_atoms(atoms: i64) -> Self {
+        Self(i128::from(atoms))
+    }
+
+    pub(crate) fn atoms(self) -> Option<i64> {
+        self.0.try_into().ok()
+    }
+}
+
 impl TryFrom<String> for Amount {
     type Error = &'static str;
 
@@ -70,6 +80,8 @@ struct Tariff {
     cache_read: Option<Amount>,
     cache_write: Option<Amount>,
     reasoning: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    input_token_limit: Option<i64>,
 }
 
 #[derive(Default, Deserialize)]
@@ -113,6 +125,16 @@ impl PriceBook {
         {
             return Err(invalid("计费币种须为三个大写 ASCII 字母"));
         }
+        if self
+            .upstream
+            .values()
+            .flatten()
+            .map(|(_, tariff)| tariff)
+            .chain(self.downstream.values())
+            .any(|tariff| tariff.input_token_limit.is_some_and(|limit| limit < 1))
+        {
+            return Err(invalid("计费输入 Token 上限须为正整数"));
+        }
         Ok(Some(self))
     }
 
@@ -143,6 +165,32 @@ pub(crate) struct ChargePlan {
 }
 
 impl ChargePlan {
+    pub(crate) fn receivable_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
+        let cap = self.upstream.as_ref()?.input_token_limit?;
+        let tariff = self
+            .downstream
+            .as_ref()
+            .filter(|rate| rate.currency == currency)?;
+        let input_rate = [Some(tariff.input), tariff.cache_read, tariff.cache_write]
+            .into_iter()
+            .flatten()
+            .map(|rate| rate.0)
+            .max()?;
+        let output_rate = tariff
+            .output
+            .0
+            .max(tariff.reasoning.map_or(0, |rate| rate.0));
+        let units = input_rate
+            .checked_mul(i128::from(cap))?
+            .checked_add(output_rate.checked_mul(i128::from(output))?)?;
+        Amount(units.checked_add(PER_MILLION - 1)? / PER_MILLION).atoms()
+    }
+
+    pub(crate) fn receivable(&self, settlement: &Settlement) -> Option<Amount> {
+        self.charge("receivable", self.downstream.as_ref(), settlement)
+            .1
+    }
+
     fn tariffs(&self) -> [(&'static str, Option<&Tariff>); 2] {
         [
             ("cost", self.upstream.as_ref()),

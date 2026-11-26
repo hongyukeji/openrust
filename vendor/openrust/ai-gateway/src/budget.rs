@@ -1,0 +1,289 @@
+use openrust::database::{
+    Connection, DatabaseError, DatabaseResult, Transaction, Value as DatabaseValue,
+    query::{Builder, Record},
+};
+use openrust_ai::TextEndpoint;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::{
+    billing::{Amount, ChargePlan},
+    managed_keys::{integer, now},
+    output_quota::limit_output,
+    session_affinity,
+    usage::DAY,
+};
+
+const TABLE: &str = "ai_gateway_budgets";
+const MAX_BUDGET_ATOMS: i64 = i64::MAX / 4;
+pub(crate) const DENIED: &str = "AI 网关分组货币预算不足";
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Unknown {
+    #[default]
+    Reject,
+    Monitor,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Budget {
+    currency: String,
+    daily_limit: Amount,
+    max_output_tokens: i64,
+    #[serde(default)]
+    unknown: Unknown,
+}
+
+#[derive(Serialize)]
+pub(crate) struct BudgetBalance {
+    group: String,
+    currency: String,
+    window_start: i64,
+    window_end: i64,
+    limit: Amount,
+    reserved: Amount,
+    booked_within_limit: Amount,
+    available: Amount,
+    overrun: bool,
+}
+
+impl Budget {
+    fn window(&self, group: &str) -> (i64, String) {
+        let window = now().div_euclid(DAY) * DAY;
+        let key = session_affinity::key(&["budget", group, &self.currency, &window.to_string()]);
+        (window, key)
+    }
+
+    pub(crate) async fn balance(
+        &self,
+        connection: &Connection,
+        group: &str,
+    ) -> DatabaseResult<BudgetBalance> {
+        let (window, key) = self.window(group);
+        let row = connection
+            .table(TABLE)
+            .use_write_pdo()
+            .select(["occupied_atoms", "held_atoms", "overrun"])
+            .r#where("id", "=", key)
+            .first()
+            .await?;
+        let (occupied, held, overrun) = match row {
+            Some(row) => {
+                let required = |column| integer(&row, column)?.ok_or(DatabaseError::InvalidScalar);
+                let overrun = match row.get("overrun") {
+                    Some(DatabaseValue::Bool(value)) => *value,
+                    Some(DatabaseValue::Integer(0) | DatabaseValue::Unsigned(0)) => false,
+                    Some(DatabaseValue::Integer(1) | DatabaseValue::Unsigned(1)) => true,
+                    _ => return Err(DatabaseError::InvalidScalar),
+                };
+                (
+                    required("occupied_atoms")?,
+                    required("held_atoms")?,
+                    overrun,
+                )
+            }
+            None => (0, 0, false),
+        };
+        if held < 0 || occupied < held {
+            return Err(DatabaseError::InvalidScalar);
+        }
+        let limit = self.daily_limit.atoms().expect("已校验预算配置");
+        Ok(BudgetBalance {
+            group: group.into(),
+            currency: self.currency.clone(),
+            window_start: window,
+            window_end: window + DAY,
+            limit: self.daily_limit,
+            reserved: Amount::from_atoms(held),
+            booked_within_limit: Amount::from_atoms(occupied - held),
+            available: Amount::from_atoms(if overrun {
+                0
+            } else {
+                (limit - occupied).max(0)
+            }),
+            overrun,
+        })
+    }
+
+    pub(crate) fn valid(&self) -> bool {
+        self.currency.len() == 3
+            && self.currency.bytes().all(|byte| byte.is_ascii_uppercase())
+            && self
+                .daily_limit
+                .atoms()
+                .is_some_and(|limit| (1..=MAX_BUDGET_ATOMS).contains(&limit))
+            && self.max_output_tokens > 0
+    }
+
+    pub(crate) fn prepare(
+        &self,
+        group: &str,
+        endpoint: TextEndpoint,
+        native_openai: bool,
+        payload: &mut Value,
+        charges: Option<&ChargePlan>,
+        output_quota: Option<i64>,
+    ) -> Result<Option<BudgetReservation>, &'static str> {
+        let bounded_text = matches!(
+            endpoint,
+            TextEndpoint::Responses | TextEndpoint::ChatCompletions | TextEndpoint::Messages
+        ) && billable_text_only(endpoint, payload);
+        if bounded_text && let Some(charges) = charges {
+            let mut capped = payload.clone();
+            let cap = output_quota.map_or(self.max_output_tokens, |quota| {
+                quota.min(self.max_output_tokens)
+            });
+            let output = limit_output(cap, endpoint, native_openai, &mut capped)?;
+            if let Some(atoms) = charges.receivable_ceiling(&self.currency, output) {
+                *payload = capped;
+                let (window, id) = self.window(group);
+                return Ok(Some(BudgetReservation {
+                    id,
+                    group: group.into(),
+                    currency: self.currency.clone(),
+                    window,
+                    atoms,
+                    limit: self.daily_limit.atoms().expect("已校验预算配置"),
+                }));
+            }
+        }
+        match self.unknown {
+            Unknown::Reject => Err("无法确认此上游请求的货币费用上限"),
+            Unknown::Monitor => Ok(None),
+        }
+    }
+}
+
+fn billable_text_only(endpoint: TextEndpoint, payload: &Value) -> bool {
+    let present = |key| payload.get(key).is_some_and(|value| !value.is_null());
+    if [
+        "web_search_options",
+        "audio",
+        "modalities",
+        "mcp_servers",
+        "container",
+        "service_tier",
+    ]
+    .into_iter()
+    .any(present)
+    {
+        return false;
+    }
+    payload.get("tools").is_none_or(|tools| {
+        tools.is_null()
+            || tools.as_array().is_some_and(|tools| {
+                tools.iter().all(|tool| match endpoint {
+                    TextEndpoint::Messages => {
+                        tool.get("input_schema").is_some_and(Value::is_object)
+                            && tool
+                                .get("type")
+                                .is_none_or(|kind| kind.as_str() == Some("custom"))
+                    }
+                    _ => tool["type"].as_str() == Some("function"),
+                })
+            })
+    })
+}
+
+#[derive(Clone)]
+pub(crate) struct BudgetReservation {
+    pub(crate) id: String,
+    pub(crate) atoms: i64,
+    group: String,
+    currency: String,
+    window: i64,
+    limit: i64,
+}
+
+impl BudgetReservation {
+    pub(crate) fn retry_after(&self) -> u64 {
+        (self.window + DAY - now()).max(1) as u64
+    }
+
+    pub(crate) async fn reserve(&self, transaction: &mut Transaction) -> DatabaseResult<()> {
+        let record = Record::from([
+            ("id".into(), self.id.as_str().into()),
+            ("group_name".into(), self.group.as_str().into()),
+            ("currency".into(), self.currency.as_str().into()),
+            ("window_start".into(), self.window.into()),
+            ("occupied_atoms".into(), 0.into()),
+            ("held_atoms".into(), 0.into()),
+            ("overrun".into(), false.into()),
+        ]);
+        transaction.table(TABLE).insert_or_ignore(&[record]).await?;
+        let allowed = transaction
+            .table(TABLE)
+            .r#where("id", "=", self.id.as_str())
+            .r#where("overrun", "=", false)
+            .r#where("occupied_atoms", "<=", self.limit - self.atoms);
+        if self.atoms == 0 {
+            if !allowed.exists().await? {
+                return Err(DatabaseError::InvalidQuery(DENIED));
+            }
+            return Ok(());
+        }
+        if allowed
+            .increment("occupied_atoms", self.atoms, Record::new())
+            .await?
+            != 1
+        {
+            return Err(DatabaseError::InvalidQuery(DENIED));
+        }
+        if self
+            .scope(transaction)
+            .increment("held_atoms", self.atoms, Record::new())
+            .await?
+            != 1
+        {
+            return Err(DatabaseError::InvalidQuery("AI 网关预算预占状态无效"));
+        }
+        Ok(())
+    }
+
+    fn scope<'a>(&self, transaction: &'a mut Transaction) -> Builder<'a> {
+        transaction
+            .table(TABLE)
+            .r#where("id", "=", self.id.as_str())
+    }
+
+    pub(crate) async fn settle(
+        &self,
+        transaction: &mut Transaction,
+        amount: Option<Amount>,
+    ) -> DatabaseResult<()> {
+        let Some(amount) = amount else {
+            return Ok(());
+        };
+        let charged = amount.atoms().filter(|amount| *amount <= self.atoms);
+        if let Some(charged) = charged {
+            if self.atoms != 0
+                && self
+                    .scope(transaction)
+                    .r#where("held_atoms", ">=", self.atoms)
+                    .decrement("held_atoms", self.atoms, Record::new())
+                    .await?
+                    != 1
+            {
+                return Err(DatabaseError::InvalidQuery("AI 网关预算释放状态无效"));
+            }
+            if charged < self.atoms
+                && self
+                    .scope(transaction)
+                    .r#where("occupied_atoms", ">=", self.atoms - charged)
+                    .decrement("occupied_atoms", self.atoms - charged, Record::new())
+                    .await?
+                    != 1
+            {
+                return Err(DatabaseError::InvalidQuery("AI 网关预算结算状态无效"));
+            }
+        } else {
+            // 回报超出声明上界时保留预占，记下真实应收并停止本账期准入。
+            self.scope(transaction)
+                .update(Record::from([("overrun".into(), true.into())]))
+                .await?;
+        }
+        Ok(())
+    }
+}
