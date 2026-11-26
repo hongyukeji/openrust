@@ -63,6 +63,38 @@ impl ResourceAction {
 
 type Configure = dyn Fn(ResourceAction, &mut Route) -> Result<(), RoutingError>;
 
+#[derive(Default)]
+struct ResourceMiddleware {
+    common: Vec<String>,
+    actions: HashMap<ResourceAction, Vec<String>>,
+    excluded: Vec<String>,
+    excluded_actions: HashMap<ResourceAction, Vec<String>>,
+}
+
+impl ResourceMiddleware {
+    fn apply(&self, action: ResourceAction, route: &mut Route) {
+        let included = self.actions.get(&action).unwrap_or(&self.common);
+        for name in included {
+            route.middleware_name(name);
+        }
+        for name in self
+            .excluded
+            .iter()
+            .chain(self.excluded_actions.get(&action).into_iter().flatten())
+        {
+            route.without_middleware(name);
+        }
+    }
+}
+
+fn extend_unique(target: &mut Vec<String>, names: &[String]) {
+    for name in names {
+        if !target.contains(name) {
+            target.push(name.clone());
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 enum SingletonLifecycle {
     #[default]
@@ -114,6 +146,7 @@ pub struct ResourceController<C> {
     trashed: Vec<ResourceAction>,
     missing: Option<Arc<dyn Handler>>,
     singleton_lifecycle: SingletonLifecycle,
+    middleware: ResourceMiddleware,
     configure: Option<Box<Configure>>,
 }
 
@@ -131,6 +164,7 @@ impl<C> Default for ResourceController<C> {
             trashed: Vec::new(),
             missing: None,
             singleton_lifecycle: SingletonLifecycle::default(),
+            middleware: ResourceMiddleware::default(),
             configure: None,
         }
     }
@@ -244,6 +278,56 @@ impl<C> ResourceController<C> {
     pub fn destroyable(mut self) -> Self {
         if matches!(self.singleton_lifecycle, SingletonLifecycle::Existing) {
             self.singleton_lifecycle = SingletonLifecycle::Destroyable;
+        }
+        self
+    }
+
+    /// 为该资源的所有动作设置路由中间件。
+    pub fn middleware(mut self, middleware: &[&str]) -> Self {
+        let names = middleware
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<Vec<_>>();
+        for selected in self.middleware.actions.values_mut() {
+            extend_unique(selected, &names);
+        }
+        self.middleware.common = names;
+        self
+    }
+
+    /// 为指定动作设置额外中间件。再次设置同一动作会替换该动作的设置。
+    pub fn middleware_for(mut self, actions: &[ResourceAction], middleware: &[&str]) -> Self {
+        let mut selected = self.middleware.common.clone();
+        let names = middleware
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect::<Vec<_>>();
+        extend_unique(&mut selected, &names);
+        for &action in actions {
+            self.middleware.actions.insert(action, selected.clone());
+        }
+        self
+    }
+
+    /// 从该资源的所有动作移除所列路由中间件。
+    pub fn without_middleware(mut self, middleware: &[&str]) -> Self {
+        self.middleware
+            .excluded
+            .extend(middleware.iter().map(|name| (*name).to_owned()));
+        self
+    }
+
+    /// 从指定动作移除所列路由中间件。
+    pub fn without_middleware_for(
+        mut self,
+        actions: &[ResourceAction],
+        middleware: &[&str],
+    ) -> Self {
+        let names: Vec<_> = middleware.iter().map(|name| (*name).to_owned()).collect();
+        for &action in actions {
+            self.middleware
+                .excluded_actions
+                .insert(action, names.clone());
         }
         self
     }
@@ -472,6 +556,7 @@ impl Router {
                     route.set_missing_handler(Arc::clone(missing));
                 }
             }
+            controller.middleware.apply(action, &mut route);
             if let Some(configure) = &controller.configure {
                 configure(action, &mut route)?;
             }

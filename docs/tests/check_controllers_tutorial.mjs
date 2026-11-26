@@ -38,6 +38,10 @@ try {
                     for (const method of ['resources', 'api_resources', 'soft_deletable_resources']) {
                         assert(text.includes(`Route::${method}([`));
                     }
+                    assert.equal(await page.locator('#middleware-and-resource-controllers').count(),1);
+                    for (const method of ['middleware_for', 'without_middleware_for']) {
+                        assert(text.includes(`.${method}(`));
+                    }
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();

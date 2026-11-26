@@ -140,3 +140,19 @@ Route::api_resources([
 用 `Route::singleton("profile", controller)` 在固定 URL 註冊單一資源，預設動作為檢視、編輯與更新。`destroyable` 加入刪除，`creatable` 加入建立表單、儲存與刪除。`Route::api_singleton` 預設選取檢視與更新，並在啟用相應選項時加入儲存與刪除。也可用 `only` 明確選取已啟用的動作。
 
 `albums.thumbnail` 這類巢狀單例使用父資源參數及固定的子路徑。啟用 `shallow` 後，檢視與儲存仍採用巢狀路徑，編輯、更新與刪除採用獨立的子路徑。
+
+### 資源控制器的中介層 {#middleware-and-resource-controllers}
+
+用 `middleware` 為所有動作設定路由中介層，用 `middleware_for` 為指定動作設定額外中介層。再次設定同一動作會取代該動作的專用清單。參數使用已註冊的中介層名稱或群組名稱。
+
+```rust
+Route::resource(
+    "articles",
+    controller
+        .middleware(&["audit", "editor"])
+        .middleware_for(&[ResourceAction::Show, ResourceAction::Update], &["log"])
+        .without_middleware_for(&[ResourceAction::Show], &["editor"]),
+)?;
+```
+
+用 `without_middleware_for` 從指定動作移除中介層，用 `without_middleware` 從所有動作移除中介層。一般、API 和單例資源均可使用這些方法，全域中介層仍會執行。

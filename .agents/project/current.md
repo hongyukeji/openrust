@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Controllers 资源级中间件已验。与固定源码对账 11 条路径，真实 HTTP、Artisan 和三语示例通过。见[逐节对账](audits/controllers-tutorial/README.md)，继续控制器声明式中间件。
+
 - Controllers 普通、API 和软删除资源批量入口已验。固定路由表、Artisan、真实 HTTP、SQLite／MySQL 及三语正文消费者通过。见[逐节对账](audits/controllers-tutorial/README.md)，继续资源动作中间件。
 
 - Controllers 资源模型回退和软删除已验。固定 Router 对照 19 条元数据，SQLite 与 MySQL 8.4.13 通过真实 HTTP、Artisan 及三语正文消费者。见[逐节对账](audits/controllers-tutorial/README.md)，继续批量资源注册。

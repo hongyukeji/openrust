@@ -140,3 +140,19 @@ Route::api_resources([
 Register one instance at a fixed URL with `Route::singleton("profile", controller)`. The default actions are show, edit, and update. Use `destroyable` to add deletion or `creatable` to add create, store, and destroy. `Route::api_singleton` selects show and update by default, plus store and destroy when enabled. An explicit `only` can select a supported lifecycle action.
 
 A nested singleton such as `albums.thumbnail` uses the parent parameter and a fixed child path. With `shallow`, show and store stay nested, while edit, update, and destroy use the child path alone.
+
+### Middleware and Resource Controllers {#middleware-and-resource-controllers}
+
+Use `middleware` to set route middleware for every action. Use `middleware_for` to set additional middleware for specific actions. Calling it again for the same action replaces that action’s specific list. Pass registered middleware names or group names.
+
+```rust
+Route::resource(
+    "articles",
+    controller
+        .middleware(&["audit", "editor"])
+        .middleware_for(&[ResourceAction::Show, ResourceAction::Update], &["log"])
+        .without_middleware_for(&[ResourceAction::Show], &["editor"]),
+)?;
+```
+
+Use `without_middleware_for` to remove middleware from particular actions. Use `without_middleware` to remove it from every action. These methods apply to ordinary, API and singleton resources. Global middleware still runs.

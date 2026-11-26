@@ -23,3 +23,9 @@ Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，
 用固定 PHP Router 执行普通、API 和软删除三类批量入口。真实 Router 和实际 Artisan route:list 的 38 条方法、路径、名称与控制器动作全部对账。Rust 使用 ResourceRegistration 为不同的控制器类型保留类型化描述，在同一批次中按序注册。后续条目注册失败时保留此前成功条目，失败条目未插入残缺动作。
 
 实际 TCP 逐条访问 38 条路由并确认进入各自控制器。SQLite 与 MySQL 8.4.13 分别运行 8 次批量软删除资源请求，核对默认 show、edit、update 可绑定且 destroy 返回 404。正式三语的 9 段示例直接提取到实际应用中运行，另通过 114 次 TCP 请求。站点构建、12 组浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-batches.json)。
+
+## 93. 资源动作中间件
+
+固定 PHP Router 复验普通、API、单例和 API 单例的 11 条路径。Rust 直接使用资源描述符的 middleware、middleware_for、without_middleware 和 without_middleware_for。复用原有路由中间件解析器。逐动作重复配置覆盖该动作的旧值，晚设通用中间件追加到已配置动作，过滤路由中间件后仍执行全局中间件。
+
+实际 HTTP 验证 11 个执行序列与固定注册器一致。实际 Artisan route:list 查看生效的中间件，独立二进制也通过列表和 inspire。三语正文直接提取并实际运行各 2 次请求。浏览器、路由和中间件生命周期回归、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-middleware.json)。

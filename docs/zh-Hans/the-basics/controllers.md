@@ -140,3 +140,19 @@ Route::api_resources([
 用 `Route::singleton("profile", controller)` 在固定 URL 上注册单个资源，默认动作是查看、编辑和更新。`destroyable` 增加删除，`creatable` 增加创建表单、保存和删除。`Route::api_singleton` 默认选择查看与更新，并在启用相应选项时加入保存和删除。也可用 `only` 显式选择已启用的动作。
 
 `albums.thumbnail` 这样的嵌套单例使用父资源参数和固定的子路径。启用 `shallow` 后，查看与保存仍使用嵌套路径，编辑、更新和删除使用独立的子路径。
+
+### 资源控制器的中间件 {#middleware-and-resource-controllers}
+
+用 `middleware` 为所有动作设置路由中间件，用 `middleware_for` 为指定动作设置额外中间件。再次设置同一动作会替换该动作的专用列表。参数使用已经注册的中间件名或组名。
+
+```rust
+Route::resource(
+    "articles",
+    controller
+        .middleware(&["audit", "editor"])
+        .middleware_for(&[ResourceAction::Show, ResourceAction::Update], &["log"])
+        .without_middleware_for(&[ResourceAction::Show], &["editor"]),
+)?;
+```
+
+用 `without_middleware_for` 从指定动作移除中间件，用 `without_middleware` 从所有动作移除中间件。普通、API 和单例资源均可使用这些方法，全局中间件仍会执行。

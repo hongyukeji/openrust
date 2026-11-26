@@ -189,8 +189,11 @@
     },
     {
       "anchor": "middleware-and-resource-controllers",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "resource-middleware-oracle.json",
+        "accepted-resource-middleware.json"
+      ]
     },
     {
       "anchor": "dependency-injection-and-controllers",
@@ -213,8 +216,20 @@
     }
   ],
   "unanchored_examples": [
-    "Applying Middleware to all Methods",
-    "Applying Middleware to Specific Methods",
-    "Excluding Middleware from Specific Methods"
+    {
+      "title": "Applying Middleware to all Methods",
+      "status": "verified_tutorial_scope",
+      "evidence": "accepted-resource-middleware.json"
+    },
+    {
+      "title": "Applying Middleware to Specific Methods",
+      "status": "verified_tutorial_scope",
+      "evidence": "accepted-resource-middleware.json"
+    },
+    {
+      "title": "Excluding Middleware from Specific Methods",
+      "status": "verified_tutorial_scope",
+      "evidence": "accepted-resource-middleware.json"
+    }
   ]
 }

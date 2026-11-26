@@ -1,0 +1,123 @@
+[
+    {
+        "methods": "GET|HEAD",
+        "uri": "entries",
+        "name": "entries.index",
+        "middleware": [
+            "group",
+            "filtered",
+            "common",
+            "tail"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "entries\/{entry}",
+        "name": "entries.show",
+        "middleware": [
+            "group",
+            "before",
+            "tail"
+        ]
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "entries\/{entry}",
+        "name": "entries.update",
+        "middleware": [
+            "group",
+            "filtered",
+            "common",
+            "late"
+        ]
+    },
+    {
+        "methods": "DELETE",
+        "uri": "entries\/{entry}",
+        "name": "entries.destroy",
+        "middleware": [
+            "group",
+            "filtered",
+            "common",
+            "tail",
+            "early"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api-entries",
+        "name": "api-entries.index",
+        "middleware": [
+            "group",
+            "removed",
+            "common"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api-entries\/{api_entry}",
+        "name": "api-entries.show",
+        "middleware": [
+            "group",
+            "filtered",
+            "removed",
+            "common",
+            "before"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "profile",
+        "name": "profile.show",
+        "middleware": [
+            "group",
+            "filtered",
+            "removed",
+            "common",
+            "before"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "profile\/edit",
+        "name": "profile.edit",
+        "middleware": [
+            "group",
+            "removed",
+            "common"
+        ]
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "profile",
+        "name": "profile.update",
+        "middleware": [
+            "group",
+            "filtered",
+            "removed",
+            "common",
+            "before"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "account",
+        "name": "account.show",
+        "middleware": [
+            "group",
+            "filtered",
+            "removed",
+            "common",
+            "before"
+        ]
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "account",
+        "name": "account.update",
+        "middleware": [
+            "removed",
+            "common"
+        ]
+    }
+]

@@ -1,0 +1,21 @@
+{
+  "base": "883123b773971d92efa0f1057743de5458ed4680",
+  "oracle": "resource-middleware-oracle.json",
+  "runtime": {
+    "upstream_routes": 11,
+    "runtime_tcp_requests": 11,
+    "formal_tutorial_examples": 3,
+    "formal_tutorial_extra_http_requests": 6,
+    "regression_tests": 9,
+    "standalone_artisan_invocations": 2,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/controller-resource-middleware-test.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-middleware-formal.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-middleware-site.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-middleware-gates.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-middleware-main.log"
+  ],
+  "pushed": false
+}
