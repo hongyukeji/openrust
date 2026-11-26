@@ -49,6 +49,8 @@ Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/ve
 
 消费 `StreamableAgentResponse` 前可用 `.catch(|error| { /* 记录错误 */ })` 登记回调。流报告错误时，各回调按注册顺序执行一次，消费端仍收到流错误。连接与请求启动失败通过 `stream(...).await` 的结果处理。
 
+可用 `stream.each(|event| { inspect(event); true }).await?` 逐个处理事件并保留响应。回调返回 `false` 时暂停本次遍历。之后通过 `each`、`into_stream` 或 `to_response` 消费响应，会按原 ID 重放已遍历的事件，并从同一次上游请求读取剩余事件。
+
 Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆写 `stream` 文案。
 
 使用 `agent(instructions).with_schema(schema).prompt(text)` 请求 JSON 对象。Schema 用框架已有的 `JsonSchema` 构建。可读取 `response.structured`，或通过 `response.decode::<YourType>()` 转为 Rust 类型。所选模型须支持连接的原生结构化输出格式。结构化流将 JSON 作为文本增量发出。可用 `./artisan ai:prompt` 的 `--schema` 传入 JSON 对象 Schema 试调用。 SDK 会在出站 Schema 中禁用对象的额外属性，包括嵌套对象。如果模型执行 OpenAI 严格 Schema 校验，请将所有属性标记为必填。

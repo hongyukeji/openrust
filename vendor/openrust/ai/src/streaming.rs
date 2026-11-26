@@ -70,6 +70,7 @@ pub enum StreamEventData {
 
 pub struct StreamableAgentResponse {
     events: AgentEventStream,
+    inspected: Vec<StreamEvent>,
     protocol: Option<Box<dyn StreamProtocol>>,
 }
 
@@ -77,6 +78,7 @@ impl StreamableAgentResponse {
     pub(crate) fn from_events(events: AgentEventStream) -> Self {
         Self {
             events,
+            inspected: Vec::new(),
             protocol: None,
         }
     }
@@ -96,7 +98,29 @@ impl StreamableAgentResponse {
     }
 
     pub fn into_stream(self) -> AgentEventStream {
-        self.events
+        if self.inspected.is_empty() {
+            return self.events;
+        }
+        Box::pin(futures_util::stream::iter(self.inspected.into_iter().map(Ok)).chain(self.events))
+    }
+
+    /// Visits each event and returns the response for further use. Returning false pauses the visit.
+    pub async fn each(mut self, mut callback: impl FnMut(&StreamEvent) -> bool) -> AiResult<Self> {
+        for event in &self.inspected {
+            if !callback(event) {
+                return Ok(self);
+            }
+        }
+        while let Some(event) = self.events.next().await {
+            let event = event?;
+            let keep_reading = callback(&event);
+            self.inspected.push(event);
+            if !keep_reading {
+                return Ok(self);
+            }
+        }
+        self.events = Box::pin(futures_util::stream::empty());
+        Ok(self)
     }
 
     /// Registers a callback for the first error reported while consuming the stream.
@@ -140,11 +164,12 @@ impl StreamableAgentResponse {
     }
 
     /// 以 Laravel 默认的 SSE 数据帧返回 Agent 事件。
-    pub fn to_response(self) -> Response {
-        if let Some(protocol) = self.protocol {
-            return protocol.response(self.events);
+    pub fn to_response(mut self) -> Response {
+        let protocol = self.protocol.take();
+        let mut events = self.into_stream();
+        if let Some(protocol) = protocol {
+            return protocol.response(events);
         }
-        let mut events = self.events;
         let body = async_stream::try_stream! {
             while let Some(event) = events.next().await {
                 let serialized = serde_json::to_string(&event?).map_err(|_| AiError::InvalidResponse)?;
@@ -176,12 +201,9 @@ impl StreamableAgentResponse {
                 usage: response.usage,
             },
         ];
-        Self {
-            protocol: None,
-            events: Box::pin(futures_util::stream::iter(
-                events.map(|data| Ok(event(&invocation, data))),
-            )),
-        }
+        Self::from_events(Box::pin(futures_util::stream::iter(
+            events.map(|data| Ok(event(&invocation, data))),
+        )))
     }
 
     pub(crate) fn from_upstream(
@@ -247,10 +269,7 @@ impl StreamableAgentResponse {
             };
             yield event(&invocation, StreamEventData::StreamEnd { reason, usage });
         };
-        Self {
-            protocol: None,
-            events: Box::pin(events),
-        }
+        Self::from_events(Box::pin(events))
     }
 }
 
