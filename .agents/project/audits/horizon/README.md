@@ -208,7 +208,7 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 实际进程通过空闲关停、`--wait` 排空、快速终止、快速重启、Master 丢失、处理器覆盖、Redis 命令队列和文件命令队列八组。独占 Redis 为 8.10.3。启动器也验证了输出回调、控制和独立监督器替换行为。首轮离线解析缺少依赖索引，联网补齐锁定依赖后通过编译。宿主触及磁盘停线后续跑复用了 NTFS 上已完成的编译。运行脚本预先持有 Cargo 进程句柄后成功读取完成状态并验证同一个制品。证据为 `target/tmp/observability-windows/observability-horizon-release-runtime-final.log`。
 
-该证据覆盖 Horizon 进程夹具的固定快照。后续提交、根应用三扩展组合、Windows x64、正式服务管理器和目标 Redis 拓扑各自继续验收。
+该证据覆盖 Horizon 进程夹具的固定快照。同一源码的 [Windows 根应用三扩展组合](../extension-parity.md#windows-arm64-三扩展根应用优化构建)也已通过。后续提交、Windows x64、正式服务管理器和目标 Redis 拓扑各自继续验收。
 
 ## 任务耗时计时契约
 

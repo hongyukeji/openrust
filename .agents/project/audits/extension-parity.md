@@ -32,6 +32,12 @@ macOS 从完整归档 `1d5388cdff898cf78974d12be9a3c88d648ff084` 验证锁定依
 
 macOS ARM64 从完整归档 `af5a3b36a9852d42bff5c601ba57d26d2f287be2` 用 Rust 1.94.0 和默认 Release 配置构建三个扩展同时启用的根应用。实际 Mach-O ARM64 发布程序完成包发现、配置缓存及迁移，Pulse 心跳和 Telescope 命令写入并读回 SQLite，Horizon 状态命令连接隔离 Redis 8.10.3。首轮触及磁盘停线后安全退出，清理完成后以相同提交重新构建。证据为 `target/tmp/observability-parity/observability-exact-release-macos{,-retry}.log`。后续源码及目标部署组合仍按发布快照验收。
 
+### Windows ARM64 三扩展根应用优化构建
+
+Windows 11 ARM64 虚机从完整归档 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0` 用 Rust 1.94.0、`aarch64-pc-windows-msvc`、默认 Release 配置和锁定依赖构建。根二进制启用 `horizon,pulse,telescope`，PE 架构为 ARM64，SHA-256 为 `7bc187c9e8602ce0648984b6ff9dc6fc7d14f81179e8e27a49a2a7a3f64a367d`。
+
+同一程序实际运行 Artisan 包发现、配置缓存、SQLite 迁移和清缓存。运行 `pulse:check --once` 后 SQLite 读到 1 条系统记录，`telescope:list command --json` 读到 1 条命令记录，SQLite 共 11 条 Telescope 记录。`horizon:status --json` 在隔离 Redis 8.10.3 正常返回空数组。证据为 `target/tmp/observability-windows/observability-root-release-runtime.log`。后续提交、Windows x64、正式服务管理器和部署拓扑继续验收。
+
 ## 来源和取舍
 
 联网取得以下提交的完整 GitHub 源码归档（含包内文档、测试与许可证，以归档实际内容为准），保存于 `tmp/openrust-ecosystem-20261121/upstream`。搜索工具未返回可用内容，因此依据直接取得的 GitHub 主来源核对，不宣称已核实实时热门榜或 Star 排名。
