@@ -478,6 +478,8 @@ Pass the authenticated participant's type and ID when continuing a conversation.
 
 The SDK saves completed user and assistant messages together. The next prompt receives the latest 100 messages in chronological order by default. Change `conversations.max_messages` in `config/ai.rs` to adjust that limit. The store uses the default database connection unless `AI_CONVERSATIONS_CONNECTION` names another connection. For a history screen, use `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` for newest-first cursor pagination. Use `stream()` for a streamed turn and pass its `response` to your SSE renderer. The conversation ID is available immediately. The SDK saves the turn before sending the final completion event. An interrupted stream leaves no new messages. For an Agent with a schema, use `prompt_structured()` or `stream_structured()`.
 
+Assistant history for completed SDK turns includes the model, total usage, and `steps` with each step’s reported model, usage, finish reason, and tool outcomes. Older records retain their stored steps.
+
 ## Text generation options {#text-generation-options}
 
 Set the output token limit and sampling options on an Agent. Use `with_generation_options` for an anonymous Agent or implement `Agent::generation_options` for a named Agent. The settings also apply to structured output and streaming tool steps. Buffered Agent middleware can override them for one step.

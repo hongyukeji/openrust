@@ -182,6 +182,10 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。可替换存储、附件、原始工具步骤重放及审批暂停／恢复仍待相应批次。
 
+完成的助手消息保存公开的逐步响应。流使用与回调、Worker 一致的汇总，持久化之后才交付终帧。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 Artisan 生成两步工具流，独立 HTTP 进程读到两步模型、结束原因及工具结果，汇总 16 输入／6 输出 Token。旧 SQLite 记录维持原 `steps` 形状，另复验审批快照恢复、结构化入口、截断后无新增消息与迁移回滚。历史记录使用公开元数据和步骤，私有协议重放保留在原审批快照。SDK 回归 13 项、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
+
 ## AI-05 Reranking Fake 与 Collection
 
 `Reranking::fake` 可接收结果列表或完整响应，`fake_with` 接收闭包。默认使用框架 Collection 打乱输入索引并按限制返回，支持阻止意外调用及 Laravel 风格断言。Fake 使用应用内状态，在 SDK 的正常入口拦截并通过与供应商相同的索引和数量校验。包测试覆盖元数据、回调、随机结果、耗尽和无出站请求。

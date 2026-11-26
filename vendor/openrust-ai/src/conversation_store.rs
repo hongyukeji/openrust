@@ -244,20 +244,15 @@ impl DatabaseConversationStore {
             ),
         ];
         let mut rows = rows;
+        let steps = if response.steps.is_empty() {
+            json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
+        } else {
+            json!(response.steps)
+        };
         rows[1].extend([
             ("usage".into(), json!(response.usage).to_string().into()),
-            (
-                "meta".into(),
-                json!({"provider": response.provider, "model": response.model})
-                    .to_string()
-                    .into(),
-            ),
-            (
-                "steps".into(),
-                json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
-                    .to_string()
-                    .into(),
-            ),
+            ("meta".into(), json!(response.meta()).to_string().into()),
+            ("steps".into(), steps.to_string().into()),
         ]);
         let mut transaction = self.connection.begin_transaction().await?;
         if existing {

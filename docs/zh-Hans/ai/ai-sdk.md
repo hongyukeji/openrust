@@ -478,6 +478,8 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+已完成的 SDK 助手消息会保存模型、汇总用量，以及 `steps` 中每步的实际模型、用量、结束原因和工具结果。既有历史可继续读取其原有步骤数据。
+
 ## 文本生成选项 {#text-generation-options}
 
 在 Agent 上设置输出 Token 上限与采样参数。匿名 Agent 用 `with_generation_options`，具名 Agent 实现 `Agent::generation_options`。这些选项也用于结构化输出和流式工具续步。普通响应的 Agent 中间件可覆盖当前步骤的选项。

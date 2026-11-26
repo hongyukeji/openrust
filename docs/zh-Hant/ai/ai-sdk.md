@@ -478,6 +478,8 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。串流對話使用 `stream()`，將回傳的 `response` 交給 SSE 轉譯器。呼叫開始後即可讀取對話 ID。SDK 在傳送最終完成事件前儲存該輪訊息，串流中斷時不會新增對話訊息。宣告了回應結構的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
+
 ## 文字生成選項 {#text-generation-options}
 
 在 Agent 上設定輸出 Token 上限與取樣參數。匿名 Agent 用 `with_generation_options`，具名 Agent 實作 `Agent::generation_options`。這些選項也用於結構化輸出與串流工具續步。一般回應的 Agent 中介軟體可覆寫目前步驟的選項。
