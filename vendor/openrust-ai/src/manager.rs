@@ -26,6 +26,7 @@ use crate::{
     connection::{Authorization, Connection},
     error::ProviderAttemptError,
     gemini::GeminiTextProvider,
+    ollama::OllamaProvider,
     on_demand::{OnDemandProviders, reserved_name},
     reranking::{HttpRerankingProvider, RerankingProtocol},
     text::{OpenAiProtocol, OpenAiTextProvider},
@@ -129,6 +130,18 @@ impl AiManager {
                     connection,
                     protocol: DecisionsProtocol::SystemOne,
                 }))
+            });
+        }
+        {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend("ollama", move |config| {
+                Ok(Arc::new(OllamaProvider(Arc::new(Connection::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                    Authorization::Bearer,
+                )?))))
             });
         }
         manager.extend("gemini", move |config| {

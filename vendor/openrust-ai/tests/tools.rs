@@ -107,6 +107,61 @@ async fn native_fixture(
     http_fixture(version, path, auth_header, auth_value, replies).await
 }
 
+#[tokio::test]
+async fn ollama_native_tools_use_named_results_and_preserve_provider_id() -> TestResult {
+    let (url, requests) = native_fixture(
+        "proxy",
+        "api/chat",
+        "authorization",
+        "Bearer fixture-key",
+        vec![
+            json!({"done":true,"message":{"content":"","tool_calls":[{
+                "id":"call_fixture","function":{"name":"lookup","arguments":{"sku":"demo"}}
+            }]}}),
+            json!({"done":true,"done_reason":"stop","message":{"content":"available"}}),
+        ],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/ollama", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let result = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .prompt("Check demo.")
+                        .await
+                        .unwrap();
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    assert_eq!(
+                        result.tool_results[0].result_id.as_deref(),
+                        Some("call_fixture")
+                    );
+                    assert_eq!(result.text, "available");
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Ok(())
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=ollama\nOLLAMA_URL={url}\nOLLAMA_API_KEY=fixture-key\nOLLAMA_MODEL=fixture\n"
+        ),
+    )?;
+    assert_eq!(app.get("/ollama").await?.status(), StatusCode::OK);
+    let requests = requests.await?;
+    assert_eq!(
+        requests[1]["messages"][1]["tool_calls"],
+        json!([{
+            "function":{"name":"lookup","arguments":{"sku":"demo"}}
+        }])
+    );
+    assert_eq!(requests[1]["messages"][2]["tool_name"], "lookup");
+    Ok(())
+}
+
 async fn http_fixture(
     version: &'static str,
     path: &'static str,

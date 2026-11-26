@@ -53,6 +53,7 @@ mod messages;
 mod middleware;
 mod models;
 mod native_tool_stream;
+mod ollama;
 mod on_demand;
 mod provider_options;
 mod provider_replay;

@@ -623,6 +623,14 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 - [固定 Laravel Responses 工具调用解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/ParsesTextResponses.php#L236)
 
+### Ollama 原生 SDK
+
+`ollama` 具名连接使用固定 Laravel 的 `/api/chat` 与 `/api/embed`，并由 `/api/tags` 发现本地模型。支持非流式文本、JSON Schema、工具续步、图片输入映射及批量文本向量。工具续步按名称发送结果，上游提供 ID 时保留该 ID，无 ID 时用本地 UUID 关联。默认地址是本机 Ollama，允许覆盖 URL 和可选 Bearer Key。
+
+独立 Artisan 实测模型目录、普通与结构化提示。真实 HTTP 经本地模拟核对路径前缀、鉴权、两步工具消息、上游和生成的工具 ID、向量维度及用量。原生 NDJSON 流、图片实测和真实 Ollama 服务继续验收。
+
+- [固定 Laravel OllamaGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Ollama/OllamaGateway.php) · [Ollama Chat](https://docs.ollama.com/api/chat) · [Ollama Embeddings](https://docs.ollama.com/api/embed) · [Ollama 模型目录](https://docs.ollama.com/api/tags)
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。

@@ -30,6 +30,20 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "OPENAI_API_KEY",
         "OPENAI_MODEL",
     )?;
+    let mut ollama = provider(
+        "ollama",
+        "OLLAMA_URL",
+        "http://127.0.0.1:11434",
+        "OLLAMA_API_KEY",
+        "OLLAMA_MODEL",
+    )?;
+    if env
+        .get_utf8("OLLAMA_API_KEY")?
+        .is_none_or(|key| key.trim().is_empty())
+    {
+        ollama["key_env"] = Value::Null;
+    }
+    ollama["models"]["embeddings"] = json!({"default": env.get_utf8("OLLAMA_EMBEDDING_MODEL")?});
     openai["models"]["embeddings"] = json!({"default": env.get_utf8("OPENAI_EMBEDDING_MODEL")?});
 
     openai["models"]["images"] = json!({"default": env.get_utf8("OPENAI_IMAGE_MODEL")?});
@@ -139,6 +153,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "qianfan": provider("openai-compatible", "QIANFAN_URL", "https://qianfan.baidubce.com/v2", "QIANFAN_API_KEY", "QIANFAN_MODEL")?,
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
+            "ollama": ollama,
             "azure": azure,
             "openrouter": openrouter,
             "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,

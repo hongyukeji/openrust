@@ -817,6 +817,8 @@ let vectors = response.embeddings;
 
 使用 Gemini 原生 API 時，設定 `AI_EMBEDDINGS_PROVIDER=gemini` 與 `GEMINI_EMBEDDING_MODEL`。SDK 透過 `batchEmbedContents` 傳送文字，單筆也使用同一入口。模型 ID 可帶或省略 `models/` 前綴。結果依輸入順序回傳，指定的維度會傳給上游，Token 數量以 Gemini 實際回報為準。
 
+選擇 Ollama 原生 SDK 連線時，設定 `AI_PROVIDER=ollama` 和 `OLLAMA_MODEL`。預設連線為 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆寫。使用需要驗證的代理時可設定 `OLLAMA_API_KEY`。模型目錄使用 `/api/tags`，一般聊天、結構化輸出與工具續步使用 `/api/chat`。向量入口使用 `AI_EMBEDDINGS_PROVIDER=ollama` 和 `OLLAMA_EMBEDDING_MODEL` 呼叫 `/api/embed`。
+
 發布 Gemini 原生向量模型時，將模型映射指向 Gemini 連線，並明確設定 `"endpoints": ["embedContent", "batchEmbedContents"]`。已授權的模型會顯示在 `/v1beta/models`。透過 `x-goog-api-key` 呼叫 `POST /v1beta/models/{alias}:embedContent` 或 `POST /v1beta/models/{alias}:batchEmbedContents`，採用 Google 請求格式。正文中的模型名稱必須與發布別名相符。閘道會替換為上游模型，輸入可直接內嵌。
 
 呼叫 `cache(Some(600), None)` 可將向量快取 600 秒。在 `ai.caching.embeddings` 設定預設有效期、快取存放位置，以及是否為所有 SDK 呼叫啟用快取。逐筆快取可跨批次重用向量，只將未命中的輸入送給供應商。第二個參數傳入 `Some(false)` 會依原順序快取整批。單次呼叫可使用 `cache(Some(0), None)` 略過快取。部分命中時，用量只記錄實際送往上游的輸入。
