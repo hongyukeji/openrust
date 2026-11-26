@@ -72,7 +72,9 @@ macOS 用实际 Artisan 和两台 Redis 8.10.3 通过四组进程验收。短时
 
 同一个 Windows ARM64 原生程序随后通过真实 Redis 8.10.3 的四组双节点用例。短时切换保留 Master 并各完成一次任务。所有权缺失或被替换时，旧 Worker 退出，任务仍保留且尝试次数为零。持续断连时也完成快速终止和进程回收，普通 Worker 随后处理待办。Windows 夹具使用独占 Redis 和桥接地址，代理及原生进程句柄检查在客户机内运行。证据为 `target/tmp/observability-windows/horizon-metadata-promotion.log`。
 
-标准优化的 Release 和 Linux x86_64 继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
+Linux ARM64 的同一低优化框架 Release 另做了写入未复制的切换。先确认 Master 令牌和初始任务状态已经到达副本，再切断复制并向旧主单独入队。旧主确认该任务保留，副本上读不到它。切换后同一个 Master 继续运行并执行新主上的任务，旧主独有任务未出现在新主的待处理、保留或执行记录。本用例把未复制窗口固定在已确认的分界点。证据为 `target/tmp/observability-parity/horizon-metadata-replication-lag.log`。 [Redis Sentinel 的异步复制边界](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
+
+标准优化的 Release 和 Linux x86_64 继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
 
 ### Master 命令队列与动态部署
 
