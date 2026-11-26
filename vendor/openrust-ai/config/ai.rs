@@ -15,12 +15,15 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         }))
     };
 
-    let reranker = |driver, url_env, default_url, key_env, model_env| {
+    let retrieval = |driver, url_env, default_url, key_env, rank_env, embedding_env| {
         Ok::<_, ConfigError>(json!({
             "driver": driver,
             "url": env.get_utf8(url_env)?.unwrap_or(default_url),
             "key_env": key_env,
-            "models": {"reranking": {"default": env.get_utf8(model_env)?}},
+            "models": {
+                "reranking": {"default": env.get_utf8(rank_env)?},
+                "embeddings": {"default": env.get_utf8(embedding_env)?},
+            },
         }))
     };
     let mut openai = provider(
@@ -190,9 +193,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "groq": groq,
             "azure": azure,
             "openrouter": openrouter,
-            "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,
-            "jina": reranker("jina", "JINA_URL", "https://api.jina.ai/v1", "JINA_API_KEY", "JINA_RERANK_MODEL")?,
-            "voyageai": reranker("voyageai", "VOYAGE_URL", "https://api.voyageai.com/v1", "VOYAGE_API_KEY", "VOYAGE_RERANK_MODEL")?,
+            "cohere": retrieval("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL", "COHERE_EMBEDDING_MODEL")?,
+            "jina": retrieval("jina", "JINA_URL", "https://api.jina.ai/v1", "JINA_API_KEY", "JINA_RERANK_MODEL", "JINA_EMBEDDING_MODEL")?,
+            "voyageai": retrieval("voyageai", "VOYAGE_URL", "https://api.voyageai.com/v1", "VOYAGE_API_KEY", "VOYAGE_RERANK_MODEL", "VOYAGE_EMBEDDING_MODEL")?,
             "anthropic": provider("anthropic", "ANTHROPIC_URL", "https://api.anthropic.com/v1", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL")?,
             "gemini": gemini,
             "typesafe": {

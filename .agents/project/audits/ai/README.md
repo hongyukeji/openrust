@@ -520,6 +520,14 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan／HTTP 实测文件�
 
 - [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php#L179) · [Gemini Embeddings API](https://ai.google.dev/api/embeddings)
 
+## AI-05 Cohere、Jina 与 Voyage AI 文本向量
+
+三个向量驱动与对应重排序共用连接配置。Cohere 走 `/embed`，使用原生浮点向量和计费输入 Token。Jina 按固定基线传送文本对象、`retrieval.passage` 与可选维度。Voyage 使用 `output_dimension`，对应两个多模态模型的文本请求改走 `/multimodalembeddings`。旧版 `voyage-multimodal-3` 固定 1024 维。三路均验证向量数量与维度，有索引的响应按原输入位置恢复。
+
+独立 Artisan 和真实 HTTP 经本地协议上游覆盖鉴权、代理前缀、请求字段、乱序索引、缓存、计费用量、重复索引及错误维度。10 项 SDK 回归、严格 Clippy、三语站点通过。多模态图片和视频输入及官方账户联调继续待验收。
+
+- [Cohere Embed API](https://docs.cohere.com/reference/embed) · [Jina Embeddings API](https://jina.ai/embeddings/) · [Voyage 文本 Embeddings](https://docs.voyageai.com/docs/embeddings)
+
 ## AI-02 文本生成选项
 
 `TextGenerationOptions` 通过具名 Agent 的 `generation_options` 或匿名 Agent 的 `with_generation_options` 配置输出 Token 上限、temperature 与 top-p。协议分别使用 Responses 的 `max_output_tokens`、Chat 兼容与 Anthropic 的 `max_tokens`、Gemini 的 `generationConfig.maxOutputTokens`。Anthropic 沿用固定 Laravel 的模型采样判定，并优先采用 temperature。Fake 记录选项。中间件可在普通响应的当前步骤覆盖配置，流式工具续步会保留原始 Agent 配置。

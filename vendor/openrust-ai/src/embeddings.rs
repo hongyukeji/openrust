@@ -11,6 +11,8 @@ use crate::{
     text::validate,
 };
 
+pub(crate) mod retrieval;
+
 pub struct Embeddings;
 
 impl Embeddings {
@@ -306,15 +308,9 @@ fn parse_embeddings(
 ) -> AiResult<EmbeddingsResponse> {
     #[derive(Deserialize)]
     struct Payload {
-        data: Vec<Vector>,
+        data: Vec<IndexedVector>,
         model: Option<String>,
         usage: Option<TokenUsage>,
-    }
-
-    #[derive(Deserialize)]
-    struct Vector {
-        index: usize,
-        embedding: Vec<f32>,
     }
 
     #[derive(Deserialize)]
@@ -323,23 +319,7 @@ fn parse_embeddings(
     }
 
     let payload: Payload = response.json().map_err(|_| AiError::InvalidResponse)?;
-    if payload.data.len() != prompt.inputs.len() {
-        return Err(AiError::InvalidResponse);
-    }
-    let mut vectors = vec![None; prompt.inputs.len()];
-    for vector in payload.data {
-        let slot = vectors
-            .get_mut(vector.index)
-            .ok_or(AiError::InvalidResponse)?;
-        if slot.is_some() {
-            return Err(AiError::InvalidResponse);
-        }
-        *slot = Some(vector.embedding);
-    }
-    let embeddings = vectors
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .ok_or(AiError::InvalidResponse)?;
+    let embeddings = indexed_vectors(payload.data, prompt.inputs.len())?;
     if !valid_vectors(&embeddings, prompt.inputs.len(), prompt.dimensions) {
         return Err(AiError::InvalidResponse);
     }
@@ -353,6 +333,32 @@ fn parse_embeddings(
         provider: provider.into(),
         model: payload.model.unwrap_or_else(|| prompt.model.into()),
     })
+}
+
+#[derive(Deserialize)]
+struct IndexedVector {
+    index: usize,
+    embedding: Vec<f32>,
+}
+
+fn indexed_vectors(data: Vec<IndexedVector>, count: usize) -> AiResult<Vec<Vec<f32>>> {
+    if data.len() != count {
+        return Err(AiError::InvalidResponse);
+    }
+    let mut vectors = vec![None; count];
+    for vector in data {
+        let slot = vectors
+            .get_mut(vector.index)
+            .ok_or(AiError::InvalidResponse)?;
+        if slot.is_some() {
+            return Err(AiError::InvalidResponse);
+        }
+        *slot = Some(vector.embedding);
+    }
+    vectors
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or(AiError::InvalidResponse)
 }
 
 pub(crate) fn valid_vectors(

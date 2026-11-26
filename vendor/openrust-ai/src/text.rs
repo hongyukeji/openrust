@@ -824,6 +824,7 @@ impl TextProvider for OpenAiTextProvider {
             Arc::new(HttpRerankingProvider {
                 connection: self.connection.clone(),
                 protocol: RerankingProtocol::TopN,
+                embeddings: None,
             }) as Arc<dyn RerankingProvider>
         })
     }

@@ -183,6 +183,7 @@ pub(crate) enum RerankingProtocol {
 pub(crate) struct HttpRerankingProvider {
     pub(crate) connection: Arc<Connection>,
     pub(crate) protocol: RerankingProtocol,
+    pub(crate) embeddings: Option<crate::embeddings::retrieval::RetrievalEmbeddingProtocol>,
 }
 
 impl TextProvider for HttpRerankingProvider {
@@ -196,6 +197,15 @@ impl TextProvider for HttpRerankingProvider {
 
     fn generate_text<'a>(&'a self, _: TextPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
+    fn embedding_provider(&self) -> Option<Arc<dyn crate::EmbeddingProvider>> {
+        self.embeddings.map(|protocol| {
+            Arc::new(crate::embeddings::retrieval::RetrievalEmbeddingProvider {
+                connection: self.connection.clone(),
+                protocol,
+            }) as Arc<dyn crate::EmbeddingProvider>
+        })
     }
 
     fn reranking_provider(&self) -> Option<Arc<dyn RerankingProvider>> {

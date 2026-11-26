@@ -815,6 +815,16 @@ let vectors = response.embeddings;
 
 Use `dimensions(n)` when the selected model supports explicit dimensions. For an OpenAI-compatible connection, configure its `models.embeddings` before using it for embeddings. To publish a vector model through `POST /v1/embeddings`, map its public name and set `"endpoints": ["embeddings"]` on that mapping. Grant the alias to the client Key as with a text model.
 
+Select `cohere`, `jina`, or `voyageai` in `AI_EMBEDDINGS_PROVIDER` to use one of the named retrieval connections. Each shares its API key and base URL with reranking.
+
+| Connection | Embedding model |
+| --- | --- |
+| `cohere` | `COHERE_EMBEDDING_MODEL` |
+| `jina` | `JINA_EMBEDDING_MODEL` |
+| `voyageai` | `VOYAGE_EMBEDDING_MODEL` |
+
+Cohere uses its native float embeddings and billed input tokens. Jina uses `retrieval.passage`. Voyage uses the native text API and routes text for `voyage-multimodal-3` and `voyage-multimodal-3.5` to its multimodal endpoint. The original `voyage-multimodal-3` returns 1024 dimensions. For Cohere, requested dimensions are checked against the model output.
+
 For Gemini’s native API, set `AI_EMBEDDINGS_PROVIDER=gemini` and `GEMINI_EMBEDDING_MODEL`. The SDK uses `batchEmbedContents` for text, including one-item batches, and accepts the model ID with or without the `models/` prefix. It preserves input order, passes the requested dimensions and reports input tokens when Gemini supplies them.
 
 For Groq, set `GROQ_API_KEY`, `AI_PROVIDER=groq` and `GROQ_MODEL`. To override the default `https://api.groq.com/openai/v1`, set `GROQ_URL`. The driver supports Chat Completions, SSE, local tool rounds and image input on capable models. A buffered structured request without tools uses native JSON Schema. With tools or streaming, the SDK embeds the schema in the prompt and checks that the final result is a JSON object. For audio transcription, set `AI_TRANSCRIPTION_PROVIDER=groq` and `GROQ_TRANSCRIPTION_MODEL`. Groq returns text, timestamps and reported duration. For speaker diarization, select another transcription connection.

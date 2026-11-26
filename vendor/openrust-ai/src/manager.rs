@@ -26,6 +26,7 @@ use crate::{
     },
     connection::{Authorization, Connection},
     eleven::ElevenLabsProvider,
+    embeddings::retrieval::RetrievalEmbeddingProtocol,
     error::ProviderAttemptError,
     gemini::GeminiTextProvider,
     media_queue::{AudioQueueCallbacks, ImageQueueCallbacks, TranscriptionQueueCallbacks},
@@ -113,10 +114,22 @@ impl AiManager {
                 )?))
             });
         }
-        for (driver, protocol) in [
-            ("cohere", RerankingProtocol::TopN),
-            ("jina", RerankingProtocol::TopN),
-            ("voyageai", RerankingProtocol::Voyage),
+        for (driver, protocol, embeddings) in [
+            (
+                "cohere",
+                RerankingProtocol::TopN,
+                RetrievalEmbeddingProtocol::Cohere,
+            ),
+            (
+                "jina",
+                RerankingProtocol::TopN,
+                RetrievalEmbeddingProtocol::Jina,
+            ),
+            (
+                "voyageai",
+                RerankingProtocol::Voyage,
+                RetrievalEmbeddingProtocol::Voyage,
+            ),
         ] {
             let environment = environment.clone();
             let http = http.clone();
@@ -130,6 +143,7 @@ impl AiManager {
                 Ok(Arc::new(HttpRerankingProvider {
                     connection,
                     protocol,
+                    embeddings: Some(embeddings),
                 }))
             });
         }

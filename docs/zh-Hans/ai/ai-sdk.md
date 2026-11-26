@@ -815,6 +815,16 @@ let vectors = response.embeddings;
 
 所选模型支持指定维度时，可使用 `dimensions(n)`。使用 OpenAI 兼容连接生成向量前，先配置该连接的 `models.embeddings`。通过 `POST /v1/embeddings` 发布向量模型时，映射公开名并为该模型配置 `"endpoints": ["embeddings"]`，再将公开名授权给下游 Key。
 
+将 `AI_EMBEDDINGS_PROVIDER` 设为 `cohere`、`jina` 或 `voyageai`，即可使用对应连接生成文本向量。每条连接与重排序共用密钥和基础 URL。
+
+| 连接 | 向量模型 |
+| --- | --- |
+| `cohere` | `COHERE_EMBEDDING_MODEL` |
+| `jina` | `JINA_EMBEDDING_MODEL` |
+| `voyageai` | `VOYAGE_EMBEDDING_MODEL` |
+
+Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.passage`。Voyage 默认走原生文本接口，选择 `voyage-multimodal-3` 或 `voyage-multimodal-3.5` 时由多模态接口接收文本。原版 `voyage-multimodal-3` 固定返回 1024 维。Cohere 的请求维度用于校验模型输出。
+
 使用 Gemini 原生 API 时，设置 `AI_EMBEDDINGS_PROVIDER=gemini` 与 `GEMINI_EMBEDDING_MODEL`。SDK 通过 `batchEmbedContents` 发送文本，单条也使用同一入口。模型 ID 可带或省略 `models/` 前缀。结果按输入顺序返回，指定的维度会传给上游，Token 数量以 Gemini 实际报告为准。
 
 使用 Groq 时，设置 `GROQ_API_KEY`、`AI_PROVIDER=groq` 和 `GROQ_MODEL`，可用 `GROQ_URL` 覆盖默认地址 `https://api.groq.com/openai/v1`。驱动支持 Chat Completions、SSE、本地工具续步及支持模型上的图片输入。无工具的非流式结构化请求使用原生 JSON Schema。使用工具或流时，SDK 将 Schema 放入提示词，并检查最终结果能否解析为 JSON 对象。转录设置 `AI_TRANSCRIPTION_PROVIDER=groq` 和 `GROQ_TRANSCRIPTION_MODEL`，返回文本、时间戳和上游报告的时长。需要区分说话人时，可选用其他转录连接。
