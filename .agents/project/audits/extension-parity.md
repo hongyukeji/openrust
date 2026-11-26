@@ -107,6 +107,8 @@ Rust 修复在检查命令内以采样时的单调时钟为准，在工作命令
 
 同日补齐 Pulse [Recorder 模式修饰符与分隔符](pulse/README.md#recorder-模式修饰符与分隔符)，复跑同组源码的默认测试，96 项通过、23 项按环境条件跳过。后续补齐[零宽匹配与替换转义](pulse/README.md#分组的零宽匹配与替换转义)，组合默认测试增至 97 项通过、23 项按环境条件跳过。经固定上游 Recorder 和 SQLite 进一步确认的非 UTF-8 分组键差异保留在专项审计中。
 
+最新三包默认组合在干净提交 `facc0973f` 的 macOS 隔离快照上通过 123 项，25 项按环境条件跳过，全仓格式检查通过。当前组合包括 Horizon 的 Redis 领取复核、Telescope 的原始 JSON 诊断形状及 Pulse 的心跳实例与 Vapor 判定。使用同一批测试二进制，通过独占 Redis 8.10.3 的 Horizon 运行时 20 项及 Telescope 原生命令观察 1 项。证据为 `target/tmp/observability-parity/observability-combined-current-{source-commit,macos.log,redis.log}`。
+
 ### Horizon 面板名称与配置默认值
 
 固定上游[配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)与[面板模板](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/resources/views/layout.blade.php)均已核对。补齐 `HORIZON_NAME`，将可选名称作为文本显示于页面标题与主标题，同时发布 `waits.redis:default=60`、空静默清单以及 Supervisor 的 `nice=0`。现有等待时间监控、静默行为及进程参数的完整行为对账继续保留。
@@ -463,7 +465,7 @@ PHP 8.5.12、固定 Laravel 和固定 Telescope、真实 SQLite 连接。`Schema
 
 Rust 的 `Schema` Facade、Builder、目录检查和 `SchemaSession` 复用数据库调用位置栈。应用调用时捕获位置，SQL Future 在轮询时携带该位置。条件改表的目录查询和 DDL 归到同一应用入口，显式外键状态变化及恢复各产生查询事件，业务回调的 SQL 优先使用自身的调用行。SQLite 改列重建的独立任务继承查询位置和仍有效的请求作用域，请求取消后继续完成有保护的重建和会话恢复。
 
-MySQL 批量清理已接通目录、DDL 和外键恢复的查询来源，通过固定 PHP 与实际 MySQL HTTP 对照，见[批量清理审计](telescope/README.md#mysql-批量清理的查询来源)。PostgreSQL 事务内外的约束包装已按固定上游验证查询来源与实际约束时机，见[约束包装审计](telescope/README.md#postgresql-约束包装的查询来源)。自动取消及发布路径重映射仍须分别对账。
+MySQL 批量清理已接通目录、DDL 和外键恢复的查询来源，通过固定 PHP 与实际 MySQL HTTP 对照，见[批量清理审计](telescope/README.md#mysql-批量清理的查询来源)。PostgreSQL 事务内外的约束包装已按固定上游验证查询来源与实际约束时机，见[约束包装审计](telescope/README.md#postgresql-约束包装的查询来源)。PostgreSQL 事务包装的 Future 取消已实际验证回滚、拒绝复用事务和连接恢复。该入口的目标发布路径重映射仍待专测。
 
 macOS 用真实 HTTP、SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对 DDL、目录检查、执行及跳过条件改表、SQLite 重建、支持驱动上的外键往返和回调行。框架默认 `database_schema` 目标 80 项通过，含 SQLite 取消后仍完成重建并恢复外键状态。该目标中依赖外部参数的用例沿用原有环境判断，另用 MySQL 8.4.13 实跑会话恢复专项。Telescope Watchers 11 项、三包默认 89 项、全仓格式、修改范围严格 Clippy、三语构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-schema-source-{runtime,matrix,docs}.log`。
 
