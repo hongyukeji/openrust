@@ -194,4 +194,6 @@ Linux ARM64 九扩展 Release 首次重建达到 32 GB 磁盘停线，构建守�
 
 Windows 两个已验收的九扩展 EXE 按原 SHA-256 重新打包到独立 ZIP。每份 ZIP 随附 11 个许可文件，解压后的 Rust 报告逐字节对应工具链原件。两个制品都复验九个 Provider、58 项 SQLite 迁移、缓存前后 HTTP、签名 Reverb、独立 Artisan Worker 和 Ctrl+C 退出，数据库确认队列为空。ARM64 ZIP SHA-256 为 `c3962b4ee8f99bfe56440d2747315d1424019b2e5744ee24454e8c48585cf172`，x64 ZIP SHA-256 为 `a20511cc6bdabd3ccbfe94ff83358c4b0ab97a1baa31373a01713bb4f9959129`。x64 仍在 Windows 11 ARM64 虚机的兼容层运行。两个 ZIP、解压目录及临时数据库验收后已清理。
 
+Linux ARM64 九扩展重试的源码快照经逐文件核对，对应 `e0ede71580465f9f08f8a67e9b59b194b81c1e89` 加本批 Docker 和三语部署文档改动。重试在扩展编译时再次达到 32 GB 停线。磁盘恢复后 Docker Desktop 的本地 `/_ping` 仍超时，探查已有镜像和缓存的进程均已停止。完整镜像和其运行复验尚待完成，前述默认镜像打包对照有效。
+
 证据位于本机 `target/tmp/goal-extension-rust-notices/`。
