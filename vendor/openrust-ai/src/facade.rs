@@ -162,4 +162,10 @@ impl Ai {
     ) -> AiResult<Arc<FakeTextGateway>> {
         Ok(Self::manager()?.fake_with::<A>(resolve))
     }
+
+    pub fn fake_responses<A: Agent>(
+        responses: impl IntoIterator<Item = crate::FakeTextResult>,
+    ) -> AiResult<Arc<FakeTextGateway>> {
+        Ok(Self::manager()?.fake_responses::<A>(responses))
+    }
 }

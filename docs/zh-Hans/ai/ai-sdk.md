@@ -760,6 +760,8 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 使用 `SupportAgent::fake` 提供有序字符串，也可用 `SupportAgent::fake_with` 根据 `RecordedPrompt` 决定结果。回调可用 `.into()` 返回文本、JSON 对象或完整的 `AgentResponse`。Fake 为每次调用记录一条提示，包括回调返回错误的调用，可通过 `assert_prompted` 和 `assert_prompted_times` 断言。回调在每个模型步骤运行，可看到中间件选定的模型及 `prompt.steps` 中此前的工具结果。模拟模型响应请求已注册的工具时，会经过正常工具处理器。流式响应保留所提供的模型、用量、公开推理摘要、引文和工具结果。
 
+使用 `SupportAgent::fake_responses` 可按序混合文本、JSON 对象、完整响应和 `ToolCall`。序列为空或耗尽时，结构化提示会按属性、枚举、默认值、长度及数值范围生成样本。启用 `prevent_stray_prompts(true)` 可要求每个模型步骤都有显式结果。
+
 ## Embeddings {#embeddings}
 
 设置 `AI_EMBEDDINGS_PROVIDER=openai`，并将供应商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批量发送文本，按输入顺序返回向量。

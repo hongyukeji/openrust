@@ -12,9 +12,11 @@ use serde_json::{Map, Value};
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, FinishReason, Message,
     ProviderOptions, Step, StepEventStream, StepResponse, StepResult, StepTextGateway,
-    StreamableAgentResponse, TextGenerationOptions, TextPrompt, TextProvider, ToolChoice,
+    StreamableAgentResponse, TextGenerationOptions, TextPrompt, TextProvider, ToolCall, ToolChoice,
     ToolDefinition, ToolStep, Usage,
 };
+
+mod schema;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecordedPrompt {
@@ -34,6 +36,7 @@ pub enum FakeTextResult {
     Text(String),
     Structured(Map<String, Value>),
     Response(Box<AgentResponse>),
+    ToolCall(ToolCall),
 }
 
 impl From<String> for FakeTextResult {
@@ -60,6 +63,12 @@ impl From<AgentResponse> for FakeTextResult {
     }
 }
 
+impl From<ToolCall> for FakeTextResult {
+    fn from(value: ToolCall) -> Self {
+        Self::ToolCall(value)
+    }
+}
+
 type ResolvePrompt = dyn Fn(&RecordedPrompt) -> AiResult<FakeTextResult> + Send + Sync;
 
 enum FakeTextSource {
@@ -75,9 +84,9 @@ pub struct FakeTextGateway {
 }
 
 impl FakeTextGateway {
-    pub(super) fn new(responses: impl IntoIterator<Item = String>) -> Self {
+    pub(super) fn new(responses: impl IntoIterator<Item = FakeTextResult>) -> Self {
         Self::from_source(FakeTextSource::Sequence(Mutex::new(
-            responses.into_iter().map(FakeTextResult::from).collect(),
+            responses.into_iter().collect(),
         )))
     }
 
@@ -152,22 +161,27 @@ impl FakeTextGateway {
                 model,
             ),
             Some(FakeTextResult::Response(response)) => *response,
+            Some(FakeTextResult::ToolCall(call)) => {
+                let mut response = AgentResponse::new("", Usage::default(), provider, model);
+                response.tool_calls.push(call);
+                response
+            }
             None if self.prevent_stray.load(Ordering::Relaxed) => {
                 return Err(AiError::FakeExhausted);
             }
             None => {
-                let preview = prompt
-                    .text
-                    .split_whitespace()
-                    .take(10)
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                AgentResponse::new(
-                    format!("Fake response for prompt: {preview}"),
-                    Usage::default(),
-                    provider,
-                    model,
-                )
+                let text = if let Some(schema) = &prompt.schema {
+                    schema::sample(schema)?.to_string()
+                } else {
+                    let preview = prompt
+                        .text
+                        .split_whitespace()
+                        .take(10)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!("Fake response for prompt: {preview}")
+                };
+                AgentResponse::new(text, Usage::default(), provider, model)
             }
         };
         Ok(response)

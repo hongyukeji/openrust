@@ -585,6 +585,13 @@ impl AiManager {
         &self,
         responses: impl IntoIterator<Item = String>,
     ) -> Arc<FakeTextGateway> {
+        self.fake_responses::<A>(responses.into_iter().map(crate::FakeTextResult::from))
+    }
+
+    pub fn fake_responses<A: Agent>(
+        &self,
+        responses: impl IntoIterator<Item = crate::FakeTextResult>,
+    ) -> Arc<FakeTextGateway> {
         self.install_text_fake::<A>(FakeTextGateway::new(responses))
     }
 

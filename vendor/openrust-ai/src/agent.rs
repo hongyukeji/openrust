@@ -109,6 +109,15 @@ pub trait Agent: Send + Sync + 'static {
         Ai::fake_with::<Self>(resolve)
     }
 
+    fn fake_responses(
+        responses: impl IntoIterator<Item = FakeTextResult>,
+    ) -> AiResult<Arc<FakeTextGateway>>
+    where
+        Self: Sized,
+    {
+        Ai::fake_responses::<Self>(responses)
+    }
+
     fn is_faked() -> AiResult<bool>
     where
         Self: Sized,
