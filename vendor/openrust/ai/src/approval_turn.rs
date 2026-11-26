@@ -2,8 +2,9 @@ use openrust::database::{DatabaseError, DatabaseResult, Transaction};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval,
+    AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval, ToolResult,
     approval_store::{ApprovalScope, ApprovalStore},
+    events::{ToolApprovalRequested, ToolApprovalResolved, dispatch_tool_approval},
     tools::ApprovalCheckpoint,
 };
 
@@ -25,6 +26,7 @@ pub(crate) struct ApprovalSession {
     agent: String,
     pub(crate) existing: bool,
     claim: Option<ApprovalClaim>,
+    resolved: Option<ToolApprovalResolved>,
 }
 
 struct ApprovalClaim {
@@ -42,6 +44,7 @@ impl ApprovalSession {
             agent: scope.agent.into(),
             existing,
             claim: None,
+            resolved: None,
         }
     }
 
@@ -95,10 +98,42 @@ impl ApprovalSession {
                 .await
                 .map_err(|_| AiError::ConversationStorageUnavailable)?,
         };
-        Ok(PendingToolApprovals {
+        let pending = PendingToolApprovals {
             id,
             approvals: checkpoint.pending.clone(),
+        };
+        dispatch_tool_approval(ToolApprovalRequested {
+            invocation_id: checkpoint.invocation_id().into(),
+            conversation_id: self.conversation_id.clone(),
+            approval_id: pending.id.clone(),
+            agent: self.agent.clone(),
+            participant: self.participant.clone(),
+            pending_approvals: pending.approvals.clone(),
         })
+        .await;
+        Ok(pending)
+    }
+
+    pub(crate) fn record_resolution(
+        &mut self,
+        invocation_id: &str,
+        approval_id: &str,
+        results: Vec<ToolResult>,
+    ) {
+        self.resolved = Some(ToolApprovalResolved {
+            invocation_id: invocation_id.into(),
+            conversation_id: self.conversation_id.clone(),
+            approval_id: approval_id.into(),
+            agent: self.agent.clone(),
+            participant: self.participant.clone(),
+            tool_results: results,
+        });
+    }
+
+    pub(crate) async fn publish_resolution(self) {
+        if let Some(event) = self.resolved {
+            dispatch_tool_approval(event).await;
+        }
     }
 
     pub(crate) async fn settle(&self) -> AiResult<()> {

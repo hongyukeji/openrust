@@ -159,6 +159,10 @@ pub(crate) struct ApprovalCheckpoint {
 }
 
 impl ApprovalCheckpoint {
+    pub(crate) fn invocation_id(&self) -> &str {
+        &self.run.invocation_id
+    }
+
     pub(crate) async fn resume(
         self,
         provider: &dyn TextProvider,
@@ -189,6 +193,13 @@ impl ApprovalCheckpoint {
         plan.apply_decisions(decisions)?;
         session.claim(pending_record.0, pending_record.1).await?;
         let results = plan.run().await;
+        let approved_ids: BTreeSet<_> = self.pending.iter().map(|approval| &approval.id).collect();
+        let resolved = results
+            .iter()
+            .filter(|result| approved_ids.contains(&result.id))
+            .cloned()
+            .collect();
+        session.record_resolution(self.invocation_id(), pending_record.0, resolved);
         let mut run = self.run;
         run.add_step(self.response, results);
         run.generate(

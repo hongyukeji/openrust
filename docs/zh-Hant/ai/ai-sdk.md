@@ -430,6 +430,8 @@ SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批�
 
 需要串流輸出時，透過 `stream_with_approvals` 建立回應，並使用既有的 SSE 配接器。SDK 先儲存快照，再發出審批事件。預設的 `tool_approval_request` 事件包含 `conversation_id` 與 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，並為每個呼叫傳送 `tool-approval-request`。AG-UI 在各中斷項目的中繼資料中交付 ID。用 `resume_approval` 提交決定，恢復對話並接收一般回應。
 
+監聽 `openrust_ai::events::ToolApprovalRequested::NAME` 取得已儲存的審批請求，監聽 `ToolApprovalResolved::NAME` 取得已儲存的處理結果。型別化事件攜帶對話、參與者、Agent 型別、呼叫和審批識別碼。處理完成事件提供該批審批的工具結果。
+
 ## Agent 排隊 {#queued-agents}
 
 讓具名 Agent 派生 `Serialize` 和 `Deserialize`，實作 `QueueableAgent` 並提供穩定的 `QUEUE_JOB` 名稱。在應用程式服務提供者的 `boot` 方法裡，從應用程式取得 `QueueManager`，呼叫 `TicketAgent::register_queue(queue.as_ref())` 註冊。

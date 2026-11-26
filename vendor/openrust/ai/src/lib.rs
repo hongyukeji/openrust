@@ -32,6 +32,7 @@ mod database_embeddings;
 mod embedding_cache;
 mod embeddings;
 mod error;
+pub mod events;
 mod facade;
 mod fake;
 mod fake_embedding_gateway;

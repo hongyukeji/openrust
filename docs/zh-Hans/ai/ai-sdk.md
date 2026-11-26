@@ -430,6 +430,8 @@ SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批�
 
 需要流式输出时，通过 `stream_with_approvals` 创建响应，并使用现有的 SSE 适配器。SDK 先保存快照，再发出审批事件。默认的 `tool_approval_request` 事件包含 `conversation_id` 与 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，并为每个调用发送 `tool-approval-request`。AG-UI 在各中断项的元数据中交付 ID。用 `resume_approval` 提交决定，恢复会话并接收普通响应。
 
+监听 `openrust_ai::events::ToolApprovalRequested::NAME` 获取已保存的审批请求，监听 `ToolApprovalResolved::NAME` 获取已保存的处理结果。类型化事件携带会话、参与者、Agent 类型、调用和审批标识。处理完成事件提供该批审批的工具结果。
+
 ## Agent 排队 {#queued-agents}
 
 给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。

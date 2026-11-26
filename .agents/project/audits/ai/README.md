@@ -464,3 +464,11 @@ SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查
 独立 Artisan 通过四种本地 TCP 协议验证总量、缓存和推理字段。真实 HTTP 验证 Vercel 流及拆帧字段合并，Chat 与 Responses 还实际执行两步工具回合并核对累计用量。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
 
 - [固定 Laravel TextUsage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/TextUsage.php) · [固定 Laravel Anthropic 用量](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/Concerns/ParsesTextResponses.php)
+
+## AI-03 框架级工具审批事件
+
+`ToolApprovalRequested` 在审批快照写入后经框架事件分发器发送，覆盖普通与流式请求。监听器可用会话和审批 ID 读取同一份待审批项。`ToolApprovalResolved` 在成功恢复完成或新审批快照保存后发送，带上原调用 ID 和该批审批项的工具结果。事件包含参与者和 Agent 类型，可按会话关联；监听器失败只记无载荷的诊断，已保存的审批状态继续有效。无效审批决定、过期请求和重复提交不发处理完成事件。
+
+独立 Artisan 及真实 HTTP 在 SQLite 和原生 PostgreSQL 18.7 上注册类型化监听器。监听器实际读回待审批和已保存会话状态，核对流式／普通请求、审批结果和并发只发一次。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
+
+- [固定 Laravel ToolApprovalRequested](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Events/ToolApprovalRequested.php) · [固定 Laravel ToolApprovalResolved](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Events/ToolApprovalResolved.php)

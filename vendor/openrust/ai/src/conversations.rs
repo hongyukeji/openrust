@@ -242,7 +242,9 @@ impl<A: Agent> PendingConversation<'_, A> {
         if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
             session.settle().await?;
         }
-        resolve_approval_turn(turn, &prompt, outcome, Some(&session)).await
+        let response = resolve_approval_turn(turn, &prompt, outcome, Some(&session)).await?;
+        session.publish_resolution().await;
+        Ok(response)
     }
 
     fn approval_scope(&self) -> AiResult<ApprovalScope<'_>> {
