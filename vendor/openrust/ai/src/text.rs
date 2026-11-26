@@ -18,7 +18,7 @@ use openrust::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{AiError, AiResult};
+use crate::{AiError, AiResult, ModelCatalog, models::ListedModel};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Usage {
@@ -48,6 +48,12 @@ pub trait TextProvider: Send + Sync {
         &'a self,
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>>;
+
+    fn models(&self) -> HttpFuture<'_, ModelCatalog> {
+        Box::pin(async {
+            ModelCatalog::merge(Err(AiError::ModelsNotSupported), std::iter::empty())
+        })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -81,6 +87,8 @@ struct Models {
 #[derive(Default, Deserialize)]
 struct TextModels {
     default: Option<String>,
+    #[serde(default)]
+    ids: Vec<String>,
 }
 
 pub(crate) struct OpenAiTextProvider {
@@ -138,6 +146,17 @@ impl OpenAiTextProvider {
         Ok(request)
     }
 
+    async fn list_models(&self) -> AiResult<Vec<ListedModel>> {
+        #[derive(Deserialize)]
+        struct ModelResponse {
+            data: Vec<ListedModel>,
+        }
+
+        let response = validate(self.request(None)?.get("models").await)?;
+        let response: ModelResponse = response.json().map_err(|_| AiError::InvalidResponse)?;
+        Ok(response.data)
+    }
+
     async fn chat(&self, request: PendingRequest, prompt: &TextPrompt<'_>) -> AiResult<ParsedText> {
         let mut messages = Vec::new();
         if !prompt.instructions.is_empty() {
@@ -193,6 +212,16 @@ impl TextProvider for OpenAiTextProvider {
             .as_deref()
             .filter(|model| !model.trim().is_empty())
             .ok_or(AiError::MissingModel)
+    }
+
+    fn models(&self) -> HttpFuture<'_, ModelCatalog> {
+        Box::pin(async {
+            let configured = &self.config.models.text;
+            ModelCatalog::merge(
+                self.list_models().await,
+                configured.default.iter().chain(&configured.ids).cloned(),
+            )
+        })
     }
 
     fn generate_text<'a>(

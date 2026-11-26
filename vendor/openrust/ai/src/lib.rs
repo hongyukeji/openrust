@@ -13,10 +13,12 @@ use openrust::{
 mod agent;
 #[path = "../config/ai.rs"]
 mod configuration;
+mod console;
 mod error;
 mod facade;
 mod fake;
 mod manager;
+mod models;
 mod text;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
@@ -25,6 +27,7 @@ pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use manager::AiManager;
+pub use models::{ModelCatalog, ModelInfo};
 pub use text::{AgentResponse, TextPrompt, TextProvider, Usage};
 
 pub struct AiServiceProvider;
@@ -51,6 +54,7 @@ impl ServiceProvider for AiServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.commands(app, console::register);
             let config = &[("config/ai.rs", include_bytes!("../config/ai.rs").as_slice())];
             self.publishes(app, config, "ai")?;
             self.publishes(app, config, "ai-config")

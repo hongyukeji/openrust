@@ -19,6 +19,7 @@ use tokio::{
 type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
 
 async fn upstream(
+    method: &'static str,
     path: &'static str,
     requests: Vec<(u16, Value)>,
 ) -> (String, JoinHandle<Vec<Value>>) {
@@ -34,7 +35,7 @@ async fn upstream(
             let mut socket = BufReader::new(socket);
             let mut line = String::new();
             socket.read_line(&mut line).await.unwrap();
-            assert_eq!(line.trim_end(), format!("POST {path} HTTP/1.1"));
+            assert_eq!(line.trim_end(), format!("{method} {path} HTTP/1.1"));
             let mut length = None;
             let mut authorized = false;
             loop {
@@ -52,9 +53,11 @@ async fn upstream(
                 }
             }
             assert!(authorized);
-            let mut body = vec![0; length.unwrap()];
-            socket.read_exact(&mut body).await.unwrap();
-            bodies.push(serde_json::from_slice(&body).unwrap());
+            if let Some(length) = length.filter(|length| *length > 0) {
+                let mut body = vec![0; length];
+                socket.read_exact(&mut body).await.unwrap();
+                bodies.push(serde_json::from_slice(&body).unwrap());
+            }
             let response = response.to_string();
             let wire = format!(
                 "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",
@@ -70,6 +73,7 @@ async fn upstream(
 #[tokio::test]
 async fn application_routes_call_both_openai_protocols() -> TestResult {
     let (chat_url, chat_server) = upstream(
+        "POST",
         "/private/v1/chat/completions",
         vec![
             (
@@ -85,6 +89,7 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
     )
     .await;
     let (response_url, response_server) = upstream(
+        "POST",
         "/private/v1/responses",
         vec![(
             200,
@@ -227,5 +232,83 @@ async fn fake_and_manager_are_application_local() -> TestResult {
     assert!(!Arc::ptr_eq(&manager, &second_manager));
     assert!(second_manager.text_fake::<Support>().is_none());
     assert!(matches!(Ai::manager(), Err(AiError::Unavailable)));
+    Ok(())
+}
+
+#[tokio::test]
+async fn artisan_catalog_merges_config_and_survives_missing_upstream_listing() -> TestResult {
+    let (url, server) = upstream(
+        "GET",
+        "/private/v1/models",
+        vec![
+            (
+                200,
+                json!({
+                    "data": [
+                        {"id": "Local", "name": "已发现", "input_modalities": ["text"]},
+                        {"id": "local"},
+                        {"id": "Local"}
+                    ]
+                }),
+            ),
+            (404, json!({"error": {"message": "private path"}})),
+        ],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_providers())
+            .with_config(|_, env| {
+                Ok([(
+                    "ai".into(),
+                    json!({
+                        "default": "test",
+                        "providers": {"test": {
+                            "driver": "openai-compatible",
+                            "url": env.get_utf8("OPENRUST_AI_FIXTURE_URL")?,
+                            "key_env": "OPENRUST_AI_FIXTURE_KEY",
+                            "models": {"text": {"default": "Local", "ids": ["manual"]}}
+                        }}
+                    }),
+                )]
+                .into())
+            })
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!("OPENRUST_AI_FIXTURE_KEY=local-fixture-key\nOPENRUST_AI_FIXTURE_URL={url}\n"),
+    )?;
+    let first = app.artisan(["ai:models", "test", "--json"]).await;
+    first.assert_successful();
+    let first: Value = serde_json::from_str(&first.stdout)?;
+    let models = first["models"].as_array().unwrap();
+    assert_eq!(models.len(), 3);
+    assert_eq!(models[0]["id"], "Local");
+    assert_eq!(models[0]["name"], "已发现");
+    assert_eq!(models[0]["configured"], true);
+    assert_eq!(models[0]["discovered"], true);
+    assert_eq!(models[1]["id"], "local");
+    assert_eq!(models[2]["id"], "manual");
+    assert_eq!(models[2]["discovered"], false);
+
+    let second = app.artisan(["ai:models", "test", "--json"]).await;
+    second.assert_successful();
+    let second: Value = serde_json::from_str(&second.stdout)?;
+    assert_eq!(second["models"].as_array().unwrap().len(), 2);
+    assert_eq!(second["models"][0]["id"], "Local");
+    assert_eq!(second["models"][1]["id"], "manual");
+    assert!(
+        second["discovery_error"]
+            .as_str()
+            .unwrap()
+            .contains("HTTP 404")
+    );
+    assert!(
+        !second["discovery_error"]
+            .as_str()
+            .unwrap()
+            .contains("private path")
+    );
+    server.await?;
     Ok(())
 }

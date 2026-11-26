@@ -25,6 +25,8 @@ let answer = response.text;
 
 With the SDK enabled, run `artisan vendor:publish --tag=ai-config` to publish the configuration template. In application tests, use `Ai::fake::<YourAgent>(responses)` to replace an agent's responses and assert prompt content and counts.
 
+Run `artisan ai:models deepseek` to list models, or add `--json` to distinguish discovered and configured entries. Add manual model IDs under the connection’s `models.text.ids`. The listing merges IDs and keeps manual entries when discovery fails. Run `artisan ai:prompt "Reply briefly" --provider=deepseek --model=deepseek-flash` to test the selected model.
+
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. The preset endpoints for native Anthropic and Gemini are for future support. Streaming, tools, conversations, model discovery, embeddings, and the public compatibility gateway are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. The preset endpoints for native Anthropic and Gemini are for future support. Streaming, tools, conversations, embeddings, and the public compatibility gateway are pending.

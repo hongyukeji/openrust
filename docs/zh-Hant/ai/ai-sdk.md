@@ -25,6 +25,8 @@ let answer = response.text;
 
 在啟用 SDK 的應用程式發行版中，可執行 `artisan vendor:publish --tag=ai-config` 發布設定範本。在應用程式測試中，使用 `Ai::fake::<YourAgent>(responses)` 安裝應用程式層級的替身，可檢查提示文字與呼叫次數。
 
+執行 `artisan ai:models deepseek` 查看模型，或加上 `--json` 區分上游探索與本地設定。手動填寫的模型放在連線的 `models.text.ids`，清單會依原始 ID 合併並保留手填項目。用 `artisan ai:prompt "請簡短回答" --provider=deepseek --model=deepseek-flash` 試呼叫所選模型。
+
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。串流輸出、工具、會話、模型探索、Embeddings 和對外相容閘道仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。串流輸出、工具、會話、Embeddings 和對外相容閘道仍待實作。
