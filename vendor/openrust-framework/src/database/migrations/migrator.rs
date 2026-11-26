@@ -135,8 +135,21 @@ impl Migrator {
     ) -> DatabaseResult<Connection> {
         let name = entry
             .migration
-            .get_connection(self.manager.configuration())?;
+            .get_connection(self.manager.configuration().as_ref())?;
         self.resolve_connection(name.as_deref().or(database))
+    }
+
+    fn migration_context(
+        &self,
+        entry: &MigrationEntry,
+        database: Option<&str>,
+        pretend: bool,
+    ) -> DatabaseResult<MigrationContext> {
+        Ok(MigrationContext::new(
+            self.migration_connection(entry, database)?,
+            self.manager.configuration().clone(),
+            pretend,
+        ))
     }
 
     fn repository(&self, database: Option<&str>) -> DatabaseMigrationRepository {
@@ -224,8 +237,7 @@ impl Migrator {
         for (entry, status) in entries {
             let mut skipped = false;
             if status.batch.is_none() && !has_pending {
-                let connection = self.migration_connection(entry, database)?;
-                let mut context = MigrationContext::new(connection, false);
+                let mut context = self.migration_context(entry, database, false)?;
                 skipped = !entry
                     .migration
                     .should_run(&mut context)
@@ -377,8 +389,7 @@ impl Migrator {
             })
             .await?;
         for (name, entry) in pending {
-            let mut context =
-                MigrationContext::new(self.migration_connection(entry, database)?, options.pretend);
+            let mut context = self.migration_context(entry, database, options.pretend)?;
             if !options.pretend
                 && !entry
                     .migration
@@ -712,8 +723,7 @@ impl Migrator {
                 });
                 continue;
             };
-            let mut context =
-                MigrationContext::new(self.migration_connection(entry, database)?, options.pretend);
+            let mut context = self.migration_context(entry, database, options.pretend)?;
             self.run_migration(entry, name, method, &mut context, options.pretend)
                 .await?;
             if !options.pretend {

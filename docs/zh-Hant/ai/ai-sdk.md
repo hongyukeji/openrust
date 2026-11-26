@@ -478,6 +478,8 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。串流對話使用 `stream()`，將回傳的 `response` 交給 SSE 轉譯器。呼叫開始後即可讀取對話 ID。SDK 在傳送最終完成事件前儲存該輪訊息，串流中斷時不會新增對話訊息。宣告了回應結構的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+執行已發佈的遷移前，可在 `config/ai.rs` 中設定 `conversations.tables.conversations` 和 `conversations.tables.messages`，也可用環境變數 `AI_CONVERSATIONS_TABLE` 和 `AI_CONVERSATION_MESSAGES_TABLE`。預設表名為 `agent_conversations` 和 `agent_conversation_messages`。使用兩個不同的 SQL 識別碼，可含字母、數字和底線，也可使用資料庫支援的 Schema 前綴。遷移、應用程式執行和回復必須使用同一套設定。既有部署要變更表名時，先遷移現有資料表及資料，再切換設定。
+
 已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
 
 需要其他對話後端時，實作 `ConversationStore`，並在應用程式啟動時透過 `Ai::set_conversation_store(Arc::new(store))` 登錄。`Ai::conversation_store()` 回傳目前的儲存實作。實作負責檢查參與者歸屬，並以原子操作儲存使用者和助手訊息。需要持久工具審批時使用 `DatabaseConversationStore`。

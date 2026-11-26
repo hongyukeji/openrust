@@ -1,6 +1,7 @@
 use std::{any::Any, time::SystemTime};
 
 use openrust::{
+    contracts::config::Repository,
     database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
     http::HttpFuture,
     pagination::{Cursor, CursorOptions},
@@ -125,11 +126,36 @@ impl dyn ConversationStore {
 
 pub struct DatabaseConversationStore {
     connection: Connection,
+    conversations: String,
+    messages: String,
 }
 
 impl DatabaseConversationStore {
     pub fn new(connection: Connection) -> Self {
-        Self { connection }
+        Self {
+            connection,
+            conversations: CONVERSATIONS.to_owned(),
+            messages: MESSAGES.to_owned(),
+        }
+    }
+
+    pub(crate) fn from_config(connection: Connection, config: &dyn Repository) -> AiResult<Self> {
+        let conversations = configured_table(
+            config,
+            "ai.conversations.tables.conversations",
+            CONVERSATIONS,
+        )?;
+        let messages = configured_table(config, "ai.conversations.tables.messages", MESSAGES)?;
+        if conversations.eq_ignore_ascii_case(&messages) {
+            return Err(AiError::InvalidConfiguration(
+                "ai.conversations.tables.messages",
+            ));
+        }
+        Ok(Self {
+            connection,
+            conversations,
+            messages,
+        })
     }
 
     pub(crate) fn approval_store(&self) -> crate::approval_store::ApprovalStore {
@@ -144,7 +170,7 @@ impl DatabaseConversationStore {
         participant.validate()?;
         let row = self
             .connection
-            .table(CONVERSATIONS)
+            .table(&self.conversations)
             .use_write_pdo()
             .select(["participant_type", "participant_id"])
             .r#where("id", "=", conversation)
@@ -163,7 +189,7 @@ impl DatabaseConversationStore {
         participant.validate()?;
         let key = participant.key(agent);
         self.connection
-            .table(MESSAGES)
+            .table(&self.messages)
             .use_write_pdo()
             .select(["conversation_id"])
             .r#where("participant_key", "=", key)
@@ -191,7 +217,7 @@ impl DatabaseConversationStore {
         }
         let rows = self
             .connection
-            .table(MESSAGES)
+            .table(&self.messages)
             .use_write_pdo()
             .select(["role", "content"])
             .r#where("conversation_id", "=", conversation)
@@ -221,7 +247,7 @@ impl DatabaseConversationStore {
         }
         let page = self
             .connection
-            .table(MESSAGES)
+            .table(&self.messages)
             .use_write_pdo()
             .r#where("conversation_id", "=", conversation)
             .order_by_desc("id")
@@ -305,7 +331,7 @@ impl DatabaseConversationStore {
         let mut transaction = self.connection.begin_transaction().await?;
         if existing {
             let Some(row) = transaction
-                .table(CONVERSATIONS)
+                .table(&self.conversations)
                 .select(["participant_type", "participant_id"])
                 .r#where("id", "=", id)
                 .first()
@@ -319,7 +345,7 @@ impl DatabaseConversationStore {
                 return Ok(false);
             }
             transaction
-                .table(CONVERSATIONS)
+                .table(&self.conversations)
                 .r#where("id", "=", id)
                 .update(Record::from([("updated_at".into(), timestamp.into())]))
                 .await?;
@@ -332,7 +358,7 @@ impl DatabaseConversationStore {
                 .take(80)
                 .collect();
             if !transaction
-                .table(CONVERSATIONS)
+                .table(&self.conversations)
                 .insert(&[Record::from([
                     ("id".into(), id.into()),
                     ("participant_type".into(), participant.kind().into()),
@@ -346,7 +372,7 @@ impl DatabaseConversationStore {
                 return Err(DatabaseError::InvalidQuery("AI 会话未保存"));
             }
         }
-        if !transaction.table(MESSAGES).insert(&rows).await? {
+        if !transaction.table(&self.messages).insert(&rows).await? {
             return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
         }
         if let Some(approval) = approval
@@ -521,4 +547,23 @@ pub(crate) fn now() -> i64 {
         .elapsed()
         .map(|value| i64::try_from(value.as_secs()).unwrap_or(i64::MAX))
         .unwrap_or_default()
+}
+
+fn configured_table(config: &dyn Repository, key: &'static str, default: &str) -> AiResult<String> {
+    match config.get(key) {
+        None | Some(Json::Null) => Ok(default.to_owned()),
+        Some(Json::String(name)) if valid_table_name(&name) => Ok(name),
+        _ => Err(AiError::InvalidConfiguration(key)),
+    }
+}
+
+fn valid_table_name(name: &str) -> bool {
+    let (schema, table) = name.rsplit_once('.').unwrap_or(("", name));
+    let valid_segment = |segment: &str| {
+        !segment.is_empty()
+            && segment
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    };
+    valid_segment(table) && (!name.contains('.') || valid_segment(schema))
 }

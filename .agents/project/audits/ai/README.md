@@ -190,9 +190,13 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `ai.conversations.connection` 沿用框架 Database 连接，可通过 `AI_CONVERSATIONS_CONNECTION` 选择。应用通过 `vendor:publish --tag=ai-migrations` 发布迁移，重新编译后迁移和回滚。无状态 SDK 启动不查询会话表。独立 Artisan 创建、独立 HTTP 恢复对话，使用协议模拟上游和真实 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 验证持久化、大小写不同参与者拒绝访问、游标、用量与回滚。包测试另外覆盖历史裁剪与上一会话。
 
-完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、可配置表名、附件与原始工具历史重建继续核对。
+完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、附件与原始工具历史重建继续核对。
 
 `ConversationStore` 接入创建、继续、历史和原子写入。应用使用 `Ai::set_conversation_store` 注册实现。真实 Artisan 与 HTTP 在数据库连接未配置时使用独立内存实现，核对按 Agent 查找最近会话、参与者不符时 404 且无模型请求、历史分页、流式落库及工具需审批时的安全返回。默认数据库实现仍提供持久审批。SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测默认具名连接、落库、截断和迁移回滚，另复验隔离进程审批恢复。SDK 回归 14 项、严格 Clippy 和三语站点通过。
+
+默认存储、发布迁移的建表与回滚读取 `ai.conversations.tables.conversations` 和 `ai.conversations.tables.messages`，沿用固定 Laravel 的键和默认值。Rust 发布源码从所属应用的 `MigrationContext::configuration` 读取配置，编译时无需 AI 功能，默认表的索引与外键命名维持兼容，自定义表使用 Schema 的命名规则。SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测配置缓存、迁移预演的表名和外键、独立 Artisan／HTTP 顺序写入与读取、归属检查、流式落库和回滚后重建。相同表名在执行迁移前被拒绝。默认路径及自定义表名回归、迁移回归、严格 Clippy 和三语文档站通过。
+
+- [固定 Laravel 会话迁移](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/database/migrations/2026_01_11_000001_create_agent_conversations_table.php)
 
 ## AI-03 流式与结构化持久会话
 

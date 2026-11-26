@@ -82,8 +82,8 @@ impl DatabaseManager {
         )?))
     }
 
-    pub(super) fn configuration(&self) -> &dyn Repository {
-        self.config.as_ref()
+    pub(super) fn configuration(&self) -> &Arc<dyn Repository> {
+        &self.config
     }
 
     pub(super) fn with_test_services(

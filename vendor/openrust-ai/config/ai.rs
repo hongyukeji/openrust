@@ -95,6 +95,10 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "conversations": {
             "connection": env.get_utf8("AI_CONVERSATIONS_CONNECTION")?,
             "max_messages": 100,
+            "tables": {
+                "conversations": env.get_utf8("AI_CONVERSATIONS_TABLE")?.unwrap_or("agent_conversations"),
+                "messages": env.get_utf8("AI_CONVERSATION_MESSAGES_TABLE")?.unwrap_or("agent_conversation_messages"),
+            },
         },
         "default_for_images": env.get_utf8("AI_IMAGE_PROVIDER")?,
         "default_for_audio": env.get_utf8("AI_AUDIO_PROVIDER")?,

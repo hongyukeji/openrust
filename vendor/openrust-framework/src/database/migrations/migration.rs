@@ -1,12 +1,12 @@
+use std::sync::Arc;
+
+use crate::contracts::config::Repository;
 use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, Value, schema};
 
 /// A compiled migration registered with the application.
 pub trait Migration: Send + Sync {
     /// Resolves a potentially configuration-derived name from the owning application.
-    fn get_connection(
-        &self,
-        _config: &dyn crate::contracts::config::Repository,
-    ) -> DatabaseResult<Option<String>> {
+    fn get_connection(&self, _config: &dyn Repository) -> DatabaseResult<Option<String>> {
         Ok(None)
     }
 
@@ -35,17 +35,24 @@ pub trait Migration: Send + Sync {
 /// Executes migration operations on the selected connection, or records SQL in pretend mode.
 pub struct MigrationContext {
     connection: Connection,
+    config: Arc<dyn Repository>,
     transaction: Option<Transaction>,
     statements: Option<Vec<String>>,
 }
 
 impl MigrationContext {
-    pub(super) fn new(connection: Connection, pretend: bool) -> Self {
+    pub(super) fn new(connection: Connection, config: Arc<dyn Repository>, pretend: bool) -> Self {
         Self {
             connection,
+            config,
             transaction: None,
             statements: pretend.then(Vec::new),
         }
+    }
+
+    /// 返回当前迁移所属应用的配置。
+    pub fn configuration(&self) -> &dyn Repository {
+        self.config.as_ref()
     }
 
     pub fn get_schema_builder(&mut self) -> schema::Builder<'_> {

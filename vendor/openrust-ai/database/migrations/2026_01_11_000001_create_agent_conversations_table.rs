@@ -6,6 +6,9 @@ use openrust::{
     },
 };
 
+const CONVERSATIONS: &str = "agent_conversations";
+const MESSAGES: &str = "agent_conversation_messages";
+
 pub struct Definition;
 
 impl Migration for Definition {
@@ -24,9 +27,10 @@ impl Migration for Definition {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
+            let (conversations, messages) = table_names(context.configuration())?;
             let mut schema = context.get_schema_builder();
             schema
-                .create("agent_conversations", |table| {
+                .create(&conversations, |table| {
                     table.string("id", 36).primary();
                     table.string("participant_type", 255);
                     table.string("participant_id", 255);
@@ -35,8 +39,9 @@ impl Migration for Definition {
                     table.big_integer("updated_at");
                 })
                 .await?;
+            let default_messages = messages == MESSAGES;
             schema
-                .create("agent_conversation_messages", |table| {
+                .create(&messages, |table| {
                     table.string("id", 36).primary();
                     table.string("conversation_id", 36);
                     table.string("participant_type", 255);
@@ -54,16 +59,19 @@ impl Migration for Definition {
                     table.big_integer("updated_at");
                     table.index(
                         &["conversation_id", "id"],
-                        Some("agent_conversation_id_idx"),
+                        default_messages.then_some("agent_conversation_id_idx"),
                     );
                     table.index(
                         &["participant_key", "id"],
-                        Some("agent_conversation_participant_idx"),
+                        default_messages.then_some("agent_conversation_participant_idx"),
                     );
                     table
-                        .foreign(&["conversation_id"], Some("agent_conversation_fk"))
+                        .foreign(
+                            &["conversation_id"],
+                            default_messages.then_some("agent_conversation_fk"),
+                        )
                         .references("id")
-                        .on("agent_conversations")
+                        .on(&conversations)
                         .cascade_on_delete();
                 })
                 .await
@@ -75,9 +83,48 @@ impl Migration for Definition {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
+            let (conversations, messages) = table_names(context.configuration())?;
             let mut schema = context.get_schema_builder();
-            schema.drop_if_exists("agent_conversation_messages").await?;
-            schema.drop_if_exists("agent_conversations").await
+            schema.drop_if_exists(&messages).await?;
+            schema.drop_if_exists(&conversations).await
         })
     }
+}
+
+fn table_names(config: &dyn Repository) -> DatabaseResult<(String, String)> {
+    let conversations = configured_table(
+        config,
+        "ai.conversations.tables.conversations",
+        CONVERSATIONS,
+    )?;
+    let messages = configured_table(config, "ai.conversations.tables.messages", MESSAGES)?;
+    if conversations.eq_ignore_ascii_case(&messages) {
+        return Err(DatabaseError::InvalidConfiguration(
+            "ai.conversations.tables.messages",
+        ));
+    }
+    Ok((conversations, messages))
+}
+
+fn configured_table(
+    config: &dyn Repository,
+    key: &'static str,
+    default: &str,
+) -> DatabaseResult<String> {
+    match config.get(key) {
+        None | Some(serde_json::Value::Null) => Ok(default.to_owned()),
+        Some(serde_json::Value::String(name)) if valid_table_name(&name) => Ok(name),
+        _ => Err(DatabaseError::InvalidConfiguration(key)),
+    }
+}
+
+fn valid_table_name(name: &str) -> bool {
+    let (schema, table) = name.rsplit_once('.').unwrap_or(("", name));
+    let valid_segment = |segment: &str| {
+        !segment.is_empty()
+            && segment
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    };
+    valid_segment(table) && (!name.contains('.') || valid_segment(schema))
 }

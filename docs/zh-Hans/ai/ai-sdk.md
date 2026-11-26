@@ -478,6 +478,8 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+在运行已发布的迁移前，可在 `config/ai.rs` 中设置 `conversations.tables.conversations` 和 `conversations.tables.messages`，也可用环境变量 `AI_CONVERSATIONS_TABLE` 和 `AI_CONVERSATION_MESSAGES_TABLE`。默认表名为 `agent_conversations` 和 `agent_conversation_messages`。使用两个不同的 SQL 标识符，可含字母、数字和下划线，也可使用数据库支持的 Schema 前缀。迁移、应用运行和回滚须使用同一套配置。已有部署要更换表名时，先迁移现有表及数据，再切换配置。
+
 已完成的 SDK 助手消息会保存模型、汇总用量，以及 `steps` 中每步的实际模型、用量、结束原因和工具结果。既有历史可继续读取其原有步骤数据。
 
 需要其他会话后端时，实现 `ConversationStore`，并在应用启动时通过 `Ai::set_conversation_store(Arc::new(store))` 注册。`Ai::conversation_store()` 返回当前存储。实现负责校验参与者归属，并以原子操作保存用户和助手消息。需要持久工具审批时使用 `DatabaseConversationStore`。

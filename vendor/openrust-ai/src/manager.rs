@@ -286,7 +286,10 @@ impl AiManager {
         let database = openrust::database::Db::connection(connection.as_deref())
             .map_err(|_| AiError::ConversationStorageUnavailable)?;
         Ok((
-            Arc::new(crate::DatabaseConversationStore::new(database)),
+            Arc::new(crate::DatabaseConversationStore::from_config(
+                database,
+                self.config.as_ref(),
+            )?),
             history,
         ))
     }

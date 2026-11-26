@@ -41,6 +41,23 @@ impl HasStructuredOutput for Support {
 #[tokio::test]
 async fn conversation_history_is_owned_and_paginates_newest_first()
 -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    assert_conversation_history("AI_CONVERSATIONS_CONNECTION=agent_store\n").await
+}
+
+#[tokio::test]
+async fn conversation_history_uses_configured_tables()
+-> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    assert_conversation_history(concat!(
+        "AI_CONVERSATIONS_CONNECTION=agent_store\n",
+        "AI_CONVERSATIONS_TABLE=support_threads\n",
+        "AI_CONVERSATION_MESSAGES_TABLE=support_messages\n",
+    ))
+    .await
+}
+
+async fn assert_conversation_history(
+    env: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| {
         builder
             .with_migrations(MIGRATIONS)
@@ -201,10 +218,7 @@ async fn conversation_history_is_owned_and_paginates_newest_first()
                 })
             }))
     })?;
-    std::fs::write(
-        app.root().join(".env.testing"),
-        "AI_CONVERSATIONS_CONNECTION=agent_store\n",
-    )?;
+    std::fs::write(app.root().join(".env.testing"), env)?;
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
