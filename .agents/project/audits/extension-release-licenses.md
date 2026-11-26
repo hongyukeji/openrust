@@ -43,6 +43,16 @@
 
 构建、ELF、许可和运行日志在本机 `target/tmp/goal-extension-combined-image/`。ELF 符号表中的 `blake3_neon.c` 是文件条目，对应的静态可执行代码仍需用链接映射核对。该候选制品验收覆盖本机 ARM64 Docker 环境。
 
+### Linux ARM64 原生归档链接溯源
+
+早期候选镜像和 Cargo 缓存已清理。用 `7dd141aac49bafa452f35293d68b45375b36d4ff` 干净归档及 `c355e5704` 的根发行声明，沿用 Rust 1.94.0、`aarch64-unknown-linux-gnu`、Release 和九个扩展，新增最终链接器映射。审计镜像单独保存映射和归档成员清单。首次触及磁盘停线，经持锁清理后复用 Docker 独占缓存。两作业重试被 Docker 以内存不足终止，单作业成功。
+
+- OCI 索引摘要为 `sha256:a03f445c302fd99985175d912111e1059589c95ea51ca8a3720e1cc105eeeb37`，ARM64 镜像清单摘要为 `sha256:2aec035fadc46ec21955d269574a58dd8f9f5de326fa305676906e10a000548b`。映射所对应的 ELF SHA-256 为 `693ea9b410b202adf34ed09beceb841eef6c83da7a69ab94232967af44663142`，映射 SHA-256 为 `c62cb0902f92e40fb0321e2d636b79c7be6b5a0ae95d8b8458b85409e7d1e2d2`。
+- 对照 ELF 的 `.text` 节地址与长度，按实际静态归档成员归属计得 AWS-LC 888,112 字节、SQLite 1,460,024 字节及 ring 生产归档 138,416 字节。BLAKE3 NEON 和 ring 测试归档无正长度 `.text` 贡献。动态 PCRE2 为 Debian `10.42-1+deb12u2`，另核对 glibc、libgcc 和三份 Debian 版权文件摘要。范围为本次候选制品。
+- 本机 ARM64 Docker 中，由 UID/GID 10001 从只读镜像读回的 10 份许可与冻结源码及新根声明逐字节一致。九个包发现、58 项 SQLite 迁移、配置及路由缓存前后 HTTP、Reverb 签名投递、独立 Worker 及 SIGTERM 退出均通过。隔离 OTLP 收集器收到 206 个 Span、12 条指标记录，核对 HTTP 路由、耗时指标和独立 Artisan Span。
+
+证据保存在本机 `target/tmp/goal-extension-linux-elf-provenance/arm64/`。该映射覆盖本次 ELF 的 Cargo 静态归档代码，早期 ELF 仍保留其原始符号记录。
+
 ## Linux AMD64 组合候选制品
 
 用 `ab1d2b4c8553b45768d3cbc36efca0c9958c58c3` 的干净归档、仓库 Dockerfile、Rust 1.94.0 和相同的九项特性在 ARM64 Docker Desktop 交叉构建 `linux/amd64` Release 镜像。构建使用 `APP_BUILD_JOBS=1`。候选制品对应的 `x86_64-unknown-linux-gnu` 锁定生产与构建依赖图包含 597 个包版本，Cargo 与 cargo-deny 的清单逐项一致。
