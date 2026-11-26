@@ -1,0 +1,386 @@
+{
+  "npm": {
+    "default": [
+      [
+        "server",
+        "php artisan serve",
+        "#93c5fd"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#c4b5fd"
+      ],
+      [
+        "vite",
+        "npm run dev",
+        "#fb7185"
+      ]
+    ],
+    "custom": [
+      [
+        "tailwind",
+        "npx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#93c5fd"
+      ],
+      [
+        "vite",
+        "npm run dev",
+        "#c4b5fd"
+      ],
+      [
+        "storybook",
+        "npm run storybook",
+        "#93c5fd"
+      ],
+      [
+        "echo",
+        "echo implicit",
+        "#c4b5fd"
+      ],
+      [
+        "pink",
+        "printf Pink",
+        "#fb7185"
+      ],
+      [
+        "orange",
+        "printf Orange",
+        "#fdba74"
+      ],
+      [
+        "yellow",
+        "printf Yellow",
+        "#fcd34d"
+      ]
+    ],
+    "selection": [
+      [
+        "tailwind",
+        "npx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "vite",
+        "npm run dev",
+        "#93c5fd"
+      ]
+    ],
+    "application_only": [
+      [
+        "tailwind",
+        "npx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ]
+    ],
+    "restart": false
+  },
+  "pnpm": {
+    "default": [
+      [
+        "server",
+        "php artisan serve",
+        "#93c5fd"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#c4b5fd"
+      ],
+      [
+        "vite",
+        "pnpm run dev",
+        "#fb7185"
+      ]
+    ],
+    "custom": [
+      [
+        "tailwind",
+        "pnpm dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#93c5fd"
+      ],
+      [
+        "vite",
+        "pnpm run dev",
+        "#c4b5fd"
+      ],
+      [
+        "storybook",
+        "pnpm run storybook",
+        "#93c5fd"
+      ],
+      [
+        "echo",
+        "echo implicit",
+        "#c4b5fd"
+      ],
+      [
+        "pink",
+        "printf Pink",
+        "#fb7185"
+      ],
+      [
+        "orange",
+        "printf Orange",
+        "#fdba74"
+      ],
+      [
+        "yellow",
+        "printf Yellow",
+        "#fcd34d"
+      ]
+    ],
+    "selection": [
+      [
+        "tailwind",
+        "pnpm dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "vite",
+        "pnpm run dev",
+        "#93c5fd"
+      ]
+    ],
+    "application_only": [
+      [
+        "tailwind",
+        "pnpm dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ]
+    ],
+    "restart": false
+  },
+  "bun": {
+    "default": [
+      [
+        "server",
+        "php artisan serve",
+        "#93c5fd"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#c4b5fd"
+      ],
+      [
+        "vite",
+        "bun run dev",
+        "#fb7185"
+      ]
+    ],
+    "custom": [
+      [
+        "tailwind",
+        "bunx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#93c5fd"
+      ],
+      [
+        "vite",
+        "bun run dev",
+        "#c4b5fd"
+      ],
+      [
+        "storybook",
+        "bun run storybook",
+        "#93c5fd"
+      ],
+      [
+        "echo",
+        "echo implicit",
+        "#c4b5fd"
+      ],
+      [
+        "pink",
+        "printf Pink",
+        "#fb7185"
+      ],
+      [
+        "orange",
+        "printf Orange",
+        "#fdba74"
+      ],
+      [
+        "yellow",
+        "printf Yellow",
+        "#fcd34d"
+      ]
+    ],
+    "selection": [
+      [
+        "tailwind",
+        "bunx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "vite",
+        "bun run dev",
+        "#93c5fd"
+      ]
+    ],
+    "application_only": [
+      [
+        "tailwind",
+        "bunx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ]
+    ],
+    "restart": false
+  },
+  "yarn": {
+    "default": [
+      [
+        "server",
+        "php artisan serve",
+        "#93c5fd"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#c4b5fd"
+      ],
+      [
+        "vite",
+        "yarn run dev",
+        "#fb7185"
+      ]
+    ],
+    "custom": [
+      [
+        "tailwind",
+        "yarn dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "queue",
+        "php artisan queue:listen --tries=1 --timeout=0",
+        "#93c5fd"
+      ],
+      [
+        "vite",
+        "yarn run dev",
+        "#c4b5fd"
+      ],
+      [
+        "storybook",
+        "yarn run storybook",
+        "#93c5fd"
+      ],
+      [
+        "echo",
+        "echo implicit",
+        "#c4b5fd"
+      ],
+      [
+        "pink",
+        "printf Pink",
+        "#fb7185"
+      ],
+      [
+        "orange",
+        "printf Orange",
+        "#fdba74"
+      ],
+      [
+        "yellow",
+        "printf Yellow",
+        "#fcd34d"
+      ]
+    ],
+    "selection": [
+      [
+        "tailwind",
+        "yarn dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ],
+      [
+        "vite",
+        "yarn run dev",
+        "#93c5fd"
+      ]
+    ],
+    "application_only": [
+      [
+        "tailwind",
+        "yarn dlx tailwindcss --watch",
+        "#ff6347"
+      ],
+      [
+        "server",
+        "php artisan serve --port=9000",
+        "#86efac"
+      ]
+    ],
+    "restart": false
+  }
+}

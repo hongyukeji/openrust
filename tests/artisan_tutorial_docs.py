@@ -586,6 +586,36 @@ async fn formal_signal_handling_example() {
 '''
     parts.append('#[cfg(any(unix,windows))]\nmod '+locale.replace('-','_').lower()+'_signal_handling{\n'+signal_snippet+signal_checks+'}\n')
 
+    dev_snippet = re.search(r'```rust\n(.*?)```', text.split('{#customizing-dev-processes}',1)[1], re.S).group(1)
+    dev_checks = r'''
+use openrust::{foundation::Application,console::ConsoleFuture,support::{ServiceProvider,ProviderResult,facades::{App,Artisan,Facade as _}}};
+struct Tutorial;
+impl ServiceProvider for Tutorial {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> ConsoleFuture<'a,ProviderResult> {
+        Box::pin(async move { register_development_processes()?; Ok(()) })
+    }
+}
+#[tokio::test]
+async fn formal_development_processes_example() {
+    let root=std::env::temp_dir().join(format!("artisan-dev-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("pnpm-lock.yaml"),"").unwrap();
+    let mut app=Application::configure(root.clone()).with_providers(vec![Box::new(Tutorial)]).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        let (status,output)=Artisan::call_captured("dev:list",&["--json".into()]).await.unwrap();
+        assert_eq!(status,0);
+        let listing: Vec<serde_json::Value> = serde_json::from_str(&output.stdout).unwrap();
+        assert_eq!(listing.len(),2);
+        assert_eq!(listing[0]["command"],"./artisan serve --port=9000");
+        assert_eq!(listing[0]["color"],"#86efac");
+        assert_eq!(listing[1]["command"],"pnpm dlx tailwindcss --watch");
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_development_processes{\n'+dev_snippet+dev_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

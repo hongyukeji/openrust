@@ -89,6 +89,8 @@ fn register_exit_codes() -> Result<(), ConsoleError> {
 
 輸出依程序加上標籤，保留各自的 stdout 和 stderr。`--timestamps` 為內嵌輸出加上 UTC 時間。`--json` 每行輸出一筆有版本號的事件，包括程序啟動、輸出、結束、重試和最後的 `done`。
 
+### 重新啟動失敗程序 {#restarting-failed-processes}
+
 執行滿一秒後失敗的程序會每隔一秒重試，最多五次。成功結束的程序不再執行，一秒內失敗則立即回報。用 `--no-restart` 關閉這次重試，或在應用程式用 `DevCommands::disable_auto_restart()` 關閉。用 `DevCommands::with_timestamps()` 預設開啟時間戳記。第一個永久失敗決定最後的結束代碼，其他程序可以繼續執行。
 
 Unix 上的可用終端機預設開啟分頁檢視，也可用 `--stream` 直接開啟合併檢視。重新導向輸出、尺寸不足的終端機、Windows、`--inline` 和 `--json` 會走內嵌輸出路徑。互動工作階段正常離開時回傳 0，內嵌和 JSON 模式則回報第一個永久失敗的結束代碼。
@@ -113,11 +115,27 @@ Unix 上的可用終端機預設開啟分頁檢視，也可用 `--stream` 直接
 
 非互動環境也會輸出 JSON。`--filter` 依名稱或命令的子字串篩選，`--except-vendor` 和 `--only-vendor` 篩選套件登記的程序。篩選沒有結果時結束碼為 1。
 
+### 自訂開發程序 {#customizing-dev-processes}
+
 在應用程式服務提供者的 `boot` 方法中，透過 `openrust::foundation::DevCommands` 登記程序。同名程序會覆蓋預設項目，應用程式登記優先於套件登記。
 
 ```rust
-DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+use openrust::{console::ConsoleError, foundation::DevCommands};
+
+fn register_development_processes() -> Result<(), ConsoleError> {
+    DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+    DevCommands::node("storybook", Some("storybook"))?.blue();
+    DevCommands::node_exec("tailwindcss --watch", Some("tailwind"))?.color("#ff6347");
+    DevCommands::register("echo ready", Some("ready"))?.yellow();
+    DevCommands::only(&["server", "tailwind", "ready"])?;
+    DevCommands::except(&["ready"])?;
+    Ok(())
+}
 ```
+
+### 篩選開發程序 {#filtering-dev-processes}
+
+範例保留 `server` 和 `tailwind`。在服務提供者的 `boot` 方法中呼叫註冊函式。`only` 和 `except` 會同時生效，同一程序出現在兩個清單時會被排除。
 
 Shell 命令用 `register` 登記，套件管理器命令用 `node` 或 `node_exec`。名稱傳 `None` 時使用命令的第一個單字。用 `only`、`except`、`order`、`without_vendor_commands` 和 `without_default_commands` 調整應用程式清單。框架依 Rust 呼叫者的原始碼路徑辨識套件登記。
 

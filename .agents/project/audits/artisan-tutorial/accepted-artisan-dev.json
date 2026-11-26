@@ -1,0 +1,58 @@
+{
+  "base": "4ab133025baabf6de2d1c198d735f2c11fbe61ee",
+  "contract": "artisan-dev-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.41s",
+    "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.59s",
+    "test result: ok. 249 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.30s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.11s"
+  ],
+  "runtime": {
+    "source_package_managers": [
+      "npm",
+      "pnpm",
+      "Yarn",
+      "Bun"
+    ],
+    "framework_and_application_parent_tests": 53,
+    "native_terminal_scenarios": {
+      "SQLite": 3,
+      "MySQL 8.4.13": 3
+    },
+    "formal_document_consumers": 249,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-native-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-native-pty.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-pty-stall.sample",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-diagnostic-pty.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-tty-build.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-native-pty-final.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-pty-mysql.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-npm.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-pnpm.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-yarn.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-dev-bun.json"
+  ],
+  "unaccepted_attempts": [
+    "固定源夹具首次未切换当前目录，四种场景都命中 npm，按源 getcwd 的要求重新运行四次。",
+    "初轮 macOS 伪终端回退为行模式，夹具退出后还反复读取 EOF。采样确认读循环，诊断构建记录有效尺寸和设备 EINVAL。修复真实 TTY 打开和夹具生命周期后原生复验。"
+  ],
+  "remaining": [
+    "固定源码将终端切换和分析交给 Node 安装的多进程工具，Rust 原生监督／终端使用已批准的替代实现。",
+    "Windows 继续使用既有行模式及进程组；既有 Windows 实机证据见 06-08，本批修改 Unix 设备并在 macOS 实机复验。"
+  ],
+  "pushed": false
+}

@@ -89,6 +89,8 @@ Run the registered development processes together from the application directory
 
 Output lines are labelled by process and retain stdout or stderr. `--timestamps` adds UTC times to inline output. `--json` emits one versioned event per line, including process starts, output, exits, retry attempts and a final `done` event.
 
+### Restarting Failed Processes {#restarting-failed-processes}
+
 A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disable_auto_restart()`. Use `DevCommands::with_timestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
 
 A usable Unix terminal opens the tabbed view by default. Start in the interleaved view with `--stream`. Redirected output, small terminals, Windows, `--inline`, and `--json` use the inline path. Interactive sessions return status 0 on normal exit, while inline and JSON runs report the first permanent failure.
@@ -113,11 +115,27 @@ Use `dev:list` to inspect the application's development process registry. It lis
 
 JSON output is also used in non-interactive sessions. `--filter` matches a substring of the name or command. `--except-vendor` and `--only-vendor` filter package entries. A filter with no matches exits with status 1.
 
+### Customizing Development Processes {#customizing-dev-processes}
+
 In the `boot` method of your application service provider, use `openrust::foundation::DevCommands` to register processes. A registration with the same name overrides the default, and application registrations take precedence over package registrations.
 
 ```rust
-DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+use openrust::{console::ConsoleError, foundation::DevCommands};
+
+fn register_development_processes() -> Result<(), ConsoleError> {
+    DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+    DevCommands::node("storybook", Some("storybook"))?.blue();
+    DevCommands::node_exec("tailwindcss --watch", Some("tailwind"))?.color("#ff6347");
+    DevCommands::register("echo ready", Some("ready"))?.yellow();
+    DevCommands::only(&["server", "tailwind", "ready"])?;
+    DevCommands::except(&["ready"])?;
+    Ok(())
+}
 ```
+
+### Filtering Development Processes {#filtering-dev-processes}
+
+The example keeps `server` and `tailwind`. Call the registration function from your service provider’s `boot` method. `only` and `except` are applied together; a process in both lists is excluded.
 
 Use `register` for shell commands and `node` or `node_exec` for package-manager commands. Pass `None` to use the first word of the command as its name. `only`, `except`, `order`, `without_vendor_commands`, and `without_default_commands` customize the application registry. Package registrations are recognized by their Rust caller's source path.
 

@@ -540,23 +540,47 @@
     },
     {
       "anchor": "the-dev-command",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-dev-contracts.json",
+        "accepted-artisan-dev.json",
+        "dev_commands",
+        "artisan_dev_terminal",
+        "formal_development_processes_example"
+      ]
     },
     {
       "anchor": "customizing-dev-processes",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-dev-contracts.json",
+        "accepted-artisan-dev.json",
+        "dev_commands",
+        "artisan_dev_terminal",
+        "formal_development_processes_example"
+      ]
     },
     {
       "anchor": "restarting-failed-processes",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-dev-contracts.json",
+        "accepted-artisan-dev.json",
+        "dev_commands",
+        "artisan_dev_terminal",
+        "formal_development_processes_example"
+      ]
     },
     {
       "anchor": "filtering-dev-processes",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-dev-contracts.json",
+        "accepted-artisan-dev.json",
+        "dev_commands",
+        "artisan_dev_terminal",
+        "formal_development_processes_example"
+      ]
     },
     {
       "anchor": "stub-customization",
@@ -888,6 +912,14 @@
     "remaining": [
       "Windows 控制台的 Ctrl+C／Ctrl+Break 使用原生异步监听；本批只登记 Unix 实机信号结果，Windows 实机留到发布验收。",
       "异步运行时保留进程级 OS 信号处理器。命令退出解除命令回调和订阅，避免改变同一进程内的 Runner 或其他信号消费者。"
+    ]
+  },
+  "artisan_development_processes": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-dev-contracts.json",
+    "remaining": [
+      "固定源码将终端切换和分析交给 Node 安装的多进程工具，Rust 原生监督／终端使用已批准的替代实现。",
+      "Windows 继续使用既有行模式及进程组；既有 Windows 实机证据见 06-08，本批修改 Unix 设备并在 macOS 实机复验。"
     ]
   }
 }

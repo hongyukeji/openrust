@@ -1,0 +1,59 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "Artisan": [
+      "dev",
+      "dev:list"
+    ],
+    "DevCommands": [
+      "register",
+      "artisan",
+      "node",
+      "node_exec",
+      "only",
+      "except",
+      "order",
+      "without_vendor_commands",
+      "without_default_commands",
+      "disable_auto_restart"
+    ],
+    "DevCommand": [
+      "blue",
+      "purple",
+      "pink",
+      "orange",
+      "green",
+      "yellow",
+      "color"
+    ]
+  },
+  "source_oracle": [
+    "artisan-dev-oracle.json"
+  ],
+  "runtime": {
+    "source_package_managers": [
+      "npm",
+      "pnpm",
+      "Yarn",
+      "Bun"
+    ],
+    "framework_and_application_parent_tests": 53,
+    "native_terminal_scenarios": {
+      "SQLite": 3,
+      "MySQL 8.4.13": 3
+    },
+    "formal_document_consumers": 249,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "固定源实际 DevCommands 注册四种包管理器、默认及覆写、全部主题颜色、多个过滤器和重启开关。",
+    "命令行中的 PHP 可执行路径映射为当前二进制的 Artisan 子命令，用户及扩展注册保留独立应用作用域。",
+    "Darwin kqueue 拒绝 /dev/tty 别名。通过标准输入解析并独立打开真实 TTY 节点，保留原异步读取、终端状态和非阻塞作用域。",
+    "SQLite 和 MySQL 实际终端覆盖 HTTP、SQLite／MySQL 监听、键盘查询／切换／过滤／重启、回放、窗口大小、退场并释放端口。"
+  ],
+  "remaining": [
+    "固定源码将终端切换和分析交给 Node 安装的多进程工具，Rust 原生监督／终端使用已批准的替代实现。",
+    "Windows 继续使用既有行模式及进程组；既有 Windows 实机证据见 06-08，本批修改 Unix 设备并在 macOS 实机复验。"
+  ]
+}

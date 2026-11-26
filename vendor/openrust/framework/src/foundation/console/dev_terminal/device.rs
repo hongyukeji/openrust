@@ -3,10 +3,14 @@ use std::io::{self, IsTerminal as _, Write as _};
 #[cfg(unix)]
 use {
     std::{
+        ffi::{CStr, OsStr},
         fs::{File, OpenOptions},
         io::Read as _,
         mem::MaybeUninit,
-        os::{fd::AsRawFd as _, unix::fs::OpenOptionsExt as _},
+        os::{
+            fd::AsRawFd as _,
+            unix::{ffi::OsStrExt as _, fs::OpenOptionsExt as _},
+        },
     },
     tokio::io::{Interest, unix::AsyncFd},
 };
@@ -51,10 +55,21 @@ impl Device {
         }
         #[cfg(unix)]
         {
+            // 在 Darwin 上不能把 /dev/tty 别名注册到 kqueue。独立打开实际终端，
+            // 使非阻塞标志局限于本次会话所拥有的文件描述。
+            let mut name = [0; libc::PATH_MAX as usize];
+            // SAFETY: 输入描述符仍由标准输入持有；name 是可写且长度已传入的缓冲区。
+            let error =
+                unsafe { libc::ttyname_r(io::stdin().as_raw_fd(), name.as_mut_ptr(), name.len()) };
+            if error != 0 {
+                return Err(io::Error::from_raw_os_error(error));
+            }
+            // SAFETY: ttyname_r 成功时保证返回以 NUL 结尾的终端设备名。
+            let name = unsafe { CStr::from_ptr(name.as_ptr()) };
             let file = OpenOptions::new()
                 .read(true)
-                .custom_flags(libc::O_NONBLOCK)
-                .open("/dev/tty")?;
+                .custom_flags(libc::O_NONBLOCK | libc::O_NOCTTY)
+                .open(OsStr::from_bytes(name.to_bytes()))?;
             // SAFETY: AsyncFd owns this File, whose descriptor remains open and stable
             // through deregistration. It is opened nonblocking before registration.
             let input = unsafe { AsyncFd::register_with_interest(file, Interest::READABLE) }?;

@@ -89,6 +89,8 @@ fn register_exit_codes() -> Result<(), ConsoleError> {
 
 输出按进程加上标签，保留各自的 stdout 和 stderr。`--timestamps` 给内联输出加 UTC 时间。`--json` 每行输出一条带版本号的事件，包括进程启动、输出、退出、重试和最后的 `done`。
 
+### 重启失败进程 {#restarting-failed-processes}
+
 运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disable_auto_restart()` 关闭。用 `DevCommands::with_timestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
 
 Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进入合并视图。重定向输出、尺寸不足的终端、Windows、`--inline` 和 `--json` 走内联输出路径。交互会话正常退出时返回 0，内联和 JSON 模式则报告第一个永久失败的退出码。
@@ -113,11 +115,27 @@ Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进
 
 非交互环境也会输出 JSON。`--filter` 按名称或命令的子串筛选，`--except-vendor` 和 `--only-vendor` 筛选包登记的进程。筛选无结果时退出码为 1。
 
+### 自定义开发进程 {#customizing-dev-processes}
+
 在应用服务提供者的 `boot` 方法中，通过 `openrust::foundation::DevCommands` 登记进程。同名进程会覆盖默认项，应用登记优先于包登记。
 
 ```rust
-DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+use openrust::{console::ConsoleError, foundation::DevCommands};
+
+fn register_development_processes() -> Result<(), ConsoleError> {
+    DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+    DevCommands::node("storybook", Some("storybook"))?.blue();
+    DevCommands::node_exec("tailwindcss --watch", Some("tailwind"))?.color("#ff6347");
+    DevCommands::register("echo ready", Some("ready"))?.yellow();
+    DevCommands::only(&["server", "tailwind", "ready"])?;
+    DevCommands::except(&["ready"])?;
+    Ok(())
+}
 ```
+
+### 筛选开发进程 {#filtering-dev-processes}
+
+示例保留 `server` 和 `tailwind`。在服务提供者的 `boot` 方法中调用注册函数。`only` 和 `except` 会同时生效，同一进程出现在两个列表时会被排除。
 
 Shell 命令用 `register` 登记，包管理器命令用 `node` 或 `node_exec`。名称传 `None` 时使用命令首词。用 `only`、`except`、`order`、`without_vendor_commands` 和 `without_default_commands` 调整应用清单。框架依据 Rust 调用者的源码路径识别包登记。
 

@@ -361,3 +361,84 @@ async fn dev_uses_registry_restart_and_output_settings() {
             .contains(" [example] Process exited with code 23 (restart-disabled)\n")
     );
 }
+
+struct TutorialProvider(std::sync::Arc<std::sync::Mutex<Option<Value>>>);
+
+impl ServiceProvider for TutorialProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            fn observed() -> Result<Vec<Value>, openrust::console::ConsoleError> {
+                Ok(DevCommands::commands()?
+                    .into_iter()
+                    .map(|entry| {
+                        let command = entry.command.strip_prefix("./artisan ").map_or_else(
+                            || entry.command.clone(),
+                            |args| format!("php artisan {args}"),
+                        );
+                        serde_json::json!([entry.name, command, entry.color])
+                    })
+                    .collect())
+            }
+
+            let default = observed()?;
+            DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+            DevCommands::node("storybook", Some("storybook"))?.blue();
+            DevCommands::node_exec("tailwindcss --watch", Some("tailwind"))?.color("#ff6347");
+            DevCommands::register("echo implicit", None)?.purple();
+            DevCommands::register("printf Pink", Some("pink"))?.pink();
+            DevCommands::register("printf Orange", Some("orange"))?.orange();
+            DevCommands::register("printf Yellow", Some("yellow"))?.yellow();
+            DevCommands::order(&["tailwind", "server"])?;
+            let custom = observed()?;
+            DevCommands::only(&["tailwind", "server", "queue", "vite"])?;
+            DevCommands::except(&["queue"])?;
+            let selection = observed()?;
+            DevCommands::without_default_commands()?;
+            DevCommands::without_vendor_commands()?;
+            DevCommands::disable_auto_restart()?;
+            *self.0.lock().unwrap() = Some(serde_json::json!({
+                "default": default,
+                "custom": custom,
+                "selection": selection,
+                "application_only": observed()?,
+                "restart": DevCommands::should_auto_restart()?,
+            }));
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn scoped_registry_matches_tutorial_commands_for_four_node_package_managers() {
+    let oracle: Value = serde_json::from_str(include_str!(
+        "../.agents/project/audits/artisan-tutorial/artisan-dev-oracle.json"
+    ))
+    .unwrap();
+    for (manager, lockfile) in [
+        ("npm", None),
+        ("pnpm", Some("pnpm-lock.yaml")),
+        ("yarn", Some("yarn.lock")),
+        ("bun", Some("bun.lock")),
+    ] {
+        let fixture = Fixture::new(manager);
+        fs::write(fixture.0.join("package.json"), "{}").unwrap();
+        if let Some(lockfile) = lockfile {
+            fs::write(fixture.0.join(lockfile), "").unwrap();
+        }
+        let observed = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let app = Application::configure(fixture.0.clone())
+            .with_providers(vec![Box::new(TutorialProvider(observed.clone()))])
+            .create()
+            .unwrap();
+        let (status, listing) = list(&app, &[]).await;
+        assert_eq!(status, 0);
+        assert_eq!(listing.len(), 2);
+        assert_eq!(listing[0]["name"], "tailwind");
+        assert_eq!(listing[1]["name"], "server");
+        assert_eq!(
+            observed.lock().unwrap().as_ref().unwrap(),
+            &oracle[manager],
+            "{manager}"
+        );
+    }
+}

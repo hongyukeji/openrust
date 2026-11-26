@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise Artisan's Unix terminal modes with a compiled executable or source launcher."""
 
+import errno
 import fcntl
 import json
 import os
@@ -30,16 +31,12 @@ class Terminal:
         self.initial = termios.tcgetattr(self.slave)
         self.output = bytearray()
 
-        def controlling_terminal():
-            os.setsid()
-            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
-
         self.process = subprocess.Popen(
             command,
             stdin=self.slave,
             stdout=self.slave,
             stderr=self.slave,
-            preexec_fn=controlling_terminal,
+            start_new_session=True,
             env=env,
         )
 
@@ -48,7 +45,7 @@ class Terminal:
 
     def __exit__(self, *_):
         if self.process.poll() is None:
-            self.send(b"\x03")
+            self.process.send_signal(signal.SIGINT)
             try:
                 self.finish()
             except (AssertionError, OSError):
@@ -63,9 +60,17 @@ class Terminal:
     def send(self, keys):
         os.write(self.master, keys)
 
-    def read(self):
-        if select.select([self.master], [], [], 0.05)[0]:
-            self.output.extend(os.read(self.master, 65536))
+    def read(self, timeout=0.05):
+        if not select.select([self.master], [], [], timeout)[0]:
+            return False
+        try:
+            chunk = os.read(self.master, 65536)
+        except OSError as error:
+            if error.errno != errno.EIO or self.process.poll() is None:
+                raise
+            return False
+        self.output.extend(chunk)
+        return bool(chunk)
 
     def frame(self):
         return bytes(self.output).rsplit(b"\x1b[H", 1)[-1]
@@ -85,8 +90,8 @@ class Terminal:
         while self.process.poll() is None:
             self.read()
             assert time.monotonic() < deadline, "Artisan failed to exit"
-        while select.select([self.master], [], [], 0)[0]:
-            self.read()
+        while self.read(timeout=0):
+            pass
         assert self.process.returncode == 0, self.output[-4000:]
         assert termios.tcgetattr(self.slave) == self.initial, "terminal attributes were not restored"
 
@@ -177,7 +182,7 @@ def run(command, start_mode, rows=16):
         with Terminal(command + ["dev"] + start_mode, env, rows) as terminal:
             if rows < 8:
                 terminal.expect(lambda: b"needle-2" in terminal.output, "small TTY did not fall back to inline")
-                terminal.send(b"\x03")
+                terminal.process.send_signal(signal.SIGINT)
             elif "--buffer-size=2" in start_mode:
                 inspect_tabs(terminal, root, port, vite_index)
             elif not start_mode or start_mode == ["--tabs"]:
