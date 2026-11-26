@@ -24,6 +24,8 @@ Pulse 的暂停回调支持显式临时采集。真实 HTTP 和自定义 Recorde
 
 Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化构建验证独占 Redis、三个 Sentinel 和真实故障切换。Windows 11 ARM64 优化构建通过八组实际进程与 Redis 专项。正式目标服务管理器、物理 x86_64、目标 Redis 拓扑和最终发布快照仍按部署条件验收。 [Horizon Windows 优化构建](horizon/README.md#windows-arm64-优化构建的进程验收) [平台与发布条件](../todo.md#平台与发布条件)
 
+Horizon 的 Redis Cluster 实现以 `12c1459b0` 在 Linux ARM64 开发构建验证三种元数据和队列组合及两种实际自动选主。切换后同一 Master 保留租约并继续处理任务。生产部署端点和优化构建仍在验收范围。 [Redis Cluster 专项](horizon/README.md#固定上游的-redis-cluster-实测)
+
 Windows x64 的 Horizon 优化制品也在 Windows 11 ARM64 的 x64 兼容层通过八组进程和 Redis 验收。证据覆盖实际 AMD64 PE 及兼容层运行，物理 x64 主机继续验收。 [Horizon Windows x64 兼容层](horizon/README.md#windows-x64-优化制品的兼容层实测)
 
 Windows x64 的三扩展根应用已在同一兼容层通过默认 Release 和实际装配验收。 [Windows x64 三扩展根应用](#windows-x64-三扩展根应用优化构建)

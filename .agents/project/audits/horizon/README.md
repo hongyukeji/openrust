@@ -106,6 +106,8 @@ macOS 的五组实际 HTTP 和仓储回归检查阻塞等待、任务状态、�
 
 基于 `672b8241b` 的隔离快照叠加本批文件，使用 Rust 1.94.0 验证选项 10 项、配置 8 项、五组集群专项及相关严格 Clippy。配置套件另有一个独立单节点用例按条件跳过。三语文档完成构建，并在根路径和 `/docs/` 核对桌面、移动和导航。测试入口为 `tests/redis_cluster.sh`，文档证据为 `target/tmp/observability-parity/horizon-cluster-reference/docs-retry.log`。
 
+Linux ARM64 从完整归档 `12c1459b0a5e037ee0244daaa447fc9d8066f2e3` 用 Debian glibc、Rust 1.94.0 和开发配置重新构建实际 Artisan，ELF 的 SHA-256 为 `389cb58d912b33086d809860d4855b6b3b658ad37a787f13a6bc10b1a19e02cd`。Redis 8.10.3 的六节点集群与独立单节点验收通过三种元数据和队列组合。每组实际启动 Master 与 Worker、排空运行中任务，并执行指标快照和清理。另在两组新建集群中确认副本持久化了租约值，关闭分片主节点触发自动选主。元数据配单节点队列、元数据与队列同槽这两组都保留原 Master PID 并处理切换后的新任务。证据为 `target/tmp/observability-parity/horizon-cluster-reference/linux-12c1459b0-{retry,failover-retry,shared-slot-retry}.log`。Linux 优化构建和实际部署端点仍待按交付组合复验。
+
 ### Master 命令队列与动态部署
 
 固定上游的本机队列名称为 `master:<Master 全名>`。`commandQueueFor` 在未传名称、传入空串或 `"0"` 时使用本机队列。Redis 按顺序推送 `command` 与 `options`，`pending` 领取后移除，`flush` 清空指定队列。固定 PHP 探针使用真实 Redis 8.10.3 验证名称、空与嵌套选项、FIFO、领取后的空队列和清空，再调用 `AddSupervisor::process` 验证新 Supervisor 的名称与队列。Symfony 启动动作由探针替身承接，Rust 用实际子进程复验。上游证据为 `target/tmp/observability-parity/horizon-master-command-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 RedisHorizonCommandQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisHorizonCommandQueue.php) [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php)
