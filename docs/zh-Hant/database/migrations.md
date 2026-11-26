@@ -1331,7 +1331,7 @@ SQLite 回傳約束所在的 Schema，例如 `main` 或附加資料庫名稱。�
 
 #### 切換外鍵檢查 {#toggling-foreign-key-constraints}
 
-用 `Schema::without_foreign_key_constraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `get_schema_builder()` 操作 Schema。離開範圍時會恢復進入前的設定。
+在 SQLite 和 MySQL 上，用 `Schema::without_foreign_key_constraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `get_schema_builder()` 操作 Schema。離開範圍時會恢復進入前的設定。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
@@ -1353,6 +1353,8 @@ async fn import_order() -> DatabaseResult<()> {
 ```
 
 需要手動切換時，呼叫 `Schema::session().await?` 或具名連線建構器的 `session().await?` 取得寫入工作階段，再呼叫 `disable_foreign_key_constraints` 或 `enable_foreign_key_constraints`，最後用 `close().await?` 歸還。SQLite 資料表重建繼續使用連線的 Schema Builder，由它管理重建所需的工作階段和交易。
+
+在 PostgreSQL 上，入口在回呼前執行 `SET CONSTRAINTS ALL DEFERRED`，結束時執行 `SET CONSTRAINTS ALL IMMEDIATE`。這兩條陳述式只影響交易內的約束檢查時機。需要在交易內延後檢查時，呼叫目前 PostgreSQL 交易的 `transaction.without_foreign_key_constraints(...)`，並透過回呼收到的交易執行 SQL。只有可延遲約束會延後檢查，離開時會立即驗證尚待檢查的寫入。
 
 ## 事件 {#events}
 

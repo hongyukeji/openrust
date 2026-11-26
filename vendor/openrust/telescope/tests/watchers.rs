@@ -42,6 +42,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/relationship-load-callers", relationship_load_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
+    Route::get("/pgsql-constraint-callers", pgsql_constraint_callers)?;
     Route::get("/mysql-schema-cleanup", mysql_schema_cleanup)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
@@ -901,7 +902,7 @@ fn schema_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             .unwrap();
             calls.push(rebuild);
         }
-        if matches!(connection.get_driver_name(), "sqlite" | "mysql") {
+        if matches!(connection.get_driver_name(), "sqlite" | "mysql" | "pgsql") {
             let outer = line!() + 1;
             let inner = Schema::without_foreign_key_constraints(|session| {
                 Box::pin(async move {
@@ -955,6 +956,7 @@ async fn query_watcher_attributes_schema_queries_to_the_public_entry() {
             || sql.contains("schema_callback_probe")
             || sql.starts_with("pragma foreign_keys =")
             || sql.starts_with("set session foreign_key_checks =")
+            || sql.starts_with("set constraints all ")
         {
             assert_eq!(entry.content["file"], file!(), "{sql}");
             *actual
@@ -966,6 +968,167 @@ async fn query_watcher_attributes_schema_queries_to_the_public_entry() {
         assert_eq!(actual.get(&line), Some(&2));
     }
     assert_eq!(actual.keys().copied().collect::<Vec<_>>(), expected);
+}
+
+fn pgsql_constraint_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::DatabaseError;
+    Box::pin(async {
+        let connection = Db::connection(None).unwrap();
+        assert_eq!(connection.get_driver_name(), "pgsql");
+        let fixture = &uuid::Uuid::now_v7().simple().to_string()[24..];
+        let parents = format!("pg_parents_{fixture}");
+        let children = format!("pg_children_{fixture}");
+        let immediate = format!("pg_immediate_{fixture}");
+        connection
+            .statement(&format!("create table {parents} (id int primary key)"), &[])
+            .await
+            .unwrap();
+        for (name, mode) in [
+            (&children, "deferrable initially immediate"),
+            (&immediate, "not deferrable"),
+        ] {
+            connection
+                .statement(
+                    &format!("create table {name} (id int primary key, parent int references {parents}(id) {mode})"),
+                    &[],
+                )
+                .await
+                .unwrap();
+        }
+        let outside = {
+            let sql = format!("insert into {children} values (3, 44)");
+            openrust::database::schema::Schema::without_foreign_key_constraints(|session| {
+                Box::pin(async move { session.statement(&sql, &[]).await })
+            })
+            .await
+        };
+        assert!(matches!(outside, Err(DatabaseError::Driver { source, .. })
+            if source.as_database_error().and_then(|error| error.code()).as_deref() == Some("23503")));
+        let success_parents = parents.clone();
+        let success_children = children.clone();
+        let (scope, insert) = connection
+            .transaction(
+                move |transaction| {
+                    let (parents, children) = (success_parents.clone(), success_children.clone());
+                    Box::pin(async move {
+                        let scope = line!() + 2;
+                        let insert = transaction
+                            .without_foreign_key_constraints(|transaction| {
+                                Box::pin(async move {
+                                    let sql = format!(
+                                        "insert into {children} values (1, 42) /* deferred */"
+                                    );
+                                    let insert = line!() + 1;
+                                    let saved = transaction.statement(&sql, &[]);
+                                    saved.await?;
+                                    transaction
+                                        .statement(
+                                            &format!("insert into {parents} values (42)"),
+                                            &[],
+                                        )
+                                        .await?;
+                                    Ok(insert)
+                                })
+                            })
+                            .await?;
+                        Ok((scope, insert))
+                    })
+                },
+                1,
+            )
+            .await
+            .unwrap();
+        for table in [&children, &immediate] {
+            let expected = format!("insert into {table} values (2, 43)");
+            let result = connection
+                .transaction(
+                    move |transaction| {
+                        let sql = expected.clone();
+                        Box::pin(async move {
+                            transaction
+                                .without_foreign_key_constraints(|transaction| {
+                                    Box::pin(async move {
+                                        transaction.statement(&sql, &[]).await?;
+                                        Ok(())
+                                    })
+                                })
+                                .await
+                        })
+                    },
+                    1,
+                )
+                .await;
+            assert!(matches!(result, Err(DatabaseError::Driver { source, .. })
+                if source.as_database_error().and_then(|error| error.code()).as_deref() == Some("23503")));
+        }
+        for (table, count) in [(&children, 1), (&immediate, 0)] {
+            assert_eq!(
+                connection
+                    .scalar(&format!("select count(*) from {table}"), &[])
+                    .await
+                    .unwrap(),
+                openrust::database::Value::Integer(count)
+            );
+        }
+        Response::json(http::StatusCode::OK, json!([scope, insert]))
+    })
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_postgres_constraint_timing_in_transaction() {
+    if std::env::var("TELESCOPE_TEST_DRIVER").as_deref() != Ok("pgsql") {
+        return;
+    }
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    QueryWatcher::new(
+        json!({"ignore_packages":false})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
+    let response = app.get("/api/pgsql-constraint-callers").await.unwrap();
+    response.assert_ok();
+    let [scope, insert] = response.json::<[u64; 2]>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let timing: std::collections::BTreeSet<_> = entries
+        .iter()
+        .filter_map(|entry| {
+            let content = &entry.content;
+            (content["line"] == scope).then(|| {
+                assert_eq!(content["file"], file!());
+                content["sql"].as_str().unwrap()
+            })
+        })
+        .collect();
+    assert_eq!(
+        timing,
+        [
+            "set constraints all deferred",
+            "set constraints all immediate"
+        ]
+        .into()
+    );
+    let query = entries
+        .iter()
+        .find(|entry| {
+            entry.content["sql"]
+                .as_str()
+                .unwrap()
+                .contains("/* deferred */")
+        })
+        .unwrap();
+    assert_eq!(query.content["file"], file!());
+    assert_eq!(query.content["line"], insert);
 }
 
 fn mysql_schema_cleanup(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

@@ -98,8 +98,14 @@ impl<'connection> Builder<'connection> {
         let mut session = self.session().await?;
         session.disable_foreign_key_constraints().await?;
         let result = callback(&mut session).await;
+        let restore = if self.grammar.postgres() {
+            session.enable_foreign_key_constraints().await.map(|_| ())
+        } else {
+            Ok(())
+        };
         let cleanup = session.close().await;
         let output = result?;
+        restore?;
         cleanup?;
         Ok(output)
     }

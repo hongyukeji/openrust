@@ -22,6 +22,14 @@ pub use foreign_key_definition::ForeignKeyDefinition;
 pub use index_definition::{ColumnIndex, IndexDefinition};
 pub use session::SchemaSession;
 
+pub(super) const fn postgres_foreign_key_sql(enabled: bool) -> &'static str {
+    if enabled {
+        "set constraints all immediate"
+    } else {
+        "set constraints all deferred"
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 pub(super) struct SqliteJsonTypes {
     pub(super) json: bool,

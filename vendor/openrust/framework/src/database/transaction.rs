@@ -295,6 +295,33 @@ impl Transaction {
         super::schema::Builder::transaction(self)
     }
 
+    /// 在当前 PostgreSQL 事务中延迟可延迟约束，并在回调结束时立即校验。
+    #[track_caller]
+    pub fn without_foreign_key_constraints<T>(
+        &mut self,
+        callback: impl for<'a> FnOnce(&'a mut Self) -> DatabaseFuture<'a, DatabaseResult<T>> + Send,
+    ) -> impl std::future::Future<Output = DatabaseResult<T>>
+    where
+        T: Send,
+    {
+        super::events::with_query_caller(std::panic::Location::caller(), async move {
+            if !self.connection.is_postgres() {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "此事务约束包装仅支持 PostgreSQL",
+                ));
+            }
+            self.statement(super::schema::postgres_foreign_key_sql(false), &[])
+                .await?;
+            let result = callback(self).await;
+            let restore = self
+                .statement(super::schema::postgres_foreign_key_sql(true), &[])
+                .await;
+            let output = result?;
+            restore?;
+            Ok(output)
+        })
+    }
+
     pub fn table(&mut self, table: &str) -> super::query::Builder<'_> {
         let grammar = self.connection.grammar.clone();
         super::query::Builder::transaction(self, grammar, table)

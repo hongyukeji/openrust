@@ -189,6 +189,11 @@ impl SchemaSession {
     }
 
     async fn set_foreign_keys(&mut self, enabled: bool) -> DatabaseResult<bool> {
+        if self.connection.is_postgres() {
+            return self
+                .statement(super::postgres_foreign_key_sql(enabled), &[])
+                .await;
+        }
         self.connection.ensure_real_operation()?;
         let sqlite = self.connection.is_sqlite();
         if self.restore_foreign_keys.is_none() {

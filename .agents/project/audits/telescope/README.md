@@ -135,6 +135,14 @@ macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五�
 
 最终 macOS 隔离快照使用真实 MySQL 8.4.13，Telescope HTTP 验证四个调用点、八条 SQL 的文件与行号以及清理后约束状态。原生 Schema 回归确认跨库隔离、前缀与无前缀对象、独立视图保留及单写连接外键恢复。SQLite 默认 Watchers、隔离快照全仓格式及相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-mysql-cleanup-{baseline,final}.log`。MySQL 取消路径和目标平台继续验收。
 
+### PostgreSQL 约束包装的查询来源
+
+固定 PHP 8.5.12 使用实际 Laravel Schema 和 Telescope QueryWatcher，在 PostgreSQL 18.7 上验证事务内外的包装。成功回调生成两条 `SET CONSTRAINTS`，采集到同一调用行。事务外插入仍立即失败。事务内先写子行再补齐父行成功，未补齐时切回立即模式报 `23503` 并回滚。失败命令无需产生成功查询条目。证据为 `target/tmp/observability-parity/query-pgsql-constraints-upstream.log`。 [固定 PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L732-L745) [PostgreSQL 18 约束时机](https://www.postgresql.org/docs/18/sql-set-constraints.html)
+
+修复前，PostgreSQL 包装错误地读取 MySQL 会话变量。Rust 的 `SchemaSession` 现走 PostgreSQL 约束语句。显式事务通过 `Transaction::without_foreign_key_constraints` 在同一事务运行回调，回调结束时执行立即检查。SQLite 和 MySQL 继续恢复各自的会话初始设置。
+
+macOS 用 PostgreSQL 18.7 的真实 HTTP 分别验证外层调用行、回调写入行、事务内补齐和失败回滚、事务外约束仍生效以及非延迟约束始终立即检查。默认 SQLite Watchers、MySQL 8.4.13 的 Schema HTTP 专项、隔离快照全仓格式、相关严格 Clippy、三语站点构建与六个正文视口通过。证据为 `target/tmp/observability-parity/query-pgsql-constraints-{baseline,verified,docs}.log`。显式事务包装 Future 被单独取消、调用方随后复用该事务的行为仍须验收。
+
 ### 出站响应内容形状与大小限制
 
 固定 PHP 8.5.12 的真实 PSR 响应和 `ClientRequestWatcher::response` 确认，`0` 在 HTML 和 JSON 标量回退时为 `Empty Response`，`text/plain` 保留字符串，302 优先报告目标地址。关联式 JSON 解码会把空对象以及从 0 开始且按顺序排列的数字键对象变成数组。逆序和带前导零的对象键保留。上限按千字符比较，整数、带小数的数字和数值文本均可设置。证据为 `target/tmp/observability-parity/telescope-client-response-shape-upstream.log`。 [固定 ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php)
