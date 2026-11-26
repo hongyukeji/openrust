@@ -4478,3 +4478,73 @@ async fn console_show_uses_upstream_colors_for_details_and_batch_fields() {
         );
     }
 }
+
+#[tokio::test]
+async fn scheduled_jobs_report_callback_and_display_description() {
+    use openrust::{
+        queue::{Payload, QueueManager},
+        support::facades::Schedule,
+    };
+
+    let mut app = openrust::testing::TestApp::create(|builder| {
+        builder
+            .with_config(provider_config)
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_commands(|_| {
+                Schedule::configure(|schedule| {
+                    let payload = Payload::new("telescope.probe", json!({"fail":false})).unwrap();
+                    schedule
+                        .job(payload.clone(), None, None)
+                        .user("configured-worker");
+                    schedule.job(payload, None, None).name("Explicit job title");
+                    Ok(())
+                })
+            })
+    })
+    .unwrap();
+    std::fs::File::create(app.root().join("telescope.sqlite")).unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .make::<QueueManager>()
+        .await
+        .unwrap()
+        .register("telescope.probe", std::sync::Arc::new(QueueProbe))
+        .unwrap();
+    app.artisan(["schedule:run"]).await.assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let jobs = repository
+        .get(Some(EntryType::Job), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(jobs.len(), 2);
+    assert!(
+        jobs.iter()
+            .all(|entry| entry.content["status"] == "processed")
+    );
+
+    let tasks = repository
+        .get(Some(EntryType::ScheduledTask), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(tasks.len(), 2);
+    for (title, user) in [
+        ("telescope.probe", json!("configured-worker")),
+        ("Explicit job title", serde_json::Value::Null),
+    ] {
+        let entry = tasks
+            .iter()
+            .find(|entry| entry.content["description"] == title)
+            .unwrap_or_else(|| {
+                panic!("scheduled job description missing: {title}; entries: {tasks:?}")
+            });
+        let output = app
+            .artisan(["telescope:show", &entry.id.to_string(), "--json"])
+            .await;
+        output.assert_successful();
+        let body: serde_json::Value = serde_json::from_str(&output.stdout).unwrap();
+        assert_eq!(body["entry"]["content"]["command"], "Closure");
+        assert_eq!(body["entry"]["content"]["user"], user);
+    }
+}

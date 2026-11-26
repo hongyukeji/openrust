@@ -232,12 +232,16 @@ impl Event {
             events::EventContext,
             support::facades::Event as Events,
         };
+        let description = self.description.clone().or_else(|| match &self.action {
+            Action::Job(payload, _) => Some(payload.display_name().to_owned()),
+            _ => None,
+        });
         let completed = Arc::new(crate::console::events::ScheduledTaskCompleted {
             command: match self.action {
-                Action::Callback(..) => "Closure".into(),
+                Action::Callback(..) | Action::Job(..) => "Closure".into(),
                 _ => self.command_name(),
             },
-            description: self.description.clone(),
+            description,
             expression: self.cron_text.clone(),
             timezone: recorded_timezone.map(|zone| {
                 zone.iana_name()

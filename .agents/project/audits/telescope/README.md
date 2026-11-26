@@ -167,7 +167,9 @@ Windows 11 ARM64 虚机用 Rust 1.94.0 和 HostARM64 链接器编译 Microsoft x
 
 ### 调度作业的诊断名称
 
-固定 Laravel `Schedule::job` 注册 `CallbackEvent`，默认以作业展示名填充描述。固定 ScheduleWatcher 将该事件的 `command` 写为 `Closure`。Rust 的实际 `schedule:run` 已成功执行两项同步作业。读回调度条目后发现默认描述为空，且两项的 `command` 被填为作业处理器名或显式标题。该差异继续处理，需保留手动标题和现有调度互斥键。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-scheduled-jobs-baseline.log`。 [固定 Schedule::job](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Schedule.php) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+固定 Laravel `Schedule::job` 注册 `CallbackEvent`，默认以作业展示名填充描述。固定 ScheduleWatcher 将该事件的 `command` 写为 `Closure`。Rust 前态成功执行两项同步作业，但调度条目的默认描述为空，`command` 被填为作业处理器名或显式标题。 [固定 Schedule::job](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Schedule.php) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+
+原生调度完成事件现在记录 `Closure`，描述优先使用显式标题，否则使用作业展示名。原有调度互斥键沿用原输入。macOS 的实际 `schedule:run` 与 SQLite 上的 `telescope:show --json` 验证作业成功、默认描述、显式标题和配置用户。相关 92 项回归通过，交接时复跑定向用例也通过。Docker Engine 超时，PostgreSQL 18 与 MySQL 8.4 的持久化复验保留在待办。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-scheduled-jobs-{baseline,fixed,handoff-commit}.log`。
 
 ### Artisan 启动与自定义仓储
 
