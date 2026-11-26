@@ -69,6 +69,6 @@ Blade 回應的請求記錄包含實際範本路徑和明確繫結資料，包�
 ./artisan telescope:clear
 ```
 
-`list` 接受 `--tag`、`--batch`、`--family` 與 `--before` 序號游標。`show` 接受 UUID、無歧義 UUID 前綴、`latest` 或 `latest:{type}`。可用 `--type` 篩選同批次記錄。批次摘要顯示查詢總耗時、慢查詢、重複查詢群組和快取命中率。請求詳情顯示已記錄的控制器、中介層與使用者資訊。例外與失敗工作詳情顯示已記錄的錯誤訊息與呼叫堆疊。詳情依項目類型顯示欄位，查詢 SQL 和日誌訊息完整顯示。本文區塊和批次欄位依顯示寬度截斷，`--full` 可展開。JSON 始終保留擷取內容。清單顯示每筆記錄的相對時間。詳情同時顯示相對時間及記錄的 UTC 時間戳記。
+`list` 接受 `--tag`、`--batch`、`--family` 與 `--before` 序號游標。`show` 接受 UUID、無歧義 UUID 前綴、`latest` 或 `latest:{type}`。可用 `--type` 篩選同批次記錄。批次摘要顯示查詢總耗時、慢查詢、重複查詢群組和快取命中率。請求詳情顯示已記錄的控制器、中介層與使用者資訊。例外與失敗工作詳情顯示已記錄的錯誤訊息與呼叫堆疊。詳情依項目類型顯示欄位，查詢 SQL 和日誌訊息完整顯示。本文區塊和批次欄位依顯示寬度截斷，`--full` 可展開。JSON 始終保留擷取內容。清單顯示每筆記錄的相對時間。詳情同時顯示相對時間及記錄的 UTC 時間戳記。啟用 ANSI 輸出時，清單以顏色區分狀態及嚴重程度。
 
 `prune` 以應用時鐘計算截止時間，預設保留 24 小時。`--hours=0.5` 將截止時間設在目前時間之前 30 分鐘。負數將截止時間移到未來。`--keep-exceptions` 保留例外紀錄。`clear` 刪除全部 Telescope 紀錄、標籤與監控列。保留策略由應用排程器執行。`telescope:publish` 發布設定，`--force` 覆寫該檔案。獨立程式碼可用 `EntriesRepository` 實作建立 `Telescope` 並明確呼叫 `store().await`；應用 Provider 可在首次解析 Telescope 前替換此契約。Provider 可為 `telescope:clear` 個別繫結 `ClearableRepository`，並為 `telescope:prune` 個別繫結 `PrunableRepository`。兩個命令預設使用已設定的 `EntriesRepository`。

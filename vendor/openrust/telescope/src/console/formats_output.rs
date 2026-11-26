@@ -3,7 +3,7 @@ mod entry_details;
 use crate::{EntryResult, EntryType};
 use jiff::{Timestamp, ToSpan, civil::DateTime, tz::TimeZone};
 use openrust::{
-    console::Output,
+    console::{Color, Output},
     support::{
         Str, php_float_cast, php_float_string, php_integer_cast, php_round_half_up,
         php_value_truthy,
@@ -139,6 +139,64 @@ fn summary(entry: &EntryResult, full: bool) -> String {
     };
     single_line(&limit(&value, 80, full))
 }
+
+fn color_cell(value: &str, color: &str, decorated: bool) -> String {
+    if decorated && !color.is_empty() && !value.is_empty() {
+        Color::new(color, "", &[])
+            .expect("有效的控制台颜色")
+            .apply(value)
+    } else {
+        value.to_owned()
+    }
+}
+
+fn method_color(method: &str) -> &'static str {
+    match method {
+        "GET" => "gray",
+        "POST" | "PATCH" | "PUT" => "blue",
+        "DELETE" => "red",
+        _ => "",
+    }
+}
+
+fn status_color(status: i64) -> &'static str {
+    match status {
+        ..=299 => "green",
+        300..=399 => "blue",
+        400..=499 => "yellow",
+        _ => "red",
+    }
+}
+
+fn job_color(status: &str) -> &'static str {
+    match status {
+        "processed" => "green",
+        "failed" => "red",
+        "pending" => "yellow",
+        _ => "",
+    }
+}
+
+fn level_color(level: &str) -> &'static str {
+    match level {
+        "emergency" | "alert" | "critical" | "error" => "red",
+        "warning" => "yellow",
+        "notice" | "info" => "blue",
+        "debug" => "gray",
+        _ => "",
+    }
+}
+
+fn cache_color(action: &str) -> &'static str {
+    match action {
+        "hit" => "green",
+        "missed" => "red",
+        "set" => "blue",
+        "forget" => "yellow",
+        _ => "",
+    }
+}
+
 pub(super) fn list(
     output: &mut Output,
     entries: &[EntryResult],
@@ -161,25 +219,32 @@ pub(super) fn list(
     output
         .stdout
         .push_str(&format!("UUID\t{}\tCreated\n", headers.join("\t")));
+    let decorated = output.is_decorated();
     for entry in entries {
         let c = &entry.content;
-        let t = |key| text(c, key);
+        let t = |key| single_line(&text(c, key));
+        let limited = |key, width| single_line(&limit(&text(c, key), width, false));
+        let decorate = |value: &str, color| color_cell(value, color, decorated);
         let fields = match kind {
-            Some(EntryType::Request | EntryType::ClientRequest) => vec![
-                t("method"),
-                limit(&t("uri"), 40, false),
-                if kind == Some(EntryType::ClientRequest) && c["response_status"].is_null() {
-                    "N/A".into()
-                } else {
-                    php_integer_cast(&c["response_status"]).to_string()
-                },
-                unit(c, "duration", "ms"),
-            ],
+            Some(EntryType::Request | EntryType::ClientRequest) => {
+                let method = t("method");
+                vec![
+                    decorate(&method, method_color(&method)),
+                    limited("uri", 40),
+                    if kind == Some(EntryType::ClientRequest) && c["response_status"].is_null() {
+                        "N/A".into()
+                    } else {
+                        let status = php_integer_cast(&c["response_status"]);
+                        decorate(&status.to_string(), status_color(status))
+                    },
+                    single_line(&unit(c, "duration", "ms")),
+                ]
+            }
             Some(EntryType::Query) => vec![
-                limit(&t("sql"), 60, false),
-                unit(c, "time", "ms"),
-                if c["slow"] == true {
-                    "Yes".into()
+                limited("sql", 60),
+                single_line(&unit(c, "time", "ms")),
+                if php_value_truthy(&c["slow"]) {
+                    decorate("Yes", "red")
                 } else {
                     "No".into()
                 },
@@ -187,42 +252,54 @@ pub(super) fn list(
             ],
             Some(EntryType::Exception) => vec![
                 basename(&t("class")).into(),
-                limit(&t("message"), 50, false),
+                limited("message", 50),
                 if c["occurrences"].is_null() {
                     "1".into()
                 } else {
                     t("occurrences")
                 },
             ],
-            Some(EntryType::Job) => vec![basename(&t("name")).into(), t("queue"), t("status")],
-            Some(EntryType::Cache) => vec![
-                cache_action(&t("type")).to_owned(),
-                limit(&t("key"), 50, false),
-            ],
-            Some(EntryType::Log) => vec![t("level"), limit(&t("message"), 60, false)],
+            Some(EntryType::Job) => {
+                let status = t("status");
+                vec![
+                    basename(&t("name")).into(),
+                    t("queue"),
+                    decorate(&status, job_color(&status)),
+                ]
+            }
+            Some(EntryType::Cache) => {
+                let action = t("type");
+                vec![
+                    decorate(cache_action(&action), cache_color(&action)),
+                    limited("key", 50),
+                ]
+            }
+            Some(EntryType::Log) => {
+                let level = t("level");
+                vec![
+                    decorate(&level, level_color(&level)),
+                    limited("message", 60),
+                ]
+            }
             Some(EntryType::Mail) => vec![
                 basename(&t("mailable")).into(),
-                limit(&t("subject"), 40, false),
-                limit(
+                limited("subject", 40),
+                single_line(&limit(
                     &c["to"]
                         .as_object()
                         .map(|v| v.keys().cloned().collect::<Vec<_>>().join(", "))
                         .unwrap_or_default(),
                     30,
                     false,
-                ),
+                )),
             ],
-            Some(EntryType::Command) => vec![limit(&t("command"), 50, false), t("exit_code")],
+            Some(EntryType::Command) => vec![limited("command", 50), t("exit_code")],
             _ => vec![entry.r#type.as_str().into(), summary(entry, false)],
         };
         output.stdout.push_str(&format!(
             "{}\t{}\t{}\n",
             &entry.id.to_string()[..8],
-            fields
-                .iter()
-                .map(|value| single_line(value))
-                .collect::<Vec<_>>()
-                .join("\t"),
+            fields.join("\t"),
             human_time(&entry.created_at, now).unwrap_or_else(|| single_line(&entry.created_at))
         ));
     }

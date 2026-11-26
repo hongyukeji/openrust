@@ -3663,3 +3663,87 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
             .any(|entry| entry.content["sql"] == "SELECT 1 AS probe")
     );
 }
+#[tokio::test]
+async fn console_list_uses_upstream_colors_only_in_decorated_output() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let batch = uuid::Uuid::now_v7();
+
+    for (kind, content, expected) in [
+        (
+            EntryType::Request,
+            json!({"method":"GET","uri":"/read","response_status":200}),
+            "\x1b[90mGET\x1b[39m\t/read\t\x1b[32m200\x1b[39m",
+        ),
+        (
+            EntryType::Request,
+            json!({"method":"POST","uri":"/create","response_status":302}),
+            "\x1b[34mPOST\x1b[39m\t/create\t\x1b[34m302\x1b[39m",
+        ),
+        (
+            EntryType::Request,
+            json!({"method":"DELETE","uri":"/destroy","response_status":404}),
+            "\x1b[31mDELETE\x1b[39m\t/destroy\t\x1b[33m404\x1b[39m",
+        ),
+        (
+            EntryType::ClientRequest,
+            json!({"method":"HEAD","uri":"/check","response_status":503}),
+            "HEAD\t/check\t\x1b[31m503\x1b[39m",
+        ),
+        (
+            EntryType::Query,
+            json!({"sql":"select 1","time":"5","slow":1,"connection":"test"}),
+            "5ms\t\x1b[31mYes\x1b[39m\ttest",
+        ),
+        (
+            EntryType::Job,
+            json!({"name":"App::Build","queue":"default","status":"pending"}),
+            "default\t\x1b[33mpending\x1b[39m",
+        ),
+        (
+            EntryType::Cache,
+            json!({"type":"missed","key":"<fg=blue>report</>\u{1b}[5m"}),
+            "\x1b[31mMISS\x1b[39m\t<fg=blue>report</> [5m",
+        ),
+        (
+            EntryType::Log,
+            json!({"level":"info","message":"info"}),
+            "\x1b[34minfo\x1b[39m\tinfo",
+        ),
+    ] {
+        let entry = IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(batch);
+        let id = entry.uuid.to_string();
+        let expected_content = serde_json::Value::Object(entry.content.clone());
+        repository.store(&[entry]).await.unwrap();
+
+        let ansi = app
+            .artisan(["telescope:list", kind.as_str(), "--ansi"])
+            .await;
+        ansi.assert_successful();
+        let row = ansi
+            .stdout
+            .lines()
+            .find(|line| line.starts_with(&id[..8]))
+            .unwrap();
+        assert!(row.contains(expected), "{row:?}");
+        assert!(!row.contains("\x1b[5m"), "{row:?}");
+
+        let unstyled = app
+            .artisan(["telescope:list", kind.as_str(), "--no-ansi"])
+            .await;
+        unstyled.assert_successful();
+        assert!(!unstyled.stdout.contains('\x1b'));
+        let json_result = app
+            .artisan(["telescope:list", kind.as_str(), "--json", "--ansi"])
+            .await;
+        json_result.assert_successful();
+        let entries: serde_json::Value = serde_json::from_str(&json_result.stdout).unwrap();
+        assert_eq!(entries[0]["content"], expected_content);
+    }
+}

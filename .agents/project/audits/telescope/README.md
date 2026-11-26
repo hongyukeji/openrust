@@ -103,6 +103,12 @@ Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会
 
 Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
 
+### list 命令的终端颜色
+
+固定 PHP 8.5.12 使用 Telescope 样式方法和 Symfony Console 8.0.6 核对 34 个普通与装饰输出的单元格。原生 `list` 通过框架现有 ANSI 开关显示 HTTP 方法、状态码、慢查询、任务状态、缓存动作和日志级别。慢标记采用固定上游的 PHP 真值规则。诊断内容中的标签以文字呈现，原始控制字符在表格中清理。 [固定输出样式方法](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/Concerns/FormatsOutput.php#L97-L176)
+
+真实 Artisan 在 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 核对 `--ansi` 的颜色及重置字节、`--no-ansi` 的纯文本与 `--json` 的原始内容。Pulse Provider 25 项、Telescope Provider 29 项、隔离快照全仓格式、Telescope 全目标严格 Clippy、三语站点和六组浏览器检查通过。独占 Telescope Redis 用例沿用环境条件。`show` 的局部颜色仍单独验收。证据为 `target/tmp/observability-parity/telescope-console-colors-{upstream,macos-baseline,macos-retry,docs}.log`。
+
 ## list 与 show 的相对时间
 
 固定 PHP 8.5.12 调用 Telescope 的 `FormatsOutput::humanTime`，以 Carbon 实际输出核对 UTC 过去及未来、亚秒、星期、月底和闰日。Rust 以应用时钟显示最大的完整单位，在 `show` 中同时显示原始 UTC 时间戳。自定义仓储提供无法解析的时间文本时保留该文本。当前对照覆盖原生 UTC 存储和默认英文相对时间，Carbon 自定义语言和夏令时本地时间另计。 [固定 Telescope 时间格式化](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/Concerns/FormatsOutput.php#L54-L63) [PHP 日历区间](https://github.com/php/php-src/blob/php-8.5.12/ext/date/lib/tm2unixtime.c)
