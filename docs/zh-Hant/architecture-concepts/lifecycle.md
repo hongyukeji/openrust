@@ -10,7 +10,7 @@ Tokio 入口將 `bootstrap::create_application` 交給 `openrust::foundation::ru
 
 HTTP Kernel 建立時套用中介軟體設定，引導後解析路由中介軟體堆疊，完成後才繫結監聽連接埠。Console Kernel 引導同一個應用程式，接著註冊命令。
 
-HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[路由器](../the-basics/routing.md)分派請求。`GET /` 由 `IndexController::index` 處理。可透過 `APP_HOME_URL` 設定 `app.home_url`，目標支援有效的路徑或絕對 HTTP(S) URL，原請求的查詢字串會附加在目標已有查詢參數之後、片段之前。`APP_HOME_URL` 預設為空字串。未設定、留空、目標無效或會導回目前頁面時，`IndexController::welcome` 會在 `/` 直接呈現 `resources/views/welcome.blade.html`。Blade 檢視透過 `config()` 讀取應用程式名稱和版本，透過 `app()->currentLocale()` 讀取目前應用程式語言。修改範本後，下次請求即可看到結果。
+HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[路由器](../the-basics/routing.md)分派請求。名為 `home` 的路由透過 `HomeController::index` 處理 `GET /`。可透過 `APP_HOME_URL` 設定 `app.home_url`，目標支援有效的路徑或絕對 HTTP(S) URL，原請求的查詢字串會附加在目標已有查詢參數之後、片段之前。`APP_HOME_URL` 預設為空字串。未設定、留空、目標無效或會導回目前頁面時，`HomeController::welcome` 會在 `/` 直接呈現 `resources/views/welcome.blade.html`。Blade 檢視透過 `config()` 讀取應用程式名稱和版本，透過 `app()->currentLocale()` 讀取目前應用程式語言。修改範本後，下次請求即可看到結果。
 
 預設應用程式透過 `bootstrap/app.rs` 的 `with_routing` 宣告 Web 路由、主控台路由及健康路徑。Web 路由使用[預設 Web 中介軟體群組](../the-basics/middleware.md)，主控台路由在 Console Kernel 引導後登記。API、廣播和 gRPC 使用各自的選用註冊入口。應用程式引導完成後，`/up` 處理器傳回 `200 OK`。
 

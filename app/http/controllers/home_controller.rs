@@ -6,11 +6,11 @@ use openrust::{
     view::view,
 };
 
-pub(crate) struct IndexController;
+pub(crate) struct HomeController;
 
-impl Controller for IndexController {}
+impl Controller for HomeController {}
 
-impl IndexController {
+impl HomeController {
     pub(crate) fn index(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
             let mut target = Config::string_or("app.home_url", "");

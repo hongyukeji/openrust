@@ -10,7 +10,7 @@ Tokio 入口将 `bootstrap::create_application` 交给 `openrust::foundation::ru
 
 HTTP Kernel 创建时应用中间件配置，引导后解析路由中间件栈，完成后才绑定监听端口。Console Kernel 引导同一个应用，随后注册命令。
 
-HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路由器](../the-basics/routing.md)分发请求。`GET /` 由 `IndexController::index` 处理。可通过 `APP_HOME_URL` 设置 `app.home_url`，目标支持有效的路径或绝对 HTTP(S) URL，原请求的查询字符串追加在目标已有查询参数之后、片段之前。`APP_HOME_URL` 默认为空字符串。未设置、留空、目标无效或会跳回当前页面时，`IndexController::welcome` 在 `/` 直接渲染 `resources/views/welcome.blade.html`。Blade 视图通过 `config()` 读取应用名称和版本，通过 `app()->currentLocale()` 读取当前应用语言。修改模板后，下次请求即可看到结果。
+HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路由器](../the-basics/routing.md)分发请求。名为 `home` 的路由通过 `HomeController::index` 处理 `GET /`。可通过 `APP_HOME_URL` 设置 `app.home_url`，目标支持有效的路径或绝对 HTTP(S) URL，原请求的查询字符串追加在目标已有查询参数之后、片段之前。`APP_HOME_URL` 默认为空字符串。未设置、留空、目标无效或会跳回当前页面时，`HomeController::welcome` 在 `/` 直接渲染 `resources/views/welcome.blade.html`。Blade 视图通过 `config()` 读取应用名称和版本，通过 `app()->currentLocale()` 读取当前应用语言。修改模板后，下次请求即可看到结果。
 
 默认应用通过 `bootstrap/app.rs` 中的 `with_routing` 声明 Web 路由、控制台路由及健康路径。Web 路由使用[默认 Web 中间件组](../the-basics/middleware.md)，控制台路由在 Console Kernel 引导后登记。API、广播和 gRPC 使用各自的可选注册入口。应用引导完成后，`/up` 处理器返回 `200 OK`。
 
