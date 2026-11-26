@@ -9,7 +9,7 @@ use crate::{
     Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
     ConversationParticipant, ConversationStore, Decisions, HasStructuredOutput, Message,
     PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
-    StructuredOutput, ToolResult,
+    StructuredOutput, TextProvider, ToolResult,
     approval_store::{ApprovalScope, SavedApproval},
     approval_turn::ApprovalSession,
     conversation_store::TurnPersistence,
@@ -97,6 +97,14 @@ struct ConversationTurn {
     faked: bool,
 }
 
+struct ApprovalResume {
+    turn: ConversationTurn,
+    checkpoint: ApprovalCheckpoint,
+    provider: Arc<dyn TextProvider>,
+    session: ApprovalSession,
+    revision: i64,
+}
+
 impl ConversationTurn {
     async fn persist(&self, prompt: &str, response: &AgentResponse) -> AiResult<()> {
         self.persist_with_approval(prompt, response, None).await
@@ -179,6 +187,24 @@ impl ConversationTurn {
             .is_err()
         {
             let _ = Log::warning("AI 会话的已完成工具步骤保存失败", &Default::default());
+        }
+    }
+
+    async fn save_failed_approval(
+        &self,
+        prompt: &str,
+        partial: &AgentResponse,
+        session: &ApprovalSession,
+        error: &AiError,
+    ) {
+        if self
+            .persist_turn(prompt, partial, Some(session), Some(error))
+            .await
+            .is_ok()
+        {
+            session.publish_resolution().await;
+        } else {
+            let _ = Log::warning("AI 审批恢复后的已完成工具步骤保存失败", &Default::default());
         }
     }
 
@@ -308,6 +334,112 @@ impl<A: Agent> PendingConversation<'_, A> {
         id: &str,
         decisions: Decisions,
     ) -> AiResult<ConversationResponse<ApprovalResponse>> {
+        let ApprovalResume {
+            turn,
+            checkpoint,
+            provider,
+            mut session,
+            revision,
+        } = self.prepare_approval_resume(id).await?;
+        let prompt = checkpoint.prompt.text.clone();
+        let invocation_id = checkpoint.invocation_id().to_owned();
+        let outcome = crate::request_context::in_agent_invocation(
+            &invocation_id,
+            0,
+            Some(type_name::<A>()),
+            checkpoint.resume(
+                provider.as_ref(),
+                crate::load_skill::tools_for(self.agent)?,
+                self.agent.middleware(),
+                &decisions,
+                &mut session,
+                (id, revision),
+            ),
+        )
+        .await;
+        let outcome = match outcome {
+            Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
+                turn.save_failed_approval(&prompt, &partial, &session, &error)
+                    .await;
+                return Err(error);
+            }
+            outcome => outcome.map_err(ProviderAttemptError::into_error),
+        };
+        if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
+            session.settle().await?;
+        }
+        let response = resolve_approval_turn(turn, &prompt, outcome, Some(&session)).await?;
+        session.publish_resolution().await;
+        Ok(response)
+    }
+
+    /// 从已保存的审批继续生成，通过流发送工具结果及模型增量。
+    pub async fn resume_approval_stream(
+        self,
+        id: &str,
+        decisions: Decisions,
+    ) -> AiResult<ConversationResponse<StreamableAgentResponse>> {
+        let ApprovalResume {
+            turn,
+            checkpoint,
+            provider,
+            mut session,
+            revision,
+        } = self.prepare_approval_resume(id).await?;
+        let agent = type_name::<A>();
+        let invocation = checkpoint.invocation_id().to_owned();
+        let mut resolved = crate::request_context::in_agent_invocation(
+            &invocation,
+            0,
+            Some(agent),
+            checkpoint.resolve(
+                crate::load_skill::tools_for(self.agent)?,
+                &decisions,
+                &mut session,
+                (id, revision),
+            ),
+        )
+        .await?;
+        let request = resolved.prompt.as_prompt(0);
+        let prefix = resolved
+            .run
+            .clone()
+            .completed_response(provider.as_ref(), request.text.model)?;
+        let structured = request.structured_output.is_some();
+        let prompt = resolved.prompt.text.clone();
+        if let Err(error) = std::mem::replace(&mut resolved.stored, Ok(())) {
+            turn.save_failed_approval(&prompt, &prefix, &session, &error)
+                .await;
+            return Err(error);
+        }
+        let session = Arc::new(session);
+        let response = crate::tool_stream::resume(
+            provider,
+            resolved,
+            self.agent.middleware(),
+            session.clone(),
+            prefix,
+            agent,
+        );
+        let conversation_id = turn.id.clone();
+        let response = conversation_stream::remember(
+            response,
+            conversation_id.clone(),
+            structured,
+            move |response, error| async move {
+                turn.persist_turn(&prompt, &response, Some(&session), error.as_ref())
+                    .await?;
+                session.publish_resolution().await;
+                Ok(())
+            },
+        );
+        Ok(ConversationResponse {
+            conversation_id,
+            response,
+        })
+    }
+
+    async fn prepare_approval_resume(&self, id: &str) -> AiResult<ApprovalResume> {
         let manager = Ai::manager()?;
         let (store, _) = manager.conversation_store()?;
         let scope = self.approval_scope()?;
@@ -328,8 +460,6 @@ impl<A: Agent> PendingConversation<'_, A> {
             load_approval(store.as_ref(), &scope, id).await?;
             return Err(error);
         }
-        let prompt = checkpoint.prompt.text.clone();
-        let archive = checkpoint.attachments.clone();
         let turn = ConversationTurn {
             id: scope.conversation_id.to_owned(),
             existing: checkpoint.existing,
@@ -340,44 +470,14 @@ impl<A: Agent> PendingConversation<'_, A> {
             store,
         };
         let mut session = turn.approval_session().ok_or(AiError::ApprovalNotFound)?;
-        session.set_archive(archive);
-        let invocation_id = checkpoint.invocation_id().to_owned();
-        let outcome = crate::request_context::in_agent_invocation(
-            &invocation_id,
-            0,
-            Some(type_name::<A>()),
-            checkpoint.resume(
-                provider.as_ref(),
-                crate::load_skill::tools_for(self.agent)?,
-                self.agent.middleware(),
-                &decisions,
-                &mut session,
-                (id, revision),
-            ),
-        )
-        .await;
-        let outcome = match outcome {
-            Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
-                if turn
-                    .persist_turn(&prompt, &partial, Some(&session), Some(&error))
-                    .await
-                    .is_ok()
-                {
-                    session.publish_resolution().await;
-                } else {
-                    let _ =
-                        Log::warning("AI 审批恢复后的已完成工具步骤保存失败", &Default::default());
-                }
-                return Err(error);
-            }
-            outcome => outcome.map_err(ProviderAttemptError::into_error),
-        };
-        if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
-            session.settle().await?;
-        }
-        let response = resolve_approval_turn(turn, &prompt, outcome, Some(&session)).await?;
-        session.publish_resolution().await;
-        Ok(response)
+        session.set_archive(checkpoint.attachments.clone());
+        Ok(ApprovalResume {
+            turn,
+            checkpoint,
+            provider,
+            session,
+            revision,
+        })
     }
 
     fn approval_scope(&self) -> AiResult<ApprovalScope<'_>> {

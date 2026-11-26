@@ -1,12 +1,13 @@
 use std::future::Future;
 
 use futures_util::StreamExt;
-use openrust::support::facades::Log;
+use openrust::support::facades::{App, Lang, Log};
 
 use crate::{
     AgentEventStream, AgentResponse, AiError, AiResult, StreamEventData, StreamableAgentResponse,
     StructuredAgentResponse,
     streaming::{StreamMetadata, StreamResponse},
+    tool_stream::in_stream_scope,
 };
 
 /// 在确认上游完整结束并写入会话之后，才交付最后一个结束事件。
@@ -21,8 +22,19 @@ where
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
     let metadata = source.step_metadata();
+    let application = App::get_instance().ok();
+    let locale = Lang::get_locale().ok();
     source.within_conversation(conversation_id, |events| {
-        persisted_events(events, metadata, structured, persist)
+        persisted_events(events, metadata, structured, move |response, error| {
+            Box::pin(async move {
+                in_stream_scope(
+                    application.as_deref(),
+                    locale.as_deref(),
+                    Box::pin(persist(response, error)),
+                )
+                .await?
+            })
+        })
     })
 }
 
@@ -38,7 +50,7 @@ where
 {
     let events = async_stream::try_stream! {
         let mut final_event = None;
-        let mut response = StreamResponse::default();
+        let mut response = StreamResponse::with_metadata(metadata.as_ref());
         let mut started = false;
         let failure = loop {
             let event = match source.next().await {

@@ -59,7 +59,7 @@ impl StreamedAgentResponse {
             ),
             _ => return None,
         };
-        let mut collector = StreamResponse::default();
+        let mut collector = StreamResponse::with_metadata(metadata);
         for event in &events {
             collector.record(&event.data);
         }
@@ -76,7 +76,7 @@ impl StreamedAgentResponse {
 
 /// 供完成回调读取上游终帧的元数据，流的对外事件仍按原协议交付。
 #[derive(Clone, Default)]
-pub(crate) struct StreamMetadata(Arc<Mutex<ObservedSteps>>);
+pub(crate) struct StreamMetadata(Arc<Mutex<ObservedSteps>>, Option<Arc<AgentResponse>>);
 
 #[derive(Default)]
 struct ObservedSteps {
@@ -92,6 +92,14 @@ struct StepMetadata {
 }
 
 impl StreamMetadata {
+    pub(crate) fn with_resume(prefix: AgentResponse) -> Self {
+        Self(Arc::default(), Some(Arc::new(prefix)))
+    }
+
+    pub(crate) fn resumed(&self) -> Option<&AgentResponse> {
+        self.1.as_deref()
+    }
+
     pub(crate) fn record(
         &self,
         model: Option<String>,
@@ -150,6 +158,7 @@ pub(crate) struct StreamResponse {
     texts: Vec<String>,
     reasoning: ReasoningBlocks,
     step_has_tool_result: bool,
+    resumed_results: usize,
 }
 
 impl Default for StreamResponse {
@@ -161,12 +170,28 @@ impl Default for StreamResponse {
             texts: Vec::new(),
             reasoning: ReasoningBlocks::default(),
             step_has_tool_result: false,
+            resumed_results: 0,
         }
     }
 }
 
 impl StreamResponse {
+    pub(crate) fn with_metadata(metadata: Option<&StreamMetadata>) -> Self {
+        Self {
+            resumed_results: metadata
+                .and_then(StreamMetadata::resumed)
+                .and_then(|prefix| prefix.steps.last())
+                .map_or(0, |step| step.tool_results.len()),
+            ..Self::default()
+        }
+    }
+
     pub(crate) fn record(&mut self, data: &StreamEventData) {
+        if self.resumed_results > 0 && matches!(data, StreamEventData::ToolResult { .. }) {
+            // 对外先发送已审批的结果，汇总时它们仍属于恢复前的原步骤。
+            self.resumed_results -= 1;
+            return;
+        }
         match data {
             StreamEventData::StreamStart { provider, model } => {
                 self.response.provider.clone_from(provider);
@@ -203,11 +228,12 @@ impl StreamResponse {
     }
 
     pub(crate) fn failed_turn(self, metadata: Option<&StreamMetadata>) -> Option<AgentResponse> {
-        if !self
-            .response
-            .steps
-            .iter()
-            .any(|step| !step.tool_results.is_empty())
+        if metadata.and_then(StreamMetadata::resumed).is_none()
+            && !self
+                .response
+                .steps
+                .iter()
+                .any(|step| !step.tool_results.is_empty())
         {
             return None;
         }
@@ -224,6 +250,18 @@ impl StreamResponse {
         if let Some(metadata) = metadata {
             metadata.discard_stop_placeholder(&mut response.steps);
             metadata.apply(&mut response.steps);
+            if let Some(prefix) = metadata.resumed() {
+                if response.steps.is_empty() {
+                    return prefix.clone();
+                }
+                response.steps.splice(..0, prefix.steps.iter().cloned());
+                response
+                    .tool_calls
+                    .splice(..0, prefix.tool_calls.iter().cloned());
+                response
+                    .tool_results
+                    .splice(..0, prefix.tool_results.iter().cloned());
+            }
             if let Some((first, remaining)) = response.steps.split_first() {
                 response
                     .model

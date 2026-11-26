@@ -719,6 +719,8 @@ SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批�
 
 需要流式输出时，通过 `stream_with_approvals` 创建响应，并使用现有的 SSE 适配器。SDK 先保存快照，再发出审批事件。默认的 `tool_approval_request` 事件包含 `conversation_id` 与 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，并为每个调用发送 `tool-approval-request`。AG-UI 在各中断项的元数据中交付 ID。用 `resume_approval` 提交决定，恢复会话并接收普通响应。
 
+如需流式续跑，调用 `resume_approval_stream(&approval_id, decisions)` 并返回现有 SSE 适配器生成的响应。工具结果落库后会先发出，随后交付模型增量。下一步再次需要审批时，继续使用同一个审批 ID。最终结束帧在会话写入成功后交付，历史保留暂停前与续跑后的步骤及累计用量。
+
 应用展示审批错误时，文案使用当前语言。可在 `lang/vendor/ai/<locale>/errors.json` 的 `approval` 下覆写各条消息。选择 HTTP 状态或决定是否重试时，可匹配 `AiError` 的具体变体。
 
 监听 `openrust_ai::events::ToolApprovalRequested::NAME` 获取已保存的审批请求，监听 `ToolApprovalResolved::NAME` 获取已保存的处理结果。类型化事件携带会话、参与者、Agent 类型、调用和审批标识。处理完成事件提供该批审批的工具结果。

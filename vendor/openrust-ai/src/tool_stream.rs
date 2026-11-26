@@ -7,8 +7,8 @@ use openrust::{
 };
 
 use crate::{
-    AgentMiddleware, AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
-    StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep, Usage,
+    AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, StepEvent, StepEventStream,
+    StreamEventData, StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep, Usage,
     approval_turn::ApprovalSession,
     events::StepObservation,
     messages::OwnedPrompt,
@@ -24,7 +24,7 @@ pub(crate) struct PreparedToolStream {
     registered: tools::ToolHandlers,
     run: tools::ToolRun,
     max_steps: usize,
-    opened: PreparedStreamStep,
+    opened: Option<PreparedStreamStep>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     agent: Option<&'static str>,
 }
@@ -56,7 +56,7 @@ pub(crate) async fn prepare(
         registered,
         run,
         max_steps,
-        opened,
+        opened: Some(opened),
         middleware,
         agent: crate::request_context::agent_invocation().map(|(agent, _)| agent),
     })
@@ -65,6 +65,40 @@ pub(crate) async fn prepare(
 pub(crate) fn response(
     prepared: PreparedToolStream,
     approvals: Option<ApprovalSession>,
+) -> StreamableAgentResponse {
+    events(prepared, approvals.map(Arc::new), StreamMetadata::default())
+}
+
+pub(crate) fn resume(
+    provider: Arc<dyn TextProvider>,
+    resolved: tools::ResolvedApproval,
+    middleware: Vec<Arc<dyn AgentMiddleware>>,
+    session: Arc<ApprovalSession>,
+    prefix: AgentResponse,
+    agent: &'static str,
+) -> StreamableAgentResponse {
+    let max_steps = resolved.run.max_steps();
+    events(
+        PreparedToolStream {
+            provider,
+            prompt: resolved.prompt,
+            definitions: resolved.definitions,
+            registered: resolved.tools,
+            run: resolved.run,
+            max_steps,
+            opened: None,
+            middleware,
+            agent: Some(agent),
+        },
+        Some(session),
+        StreamMetadata::with_resume(prefix),
+    )
+}
+
+fn events(
+    prepared: PreparedToolStream,
+    approvals: Option<Arc<ApprovalSession>>,
+    metadata: StreamMetadata,
 ) -> StreamableAgentResponse {
     let application = App::get_instance().ok();
     let locale = Lang::get_locale().ok();
@@ -83,12 +117,35 @@ pub(crate) fn response(
     let replay_scope = provider
         .step_text_gateway()
         .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
-    let metadata = StreamMetadata::default();
     let observed = metadata.clone();
     let stream = async_stream::try_stream! {
-        let mut seen = HashSet::new();
-        for step in 1..=max_steps {
-            let PreparedStreamStep { result, model, allowed, choice } = opened;
+        let mut seen: HashSet<_> = run.history.iter().flat_map(|step| step.calls.iter().map(|call| call.id.clone())).collect();
+        let first_step = run.history.len() + 1;
+        if let Some(prefix) = observed.resumed() {
+            yield event(&invocation_id, StreamEventData::StreamStart {
+                provider: provider.name().into(), model: prefix.model.clone(),
+            });
+            for result in prefix.steps.last().into_iter().flat_map(|step| &step.tool_results) {
+                yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });
+            }
+        }
+        for step in first_step..=max_steps {
+            let PreparedStreamStep { result, model, allowed, choice } = match opened.take() {
+                Some(opened) => opened,
+                None => {
+                    let request = prompt.as_prompt(0);
+                    let open = crate::request_context::in_agent_invocation(
+                        &invocation_id, step - 1, agent,
+                        generate_stream_step(
+                            provider.as_ref(),
+                            run.pending_step(provider.name(), &request, &definitions),
+                            &middleware,
+                        ),
+                    );
+                    in_stream_scope(application.as_deref(), locale.as_deref(), open).await??
+                }
+            };
+            let resumed_first = step == first_step && observed.resumed().is_some();
             if result.stopped() {
                 observed.mark_stopped();
                 if step == 1 {
@@ -101,10 +158,12 @@ pub(crate) fn response(
                 });
                 return;
             }
-            yield event(&invocation_id, StreamEventData::StreamStart {
-                provider: provider.name().into(),
-                model: model.clone(),
-            });
+            if !resumed_first {
+                yield event(&invocation_id, StreamEventData::StreamStart {
+                    provider: provider.name().into(),
+                    model: model.clone(),
+                });
+            }
             let mut upstream = result.into_stream();
             let mut messages = TextMessages::default();
             let mut reasoning = TextMessages::default();
@@ -166,12 +225,12 @@ pub(crate) fn response(
             let plan = || tools::plan_execution(
                 &completed.tool_calls, &registered, Some(&allowed), step == max_steps, None,
             );
-            let execution = in_tool_scope(application.as_deref(), locale.as_deref(), async { plan() }).await??;
+            let execution = in_stream_scope(application.as_deref(), locale.as_deref(), async { plan() }).await??;
             if execution.requires_approval() {
                 let plan = execution.for_pause();
                 let calls = completed.tool_calls.clone();
                 let pause = run.pause(
-                    approvals.as_ref(), provider.as_ref(), prompt.as_prompt(0),
+                    approvals.as_deref(), provider.as_ref(), prompt.as_prompt(0),
                     crate::middleware::CompletedStep {
                         response: completed,
                         allowed,
@@ -179,13 +238,14 @@ pub(crate) fn response(
                     },
                     plan,
                 );
-                let pending = in_tool_scope(application.as_deref(), locale.as_deref(), pause).await??;
-                let conversation_id = approvals.as_ref().expect("已保存审批会话").conversation_id.clone();
+                let pending = in_stream_scope(application.as_deref(), locale.as_deref(), pause).await??;
+                let session = approvals.as_ref().expect("已保存审批会话");
+                in_stream_scope(application.as_deref(), locale.as_deref(), session.publish_resolution()).await?;
                 for call in calls {
                     yield event(&invocation_id, StreamEventData::ToolCall { call });
                 }
                 yield event(&invocation_id, StreamEventData::ToolApprovalRequest {
-                    conversation_id,
+                    conversation_id: session.conversation_id.clone(),
                     approval_id: pending.id,
                     approvals: pending.approvals,
                 });
@@ -197,7 +257,7 @@ pub(crate) fn response(
             let execution = crate::request_context::in_agent_invocation(
                 &invocation_id, step - 1, agent, execution.run(),
             );
-            let results = in_tool_scope(application.as_deref(), locale.as_deref(), execution).await?;
+            let results = in_stream_scope(application.as_deref(), locale.as_deref(), execution).await?;
             for result in &results {
                 yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });
             }
@@ -206,16 +266,6 @@ pub(crate) fn response(
                 return;
             }
             run.add_step(completed, results, Some(model));
-            let request = prompt.as_prompt(0);
-            let open = crate::request_context::in_agent_invocation(
-                &invocation_id, step, agent,
-                generate_stream_step(
-                    provider.as_ref(),
-                    run.pending_step(provider.name(), &request, &definitions),
-                    &middleware,
-                ),
-            );
-            opened = in_tool_scope(application.as_deref(), locale.as_deref(), open).await??;
         }
     };
     StreamableAgentResponse::from_events(Box::pin(stream)).with_step_metadata(metadata)
@@ -256,12 +306,12 @@ pub(crate) async fn stream_step(
                         let complete = observation.complete(|step| {
                             response.public_step(&step.prompt.provider, step.prompt.as_prompt().text.model)
                         });
-                        in_tool_scope(app.as_deref(), locale.as_deref(), complete).await?;
+                        in_stream_scope(app.as_deref(), locale.as_deref(), complete).await?;
                     }
                 }
                 Err(error) => {
                     if let Some(observation) = observation.take() {
-                        in_tool_scope(app.as_deref(), locale.as_deref(), observation.fail(error)).await?;
+                        in_stream_scope(app.as_deref(), locale.as_deref(), observation.fail(error)).await?;
                     }
                 }
                 _ => {}
@@ -269,12 +319,12 @@ pub(crate) async fn stream_step(
             yield event?;
         }
         if let Some(observation) = observation {
-            in_tool_scope(app.as_deref(), locale.as_deref(), observation.fail(&AiError::InvalidResponse)).await?;
+            in_stream_scope(app.as_deref(), locale.as_deref(), observation.fail(&AiError::InvalidResponse)).await?;
         }
     }))
 }
 
-async fn in_tool_scope<T>(
+pub(crate) async fn in_stream_scope<T>(
     application: Option<&Application>,
     locale: Option<&str>,
     operation: impl Future<Output = T>,

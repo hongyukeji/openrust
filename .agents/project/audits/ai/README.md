@@ -601,11 +601,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测独立 Artisan 创建审批、HT
 
 ## AI-03 流式工具审批事件
 
-具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照，再交付工具声明及 `tool_approval_request`。流在审批处结束，会话历史等恢复完成后再持久化。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 提交决定并取得普通响应。流式继续输出、框架级审批事件以及审批输入适配仍待验收。
+具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照，再交付工具声明及 `tool_approval_request`。流在审批处结束，会话历史等恢复完成后再持久化。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。
 
 SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查审批项已保存。真实 HTTP 分别通过默认 SSE、Vercel 与 AG-UI 读取审批，在另一进程恢复一次，再验证旧审批无法重用。OpenAI Responses 上游使用本地 TCP 服务，相关包测试、严格 Clippy 和三语文档通过。
 
 - [固定 Laravel ToolApprovalRequest](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ToolApprovalRequest.php) · [Vercel 数据协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php) · [AG-UI 协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php)
+
+`PendingConversation::resume_approval_stream` 对应固定 Laravel `stream(Decisions)`。复用普通恢复的归属与连接检查、决策校验、领取、执行和结果提交。流先交付该步骤的结果，再打开原生模型流。继续用原调用 ID、工具调用去重和步骤上限，再次暂停继续用原审批 ID。前置工具结果在汇总中归回对应的已完成步骤，最终事务保存完整会话与累计用量后再交付终帧。HTTP 响应体消费阶段恢复应用与语言作用域，以便终帧前保存私有附件并分派已完成审批事件。上游失败时持久化已确认结果和错误。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 Artisan、真实 HTTP 和本地 Responses SSE 验证默认／Vercel／AG-UI 三种格式。模拟上游分别等待调用方收到工具结果和首段文本，核对实时输出。独立进程在终帧可见时读取已写历史，核对 99／29 Token 和实际审批参数。再次暂停后继续累计 167／38 Token，一轮只有一对历史消息。上游 503 保留已执行步骤与 31／20 Token。另复验 SQLite 普通审批恢复、进程中断、旧附件与并发领取。SDK 16 项、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel Promptable::stream](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php#L138) · [固定 Laravel TextGenerationLoop 的流式审批](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php#L257)
 
 ## AI-02 文本用量明细
 

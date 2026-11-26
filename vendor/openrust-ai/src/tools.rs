@@ -261,6 +261,14 @@ pub(crate) struct ApprovalCheckpoint {
     invocation_ids: Vec<Option<String>>,
 }
 
+pub(crate) struct ResolvedApproval {
+    pub(crate) prompt: OwnedPrompt,
+    pub(crate) run: ToolRun,
+    pub(crate) definitions: Vec<ToolDefinition>,
+    pub(crate) tools: ToolHandlers,
+    pub(crate) stored: AiResult<()>,
+}
+
 impl ApprovalCheckpoint {
     pub(crate) fn invocation_id(&self) -> &str {
         &self.run.invocation_id
@@ -277,15 +285,13 @@ impl ApprovalCheckpoint {
         Ok(())
     }
 
-    pub(crate) async fn resume(
+    pub(crate) async fn resolve(
         self,
-        provider: &dyn TextProvider,
         registered: Vec<Arc<dyn Tool>>,
-        middleware: Vec<Arc<dyn AgentMiddleware>>,
         decisions: &Decisions,
         session: &mut ApprovalSession,
         pending_record: (&str, i64),
-    ) -> Result<BufferedOutcome, ProviderAttemptError> {
+    ) -> AiResult<ResolvedApproval> {
         let prompt = self.prompt.as_prompt(0);
         crate::attachments::validate_prompt_attachments(prompt.attachments, prompt.messages)?;
         let (definitions, tools) = prepare(registered)?;
@@ -297,7 +303,7 @@ impl ApprovalCheckpoint {
             Some(&self.invocation_ids),
         )?;
         if plan.pending != self.pending {
-            return Err(AiError::InvalidApprovalDecisions.into());
+            return Err(AiError::InvalidApprovalDecisions);
         }
         plan.apply_decisions(decisions)?;
         let mut edits = plan.edited_arguments();
@@ -320,6 +326,34 @@ impl ApprovalCheckpoint {
             }
         }
         run.add_step(response, results, requested_model);
+        Ok(ResolvedApproval {
+            prompt: self.prompt,
+            run,
+            definitions,
+            tools,
+            stored,
+        })
+    }
+
+    pub(crate) async fn resume(
+        self,
+        provider: &dyn TextProvider,
+        registered: Vec<Arc<dyn Tool>>,
+        middleware: Vec<Arc<dyn AgentMiddleware>>,
+        decisions: &Decisions,
+        session: &mut ApprovalSession,
+        pending_record: (&str, i64),
+    ) -> Result<BufferedOutcome, ProviderAttemptError> {
+        let ResolvedApproval {
+            prompt,
+            mut run,
+            definitions,
+            tools,
+            stored,
+        } = self
+            .resolve(registered, decisions, session, pending_record)
+            .await?;
+        let prompt = prompt.as_prompt(0);
         let model = prompt.text.model;
         let outcome = match stored {
             Ok(()) => {
@@ -394,6 +428,10 @@ impl ToolRun {
             usage: None,
             max_steps,
         }
+    }
+
+    pub(crate) fn max_steps(&self) -> usize {
+        self.max_steps
     }
 
     pub(crate) fn pending_step<'a>(
@@ -591,7 +629,7 @@ impl ToolRun {
         }
     }
 
-    fn completed_response(
+    pub(crate) fn completed_response(
         &mut self,
         provider: &dyn TextProvider,
         fallback_model: &str,

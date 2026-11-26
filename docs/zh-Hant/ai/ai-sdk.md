@@ -719,6 +719,8 @@ SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批�
 
 需要串流輸出時，透過 `stream_with_approvals` 建立回應，並使用既有的 SSE 配接器。SDK 先儲存快照，再發出審批事件。預設的 `tool_approval_request` 事件包含 `conversation_id` 與 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，並為每個呼叫傳送 `tool-approval-request`。AG-UI 在各中斷項目的中繼資料中交付 ID。用 `resume_approval` 提交決定，恢復對話並接收一般回應。
 
+如需串流續跑，呼叫 `resume_approval_stream(&approval_id, decisions)` 並回傳現有 SSE 配接器產生的回應。工具結果儲存後會先送出，接著交付模型增量。下一步再次需要審批時，繼續使用同一個審批 ID。最終結束訊框會在對話寫入成功後送出，歷史保留暫停前與續跑後的步驟及累計用量。
+
 應用程式顯示審批錯誤時，文字使用目前的語言。可在 `lang/vendor/ai/<locale>/errors.json` 的 `approval` 下覆寫個別訊息。選擇 HTTP 狀態或決定是否重試時，可比對 `AiError` 的個別變體。
 
 監聽 `openrust_ai::events::ToolApprovalRequested::NAME` 取得已儲存的審批請求，監聽 `ToolApprovalResolved::NAME` 取得已儲存的處理結果。型別化事件攜帶對話、參與者、Agent 型別、呼叫和審批識別碼。處理完成事件提供該批審批的工具結果。

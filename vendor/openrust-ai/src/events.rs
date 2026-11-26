@@ -271,6 +271,7 @@ impl Event for ToolApprovalRequested {
     }
 }
 
+#[derive(Clone)]
 pub struct ToolApprovalResolved {
     pub invocation_id: String,
     pub conversation_id: String,

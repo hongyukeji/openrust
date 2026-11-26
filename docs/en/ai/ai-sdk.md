@@ -719,6 +719,8 @@ The SDK verifies participant, agent and provider connection before resuming. Onl
 
 For streamed text, start with `stream_with_approvals` and pass the result through your usual SSE response adapter. The SDK saves the checkpoint before sending the approval event. The default `tool_approval_request` event carries `conversation_id` and `approval_id`. Vercel sends the batch IDs in `data-tool-approval` and one `tool-approval-request` per call. AG-UI sends the IDs in each interrupt's metadata. Submit the decisions with `resume_approval` to continue the conversation and receive the buffered result.
 
+To continue with streaming, call `resume_approval_stream(&approval_id, decisions)` and return the result through your SSE adapter. The stream sends the saved tool results first, then delivers model deltas. If another step requires approval, it uses the same approval ID. The final frame follows successful conversation persistence, which retains steps and usage from before and after the pause.
+
 When your application renders an approval error, its display message follows the current locale. Override individual messages in `lang/vendor/ai/<locale>/errors.json` under `approval`. Match the `AiError` variant when choosing an HTTP status or handling a retry.
 
 Listen to `openrust_ai::events::ToolApprovalRequested::NAME` for a stored approval request and `ToolApprovalResolved::NAME` for saved resolution results. The typed events carry the conversation, participant, agent type, invocation and approval identifiers. The resolved event carries the tool results for that approval batch.

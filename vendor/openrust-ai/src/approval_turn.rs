@@ -175,9 +175,9 @@ impl ApprovalSession {
         });
     }
 
-    pub(crate) async fn publish_resolution(self) {
-        if let Some(event) = self.resolved {
-            dispatch_tool_approval(event).await;
+    pub(crate) async fn publish_resolution(&self) {
+        if let Some(event) = &self.resolved {
+            dispatch_tool_approval(event.clone()).await;
         }
     }
 
