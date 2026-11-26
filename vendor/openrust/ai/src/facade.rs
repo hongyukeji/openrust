@@ -62,6 +62,16 @@ impl Ai {
         Ok(Self::manager()?.reranking_fake().is_some())
     }
 
+    pub fn audio_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::AudioProvider>> {
+        Self::manager()?.audio_provider(name)
+    }
+
+    pub fn transcription_provider(
+        name: Option<&str>,
+    ) -> AiResult<Arc<dyn crate::TranscriptionProvider>> {
+        Self::manager()?.transcription_provider(name)
+    }
+
     pub fn image_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
         Self::manager()?.image_provider(name)
     }

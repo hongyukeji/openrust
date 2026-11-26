@@ -225,3 +225,26 @@ let path = response.store_as("generated", "pear.png", None).await?;
 通过 `square()`、`portrait()` 或 `landscape()` 选择标准尺寸，也可用 `size()`、`quality()` 或 `timeout()` 设置请求参数。编辑图像时，用 `ImageAttachment::from_bytes` 或 `ImageAttachment::from_storage` 创建参考图，调用 `attachments()` 后再生成。
 
 支持 Images API 的 OpenAI 及 OpenAI 兼容连接可返回内联的 PNG、JPEG 或 WebP。兼容连接通过 `models.images` 启用图像能力。用 `first_image()` 读取 MIME 类型和字节，或用 `store` 和 `store_as` 写入磁盘。需要公开可见时，调用 `store_publicly` 或 `store_publicly_as`。
+
+## 语音生成与转录 {#audio}
+
+为两种能力分别选择连接和模型。OpenAI 沿用 `OPENAI_API_KEY`，可用 `OPENAI_URL` 覆盖服务地址。
+
+```dotenv
+AI_AUDIO_PROVIDER=openai
+OPENAI_AUDIO_MODEL=gpt-4o-mini-tts
+AI_TRANSCRIPTION_PROVIDER=openai
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
+```
+
+```rust
+use openrust_ai::{Audio, AudioFormat, Transcription};
+
+let speech = Audio::of("Read the notice")?.format(AudioFormat::Wav).generate().await?;
+let path = speech.store_as("audio", "notice.wav", None).await?;
+let transcript = Transcription::from_storage(&path, None).await?.language("en").generate().await?;
+```
+
+使用 `Audio::of(text)`，或导入 `ToAudio` 在字符串上调用 `to_audio()`。用 `voice()`、`male()` 或 `female()` 选择音色，支持 MP3、WAV、Opus、AAC、FLAC 和 PCM 输出。通过 `store` 或 `store_as` 将字节写入应用的 Storage 磁盘。
+
+已存到磁盘的录音用 `Transcription::from_storage` 加载，也可用 `from_path`、`from_upload` 或 `from_bytes` 读取本地输入。已知语言时设置 `language()`。需要说话人和分段时间时，使用 `diarize(true)` 并选择支持该功能的模型。响应包含文本和上游实际报告的用量。OpenAI 兼容连接可通过 `models.audio` 或 `models.transcription` 启用相应能力。

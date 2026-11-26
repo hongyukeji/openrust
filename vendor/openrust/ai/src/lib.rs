@@ -12,6 +12,7 @@ use openrust::{
 
 mod agent;
 mod anthropic;
+mod audio;
 #[path = "../config/ai.rs"]
 mod configuration;
 mod connection;
@@ -29,6 +30,7 @@ mod fake_reranking_gateway;
 mod gemini;
 mod image;
 mod manager;
+mod media_storage;
 mod messages;
 mod middleware;
 mod models;
@@ -42,8 +44,13 @@ mod tool_protocol;
 mod tool_stream;
 mod tool_stream_protocol;
 mod tools;
+mod transcription;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
+pub use audio::{
+    Audio, AudioFormat, AudioPrompt, AudioProvider, AudioResponse, AudioVoice,
+    PendingAudioGeneration, ToAudio,
+};
 pub use configuration::load as default_config;
 pub use conversation_store::{
     ConversationPage, ConversationParticipant, DatabaseConversationStore, StoredMessage,
@@ -81,6 +88,11 @@ pub use text::{AgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage};
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,
     ToolRequest, ToolResult, ToolStep,
+};
+
+pub use transcription::{
+    PendingTranscriptionGeneration, Transcription, TranscriptionAudio, TranscriptionPrompt,
+    TranscriptionProvider, TranscriptionResponse, TranscriptionSegment, TranscriptionUsage,
 };
 
 pub struct AiServiceProvider;

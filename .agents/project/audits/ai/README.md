@@ -191,3 +191,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Gemini、xAI、Bedrock、图像 Fake、队列、广播及供应商实机仍留在后续验收范围。
 
 - [OpenAI Images 生图](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI Images 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
+
+## AI-06 OpenAI 文本转语音与录音转录
+
+`Audio::of`、字符串 `ToAudio`、`PendingAudioGeneration` 与 `AudioProvider` 提供默认或显式连接、模型、音色、指令、格式及超时。生成结果持有缓冲音频字节并使用共用 Storage 写入。转录支持本地路径、Storage 磁盘、框架上传及字节输入，经受限读取和内容格式判定后发送 multipart 请求。支持语种、模型选择、说话人分段、时间戳、实际报告的 Token 用量及计费时长。图像也复用受限读取和框架媒体类型检测。OpenAI 兼容连接按能力显式配置。
+
+包测试覆盖标准转录及说话人区分、真实 WAV、用量两种分支、磁盘读取、上传类型探测和异常分段。独立 Artisan 通过本地协议上游生成 WAV 并落盘，独立 HTTP 进程上传同一文件，验证字节、认证、语言、说话人与计费秒数。实测格式为 WAV。其他媒体格式、非 OpenAI 供应商、媒体 Fake、排队、流式转录及正式供应商凭证验收仍待对应批次。
+
+- [OpenAI Speech](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create) · [OpenAI Transcription](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create)

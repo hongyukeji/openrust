@@ -27,11 +27,13 @@ use crate::{
     AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
+    audio::{AudioProvider, OpenAiAudioProvider},
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     image::{ImageProvider, OpenAiImageProvider},
     models::ListedModel,
     reranking::{HttpRerankingProvider, RerankingProtocol},
+    transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -122,6 +124,14 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        None
+    }
+
+    fn audio_provider(&self) -> Option<Arc<dyn AudioProvider>> {
+        None
+    }
+
+    fn transcription_provider(&self) -> Option<Arc<dyn TranscriptionProvider>> {
         None
     }
 
@@ -359,6 +369,22 @@ impl TextProvider for OpenAiTextProvider {
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
         self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
             Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
+        })
+    }
+
+    fn audio_provider(&self) -> Option<Arc<dyn AudioProvider>> {
+        (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.audio_configured())
+            .then(|| {
+                Arc::new(OpenAiAudioProvider(self.connection.clone())) as Arc<dyn AudioProvider>
+            })
+    }
+
+    fn transcription_provider(&self) -> Option<Arc<dyn TranscriptionProvider>> {
+        (matches!(self.protocol, OpenAiProtocol::Responses)
+            || self.connection.transcription_configured())
+        .then(|| {
+            Arc::new(OpenAiTranscriptionProvider(self.connection.clone()))
+                as Arc<dyn TranscriptionProvider>
         })
     }
 

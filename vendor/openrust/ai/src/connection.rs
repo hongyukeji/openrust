@@ -19,6 +19,8 @@ struct Models {
     embeddings: Option<EmbeddingModels>,
     reranking: Option<DefaultModel>,
     images: Option<DefaultModel>,
+    audio: Option<DefaultModel>,
+    transcription: Option<DefaultModel>,
 }
 
 #[derive(Default, Deserialize)]
@@ -198,6 +200,34 @@ impl Connection {
 
     pub(crate) fn images_configured(&self) -> bool {
         self.config.models.images.is_some()
+    }
+
+    pub(crate) fn audio_configured(&self) -> bool {
+        self.config.models.audio.is_some()
+    }
+
+    pub(crate) fn transcription_configured(&self) -> bool {
+        self.config.models.transcription.is_some()
+    }
+
+    pub(crate) fn default_audio_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .audio
+            .as_ref()
+            .and_then(|model| model.default.as_deref())
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
+    }
+
+    pub(crate) fn default_transcription_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .transcription
+            .as_ref()
+            .and_then(|model| model.default.as_deref())
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
     }
 
     pub(crate) fn default_image_model(&self) -> AiResult<&str> {

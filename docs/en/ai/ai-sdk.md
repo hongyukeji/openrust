@@ -225,3 +225,26 @@ let path = response.store_as("generated", "pear.png", None).await?;
 Use `square()`, `portrait()` or `landscape()` for standard sizes. Use `size()`, `quality()` or `timeout()` to set request options. To edit an image, pass `ImageAttachment::from_bytes` or load one from a Storage disk with `ImageAttachment::from_storage`, then call `attachments()` before `generate()`.
 
 OpenAI and OpenAI-compatible connections that implement the Images API can return inline PNG, JPEG, or WebP. Add `models.images` to enable this capability on a compatible connection. Read MIME type and bytes through `first_image()`, or save them with `store` and `store_as`. Use `store_publicly` or `store_publicly_as` to request public visibility from the selected disk.
+
+## Speech and transcription {#audio}
+
+Choose a connection and model for each capability. OpenAI uses `OPENAI_API_KEY` and supports the optional `OPENAI_URL` override.
+
+```dotenv
+AI_AUDIO_PROVIDER=openai
+OPENAI_AUDIO_MODEL=gpt-4o-mini-tts
+AI_TRANSCRIPTION_PROVIDER=openai
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
+```
+
+```rust
+use openrust_ai::{Audio, AudioFormat, Transcription};
+
+let speech = Audio::of("Read the notice")?.format(AudioFormat::Wav).generate().await?;
+let path = speech.store_as("audio", "notice.wav", None).await?;
+let transcript = Transcription::from_storage(&path, None).await?.language("en").generate().await?;
+```
+
+Use `Audio::of(text)` or the `ToAudio` extension on a string. Set the voice with `voice()`, `male()` or `female()` and select MP3, WAV, Opus, AAC, FLAC or PCM output. Save the bytes to the configured Storage disk with `store` or `store_as`.
+
+Use `Transcription::from_storage` for recordings on a disk, or `from_path`, `from_upload` or `from_bytes` for local input. Call `language()` when the language is known. To get speaker labels and timed segments, enable `diarize(true)` and select a model that supports it. Responses include the text and upstream usage when reported. OpenAI-compatible connections can enable either capability with `models.audio` or `models.transcription`.

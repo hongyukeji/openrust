@@ -29,6 +29,10 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
 
     openai["models"]["images"] = json!({"default": env.get_utf8("OPENAI_IMAGE_MODEL")?});
 
+    openai["models"]["audio"] = json!({"default": env.get_utf8("OPENAI_AUDIO_MODEL")?});
+    openai["models"]["transcription"] =
+        json!({"default": env.get_utf8("OPENAI_TRANSCRIPTION_MODEL")?});
+
     let mut openrouter = provider(
         "openai-compatible",
         "OPENROUTER_URL",
@@ -48,8 +52,8 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "max_messages": 100,
         },
         "default_for_images": env.get_utf8("AI_IMAGE_PROVIDER")?,
-        "default_for_audio": null,
-        "default_for_transcription": null,
+        "default_for_audio": env.get_utf8("AI_AUDIO_PROVIDER")?,
+        "default_for_transcription": env.get_utf8("AI_TRANSCRIPTION_PROVIDER")?,
         "default_for_embeddings": env.get_utf8("AI_EMBEDDINGS_PROVIDER")?,
         "default_for_reranking": env.get_utf8("AI_RERANKING_PROVIDER")?,
         "default_for_classification": null,

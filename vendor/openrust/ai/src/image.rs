@@ -1,9 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
+use bytes::Bytes;
 pub use openrust::image::Format as ImageFormat;
 use openrust::{
-    filesystem::{Storage, Visibility, WriteOptions},
-    http::{HttpFuture, client::Part},
+    filesystem::Visibility,
+    http::{HttpFuture, UploadedFile, client::Part},
     support::Str,
 };
 use serde::Serialize;
@@ -12,6 +13,7 @@ use serde_json::{Value, json};
 use crate::{
     Ai, AiError, AiResult, Usage,
     connection::Connection,
+    media_storage,
     text::{transport_error, validate},
 };
 
@@ -143,25 +145,24 @@ pub trait ImageProvider: Send + Sync {
     ) -> HttpFuture<'a, AiResult<ImageResponse>>;
 }
 
-fn detect_format(bytes: &[u8]) -> Option<ImageFormat> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Some(ImageFormat::Png)
-    } else if bytes.starts_with(b"\xff\xd8\xff") {
-        Some(ImageFormat::Jpeg)
-    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
-        Some(ImageFormat::Webp)
-    } else {
-        None
+fn detect_format(bytes: &Bytes) -> Option<ImageFormat> {
+    let uploaded = UploadedFile::from_bytes(String::new(), None, bytes.clone());
+    match uploaded.extension() {
+        Some("png") => Some(ImageFormat::Png),
+        Some("jpg" | "jpeg") => Some(ImageFormat::Jpeg),
+        Some("webp") => Some(ImageFormat::Webp),
+        _ => None,
     }
 }
 
 pub struct ImageAttachment {
-    content: Vec<u8>,
+    content: Bytes,
     format: ImageFormat,
 }
 
 impl ImageAttachment {
-    pub fn from_bytes(content: Vec<u8>) -> AiResult<Self> {
+    pub fn from_bytes(content: impl Into<Bytes>) -> AiResult<Self> {
+        let content = content.into();
         if content.len() >= MAX_ATTACHMENT_BYTES {
             return Err(AiError::InvalidImage);
         }
@@ -170,18 +171,15 @@ impl ImageAttachment {
     }
 
     pub async fn from_storage(path: &str, disk: Option<&str>) -> AiResult<Self> {
-        let disk = Storage::disk(disk).map_err(|_| AiError::MediaStorageUnavailable)?;
-        let size = disk
-            .size(path)
+        let content = media_storage::read(path, disk, MAX_ATTACHMENT_BYTES)
             .await
-            .map_err(|_| AiError::MediaStorageUnavailable)?;
-        if size >= MAX_ATTACHMENT_BYTES as u64 {
-            return Err(AiError::InvalidImage);
-        }
-        let content = disk
-            .get(path)
-            .await
-            .map_err(|_| AiError::MediaStorageUnavailable)?
+            .map_err(|error| {
+                if matches!(error, AiError::MediaTooLarge) {
+                    AiError::InvalidImage
+                } else {
+                    error
+                }
+            })?
             .ok_or(AiError::InvalidImage)?;
         Self::from_bytes(content)
     }
@@ -204,13 +202,14 @@ pub struct ImageUsage {
 }
 
 pub struct GeneratedImage {
-    content: Vec<u8>,
+    content: Bytes,
     format: ImageFormat,
     pub revised_prompt: Option<String>,
 }
 
 impl GeneratedImage {
-    pub fn from_bytes(content: Vec<u8>) -> AiResult<Self> {
+    pub fn from_bytes(content: impl Into<Bytes>) -> AiResult<Self> {
+        let content = content.into();
         let format = detect_format(&content).ok_or(AiError::InvalidImage)?;
         Ok(Self {
             content,
@@ -274,32 +273,15 @@ impl GeneratedImage {
         disk: Option<&str>,
         visibility: Option<Visibility>,
     ) -> AiResult<String> {
-        let name = match name {
-            Some(name)
-                if !name.trim().is_empty()
-                    && !name.contains(['/', '\\'])
-                    && !matches!(name, "." | "..") =>
-            {
-                name.to_owned()
-            }
-            Some(_) => return Err(AiError::InvalidConfiguration("images.filename")),
-            None => format!("{}.{}", Str::ulid(), self.format.extension()),
-        };
-        let directory = directory.trim_matches('/');
-        let path = if directory.is_empty() {
-            name
-        } else {
-            format!("{directory}/{name}")
-        };
-        let disk = Storage::disk(disk).map_err(|_| AiError::MediaStorageUnavailable)?;
-        let stored = disk
-            .put_with_options(&path, &self.content, WriteOptions { visibility })
-            .await
-            .map_err(|_| AiError::MediaStorageUnavailable)?;
-        if !stored {
-            return Err(AiError::MediaStorageUnavailable);
-        }
-        Ok(path)
+        media_storage::write(
+            &self.content,
+            self.format.extension(),
+            directory,
+            name,
+            disk,
+            visibility,
+        )
+        .await
     }
 }
 
@@ -388,13 +370,16 @@ impl ImageProvider for OpenAiImageProvider {
                     "image[]"
                 };
                 for (position, reference) in prompt.attachments.iter().enumerate() {
-                    let part = Part::bytes(reference.content.clone())
-                        .file_name(format!(
-                            "reference-{position}.{}",
-                            reference.format.extension()
-                        ))
-                        .mime_str(reference.format.mime_type())
-                        .map_err(|_| AiError::InvalidImage)?;
+                    let part = Part::stream_with_length(
+                        reference.content.clone(),
+                        reference.content.len() as u64,
+                    )
+                    .file_name(format!(
+                        "reference-{position}.{}",
+                        reference.format.extension()
+                    ))
+                    .mime_str(reference.format.mime_type())
+                    .map_err(|_| AiError::InvalidImage)?;
                     request = request.attach(name, part);
                 }
             }
