@@ -14,6 +14,7 @@ pub(crate) struct ProviderReplay {
 #[serde(rename_all = "snake_case")]
 enum ReplayContent {
     ChatReasoning(String),
+    OllamaThinking(String),
     ResponsesItems(Vec<Value>),
     AnthropicBlocks(Vec<Value>),
     GeminiContent(Value),
@@ -44,6 +45,8 @@ impl ProviderReplay {
                     return None;
                 }
                 ReplayContent::ChatReasoning(reasoning.to_owned())
+            } else if let Some(thinking) = source.get("ollama_thinking").and_then(Value::as_str) {
+                ReplayContent::OllamaThinking(thinking.to_owned())
             } else if let Some(items) = source.get("responses_items").and_then(Value::as_array) {
                 ReplayContent::ResponsesItems(items.clone())
             } else if let Some(blocks) = source
@@ -81,6 +84,13 @@ impl ProviderReplay {
     pub(crate) fn responses_items(&self, scope: &str, model: &str) -> Option<&[Value]> {
         match self.for_scope(scope, model)? {
             ReplayContent::ResponsesItems(items) => Some(items),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn ollama_thinking(&self, scope: &str, model: &str) -> Option<&str> {
+        match self.for_scope(scope, model)? {
+            ReplayContent::OllamaThinking(thinking) => Some(thinking),
             _ => None,
         }
     }

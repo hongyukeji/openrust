@@ -817,7 +817,7 @@ let vectors = response.embeddings;
 
 使用 Gemini 原生 API 时，设置 `AI_EMBEDDINGS_PROVIDER=gemini` 与 `GEMINI_EMBEDDING_MODEL`。SDK 通过 `batchEmbedContents` 发送文本，单条也使用同一入口。模型 ID 可带或省略 `models/` 前缀。结果按输入顺序返回，指定的维度会传给上游，Token 数量以 Gemini 实际报告为准。
 
-选择 Ollama 原生 SDK 连接时，设置 `AI_PROVIDER=ollama` 和 `OLLAMA_MODEL`。默认连接 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆盖，带鉴权的代理可配置 `OLLAMA_API_KEY`。模型目录使用 `/api/tags`，普通聊天、结构化输出和工具续步使用 `/api/chat`。向量入口使用 `AI_EMBEDDINGS_PROVIDER=ollama` 和 `OLLAMA_EMBEDDING_MODEL` 调用 `/api/embed`。
+选择 Ollama 原生 SDK 连接时，设置 `AI_PROVIDER=ollama` 和 `OLLAMA_MODEL`。默认连接 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆盖，带鉴权的代理可配置 `OLLAMA_API_KEY`。模型目录使用 `/api/tags`，普通聊天、结构化输出和工具续步使用 `/api/chat`，支持非流式响应和原生 NDJSON 流。SDK 增量交付文本和推理内容，并在收到上游步骤终帧后才执行该步骤的工具。向量入口使用 `AI_EMBEDDINGS_PROVIDER=ollama` 和 `OLLAMA_EMBEDDING_MODEL` 调用 `/api/embed`。
 
 发布 Gemini 原生向量模型时，将模型映射指向 Gemini 连接，并显式配置 `"endpoints": ["embedContent", "batchEmbedContents"]`。授权模型会出现在 `/v1beta/models`。通过 `x-goog-api-key` 调用 `POST /v1beta/models/{alias}:embedContent` 或 `POST /v1beta/models/{alias}:batchEmbedContents`，采用 Google 请求格式。正文中的模型名必须与发布别名一致。网关会替换为上游模型，输入可直接内联。
 

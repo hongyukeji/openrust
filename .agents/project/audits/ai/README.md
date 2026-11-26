@@ -625,11 +625,12 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 ### Ollama 原生 SDK
 
-`ollama` 具名连接使用固定 Laravel 的 `/api/chat` 与 `/api/embed`，并由 `/api/tags` 发现本地模型。支持非流式文本、JSON Schema、工具续步、图片输入映射及批量文本向量。工具续步按名称发送结果，上游提供 ID 时保留该 ID，无 ID 时用本地 UUID 关联。默认地址是本机 Ollama，允许覆盖 URL 和可选 Bearer Key。
+`ollama` 具名连接使用固定 Laravel 的 `/api/chat` 与 `/api/embed`，并由 `/api/tags` 发现本地模型。支持非流式与原生 NDJSON 流、JSON Schema、工具续步、图片输入及批量文本向量。工具续步带回该步文本、推理和调用，并按名称发送结果。上游提供 ID 时保留该 ID，无 ID 时用本地 UUID 关联。默认地址是本机 Ollama，允许覆盖 URL 和可选 Bearer Key。
 
-独立 Artisan 实测模型目录、普通与结构化提示。真实 HTTP 经本地模拟核对路径前缀、鉴权、两步工具消息、上游和生成的工具 ID、向量维度及用量。原生 NDJSON 流、图片实测和真实 Ollama 服务继续验收。
+独立 Artisan 实测模型目录、普通与结构化提示。真实 HTTP 经本地模拟核对路径前缀、鉴权、两步工具消息、上游和生成的工具 ID、向量维度及用量。原生流验收覆盖跨网络分片的 UTF-8、CRLF、末行无换行、文本提前抵达、推理回送、图片字节和终帧用量。上游缺少 `done: true` 时返回错误。Vercel 格式实测错误输出，SDK 回归验证截断时工具执行次数为零。SDK 19 项、严格 Clippy 和三语文档站点通过。真实 Ollama 模型服务仍待验收。
 
 - [固定 Laravel OllamaGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Ollama/OllamaGateway.php) · [Ollama Chat](https://docs.ollama.com/api/chat) · [Ollama Embeddings](https://docs.ollama.com/api/embed) · [Ollama 模型目录](https://docs.ollama.com/api/tags)
+- [固定 Laravel Ollama 流式处理](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Ollama/Concerns/HandlesTextStreaming.php) · [Ollama NDJSON 流](https://docs.ollama.com/api/streaming) · [Ollama 流式工具调用](https://docs.ollama.com/capabilities/tool-calling#tool-calling-with-streaming)
 
 ## AI-03 流式工具审批事件
 

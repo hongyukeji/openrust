@@ -1,26 +1,40 @@
 use std::sync::Arc;
 
-use openrust::{http::HttpFuture, support::Str};
+use futures_util::{Stream, StreamExt};
+use openrust::{
+    http::{HttpFuture, client::ResponseStream},
+    support::Str,
+};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, EmbeddingProvider, EmbeddingsPrompt,
-    EmbeddingsResponse, FinishReason, MessageRole, ModelCatalog, StepResponse, StepTextGateway,
-    TextModelTier, TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolResult,
-    ToolStep, Usage, connection::Connection, embeddings::valid_vectors, models::ListedModel,
-    text::validate,
+    EmbeddingsResponse, FinishReason, MessageRole, ModelCatalog, ReasoningPart, StepEvent,
+    StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse, TextModelTier,
+    TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolResult, ToolStep, Usage,
+    connection::Connection,
+    embeddings::valid_vectors,
+    models::ListedModel,
+    text::{transport_error, validate},
 };
 
 pub(crate) struct OllamaProvider(pub(crate) Arc<Connection>);
 
 impl OllamaProvider {
     fn chat_body(
+        &self,
         prompt: &AgentPrompt<'_>,
         tools: &[ToolDefinition],
         steps: &[ToolStep],
     ) -> AiResult<Value> {
         prompt.options.validate()?;
+        let scope = prompt
+            .messages
+            .iter()
+            .any(|message| message.provider_replay.is_some())
+            .then(|| self.0.request_namespace("ollama-chat"))
+            .transpose()?;
         let mut messages = Vec::new();
         if !prompt.text.instructions.trim().is_empty() {
             messages.push(json!({"role":"system", "content":prompt.text.instructions}));
@@ -31,7 +45,17 @@ impl OllamaProvider {
                     messages.push(user_message(&message.content, &message.attachments)?)
                 }
                 MessageRole::Assistant => {
-                    messages.push(assistant_message(&message.content, &message.tool_calls))
+                    let thinking = scope.as_deref().and_then(|scope| {
+                        message
+                            .provider_replay
+                            .as_ref()?
+                            .ollama_thinking(scope, prompt.text.model)
+                    });
+                    messages.push(assistant_message(
+                        &message.content,
+                        &message.tool_calls,
+                        thinking,
+                    ));
                 }
                 MessageRole::ToolResult => {
                     messages.extend(message.tool_results.iter().map(tool_message))
@@ -43,6 +67,7 @@ impl OllamaProvider {
             messages.push(assistant_message(
                 step.text.as_deref().unwrap_or_default(),
                 &step.calls,
+                Some(&step.reasoning),
             ));
             messages.extend(step.results.iter().map(tool_message));
         }
@@ -145,6 +170,31 @@ impl TextProvider for OllamaProvider {
         self.generate(prompt.into())
     }
 
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        prompt: AgentPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        Box::pin(async move {
+            let events = self.stream_text_step(&prompt, &[], &[]).await?;
+            let events = crate::StepResult::Stream(events)
+                .probe()
+                .await?
+                .into_stream();
+            Ok(crate::tool_stream::single_step_response(
+                Arc::new(Self(self.0.clone())),
+                prompt,
+                events,
+            ))
+        })
+    }
+
     fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
             let model = prompt.text.model;
@@ -191,7 +241,7 @@ impl StepTextGateway for OllamaProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            let body = Self::chat_body(prompt, tools, history)?;
+            let body = self.chat_body(prompt, tools, history)?;
             let response = validate(
                 self.0
                     .request(prompt.text.timeout)?
@@ -200,6 +250,28 @@ impl StepTextGateway for OllamaProvider {
                     .await,
             )?;
             parse_step(response.json().map_err(|_| AiError::InvalidResponse)?)
+        })
+    }
+
+    fn stream_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        Box::pin(async move {
+            let mut body = self.chat_body(prompt, tools, history)?;
+            body["stream"] = true.into();
+            let response = validate(
+                self.0
+                    .request(prompt.text.timeout)?
+                    .distinguish_connection_setup_failure()
+                    .stream()
+                    .post("api/chat", &body)
+                    .await,
+            )?;
+            let stream = response.into_stream().map_err(transport_error)?;
+            Ok(stream_chat(stream))
         })
     }
 }
@@ -281,8 +353,11 @@ fn user_message(text: &str, attachments: &[Attachment]) -> AiResult<Value> {
     Ok(message)
 }
 
-fn assistant_message(text: &str, calls: &[ToolCall]) -> Value {
+fn assistant_message(text: &str, calls: &[ToolCall], thinking: Option<&str>) -> Value {
     let mut message = json!({"role":"assistant","content":text});
+    if let Some(thinking) = thinking.filter(|thinking| !thinking.is_empty()) {
+        message["thinking"] = thinking.into();
+    }
     if !calls.is_empty() {
         message["tool_calls"] = Value::Array(
             calls
@@ -310,6 +385,26 @@ fn parse_step(value: Value) -> AiResult<StepResponse> {
     if !message.is_object() {
         return Err(AiError::InvalidResponse);
     }
+    let calls = tool_calls(message)?;
+    let finish_reason = if calls.is_empty() {
+        FinishReason::from_wire(value["done_reason"].as_str())
+    } else {
+        FinishReason::ToolCalls
+    };
+    let reasoning = message["thinking"].as_str().unwrap_or_default().to_owned();
+    Ok(StepResponse {
+        model: value["model"].as_str().map(str::to_owned),
+        text: message["content"].as_str().map(str::to_owned),
+        finish_reason,
+        provider_content: thinking_replay(&reasoning),
+        reasoning,
+        usage: usage(&value),
+        citations: Vec::new(),
+        tool_calls: calls,
+    })
+}
+
+fn tool_calls(message: &Value) -> AiResult<Vec<ToolCall>> {
     let calls = match message.get("tool_calls") {
         None | Some(Value::Null) => Vec::new(),
         Some(Value::Array(calls)) => calls
@@ -345,24 +440,120 @@ fn parse_step(value: Value) -> AiResult<StepResponse> {
             .collect::<AiResult<Vec<_>>>()?,
         _ => return Err(AiError::InvalidResponse),
     };
-    let finish_reason = if calls.is_empty() {
-        FinishReason::from_wire(value["done_reason"].as_str())
-    } else {
-        FinishReason::ToolCalls
-    };
-    Ok(StepResponse {
-        model: value["model"].as_str().map(str::to_owned),
-        text: message["content"].as_str().map(str::to_owned),
-        finish_reason,
-        reasoning: message["thinking"].as_str().unwrap_or_default().into(),
-        usage: Usage {
-            prompt_tokens: value["prompt_eval_count"].as_u64(),
-            completion_tokens: value["eval_count"].as_u64(),
-            cache_read_input_tokens: value["prompt_eval_cached_count"].as_u64(),
-            ..Usage::default()
-        },
-        citations: Vec::new(),
-        tool_calls: calls,
-        provider_content: None,
+    Ok(calls)
+}
+
+fn usage(value: &Value) -> Usage {
+    Usage {
+        prompt_tokens: value["prompt_eval_count"].as_u64(),
+        completion_tokens: value["eval_count"].as_u64(),
+        cache_read_input_tokens: value["prompt_eval_cached_count"].as_u64(),
+        ..Usage::default()
+    }
+}
+
+fn thinking_replay(thinking: &str) -> Option<Value> {
+    (!thinking.is_empty()).then(|| json!({"ollama_thinking":thinking}))
+}
+
+fn parse_line(line: &[u8]) -> AiResult<Option<Value>> {
+    if line.iter().all(u8::is_ascii_whitespace) {
+        return Ok(None);
+    }
+    serde_json::from_slice(line)
+        .map(Some)
+        .map_err(|_| AiError::InvalidResponse)
+}
+
+fn json_frames(mut stream: ResponseStream) -> impl Stream<Item = AiResult<Value>> {
+    const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+    async_stream::try_stream! {
+        let mut line = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(transport_error)?;
+            for segment in chunk.split_inclusive(|byte| *byte == b'\n') {
+                if line.len().saturating_add(segment.len()) > MAX_FRAME_BYTES {
+                    Err(AiError::InvalidResponse)?;
+                }
+                line.extend_from_slice(segment);
+                if segment.ends_with(b"\n") {
+                    if let Some(frame) = parse_line(&line)? {
+                        yield frame;
+                    }
+                    line.clear();
+                }
+            }
+        }
+        if let Some(frame) = parse_line(&line)? {
+            yield frame;
+        }
+    }
+}
+
+fn stream_chat(stream: ResponseStream) -> StepEventStream {
+    Box::pin(async_stream::try_stream! {
+        let frames = json_frames(stream);
+        futures_util::pin_mut!(frames);
+        let mut model = None;
+        let mut reasoning = String::new();
+        let mut text = String::new();
+        let mut calls = Vec::new();
+        let mut totals = Usage::default();
+        let mut open_thinking = false;
+        let mut block = 0;
+        while let Some(frame) = frames.next().await {
+            let frame = frame?;
+            if !frame.is_object() || frame.get("error").is_some_and(|value| !value.is_null()) {
+                Err(AiError::InvalidResponse)?;
+            }
+            if let Some(reported) = frame["model"].as_str().filter(|model| !model.is_empty()) {
+                model = Some(reported.to_owned());
+            }
+            totals.update(usage(&frame));
+            let message = &frame["message"];
+            let content = message["content"].as_str().unwrap_or_default();
+            let new_calls = tool_calls(message)?;
+            if let Some(thinking) = message["thinking"].as_str().filter(|thinking| !thinking.is_empty()) {
+                reasoning.push_str(thinking);
+                open_thinking = true;
+                yield StepEvent::Reasoning(ReasoningPart::Delta {
+                    part: ("thinking".into(), block),
+                    delta: thinking.into(),
+                });
+            }
+            let finished = frame["done"] == true;
+            if open_thinking && (!content.is_empty() || !new_calls.is_empty() || finished) {
+                yield StepEvent::Reasoning(ReasoningPart::End { part: ("thinking".into(), block), text: None });
+                block += 1;
+                open_thinking = false;
+            }
+            if !content.is_empty() {
+                text.push_str(content);
+                yield StepEvent::TextDelta(content.into());
+            }
+            calls.extend(new_calls);
+            if finished {
+                let ending = if calls.is_empty() {
+                    FinishReason::from_wire(frame["done_reason"].as_str())
+                } else {
+                    FinishReason::ToolCalls
+                };
+                yield StepEvent::Finished {
+                    response: Box::new(StepResponse {
+                        model,
+                        text: (!text.is_empty()).then_some(text),
+                        finish_reason: ending,
+                        provider_content: thinking_replay(&reasoning),
+                        reasoning,
+                        usage: totals,
+                        citations: Vec::new(),
+                        tool_calls: calls,
+                    }),
+                    reason: ending.as_str().into(),
+                };
+                return;
+            }
+        }
+        Err(AiError::InvalidResponse)?;
     })
 }

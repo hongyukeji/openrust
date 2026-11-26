@@ -162,6 +162,73 @@ async fn ollama_native_tools_use_named_results_and_preserve_provider_id() -> Tes
     Ok(())
 }
 
+#[tokio::test]
+async fn ollama_truncated_stream_never_executes_tools() -> TestResult {
+    let (url, requests) = http_fixture(
+        "proxy",
+        "api/chat",
+        "authorization",
+        "Bearer fixture-key",
+        vec![(
+            "application/x-ndjson",
+            json!({"done":false,"message":{"content":"checking","tool_calls":[{
+                "id":"call_fixture","function":{"name":"lookup","arguments":{"sku":"demo"}}
+            }]}})
+            .to_string(),
+        )],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/ollama-truncated", || async {
+                    use futures_util::StreamExt;
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let mut events = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap()
+                        .into_stream();
+                    assert!(matches!(
+                        events.next().await,
+                        Some(Ok(event)) if matches!(event.data, StreamEventData::StreamStart { .. })
+                    ));
+                    let mut saw_text = false;
+                    loop {
+                        match events.next().await {
+                            Some(Ok(event)) => match event.data {
+                                StreamEventData::TextStart { .. } => {}
+                                StreamEventData::TextDelta { delta, .. } => {
+                                    assert_eq!(delta, "checking");
+                                    saw_text = true;
+                                }
+                                other => panic!("unexpected event: {other:?}"),
+                            },
+                            Some(Err(AiError::InvalidResponse)) => break,
+                            other => panic!("unexpected stream item: {other:?}"),
+                        }
+                    }
+                    assert!(saw_text);
+                    assert!(events.next().await.is_none());
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 0);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Ok(())
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=ollama\nOLLAMA_URL={url}\nOLLAMA_API_KEY=fixture-key\nOLLAMA_MODEL=fixture\n"
+        ),
+    )?;
+    assert_eq!(app.get("/ollama-truncated").await?.status(), StatusCode::OK);
+    assert_eq!(requests.await?[0]["stream"], true);
+    Ok(())
+}
+
 async fn http_fixture(
     version: &'static str,
     path: &'static str,

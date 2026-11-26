@@ -71,6 +71,34 @@ pub(crate) fn response(
     events(prepared, approvals.map(Arc::new), StreamMetadata::default())
 }
 
+pub(crate) fn single_step_response(
+    provider: Arc<dyn TextProvider>,
+    prompt: AgentPrompt<'_>,
+    stream: StepEventStream,
+) -> StreamableAgentResponse {
+    let model = prompt.text.model.to_owned();
+    response(
+        PreparedToolStream {
+            provider,
+            prompt: OwnedPrompt::from(&prompt),
+            definitions: Vec::new(),
+            registered: Default::default(),
+            run: tools::ToolRun::new(1),
+            max_steps: 1,
+            opened: Some(PreparedStreamStep {
+                result: crate::StepResult::Stream(stream),
+                model,
+                allowed: Default::default(),
+                choice: prompt.tool_choice.cloned(),
+            }),
+            approval_rejected: false,
+            middleware: Vec::new(),
+            agent: crate::request_context::agent_invocation().map(|(agent, _)| agent),
+        },
+        None,
+    )
+}
+
 pub(crate) fn resume(
     provider: Arc<dyn TextProvider>,
     resolved: tools::ResolvedApproval,
