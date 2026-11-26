@@ -14,7 +14,7 @@
 | `x86_64-pc-windows-msvc` | 608 | 608 |
 | `aarch64-pc-windows-msvc` | 607 | 607 |
 
-本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64 和 AMD64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
+本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64、Linux AMD64 和 Windows ARM64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
 
 ## 原生 SQLite 制品
 
@@ -62,6 +62,17 @@
 用 `7dd141aac` 的干净归档执行独立发布许可预检。Windows PowerShell 原生创建 ZIP 并解包，核对根许可证、根发行声明以及两个 Webhook 包的声明和许可证，共 10 个文件与源码逐字节一致。三语部署说明补齐复制清单，VitePress 构建成功，Playwright 核对两种部署前缀下的六个页面。完整 ZIP 与组合 PE 的运行验收继续单列。
 
 同一归档首次把 Cargo 输出写入虚机共享盘，Rust 构建探针清理目录时收到 Windows 错误 87。切换到专用 NTFS 构建盘后，续跑触及 32 GB 停线。停止本次构建树后持锁清理八个项目编译目录，释放 10,256,171,008 字节，可用空间恢复到 42,202,472,448 字节。源码与锁文件沿用同一归档，构建进程和磁盘停线同时在虚机内受监控。预检和构建日志保存在 `target/tmp/goal-extension-combined-windows/`。
+
+## Windows ARM64 组合候选制品
+
+用 `7dd141aac49bafa452f35293d68b45375b36d4ff` 的干净归档，在 Windows 11 ARM64 虚机的专用 NTFS 盘，以 Rust 1.94.0、`aarch64-pc-windows-msvc`、`--release --locked --offline --jobs 1 --bin main` 和 `standalone` 加上述九个扩展特性完成构建。宿主触及磁盘停线后，以同一归档和构建选项续跑，复用虚机 NTFS 上已完成的编译产物。
+
+- 从 Windows PowerShell 生成的 ZIP 解包并启动。归档 SHA-256 为 `fd5a4ec6f5a2ae838a211e78f1284f113d6a5a038d648f972cf13e30925914b7`。解包二进制 SHA-256 为 `362dfe5481d9ddac6d932c25f44f8f024d90ca6340cd053059cfd2dfba874e06`，与构建产物一致。10 个许可文件与源码逐字节一致。
+- PE32+ 的机器类型为 `0xAA64`，栈保留 16 MiB，内嵌 SQLite source ID 与锁定的 SQLite 3.54.1 一致。MSVC `dumpbin /dependents` 列出 Windows 系统库、`VCRUNTIME140.dll` 和 UCRT API 集，未列出 `sqlite3.dll`。本轮验收使用安装了 MSVC 工具链的虚机，未测无工具链机器上的运行库安装流程。
+- Artisan 发现九个 Provider，执行 58 项 SQLite 迁移，生成配置和路由缓存，重跑迁移无待执行项。缓存前后实际 HTTP `/up`、`/` 和 `/api` 均返回 200。两次都在各自的专用 Windows 控制台发送 Ctrl+C，服务进程以状态 0 退出。首次脚本读取控制进程的退出状态时报错，预先持有进程句柄后，用同一二进制在新目录复跑通过。
+- 缓存后使用 Windows WebSocket 客户端连接 Reverb、订阅频道并收到 HTTP 签名发布的事件。独立 `artisan queue:work database --once` 成功退出。只读检查 SQLite 确认迁移记录数为 58，相关应用表已持久化，`jobs` 表为空。
+
+构建、PE 导入及运行日志保存在本机 `target/tmp/goal-extension-combined-windows/`。验收覆盖 Windows ARM64 虚机里的独立 ZIP。Windows Docker Desktop、无 MSVC 工具链的 Windows 安装、原生 Windows x64 和实际发布渠道仍需各自的环境。
 
 ## Windows x64 组合预检
 
