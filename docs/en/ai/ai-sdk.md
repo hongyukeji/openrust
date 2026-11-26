@@ -70,6 +70,8 @@ Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`
 
 Add `fallbacks` to a public model mapping to try backup connections in order. Each entry specifies `provider` and `model`, for example `[{"provider":"openai","model":"backup-model"}]`. The gateway can retry stateless requests after eligible upstream failures, including 429 and 5xx responses. It keeps the same public model and records each attempt under one request ID. Requests with tools or stored output, and streams already sent to the client, are excluded from replay.
 
+Use `accounts.deepseek.cooldown_seconds = 30` in `config/ai_gateway.rs` to pause a named upstream connection after HTTP 429, 503, or 529. A valid upstream `Retry-After` takes precedence, up to 24 hours. The pause applies to every published model using that connection. When all eligible connections are cooling down, the gateway returns HTTP 503 with `Retry-After`. Set `account_cache_store` to a shared store such as `redis` to coordinate across gateway processes.
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

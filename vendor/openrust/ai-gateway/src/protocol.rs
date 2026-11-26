@@ -423,6 +423,8 @@ async fn relay(
     let mut admitted = false;
     let mut failure = None;
     let mut conversion_error = None;
+    let mut cooling = None::<u64>;
+    let cache_store = gateway.account_cache_store.as_deref();
     let mut targets = model.targets_for(endpoint).peekable();
     while let Some((target, upstream_endpoint)) = targets.next() {
         let mut payload = if targets.peek().is_some() {
@@ -443,6 +445,16 @@ async fn relay(
         } else {
             Value::Object(payload)
         };
+        if let Some(account) = &target.cooldown {
+            match account.remaining(cache_store).await {
+                Ok(Some(seconds)) => {
+                    cooling = Some(cooling.map_or(seconds, |current| current.min(seconds)));
+                    continue;
+                }
+                Ok(None) => {}
+                Err(_) => return account_state_unavailable(protocol),
+            }
+        }
         if !admitted {
             if let Some(response) = admit(key, protocol).await? {
                 return Ok(response);
@@ -460,17 +472,44 @@ async fn relay(
             Ok(upstream) => {
                 return respond(upstream, name, endpoint, streaming, protocol, bridge, call);
             }
-            Err(rejected) if rejected.retryable && may_replay => failure = Some(rejected.response),
-            Err(rejected) => return rejected.response,
+            Err(rejected) => {
+                if let (Some(account), Some(until)) = (&target.cooldown, rejected.pause_until)
+                    && account.pause(cache_store, until).await.is_err()
+                {
+                    return account_state_unavailable(protocol);
+                }
+                if !rejected.retryable || !may_replay {
+                    return rejected.response;
+                }
+                failure = Some(rejected.response);
+            }
         }
     }
-    failure.unwrap_or_else(|| {
-        protocol.error(
-            StatusCode::BAD_REQUEST,
-            "unsupported_conversion",
-            conversion_error.unwrap_or("没有支持此请求的上游连接"),
-        )
-    })
+    if let Some(failure) = failure {
+        return failure;
+    }
+    if let Some(seconds) = cooling {
+        return protocol
+            .error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "upstream_unavailable",
+                "上游连接正在冷却",
+            )
+            .map(|response| response.header(header::RETRY_AFTER, HeaderValue::from(seconds)));
+    }
+    protocol.error(
+        StatusCode::BAD_REQUEST,
+        "unsupported_conversion",
+        conversion_error.unwrap_or("没有支持此请求的上游连接"),
+    )
+}
+
+fn account_state_unavailable(protocol: Protocol) -> HttpResult {
+    protocol.error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "account_state_unavailable",
+        "上游账号状态暂不可用",
+    )
 }
 
 async fn admit(key: &Key, protocol: Protocol) -> Result<Option<Response>, HttpError> {
@@ -502,6 +541,7 @@ async fn admit(key: &Key, protocol: Protocol) -> Result<Option<Response>, HttpEr
 
 struct UpstreamFailure {
     retryable: bool,
+    pause_until: Option<i64>,
     response: HttpResult,
 }
 
@@ -536,6 +576,7 @@ async fn request_upstream(
                     error,
                     AiError::Timeout | AiError::Transport | AiError::MissingCredential
                 ),
+                pause_until: None,
                 response: protocol.error(status, code, message),
             });
         }
@@ -560,8 +601,16 @@ async fn request_upstream(
     let response = protocol
         .error(status, "upstream_error", "上游拒绝或未能处理该请求")
         .map(|response| response.with_headers(headers));
+    let pause_until = match status.as_u16() {
+        429 | 503 | 529 => target
+            .cooldown
+            .as_ref()
+            .and_then(|policy| policy.deadline(upstream.headers())),
+        _ => None,
+    };
     Err(UpstreamFailure {
         retryable,
+        pause_until,
         response,
     })
 }

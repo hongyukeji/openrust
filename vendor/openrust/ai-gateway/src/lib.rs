@@ -12,6 +12,7 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 
+mod account_cooldown;
 mod compatibility;
 #[path = "../config/ai_gateway.rs"]
 mod configuration;

@@ -11,12 +11,17 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+use crate::account_cooldown::{AccountCooldown, MAX_SECONDS};
+
 #[derive(Default, Deserialize)]
 struct Configuration {
     #[serde(default)]
     enabled: bool,
     #[serde(default)]
     models: BTreeMap<String, ModelConfiguration>,
+    #[serde(default)]
+    accounts: BTreeMap<String, AccountConfiguration>,
+    account_cache_store: Option<String>,
     #[serde(default)]
     keys: BTreeMap<String, KeyConfiguration>,
 }
@@ -34,6 +39,11 @@ struct ModelConfiguration {
 struct TargetConfiguration {
     provider: String,
     model: String,
+}
+
+#[derive(Deserialize)]
+struct AccountConfiguration {
+    cooldown_seconds: i64,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +74,7 @@ const ENDPOINTS: [TextEndpoint; 8] = [
 pub(crate) struct Target {
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
+    pub(crate) cooldown: Option<Arc<AccountCooldown>>,
 }
 
 pub(crate) struct Model {
@@ -106,6 +117,7 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
 
 pub(crate) struct Gateway {
     pub(crate) models: BTreeMap<String, Model>,
+    pub(crate) account_cache_store: Option<String>,
     keys: Vec<Key>,
     logger: Arc<Logger>,
 }
@@ -135,6 +147,18 @@ impl Gateway {
         if !config.enabled {
             return Ok(None);
         }
+        let mut accounts = BTreeMap::new();
+        for (name, policy) in config.accounts {
+            if !(1..=MAX_SECONDS).contains(&policy.cooldown_seconds)
+                || ai.get_instance_config(&name).is_err()
+            {
+                return Err(invalid(format!("上游账号 {name} 的连接或冷却配置无效")));
+            }
+            accounts.insert(
+                name.clone(),
+                Arc::new(AccountCooldown::new(&name, policy.cooldown_seconds)),
+            );
+        }
         let models = config
             .models
             .into_iter()
@@ -157,6 +181,7 @@ impl Gateway {
                     targets.push(Target {
                         provider,
                         upstream_model: target.model,
+                        cooldown: accounts.get(&target.provider).cloned(),
                     });
                 }
                 let endpoints: Vec<_> = ENDPOINTS
@@ -216,6 +241,7 @@ impl Gateway {
         }
         Ok(Some(Self {
             models,
+            account_cache_store: config.account_cache_store,
             keys,
             logger,
         }))

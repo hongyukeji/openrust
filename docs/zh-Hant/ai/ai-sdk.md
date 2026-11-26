@@ -70,6 +70,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 公開模型對應可設定 `fallbacks`，依序嘗試備用連線。每項填寫 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。無狀態請求遇到上游 429、5xx 等可重試錯誤時，閘道會嘗試備用連線。用戶端仍使用同一個公開名稱，每次嘗試使用同一個請求 ID 記錄。帶有工具、要求儲存輸出或已開始回傳的串流不會重送。
 
+可在 `config/ai_gateway.rs` 中設定 `accounts.deepseek.cooldown_seconds = 30`，讓具名上游連線在回傳 HTTP 429、503 或 529 後進入冷卻。上游有效的 `Retry-After` 優先，最長 24 小時。使用同一連線的所有公開模型共用冷卻狀態。可用連線都在冷卻時，閘道回傳 HTTP 503 及 `Retry-After`。多程序部署可將 `account_cache_store` 指向共用快取，例如 `redis`。
+
 ## Agent 工具 {#agent-tools}
 
 實作 `Tool` 的名稱、描述、JSON Schema 和非同步 `handle`。用 `ToolRequest::validate` 執行框架驗證規則，或透過 `decode` 讀取 Rust 型別的參數。工具可以讀取上游呼叫 ID 和本次執行的獨立 ID。

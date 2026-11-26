@@ -41,6 +41,15 @@ async fn fixture(
     model: &'static str,
     replies: Vec<(&'static str, &'static str, &'static str)>,
 ) -> (String, JoinHandle<()>) {
+    fixture_with_headers(token, model, replies, "").await
+}
+
+async fn fixture_with_headers(
+    token: &'static str,
+    model: &'static str,
+    replies: Vec<(&'static str, &'static str, &'static str)>,
+    additional_headers: &'static str,
+) -> (String, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/test/v1", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -69,7 +78,7 @@ async fn fixture(
             let body: Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["model"], model);
             let head = format!(
-                "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n{additional_headers}\r\n",
                 payload.len()
             );
             socket.get_mut().write_all(head.as_bytes()).await.unwrap();
@@ -178,5 +187,71 @@ async fn fallback_is_ordered_and_stops_before_replaying_tools_or_a_started_strea
             && !logs.contains("primary-key")
             && !logs.contains("backup-key")
     );
+    Ok(())
+}
+
+fn cooldown_config(path: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+    let mut config = config(path, env)?;
+    let gateway = config.get_mut("ai_gateway").unwrap();
+    gateway["models"]["second-alias"] = json!({"provider":"deepseek","model":"different"});
+    gateway["keys"]["caller"]["models"] = json!(["public", "second-alias"]);
+    gateway["accounts"]["deepseek"] = json!({"cooldown_seconds":5});
+    Ok(config)
+}
+
+#[tokio::test]
+async fn account_cooldown_is_shared_across_aliases_and_obeys_retry_after() -> TestResult {
+    let (primary, first) = fixture_with_headers(
+        "primary-key",
+        "primary",
+        vec![(
+            "429 Too Many Requests",
+            "application/json",
+            r#"{"error":{"message":"private provider detail"}}"#,
+        )],
+        "Retry-After: 20\r\n",
+    )
+    .await;
+    let reply = (
+        "200 OK",
+        "application/json",
+        r#"{"model":"backup","choices":[{"message":{"content":"backup"}}]}"#,
+    );
+    let (backup, second) = fixture("backup-key", "backup", vec![reply, reply]).await;
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder
+            .with_providers(providers)
+            .with_config(cooldown_config)
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nDEEPSEEK_URL={primary}\nDEEPSEEK_API_KEY=primary-key\nOPENAI_URL={backup}\nOPENAI_API_KEY=backup-key\nCALLER_KEY=caller-fixture\n"
+        ),
+    )?;
+    let mut body = json!({"model":"public","messages":[{"role":"user","content":"hello"}]});
+    let first_call = send(&mut app, body.clone()).await?;
+    assert_eq!(first_call.status(), StatusCode::OK);
+    let fallback = send(&mut app, body.clone()).await?;
+    assert_eq!(fallback.status(), StatusCode::OK);
+    assert_eq!(
+        fallback.json::<Value>()?["choices"][0]["message"]["content"],
+        "backup"
+    );
+    body["model"] = "second-alias".into();
+    let response = send(&mut app, body).await?;
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response.json::<Value>()?["error"]["code"],
+        "upstream_unavailable"
+    );
+    let seconds = response.headers()["retry-after"].to_str()?.parse::<u64>()?;
+    assert!((6..=20).contains(&seconds), "{seconds}");
+    first.await?;
+    second.await?;
+    let logs = fs::read_to_string(app.root().join("calls.log"))?;
+    assert_eq!(logs.lines().count(), 3);
     Ok(())
 }
