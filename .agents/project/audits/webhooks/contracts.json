@@ -151,13 +151,14 @@
       "declared_public_properties": [
         "guarded"
       ],
-      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。可信旧版导出已通过 restore_legacy_attachments 验证独立列优先和空值回退。创建／更新时间采用 Unix 秒，旧行回退及新写入已验。整表迁移及 Eloquent 继承仍单列。保留期清理由独立包命令及模型 prunable 存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。同事务登记过期对象并由有界、可重试的附件清理命令回收，三库已验本地磁盘。现已通过通用 model:prune 注册按具名数据库、可信范围清理，保留终态、无租约及附件登记约束。远端／跨主机附件和完整继承对照仍开放。",
+      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。可信旧版导出已通过 restore_legacy_attachments 验证独立列优先和空值回退。创建／更新时间采用 Unix 秒，旧行回退及新写入已验。整表迁移及 Eloquent 继承仍单列。保留期清理由独立包命令及模型 prunable 存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。同事务登记过期对象并由有界、可重试的附件清理命令回收，三库已验本地磁盘。现已通过通用 model:prune 注册按具名数据库、可信范围清理，保留终态、无租约及附件登记约束。具名模型工厂及独立 Worker 已验另一范围。完整模型对照已记录 PHP 动态继承和批量赋值与 Rust 存储适配边界。整表迁移、目标对象存储与发布环境待验。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",
         "tests/webhooks_routes_acceptance.py",
         ".agents/project/audits/webhooks/legacy-attachments.md",
-        ".agents/project/audits/webhooks/receipt-update-time.md"
+        ".agents/project/audits/webhooks/receipt-update-time.md",
+        ".agents/project/audits/webhooks/receipt-model-contract.md"
       ],
       "rust_source": "vendor/openrust/webhook-client/src/models.rs"
     },
