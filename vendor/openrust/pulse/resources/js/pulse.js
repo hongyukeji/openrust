@@ -216,4 +216,4 @@ async function refresh() {
 period.addEventListener('change', () => updateOption('period', period.value));
 document.querySelector('#refresh').addEventListener('click', refresh);
 refresh();
-setInterval(() => { if (!activeRefresh) refresh(); }, 10000);
+setInterval(() => { if (!activeRefresh) refresh(); }, 5000);

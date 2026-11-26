@@ -138,7 +138,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 同一 macOS 隔离快照的真实 HTTP 通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13，验证平均值、稀疏序列、新旧状态、排序覆盖及数字／时长过期配置。Pulse 与 Telescope Provider 共 37 项通过，独立 Redis 的 Telescope 用例按环境跳过。实际授权页面通过手机和桌面 Chrome 检查，涵盖历史曲线、上报状态、四种时段、仪表、刷新和文字转义。全仓格式、相关严格 Clippy、三语文档构建及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-servers-{verified,docs}.log`。
 
-接续核对固定 Servers 组件的五秒轮询、历史点提示与格式、集合字段排序以及 Carbon 复合时间表达式。原生面板当前每十秒统一刷新，磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+固定面板的 Servers、Cache、Queues、Usage、Exceptions 及四类慢操作模板均声明五秒轮询。原生面板由每十秒改为每五秒统一请求，保留请求尚未结束时跳过该轮的规则。真实 Chrome 使用可控浏览器时钟验证首次加载、五秒前未请求及五秒时响应成功，桌面和移动功能回归同时通过。证据为 `target/tmp/observability-parity/pulse-dashboard-polling-verified.log`。 [固定面板模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)
+
+接续核对历史点提示与格式、集合字段排序以及 Carbon 复合时间表达式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
 
 ## SlowJobs 任务尝试计时
 

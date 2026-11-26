@@ -61,5 +61,22 @@ try{
   console.log(`native Pulse ${mobile?'mobile':'desktop'}: authorization, live metrics, 4 periods, SVG, meters, text escaping and refresh PASS`);
   await page.close();
  }
+ const polling=await context.newPage();
+ const time=new Date('2026-11-26T00:00:00Z');
+ await polling.clock.install({time});
+ await polling.clock.pauseAt(new Date(time.getTime()+1000));
+ let polls=0;
+ polling.on('request', r=>{if(r.url().includes('/api/metrics')) polls++});
+ assert.equal((await polling.goto(base+'/operations/pulse')).status(),200);
+ await polling.locator('#status').filter({hasText:'Updated'}).waitFor();
+ assert.equal(polls,1);
+ await polling.clock.runFor(4999);
+ assert.equal(polls,1);
+ const automatic=polling.waitForResponse(r=>r.url().includes('/api/metrics'));
+ await polling.clock.runFor(1);
+ assert.equal((await automatic).status(),200);
+ assert.equal(polls,2);
+ console.log('native Pulse dashboard: initial request and five-second automatic refresh PASS');
+ await polling.close();
  await context.close();
 }finally{await browser.close()}
