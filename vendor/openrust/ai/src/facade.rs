@@ -31,6 +31,12 @@ impl Ai {
         Ok(())
     }
 
+    pub fn conversation_store() -> AiResult<crate::DatabaseConversationStore> {
+        Self::manager()?
+            .conversation_store()
+            .map(|(store, _)| store)
+    }
+
     pub fn text_provider(name: Option<&str>) -> AiResult<Arc<dyn TextProvider>> {
         Self::manager()?.text_provider(name)
     }

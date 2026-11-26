@@ -41,6 +41,10 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
 
     Ok(json!({
         "default": env.get_utf8("AI_PROVIDER")?,
+        "conversations": {
+            "connection": env.get_utf8("AI_CONVERSATIONS_CONNECTION")?,
+            "max_messages": 100,
+        },
         "default_for_images": null,
         "default_for_audio": null,
         "default_for_transcription": null,

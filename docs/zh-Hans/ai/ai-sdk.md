@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选 `ai` feature 提供 Laravel 风格的 `Ai`、`AiManager`、`Agent` 和文本 Fake。当前支持 OpenAI Responses 和 OpenAI 兼容 Chat Completions 的普通文本与文本 SSE。
+可选 `ai` feature 提供 Laravel 风格的 `Ai`、`AiManager`、`Agent` 和文本 Fake。普通文本和流式调用支持 OpenAI Responses、OpenAI 兼容 Chat Completions、Anthropic Messages 和 Gemini GenerateContent。Agent 可以将文本会话保存在应用数据库。
 
 SDK 和网关复用框架的 [HTTP 客户端](../digging-deeper/http-client.md)。
 
@@ -43,7 +43,7 @@ let answer = response.text;
 
 ## 范围 {#scope}
 
-当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 与 Gemini 原生连接也支持普通文本、SSE 和分页模型目录。持久化会话仍待实现。
+当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 与 Gemini 原生连接也支持普通文本、SSE 和分页模型目录。
 
 ## 模型网关 {#model-gateway}
 
@@ -96,6 +96,29 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 ```
 
 签发和轮换只返回一次可用的 Bearer Token。数据库保存 SHA-256 摘要。轮换沿用 Key ID、分组、有效期和请求额度。旧版本、撤销或过期的 Token 后续请求返回 HTTP 401。需要定制迁移时，执行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新编译后运行迁移。
+
+## 持久会话 {#conversations}
+
+给 Agent 实现 `RemembersConversations` 即可把对话存到应用数据库。先发布迁移，重新编译应用，再执行迁移。
+
+```bash
+cargo run --features ai -- artisan vendor:publish --tag=ai-migrations
+cargo run --features ai -- artisan migrate
+```
+
+```rust
+use openrust_ai::{ConversationParticipant, RemembersConversations};
+
+impl RemembersConversations for SupportAgent {}
+
+let participant = ConversationParticipant::new("customer", authenticated_id);
+let first = agent.for_participant(participant.clone()).prompt("Hello").await?;
+let next = agent.r#continue(first.conversation_id, participant).prompt("Continue").await?;
+```
+
+继续会话时传入已认证参与者的类型和 ID。`for_user(&user)` 可直接为认证用户开启会话。`continue_last_conversation(participant)` 寻找该参与者与同一 Agent 类型的上一会话，没有历史时开启新会话。
+
+SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。持久会话当前使用普通文本生成入口。
 
 ## Agent 工具 {#agent-tools}
 

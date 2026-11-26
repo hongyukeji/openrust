@@ -16,6 +16,8 @@ mod anthropic;
 mod configuration;
 mod connection;
 mod console;
+mod conversation_store;
+mod conversations;
 mod embedding_cache;
 mod embeddings;
 mod error;
@@ -40,6 +42,10 @@ mod tools;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use configuration::load as default_config;
+pub use conversation_store::{
+    ConversationPage, ConversationParticipant, DatabaseConversationStore, StoredMessage,
+};
+pub use conversations::{ConversationResponse, PendingConversation, RemembersConversations};
 pub use embeddings::{
     EmbeddingProvider, Embeddings, EmbeddingsPrompt, EmbeddingsResponse,
     PendingEmbeddingsGeneration,
@@ -107,6 +113,14 @@ impl ServiceProvider for AiServiceProvider {
             let config = &[("config/ai.rs", include_bytes!("../config/ai.rs").as_slice())];
             self.publishes(app, config, "ai")?;
             self.publishes(app, config, "ai-config")?;
+            self.publishes_migrations(
+                app,
+                &[(
+                    "database/migrations/2026_01_11_000001_create_agent_conversations_table.rs",
+                    include_bytes!("../database/migrations/2026_01_11_000001_create_agent_conversations_table.rs"),
+                )],
+                "ai-migrations",
+            )?;
             self.publishes(app, console::STUBS, "ai-stubs")
         })
     }

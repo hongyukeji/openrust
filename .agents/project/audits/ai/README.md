@@ -161,3 +161,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 独立 HTTP 进程通过 Vercel UI 协议及时收到 Claude 首段文本，并验证分片参数、签名、调用 ID、下一轮结果和合计用量。独立 Artisan 验证 Gemini 的原始签名及工具结果回送。包测试覆盖 Gemini 独立用量帧及缺少结束标志时不执行工具。两路上游均使用真实 TCP 连接的协议模拟。Gemini 分片函数参数、Interactions 和流式中间件待后续批次。
 
 - [Anthropic Messages Streaming](https://platform.claude.com/docs/en/build-with-claude/streaming) · [Gemini GenerateContent](https://aistudio.google.com/api-reference/generate-content)
+
+## AI-03／AI-04 数据库会话与迁移发布
+
+普通文本 Agent 实现 `RemembersConversations`，可给参加者或认证用户开启对话，按 ID 继续，也可查询参与者与当前 Agent 类型的最近会话。继续前按参与者类型和 ID 精确验证归属，未通过即终止上游调用。历史以 UUIDv7 排序和裁剪，读取最近消息时恢复成时间正序，分页用框架 Cursor。会话与成功的用户和助手消息按同一事务保存，助手行记录模型、供应商、用量与工具调用结果。
+
+`ai.conversations.connection` 沿用框架 Database 连接，可通过 `AI_CONVERSATIONS_CONNECTION` 选择。应用通过 `vendor:publish --tag=ai-migrations` 发布迁移，重新编译后迁移和回滚。无状态 SDK 启动不查询会话表。独立 Artisan 创建、独立 HTTP 恢复对话，使用协议模拟上游和真实 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 验证持久化、大小写不同参与者拒绝访问、游标、用量与回滚。包测试另外覆盖历史裁剪与上一会话。
+
+本批选择把完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、可替换存储契约、可配置表名、流式和结构化会话、附件与原始工具历史重建、审批暂停／恢复与并发语义仍待补齐。

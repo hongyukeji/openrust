@@ -232,6 +232,23 @@ impl AiManager {
         Ok(provider)
     }
 
+    pub(crate) fn conversation_store(&self) -> AiResult<(crate::DatabaseConversationStore, u64)> {
+        let connection = match self.config.get("ai.conversations.connection") {
+            Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
+            Some(Value::Null) | None => None,
+            _ => return Err(AiError::InvalidConfiguration("conversations.connection")),
+        };
+        let history = match self.config.get("ai.conversations.max_messages") {
+            Some(value) => value
+                .as_u64()
+                .ok_or(AiError::InvalidConfiguration("conversations.max_messages"))?,
+            None => 100,
+        };
+        let database = openrust::database::Db::connection(connection.as_deref())
+            .map_err(|_| AiError::ConversationStorageUnavailable)?;
+        Ok((crate::DatabaseConversationStore::new(database), history))
+    }
+
     pub(crate) fn embedding_cache_config(&self) -> Option<Value> {
         self.config.get("ai.caching.embeddings")
     }
@@ -357,6 +374,18 @@ impl AiManager {
         options: PromptOptions<'_>,
         structured_output: Option<StructuredOutput<'_>>,
     ) -> AiResult<AgentResponse> {
+        self.prompt_with_history(agent, prompt, options, structured_output, agent.messages())
+            .await
+    }
+
+    pub(crate) async fn prompt_with_history<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+        messages: &[crate::Message],
+    ) -> AiResult<AgentResponse> {
         if prompt.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -377,7 +406,7 @@ impl AiManager {
                 });
             return fake.respond(
                 prompt,
-                agent.messages(),
+                messages,
                 structured_output.as_ref().map(|output| output.schema),
                 provider,
                 model,
@@ -392,7 +421,7 @@ impl AiManager {
                 model,
                 timeout: options.timeout,
             },
-            messages: agent.messages(),
+            messages,
             structured_output,
         };
         let tools = agent.tools();

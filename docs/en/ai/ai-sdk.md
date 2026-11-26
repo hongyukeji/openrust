@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `ai` feature provides Laravel-style `Ai`, `AiManager`, `Agent`, and a text fake. The SDK supports text and text SSE via OpenAI Responses and OpenAI-compatible Chat Completions.
+The optional `ai` feature provides Laravel-style `Ai`, `AiManager`, `Agent`, and a text fake. Use OpenAI Responses, OpenAI-compatible Chat Completions, Anthropic Messages, or Gemini GenerateContent for text and streaming. Agents can save text conversations in the application database.
 
 The SDK and gateway use the framework’s [HTTP client](../digging-deeper/http-client.md).
 
@@ -43,7 +43,7 @@ For a connection needed only during the current request or command, use `Ai::bui
 
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. Persistent conversations are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery.
 
 ## Model gateway {#model-gateway}
 
@@ -96,6 +96,29 @@ For database-managed keys, set `managed_keys.enabled` to `true`. The optional `m
 ```
 
 Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
+
+## Remembered conversations {#conversations}
+
+Implement `RemembersConversations` on an Agent to store its conversation in the application's database. Publish the migration, rebuild the application, then migrate.
+
+```bash
+cargo run --features ai -- artisan vendor:publish --tag=ai-migrations
+cargo run --features ai -- artisan migrate
+```
+
+```rust
+use openrust_ai::{ConversationParticipant, RemembersConversations};
+
+impl RemembersConversations for SupportAgent {}
+
+let participant = ConversationParticipant::new("customer", authenticated_id);
+let first = agent.for_participant(participant.clone()).prompt("Hello").await?;
+let next = agent.r#continue(first.conversation_id, participant).prompt("Continue").await?;
+```
+
+Pass the authenticated participant's type and ID when continuing a conversation. `for_user(&user)` can start a conversation directly from an authenticatable model. `continue_last_conversation(participant)` finds that participant's last conversation with the same Agent type and starts a new conversation if none exists.
+
+The SDK saves completed user and assistant messages together. The next prompt receives the latest 100 messages in chronological order by default. Change `conversations.max_messages` in `config/ai.rs` to adjust that limit. The store uses the default database connection unless `AI_CONVERSATIONS_CONNECTION` names another connection. For a history screen, use `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` for newest-first cursor pagination. Remembered prompts currently use the buffered text entry point.
 
 ## Agent tools {#agent-tools}
 

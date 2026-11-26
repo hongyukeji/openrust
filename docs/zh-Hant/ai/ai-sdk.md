@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-選用的 `ai` feature 提供 Laravel 風格的 `Ai`、`AiManager`、`Agent` 與文字 Fake。目前支援 OpenAI Responses 和 OpenAI 相容 Chat Completions 的一般文字與文字 SSE。
+選用的 `ai` feature 提供 Laravel 風格的 `Ai`、`AiManager`、`Agent` 與文字 Fake。一般文字與串流呼叫支援 OpenAI Responses、OpenAI 相容 Chat Completions、Anthropic Messages 和 Gemini GenerateContent。Agent 可以將文字對話儲存在應用程式資料庫。
 
 SDK 和閘道共用框架的 [HTTP 用戶端](../digging-deeper/http-client.md)。
 
@@ -43,7 +43,7 @@ let answer = response.text;
 
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。持久化會話仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。
 
 ## 模型閘道 {#model-gateway}
 
@@ -96,6 +96,29 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 ```
 
 簽發和輪替只回傳一次可用的 Bearer Token。資料庫儲存 SHA-256 摘要。輪替沿用 Key ID、群組、有效期限與請求額度。舊版、撤銷或過期的 Token 後續請求回傳 HTTP 401。需要自訂遷移時，執行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新編譯後執行遷移。
+
+## 持久對話 {#conversations}
+
+讓 Agent 實作 `RemembersConversations` 即可把對話存到應用程式資料庫。先發佈遷移，重新編譯應用程式，再執行遷移。
+
+```bash
+cargo run --features ai -- artisan vendor:publish --tag=ai-migrations
+cargo run --features ai -- artisan migrate
+```
+
+```rust
+use openrust_ai::{ConversationParticipant, RemembersConversations};
+
+impl RemembersConversations for SupportAgent {}
+
+let participant = ConversationParticipant::new("customer", authenticated_id);
+let first = agent.for_participant(participant.clone()).prompt("Hello").await?;
+let next = agent.r#continue(first.conversation_id, participant).prompt("Continue").await?;
+```
+
+繼續對話時傳入已驗證參與者的類型和 ID。`for_user(&user)` 可直接為已驗證的使用者開啟對話。`continue_last_conversation(participant)` 查詢該參與者與同一 Agent 類型的上一段對話，沒有歷史時則開啟新對話。
+
+SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。持久對話目前使用一般文字生成入口。
 
 ## Agent 工具 {#agent-tools}
 
