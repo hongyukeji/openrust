@@ -54,6 +54,14 @@ macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor �
 
 阻塞接管用例确认 Redis 中的 Worker 处于 `BLPOP` 后，在同一条脚本内写入继任令牌、追加真实派发的任务并唤醒旧 Worker。旧 Worker 消费通知后退出，任务留在待处理列表，尝试次数仍为 0、保留集合为空。持新令牌的 `horizon:work --once` 处理同一任务。macOS 与 Linux ARM64 在 Redis 8.10.3 上通过阻塞与非阻塞回归，macOS 的普通 Redis 队列 HTTP 与阻塞领取回归、Horizon Worker 回归、所涉严格 Clippy 和格式检查通过。证据为 `target/tmp/observability-parity/horizon-blocking-ownership-{before,macos,linux,plain-queue,format}.log`。
 
+### Redis 短时断连与主从切换
+
+固定 PHP 8.5.12 调用 Master 和 Supervisor 各自的实际监控循环。第一轮持久化抛出受控异常时，两个入口均报告异常并返回。下一轮在同一实例上成功持久化并派发循环事件。证据为 `target/tmp/observability-parity/horizon-metadata-loop-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php)
+
+macOS 的原生 Artisan Master 通过固定地址访问两台独占 Redis 8.10.3。初始 Worker 完成真实任务后，在主节点执行写入和 `WAIT 1`，并从副本读回确认值。切断已有连接，在提升副本期间暂时拒绝重连并停止原主节点，随后将固定地址转发到提升后的主节点。Rust Master 在约三秒的断连期间以状态码 1 退出。提升后的节点仍显示一条 Master 心跳。证据为 `target/tmp/observability-parity/horizon-redis-promotion-baseline.log`。
+
+接续验收需让短时故障后仍持有效所有权的进程恢复，以及继续验证确认失去所有权、长时间不可达、提升副本缺少令牌和故障窗口内不得继续领取的边界。当前单节点持续断连时退出并回收 Worker 的验收继续保留。固定地址由夹具代理提供，发布时仍需实测实际的 Redis 故障转移入口和拓扑。
+
 ### Master 命令队列与动态部署
 
 固定上游的本机队列名称为 `master:<Master 全名>`。`commandQueueFor` 在未传名称、传入空串或 `"0"` 时使用本机队列。Redis 按顺序推送 `command` 与 `options`，`pending` 领取后移除，`flush` 清空指定队列。固定 PHP 探针使用真实 Redis 8.10.3 验证名称、空与嵌套选项、FIFO、领取后的空队列和清空，再调用 `AddSupervisor::process` 验证新 Supervisor 的名称与队列。Symfony 启动动作由探针替身承接，Rust 用实际子进程复验。上游证据为 `target/tmp/observability-parity/horizon-master-command-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 RedisHorizonCommandQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisHorizonCommandQueue.php) [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php)
