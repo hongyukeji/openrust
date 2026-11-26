@@ -18,3 +18,10 @@
 
 扩展组合已核对五个锁定目标的许可依赖图。Linux ARM64 原生容器、AMD64 仿真容器、Windows ARM64／x64 独立 ZIP 和 macOS ARM64 归档各自的 10 个许可文件均逐字节一致，九个包的发现、58 项迁移、缓存前后 HTTP、Reverb 投递和独立 SQLite Worker 启动通过。AMD64 Linux、Windows ARM64／x64 和 macOS ARM64 制品的 New Relic Provider 另通过隔离 OTLP 的 HTTP 指标及 Artisan Span 实测。Windows 两种 ZIP 另验证缓存前后 HTTP 进程响应 Ctrl+C 并以状态 0 退出。Windows x64 在 ARM64 虚机兼容层运行。已通过原始 PE／PDB 核对两种 Windows 制品的原生归档代码与数据，补齐两种架构的 BLAKE3 许可。Linux ARM64、Linux AMD64 与 macOS ARM64 已用实际候选制品的链接映射复核 Cargo 原生归档代码。原生 Linux x86_64 组合部署、原生 Windows x64、Windows Docker Desktop、无 MSVC 工具链的 Windows 安装、macOS Developer ID 签名与公证、完整原生依赖溯源及发布渠道仍需核验。[扩展组合依赖与发行声明](extension-release-licenses.md)
 五个候选制品的 [工具链溯源](extension-release-licenses.md#五个候选制品的工具链溯源)已确认 Rust 标准库与编译器内建归档均有保留贡献，并追到 Linux 与 Windows 的启动及运行库来源。Docker 打包和三语独立部署示例已接入 [Rust 标准库版权报告](extension-release-licenses.md#标准库版权报告随附验证)。默认镜像、两份 Windows 九扩展 ZIP、[Linux ARM64／AMD64 九扩展冻结候选](extension-release-licenses.md#两种-linux-九扩展候选的打包复验)以及 [macOS ARM64 九扩展新构建](extension-release-licenses.md#macos-arm64-九扩展冷构建与归档复验)已通过打包及运行复验。继续核对较新源码的 Linux 冷构建及目标渠道最终归档。
+
+## 实机与测试账号就绪复查
+
+- 当前 Windows 11 虚机为 ARM64。WSL 命令可用，Docker CLI、Docker Desktop 可执行文件及其服务均未发现。此前独立 ZIP 验收仍适用。Windows Docker Desktop 和原生 Windows x64 继续等待对应环境。
+- macOS 本机钥匙串查询没有可用的 Developer ID Application 身份。已复验的是链接器 ad-hoc 签名。Developer ID 签名、公证和渠道分发需要对应身份及授权。
+- 对当前进程环境和项目 `.env` 核对指定设置是否非空，日志仅保留存在性。未发现 New Relic 摄取许可证、内容审核凭据目录、Stripe／Paddle 所核对的 API 和回调设置，以及显式 AWS 凭据、Profile 或 Web Identity 设置。真实队列、商户、审核供应商和 New Relic 租户继续按各模块计划验收。
+- 历史 Ubuntu 验收记录仍可定位到原生 x86_64 的源码和运行证据，当前没有同该隔离验收主机对应的已核实登录入口。待核对主机、登录用户与非交互 Docker 权限后复验较新扩展组合。
