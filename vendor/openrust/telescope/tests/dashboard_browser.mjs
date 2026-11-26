@@ -17,7 +17,7 @@ try {
   await page.locator('#entries button').first().waitFor();
   assert((await page.locator('#entries').innerText()).includes('<img src=x onerror=window.compromised=true>'));
   assert.equal(await page.evaluate(()=>window.compromised),undefined);
-  await page.locator('#entries button').first().click();
+  await page.locator('#entries tr').filter({hasText:'<img src=x onerror=window.compromised=true>'}).first().locator('button').click();
   await page.waitForFunction(()=>document.querySelector('#json').textContent.includes('observed'));
   assert.equal(await page.locator('#entries img').count(),0);
   assert((await page.locator('meta[name="csrf-token"]').getAttribute('content')).length>0);
@@ -83,9 +83,37 @@ try {
   assert.equal((await emitEvent()).status(),200);
   await page.waitForFunction(id=>{const current=document.querySelector('#entries button')?.getAttribute('aria-label');return current&&current!==id},beforeAutomatic);
   assert(!(await newEntries.isVisible()));
+
+  const familySample=mobile?'mobile':'desktop';
+  const familyTag='family-'+familySample;
+  for(const label of ['family-first','family-second','standalone']){
+   assert.equal((await context.request.get(new URL(`/api/family/event/${familySample}/${label}`,endpoint).href)).status(),200);
+  }
+  await page.goto(endpoint+'/events?tag='+familyTag);
+  const summaries=page.locator('#entries .summary');
+  await summaries.filter({hasText:'family-second'}).waitFor();
+  assert.deepEqual(await summaries.allTextContents(),['standalone','family-second']);
+  await page.getByRole('textbox',{name:'Filter by family hash'}).fill('fixture-family');
+  await page.getByRole('button',{name:'Filter',exact:true}).click();
+  await summaries.filter({hasText:'family-first'}).waitFor();
+  assert.deepEqual(await summaries.allTextContents(),['family-second','family-first']);
+  assert.equal(new URL(page.url()).searchParams.get('family_hash'),'fixture-family');
+  assert.equal(new URL(page.url()).searchParams.get('tag'),familyTag);
+  await page.goBack();
+  await summaries.filter({hasText:'standalone'}).waitFor();
+  assert.deepEqual(await summaries.allTextContents(),['standalone','family-second']);
+  await page.goForward();
+  await summaries.filter({hasText:'family-first'}).waitFor();
+  assert.deepEqual(await summaries.allTextContents(),['family-second','family-first']);
+  for(const label of ['job-first','job-second']){
+   assert.equal((await context.request.get(new URL(`/api/family/job/${familySample}/${label}`,endpoint).href)).status(),200);
+  }
+  await page.goto(endpoint+'/jobs?tag='+familyTag);
+  await summaries.filter({hasText:'job-second'}).waitFor();
+  assert(await summaries.filter({hasText:'job-first'}).isVisible());
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(errors,[]);
-  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup, new entries, auto-load preference and layout`);
+  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup, new entries, auto-load preference, family navigation and layout`);
   await context.close();
  }
 } finally { await browser.close(); }

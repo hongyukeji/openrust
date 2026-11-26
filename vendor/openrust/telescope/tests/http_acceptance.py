@@ -51,7 +51,7 @@ def main():
                         assert database.execute('SELECT COUNT(*) FROM telescope_entries').fetchone()[0] == 0
                     print('PASS: disabled Telescope stores no HTTP entries')
                 else:
-                    subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=45)
+                    subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=75)
             finally:
                 server.terminate()
                 try:

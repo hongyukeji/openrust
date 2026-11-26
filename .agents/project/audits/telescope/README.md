@@ -82,7 +82,9 @@ OpenRust 的 Dumps 打开时刷新四秒采集租约，以两秒列表探测更�
 
 ### 普通列表的新条目加载
 
-固定 Telescope 页面以 2.5 秒检查普通列表。空列表自动展示首条记录。已有条目时，默认保留当前列表并提示加载新条目。启用自动加载后，新条目直接进入列表，偏好保存在浏览器。固定 PHP 8.5.12、Laravel 13.40.0、SQLite 和实际发布页面验证事件列表的手动加载及重新打开页面后的自动加载。OpenRust 的老版本经过浏览器仍无加载提示，新版本在真实原生 HTTP 的桌面与手机浏览器通过新记录、手动加载、自动加载、偏好保留和 Dumps 切换回归。快照格式、Telescope 全目标严格 Clippy 和三语文档六组通过。任务列表现有待处理记录的单独状态刷新与错误族分组仍待核对。证据为 `target/tmp/observability-parity/telescope-http-reference/index-refresh-browser.log` 与 `target/tmp/observability-parity/telescope-list-refresh-{baseline,macos,docs}.log`。 [固定 IndexScreen](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/resources/js/components/IndexScreen.vue)
+固定 Telescope 页面以 2.5 秒检查普通列表。空列表自动展示首条记录。已有条目时，默认保留当前列表并提示加载新条目。启用自动加载后，新条目直接进入列表，偏好保存在浏览器。固定 PHP 8.5.12、Laravel 13.40.0、SQLite 和实际发布页面验证事件列表的手动加载及重新打开页面后的自动加载。OpenRust 的老版本经过浏览器仍无加载提示，新版本在真实原生 HTTP 的桌面与手机浏览器通过新记录、手动加载、自动加载、偏好保留和 Dumps 切换回归。快照格式、Telescope 全目标严格 Clippy 和三语文档六组通过。证据为 `target/tmp/observability-parity/telescope-http-reference/index-refresh-browser.log` 与 `target/tmp/observability-parity/telescope-list-refresh-{baseline,macos,docs}.log`。 [固定 IndexScreen](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/resources/js/components/IndexScreen.vue)
+
+固定 PHP 发布页面实际通过事件与任务验收族哈希行为。普通列表在每页为同一族展示第一条记录，无族记录各自展示。指定 `family_hash` 后展开匹配条目，任务列表始终逐条显示。OpenRust 的旧版真实页面忽略了带标签的直达链接并显示重复的族条目。修复在公开列表保留原始分页序列，渲染时分组，支持带标签及族哈希的直达链接和浏览器前进、后退。真实桌面和移动浏览器、快照格式、全目标严格 Clippy、三语正文六组通过。任务列表原有待处理记录的状态刷新另行验收。证据为 `target/tmp/observability-parity/telescope-http-reference/family-index-browser.log` 与 `target/tmp/observability-parity/telescope-family-{baseline,macos-verified,docs}.log`。
 
 
 ## 公开 Watcher 与缓冲响应补齐（2026-11-21）

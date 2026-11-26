@@ -27,7 +27,32 @@ impl ServiceProvider for ProbeProvider {
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/probe", probe)?;
     Route::get("/dump/{label}", dump_probe)?;
+    Route::get("/family/{kind}/{sample}/{label}", family_probe)?;
     Ok(())
+}
+fn family_probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let job = request.route("kind") == Some("job");
+    let tag = format!("family-{}", request.route("sample").unwrap_or_default());
+    let label = request.route("label").unwrap_or_default().to_owned();
+    Box::pin(async move {
+        let family = (label != "standalone").then(|| "fixture-family".to_owned());
+        let entry = IncomingEntry::make(
+            json!({"name":label,"status":"processed","listeners":[]})
+                .as_object()
+                .unwrap()
+                .clone(),
+        )
+        .unwrap()
+        .with_family_hash(family)
+        .tags([tag]);
+        let telescope = openrust_telescope::facades::Telescope::get_facade_root().unwrap();
+        if job {
+            telescope.record_job(entry);
+        } else {
+            telescope.record_event(entry);
+        }
+        Ok(Response::from("recorded"))
+    })
 }
 fn dump_probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let label = request.route("label").unwrap_or_default().to_owned();
