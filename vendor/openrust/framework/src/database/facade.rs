@@ -178,17 +178,20 @@ impl Db {
         Self::connection(None)?.begin_transaction().await
     }
 
-    pub async fn transaction<T>(
+    #[track_caller]
+    pub fn transaction<T>(
         callback: impl for<'a> FnMut(&'a mut Transaction) -> DatabaseFuture<'a, DatabaseResult<T>>
         + Send,
         attempts: u32,
-    ) -> DatabaseResult<T>
+    ) -> impl Future<Output = DatabaseResult<T>>
     where
         T: Send,
     {
-        Self::connection(None)?
-            .transaction(callback, attempts)
-            .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Self::connection(None)?
+                .transaction(callback, attempts)
+                .await
+        })
     }
 
     statements! {

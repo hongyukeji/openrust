@@ -82,13 +82,16 @@ fn concurrency_error(error: &DatabaseError) -> bool {
 pub trait TransactionalService: Sync {
     fn connection(&self) -> DatabaseResult<Connection>;
 
+    #[track_caller]
     fn transaction<T: Send>(
         &self,
         callback: impl for<'a> FnMut(&'a mut Transaction) -> DatabaseFuture<'a, DatabaseResult<T>>
         + Send,
         attempts: u32,
     ) -> impl std::future::Future<Output = DatabaseResult<T>> + Send {
-        async move { self.connection()?.transaction(callback, attempts).await }
+        super::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.connection()?.transaction(callback, attempts).await
+        })
     }
 }
 
@@ -225,27 +228,30 @@ impl Connection {
         result
     }
 
-    pub async fn transaction<T>(
+    #[track_caller]
+    pub fn transaction<T>(
         &self,
         mut callback: impl for<'a> FnMut(&'a mut Transaction) -> DatabaseFuture<'a, DatabaseResult<T>>
         + Send,
         attempts: u32,
-    ) -> DatabaseResult<T>
+    ) -> impl std::future::Future<Output = DatabaseResult<T>>
     where
         T: Send,
     {
-        if attempts == 0 {
-            return Err(DatabaseError::InvalidTransactionAttempts);
-        }
-        let mut remaining = attempts;
-        loop {
-            let result = self.begin_transaction().await?.run(&mut callback).await;
-            remaining -= 1;
-            match result {
-                Err(ref error) if remaining > 0 && concurrency_error(error) => continue,
-                result => return result,
+        super::events::with_query_caller(std::panic::Location::caller(), async move {
+            if attempts == 0 {
+                return Err(DatabaseError::InvalidTransactionAttempts);
             }
-        }
+            let mut remaining = attempts;
+            loop {
+                let result = self.begin_transaction().await?.run(&mut callback).await;
+                remaining -= 1;
+                match result {
+                    Err(ref error) if remaining > 0 && concurrency_error(error) => continue,
+                    result => return result,
+                }
+            }
+        })
     }
 }
 
@@ -585,15 +591,18 @@ impl Transaction {
     }
 
     /// Executes a nested callback within a savepoint on the same session.
-    pub async fn transaction<T>(
+    #[track_caller]
+    pub fn transaction<T>(
         &mut self,
         callback: impl for<'a> FnOnce(&'a mut Self) -> DatabaseFuture<'a, DatabaseResult<T>> + Send,
-    ) -> DatabaseResult<T>
+    ) -> impl std::future::Future<Output = DatabaseResult<T>>
     where
         T: Send,
     {
-        self.begin_transaction().await?;
-        self.run(callback).await
+        super::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.begin_transaction().await?;
+            self.run(callback).await
+        })
     }
 
     async fn run_before_executing(

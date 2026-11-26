@@ -32,6 +32,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/gate-callers", gate_callers)?;
     Route::get("/gate-outer-callers", gate_outer_callers)?;
     Route::get("/query-callers", query_callers)?;
+    Route::get("/transaction-callers", transaction_callers)?;
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
@@ -1201,6 +1202,139 @@ async fn gate_watcher_preserves_public_callers_and_clears_filtered_sources() {
         repository.clear().await.unwrap();
     }
 }
+struct QueryTransactionService(openrust::database::Connection);
+
+impl openrust::database::TransactionalService for QueryTransactionService {
+    fn connection(&self) -> openrust::database::DatabaseResult<openrust::database::Connection> {
+        Ok(self.0.clone())
+    }
+}
+
+fn transaction_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::TransactionalService;
+
+    Box::pin(async {
+        let facade_line = line!() + 1;
+        Db::transaction(
+            |transaction| {
+                Box::pin(query_caller::select_in_transaction(
+                    transaction,
+                    "select 1 as facade_transaction_probe",
+                ))
+            },
+            1,
+        )
+        .await?;
+        let nested_line = Db::transaction(
+            |transaction| {
+                Box::pin(async {
+                    let nested_line = line!() + 2;
+                    transaction
+                        .transaction(|nested| {
+                            Box::pin(query_caller::select_in_transaction(
+                                nested,
+                                "select 2 as savepoint_transaction_probe",
+                            ))
+                        })
+                        .await?;
+                    Ok(nested_line)
+                })
+            },
+            1,
+        )
+        .await?;
+        let connection = Db::connection(None)?;
+        let connection_line = line!() + 2;
+        connection
+            .transaction(
+                |transaction| {
+                    Box::pin(query_caller::select_in_transaction(
+                        transaction,
+                        "select 3 as connection_transaction_probe",
+                    ))
+                },
+                1,
+            )
+            .await?;
+        let service = QueryTransactionService(connection);
+        let service_line = line!() + 2;
+        service
+            .transaction(
+                |transaction| {
+                    Box::pin(query_caller::select_in_transaction(
+                        transaction,
+                        "select 5 as service_transaction_probe",
+                    ))
+                },
+                1,
+            )
+            .await?;
+        let adjacent_line = line!() + 1;
+        Db::select("select 4 as adjacent_transaction_probe", &[]).await?;
+        Response::json(
+            openrust::http::StatusCode::OK,
+            json!({
+                "facade_transaction_probe": facade_line,
+                "savepoint_transaction_probe": nested_line,
+                "connection_transaction_probe": connection_line,
+                "service_transaction_probe": service_line,
+                "adjacent_transaction_probe": adjacent_line,
+            }),
+        )
+    })
+}
+
+#[tokio::test]
+async fn query_watcher_falls_back_to_public_transaction_and_savepoint_callers() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    QueryWatcher::new(
+        json!({
+            "ignore_packages": false,
+            "ignore_paths": ["support/query_caller.rs"],
+        })
+        .as_object()
+        .unwrap()
+        .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
+    let response = app.get("/api/transaction-callers").await.unwrap();
+    response.assert_ok();
+    let expected = response.json::<serde_json::Value>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let queries = entries
+        .iter()
+        .filter(|entry| {
+            entry.content["sql"]
+                .as_str()
+                .is_some_and(|sql| sql.contains("_transaction_probe"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        queries.len(),
+        5,
+        "{:?}",
+        queries
+            .iter()
+            .map(|entry| &entry.content)
+            .collect::<Vec<_>>()
+    );
+    for entry in queries {
+        let sql = entry.content["sql"].as_str().unwrap();
+        let marker = sql.split_whitespace().last().unwrap();
+        assert_eq!(entry.content["file"], file!());
+        assert_eq!(entry.content["line"], expected[marker], "{marker}");
+    }
+}
+
 #[tokio::test]
 async fn query_watcher_uses_the_nearest_eligible_entry_across_nested_queries() {
     for (ignore_packages, ignore_paths, inner_skipped) in [

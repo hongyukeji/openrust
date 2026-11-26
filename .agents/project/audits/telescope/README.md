@@ -117,6 +117,16 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 
 中间件回归在实际回环传输和拒绝连接上逐项验证 23 条入库记录，其中 10 条为失败，另有 3 条空列表回退。断言覆盖线上媒体类型和正文、原始描述顺序和重复项、附件、字节替换及嵌套脱敏。macOS 与 Linux ARM64 各通过客户端 25 项和 Provider 16 项，Windows 11 ARM64 通过客户端 multipart 四项及 23 条记录的 SQLite 回归。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照全仓格式、三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-media-{macos,macos-redis,linux,windows,docs}.log`。
 
+### Query 事务和保存点的调用来源
+
+固定 PHP 8.5.12 以真实 SQLite、Laravel 事务及 QueryWatcher 探针验证。过滤定义了查询回调的助手文件后，Facade 事务、连接事务及嵌套事务分别回退到各自的调用行。后续独立查询继续使用自己的调用行。PHP 也能通过调用栈取得普通函数包装器的外层位置。证据为 `target/tmp/observability-parity/query-transaction-upstream.log`。 [固定 FetchesStackTrace](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/FetchesStackTrace.php)
+
+Rust 真实 HTTP 挂起并恢复事务内的查询。修复前忽略助手文件时，三个事务查询均被省略。事务入口现在与已有查询入口一样，在构造 Future 时捕获位置，在轮询时传播，覆盖 Facade、连接、业务服务的默认事务实现及保存点。回滚与重试继续走原事务执行路径。修复前的结果为 `target/tmp/observability-parity/query-transaction-baseline.log`。
+
+Rust 1.94.0 的独立双次轮询探针在含调试信息的构建中可以看到普通异步包装器及外层源文件行号，同一代码经优化且无调试信息时收不到这些位置。普通应用异步包装器的透明来源仍开放。证据为 `target/tmp/observability-parity/query-ordinary-async-probe-{debug,release}.log`。
+
+macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五条 SQL 的精确文件与行号。默认 Watcher 17 项及框架数据库 32 项通过，涵盖事务事件、保存点和取消测试。隔离快照全仓格式及所涉目标严格 Clippy 通过。Linux ARM64 Release 和其他目标平台继续验收。证据为 `target/tmp/observability-parity/query-transaction-macos-final.log`。
+
 ### 出站响应内容形状与大小限制
 
 固定 PHP 8.5.12 的真实 PSR 响应和 `ClientRequestWatcher::response` 确认，`0` 在 HTML 和 JSON 标量回退时为 `Empty Response`，`text/plain` 保留字符串，302 优先报告目标地址。关联式 JSON 解码会把空对象以及从 0 开始且按顺序排列的数字键对象变成数组。逆序和带前导零的对象键保留。上限按千字符比较，整数、带小数的数字和数值文本均可设置。证据为 `target/tmp/observability-parity/telescope-client-response-shape-upstream.log`。 [固定 ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php)

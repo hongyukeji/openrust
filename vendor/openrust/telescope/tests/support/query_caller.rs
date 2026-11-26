@@ -10,3 +10,12 @@ pub fn register_nested_query(connection: &Connection) {
         })
     });
 }
+
+pub async fn select_in_transaction(
+    transaction: &mut openrust::database::Transaction,
+    sql: &str,
+) -> openrust::database::DatabaseResult<()> {
+    tokio::task::yield_now().await;
+    transaction.select(sql, &[]).await?;
+    Ok(())
+}
