@@ -7,9 +7,9 @@ use openrust::{
 
 use crate::{
     Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
-    ConversationMessageStatus, ConversationParticipant, ConversationStore, Decisions,
-    HasStructuredOutput, Message, PendingToolApprovals, PromptOptions, StreamableAgentResponse,
-    StructuredAgentResponse, StructuredOutput,
+    ConversationParticipant, ConversationStore, Decisions, HasStructuredOutput, Message,
+    PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
+    StructuredOutput,
     approval_store::{ApprovalScope, SavedApproval},
     approval_turn::ApprovalSession,
     conversation_store::TurnPersistence,
@@ -108,13 +108,7 @@ impl ConversationTurn {
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
     ) -> AiResult<()> {
-        self.persist_turn(
-            prompt,
-            response,
-            approval,
-            ConversationMessageStatus::Completed,
-        )
-        .await
+        self.persist_turn(prompt, response, approval, None).await
     }
 
     async fn persist_turn(
@@ -122,7 +116,7 @@ impl ConversationTurn {
         prompt: &str,
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
-        status: ConversationMessageStatus,
+        failure: Option<&AiError>,
     ) -> AiResult<()> {
         let user = Message::user_with_attachments(prompt, self.attachments.iter().cloned());
         let stored = if let Some(database) = self.store.as_database() {
@@ -133,8 +127,7 @@ impl ConversationTurn {
                     crate::conversation_title::title(
                         prompt,
                         &response.provider,
-                        database.generates_titles()
-                            && status == ConversationMessageStatus::Completed,
+                        database.generates_titles() && failure.is_none(),
                         self.faked,
                     )
                     .await,
@@ -149,7 +142,7 @@ impl ConversationTurn {
                         response,
                         approval,
                         title: title.as_deref(),
-                        status,
+                        failure,
                     },
                 )
                 .await
@@ -158,7 +151,7 @@ impl ConversationTurn {
             if approval.is_some() {
                 return Err(AiError::ConversationStorageUnavailable);
             }
-            if status == ConversationMessageStatus::Failed {
+            if failure.is_some() {
                 return Ok(());
             }
             self.store
@@ -179,9 +172,9 @@ impl ConversationTurn {
         }
     }
 
-    async fn save_failed_steps(&self, prompt: &str, partial: &AgentResponse) {
+    async fn save_failed_steps(&self, prompt: &str, partial: &AgentResponse, error: &AiError) {
         if self
-            .persist_turn(prompt, partial, None, ConversationMessageStatus::Failed)
+            .persist_turn(prompt, partial, None, Some(error))
             .await
             .is_err()
         {
@@ -196,7 +189,7 @@ impl ConversationTurn {
     ) -> AiResult<BufferedOutcome> {
         match outcome {
             Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
-                self.save_failed_steps(prompt, &partial).await;
+                self.save_failed_steps(prompt, &partial, &error).await;
                 Err(error)
             }
             outcome => outcome.map_err(ProviderAttemptError::into_error),
@@ -354,12 +347,7 @@ impl<A: Agent> PendingConversation<'_, A> {
         let outcome = match outcome {
             Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
                 if turn
-                    .persist_turn(
-                        &prompt,
-                        &partial,
-                        Some(&session),
-                        ConversationMessageStatus::Failed,
-                    )
+                    .persist_turn(&prompt, &partial, Some(&session), Some(&error))
                     .await
                     .is_ok()
                 {
@@ -443,8 +431,9 @@ impl<A: Agent> PendingConversation<'_, A> {
             response,
             conversation_id.clone(),
             schema.is_some(),
-            move |response, status| async move {
-                turn.persist_turn(&prompt, &response, None, status).await
+            move |response, error| async move {
+                turn.persist_turn(&prompt, &response, None, error.as_ref())
+                    .await
             },
         );
         Ok(ConversationResponse {
@@ -575,7 +564,8 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
             Ok(response) => response,
             Err(response) => {
                 if let Some(partial) = response.into_completed_tool_steps() {
-                    turn.save_failed_steps(prompt, &partial).await;
+                    turn.save_failed_steps(prompt, &partial, &AiError::InvalidStructuredResponse)
+                        .await;
                 }
                 return Err(AiError::InvalidStructuredResponse);
             }

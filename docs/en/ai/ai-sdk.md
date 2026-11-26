@@ -492,6 +492,8 @@ If you have older records with inline Base64 attachments, run `./artisan ai:migr
 
 Implement `ConversationStore` and install it during application boot with `Ai::set_conversation_store(Arc::new(store))` to use a different backend. `Ai::conversation_store()` returns the configured store. Each implementation checks participant ownership and saves the user and assistant messages atomically. Use `DatabaseConversationStore` for durable tool approvals. A custom store can opt into attachments through `supports_attachments` and `store_turn_with_message`.
 
+To import conversation history, call `store_conversation`, `store_user_message`, and `store_assistant_message` through `Ai::conversation_store()`. Pass an existing ID when creating a conversation, or pass `None` to generate a UUIDv7. Each write takes a participant, and appending checks conversation ownership. The database store writes user attachments to the configured private disk. Pass `Some(&error)` when saving an assistant message to record the failure and its error summary. Each call commits independently. Regular Agent conversations still save each turn atomically.
+
 ## Text generation options {#text-generation-options}
 
 Set the output token limit and sampling options on an Agent. Use `with_generation_options` for an anonymous Agent or implement `Agent::generation_options` for a named Agent. The settings also apply to structured output and streaming tool steps. Agent middleware can override them for one step.

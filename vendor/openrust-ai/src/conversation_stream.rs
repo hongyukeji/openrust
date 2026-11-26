@@ -4,8 +4,8 @@ use futures_util::StreamExt;
 use openrust::support::facades::Log;
 
 use crate::{
-    AgentEventStream, AgentResponse, AiError, AiResult, ConversationMessageStatus, StreamEventData,
-    StreamableAgentResponse, StructuredAgentResponse,
+    AgentEventStream, AgentResponse, AiError, AiResult, StreamEventData, StreamableAgentResponse,
+    StructuredAgentResponse,
     streaming::{StreamMetadata, StreamResponse},
 };
 
@@ -17,7 +17,7 @@ pub(crate) fn remember<F, Fut>(
     persist: F,
 ) -> StreamableAgentResponse
 where
-    F: FnOnce(AgentResponse, ConversationMessageStatus) -> Fut + Send + 'static,
+    F: FnOnce(AgentResponse, Option<AiError>) -> Fut + Send + 'static,
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
     let metadata = source.step_metadata();
@@ -33,7 +33,7 @@ fn persisted_events<F, Fut>(
     persist: F,
 ) -> AgentEventStream
 where
-    F: FnOnce(AgentResponse, ConversationMessageStatus) -> Fut + Send + 'static,
+    F: FnOnce(AgentResponse, Option<AiError>) -> Fut + Send + 'static,
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
     let events = async_stream::try_stream! {
@@ -95,12 +95,12 @@ where
         };
         match result {
             Ok((response, end)) => {
-                persist(response, ConversationMessageStatus::Completed).await?;
+                persist(response, None).await?;
                 yield end;
             }
             Err((error, partial)) => {
                 if let Some(partial) = partial
-                    && persist(partial, ConversationMessageStatus::Failed).await.is_err()
+                    && persist(partial, Some(error.clone())).await.is_err()
                 {
                     let _ = Log::warning("AI 流式会话的已完成工具步骤保存失败", &Default::default());
                 }

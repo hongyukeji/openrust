@@ -201,6 +201,17 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `ConversationStore` 接入创建、继续、历史和原子写入。应用使用 `Ai::set_conversation_store` 注册实现。真实 Artisan 与 HTTP 在数据库连接未配置时使用独立内存实现，核对按 Agent 查找最近会话、参与者不符时 404 且无模型请求、历史分页、流式落库及工具需审批时的安全返回。默认数据库实现仍提供持久审批。SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测默认具名连接、落库、截断和迁移回滚，另复验隔离进程审批恢复。SDK 回归 14 项、严格 Clippy 和三语站点通过。
 
+| 固定 Laravel 写入契约 | OpenRust 入口与裁决 |
+| --- | --- |
+| `storeConversation` | `ConversationStore::store_conversation` 接收参与者、标题及可选 ID，省略 ID 时生成 UUIDv7。按 OpenRust 已有会话归属契约，参与者必填。 |
+| `storeUserMessage` | `store_user_message` 检查参与者与消息角色，保存用户消息并更新会话时间。附件继续使用私有 Storage。 |
+| `storeAssistantMessage` | `store_assistant_message` 保存助手消息、用量、模型与步骤，接受可选的 `AiError`，失败时保留 `meta.error`。普通会话仍用原子整轮写入并复用相同的助手记录结构。审批后的续写仍经专用审批入口，暂停记录的逐项对齐待验。 |
+| `storeApprovalResults` | 待补模型续跑前的持久工具结果契约，现有最终事务与再次暂停的保存行为详见审批批次。 |
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan 与 HTTP 验证明确定义和生成 ID、重复 ID 拒绝、大小写不同参与者拒绝且不落附件、时间更新、私有附件逐字节回读、助手完成和失败状态。SQLite 另验证普通、流式结构化失败留下已有工具步骤和错误摘要，并复验跨进程审批及附件迁移。SDK 回归 16 项，默认及自定义表、具名连接、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel ConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ConversationStore.php)
+
 默认存储、发布迁移的建表与回滚读取 `ai.conversations.tables.conversations` 和 `ai.conversations.tables.messages`，沿用固定 Laravel 的键和默认值。Rust 发布源码从所属应用的 `MigrationContext::configuration` 读取配置，编译时无需 AI 功能，默认表的索引与外键命名维持兼容，自定义表使用 Schema 的命名规则。SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测配置缓存、迁移预演的表名和外键、独立 Artisan／HTTP 顺序写入与读取、归属检查、流式落库和回滚后重建。相同表名在执行迁移前被拒绝。默认路径及自定义表名回归、迁移回归、严格 Clippy 和三语文档站通过。
 
 - [固定 Laravel 会话迁移](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/database/migrations/2026_01_11_000001_create_agent_conversations_table.php)

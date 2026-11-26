@@ -10,8 +10,9 @@ use openrust::{
     testing::TestApp,
 };
 use openrust_ai::{
-    Agent, Ai, AiError, Attachment, ConversationParticipant, DocumentAttachment,
-    HasStructuredOutput, Message, PromptOptions, RemembersConversations, StreamEventData,
+    Agent, AgentResponse, Ai, AiError, Attachment, ConversationMessageStatus,
+    ConversationParticipant, DocumentAttachment, HasStructuredOutput, Message, PromptOptions,
+    RemembersConversations, StreamEventData, Usage,
 };
 use serde_json::json;
 
@@ -52,6 +53,80 @@ impl Agent for ReportAgent {
 }
 
 impl RemembersConversations for ReportAgent {}
+
+async fn assert_individual_conversation_writes() -> Result<Response, HttpError> {
+    let store = Ai::conversation_store().unwrap();
+    let owner = ConversationParticipant::new("Customer", "SplitAccount");
+    let other = ConversationParticipant::new("Customer", "splitaccount");
+    let agent = std::any::type_name::<Support>();
+    let id = store
+        .store_conversation(&owner, "Split title", None)
+        .await
+        .unwrap();
+    assert_eq!(id.len(), 36);
+    assert_eq!(
+        store.latest_conversation_id(&owner, agent).await.unwrap(),
+        None
+    );
+    assert!(
+        store
+            .store_conversation(&other, "Duplicate", Some(&id))
+            .await
+            .is_err()
+    );
+
+    let attachment = DocumentAttachment::from_bytes("report.pdf", b"%PDF-1.4".as_slice()).unwrap();
+    let message = Message::user_with_attachments("Read the report", [attachment]);
+    assert_eq!(
+        store.store_user_message(&id, &other, agent, &message).await,
+        Err(AiError::ConversationNotFound)
+    );
+    let user_id = store
+        .store_user_message(&id, &owner, agent, &message)
+        .await
+        .unwrap();
+    let response = AgentResponse::new(
+        "Partial",
+        Usage::new(Some(11), Some(4)),
+        "fixture",
+        "fixture-model",
+    );
+    assert_eq!(
+        store
+            .store_assistant_message(&id, &other, agent, &response, None)
+            .await,
+        Err(AiError::ConversationNotFound)
+    );
+    let failed_id = store
+        .store_assistant_message(&id, &owner, agent, &response, Some(&AiError::Timeout))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .latest_conversation_id(&owner, agent)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(id.as_str())
+    );
+    let page = store
+        .paginate_conversation_messages(&id, &owner, 5, None)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(page.messages.len(), 2);
+    assert_eq!(page.messages[0].id, failed_id);
+    assert_eq!(page.messages[0].status, ConversationMessageStatus::Failed);
+    assert_eq!(
+        page.messages[0].usage,
+        json!({"prompt_tokens":11,"completion_tokens":4})
+    );
+    assert_eq!(page.messages[0].meta["error"], AiError::Timeout.to_string());
+    assert_eq!(page.messages[1].id, user_id);
+    assert_eq!(page.messages[1].message, message);
+    Ok(Response::empty(StatusCode::OK))
+}
 
 #[tokio::test]
 async fn conversation_history_is_owned_and_paginates_newest_first()
@@ -102,6 +177,7 @@ async fn assert_conversation_history(
                 .into())
             })
             .with_routing(Routing::default().web(|| {
+                Route::get("/conversation-writes", assert_individual_conversation_writes)?;
                 Route::get("/conversation", || async {
                     Config::set("ai.conversations.max_messages", json!(2)).unwrap();
                     let fake = Support::fake(["one", "two", "three"].map(str::to_owned)).unwrap();
@@ -310,6 +386,10 @@ async fn assert_conversation_history(
         .await
         .assert_successful();
     assert_eq!(app.get("/conversation").await?.status(), StatusCode::OK);
+    assert_eq!(
+        app.get("/conversation-writes").await?.status(),
+        StatusCode::OK
+    );
     assert_eq!(
         app.get("/conversation-files").await?.status(),
         StatusCode::OK

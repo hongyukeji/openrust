@@ -492,6 +492,8 @@ SDK 将完成的用户消息和助手消息一起保存。下一次提示默认�
 
 需要其他会话后端时，实现 `ConversationStore`，并在应用启动时通过 `Ai::set_conversation_store(Arc::new(store))` 注册。`Ai::conversation_store()` 返回当前存储。实现负责校验参与者归属，并以原子操作保存用户和助手消息。需要持久工具审批时使用 `DatabaseConversationStore`。自定义存储可以实现 `supports_attachments` 和 `store_turn_with_message` 来支持附件。
 
+导入历史记录时，可通过 `Ai::conversation_store()` 依次调用 `store_conversation`、`store_user_message` 和 `store_assistant_message`。创建时可传入已有 ID，传 `None` 会生成 UUIDv7。每次写入都需要参与者，追加消息时会核对会话归属。用户附件由默认数据库后端写入配置的私有磁盘。保存助手消息时可传入 `Some(&error)`，记录会标记为 `failed` 并保存错误摘要。每次调用单独提交，普通 Agent 会话仍以整轮为单位原子保存。
+
 ## 文本生成选项 {#text-generation-options}
 
 在 Agent 上设置输出 Token 上限与采样参数。匿名 Agent 用 `with_generation_options`，具名 Agent 实现 `Agent::generation_options`。这些选项也用于结构化输出和流式工具续步。Agent 中间件可覆盖当前步骤的选项。

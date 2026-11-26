@@ -4,7 +4,7 @@ use futures_util::TryStreamExt;
 
 use openrust::{
     contracts::config::Repository,
-    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
+    database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value, query::Record},
     http::HttpFuture,
     pagination::{Cursor, CursorOptions},
     support::Str,
@@ -84,7 +84,7 @@ pub(crate) struct TurnPersistence<'a> {
     pub(crate) response: &'a AgentResponse,
     pub(crate) approval: Option<&'a ApprovalSession>,
     pub(crate) title: Option<&'a str>,
-    pub(crate) status: ConversationMessageStatus,
+    pub(crate) failure: Option<&'a AiError>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -119,6 +119,39 @@ pub trait ConversationStore: Any + Send + Sync {
         participant: &'a ConversationParticipant,
         agent: &'a str,
     ) -> HttpFuture<'a, AiResult<Option<String>>>;
+
+    /// 创建有明确参与者的会话。省略 ID 时由存储生成。
+    fn store_conversation<'a>(
+        &'a self,
+        _participant: &'a ConversationParticipant,
+        _title: &'a str,
+        _id: Option<&'a str>,
+    ) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async { Err(AiError::ConversationStorageUnavailable) })
+    }
+
+    /// 向已有会话追加用户消息及其附件，返回消息 ID。
+    fn store_user_message<'a>(
+        &'a self,
+        _conversation: &'a str,
+        _participant: &'a ConversationParticipant,
+        _agent: &'a str,
+        _message: &'a Message,
+    ) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async { Err(AiError::ConversationStorageUnavailable) })
+    }
+
+    /// 向已有会话追加助手响应。可同时保存终止该次生成的错误。
+    fn store_assistant_message<'a>(
+        &'a self,
+        _conversation: &'a str,
+        _participant: &'a ConversationParticipant,
+        _agent: &'a str,
+        _response: &'a AgentResponse,
+        _failure: Option<&'a AiError>,
+    ) -> HttpFuture<'a, AiResult<Option<String>>> {
+        Box::pin(async { Err(AiError::ConversationStorageUnavailable) })
+    }
 
     fn get_latest_conversation_messages<'a>(
         &'a self,
@@ -439,17 +472,14 @@ impl DatabaseConversationStore {
             response,
             approval,
             title,
-            status,
+            failure,
         } = outcome;
         let ApprovalScope {
             conversation_id: id,
             participant,
             agent,
         } = scope;
-        participant.validate()?;
-        if !valid_field(agent) {
-            return Err(DatabaseError::InvalidQuery("AI 会话 Agent 名称无效"));
-        }
+        validate_message_scope(&scope)?;
         if user.role != MessageRole::User {
             return Err(DatabaseError::InvalidQuery("AI 会话首条消息角色无效"));
         }
@@ -472,58 +502,15 @@ impl DatabaseConversationStore {
                     attachments,
                     timestamp,
                 ),
-                message_record(
-                    &assistant_id,
-                    id,
-                    participant,
-                    agent,
-                    &Message::assistant(&response.text),
-                    "[]".into(),
-                    timestamp,
-                ),
+                assistant_record(&assistant_id, &scope, response, failure, timestamp),
             ];
-            let mut rows = rows;
-            let steps = if response.steps.is_empty() {
-                json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
-            } else {
-                Json::Array(
-                    response
-                        .steps
-                        .iter()
-                        .map(|step| {
-                            let mut data = json!(step);
-                            if let Some(replay) = &step.provider_replay {
-                                data["provider_replay"] = json!(replay);
-                            }
-                            data
-                        })
-                        .collect(),
-                )
-            };
-            rows[1].extend([
-                ("status".into(), status.as_str().into()),
-                ("usage".into(), json!(response.usage).to_string().into()),
-                ("meta".into(), json!(response.meta()).to_string().into()),
-                ("steps".into(), steps.to_string().into()),
-            ]);
             if existing {
-                let Some(row) = transaction
-                    .table(&self.conversations)
-                    .select(["participant_type", "participant_id"])
-                    .r#where("id", "=", id)
-                    .first()
+                if !self
+                    .touch_owned_conversation(&mut transaction, &scope, timestamp)
                     .await?
-                else {
-                    return Ok(false);
-                };
-                if !owns(&row, participant)? {
+                {
                     return Ok(false);
                 }
-                transaction
-                    .table(&self.conversations)
-                    .r#where("id", "=", id)
-                    .update(Record::from([("updated_at".into(), timestamp.into())]))
-                    .await?;
             } else {
                 let default_title;
                 let title = match title {
@@ -535,14 +522,7 @@ impl DatabaseConversationStore {
                 };
                 if !transaction
                     .table(&self.conversations)
-                    .insert(&[Record::from([
-                        ("id".into(), id.into()),
-                        ("participant_type".into(), participant.kind().into()),
-                        ("participant_id".into(), participant.id().into()),
-                        ("title".into(), title.into()),
-                        ("created_at".into(), timestamp.into()),
-                        ("updated_at".into(), timestamp.into()),
-                    ])])
+                    .insert(&[conversation_record(id, participant, title, timestamp)])
                     .await?
                 {
                     return Err(DatabaseError::InvalidQuery("AI 会话未保存"));
@@ -576,6 +556,53 @@ impl DatabaseConversationStore {
             }
         }
     }
+
+    async fn touch_owned_conversation(
+        &self,
+        transaction: &mut Transaction,
+        scope: &ApprovalScope<'_>,
+        timestamp: i64,
+    ) -> DatabaseResult<bool> {
+        let Some(row) = transaction
+            .table(&self.conversations)
+            .select(["participant_type", "participant_id"])
+            .r#where("id", "=", scope.conversation_id)
+            .first()
+            .await?
+        else {
+            return Ok(false);
+        };
+        if !owns(&row, scope.participant)? {
+            return Ok(false);
+        }
+        transaction
+            .table(&self.conversations)
+            .r#where("id", "=", scope.conversation_id)
+            .update(Record::from([("updated_at".into(), timestamp.into())]))
+            .await?;
+        Ok(true)
+    }
+
+    async fn begin_owned_message(
+        &self,
+        scope: &ApprovalScope<'_>,
+        timestamp: i64,
+    ) -> AiResult<Transaction> {
+        validate_message_scope(scope).map_err(storage_error)?;
+        let mut transaction = self
+            .connection
+            .begin_transaction()
+            .await
+            .map_err(storage_error)?;
+        if !self
+            .touch_owned_conversation(&mut transaction, scope, timestamp)
+            .await
+            .map_err(storage_error)?
+        {
+            return Err(AiError::ConversationNotFound);
+        }
+        Ok(transaction)
+    }
 }
 
 impl ConversationStore for DatabaseConversationStore {
@@ -600,6 +627,117 @@ impl ConversationStore for DatabaseConversationStore {
             self.latest_conversation_id(participant, agent)
                 .await
                 .map_err(storage_error)
+        })
+    }
+
+    fn store_conversation<'a>(
+        &'a self,
+        participant: &'a ConversationParticipant,
+        title: &'a str,
+        id: Option<&'a str>,
+    ) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async move {
+            participant.validate().map_err(storage_error)?;
+            let id = id.map(str::to_owned).unwrap_or_else(uuid);
+            if id.trim().is_empty() || id.chars().count() > 36 || title.chars().count() > 255 {
+                return Err(AiError::ConversationStorageUnavailable);
+            }
+            let record = conversation_record(&id, participant, title, now());
+            if !self
+                .connection
+                .table(&self.conversations)
+                .insert(&[record])
+                .await
+                .map_err(storage_error)?
+            {
+                return Err(AiError::ConversationStorageUnavailable);
+            }
+            Ok(id)
+        })
+    }
+
+    fn store_user_message<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        message: &'a Message,
+    ) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async move {
+            if message.role != MessageRole::User {
+                return Err(AiError::ConversationStorageUnavailable);
+            }
+            let scope = ApprovalScope {
+                conversation_id: conversation,
+                participant,
+                agent,
+            };
+            let id = uuid();
+            let timestamp = now();
+            let mut transaction = self.begin_owned_message(&scope, timestamp).await?;
+            let files =
+                attachment_storage::write(&self.attachment_disk, &id, &message.attachments).await?;
+            let write = async {
+                let record = message_record(
+                    &id,
+                    conversation,
+                    participant,
+                    agent,
+                    message,
+                    files.json()?,
+                    timestamp,
+                );
+                if !transaction
+                    .table(&self.messages)
+                    .insert(&[record])
+                    .await
+                    .map_err(storage_error)?
+                {
+                    return Err(AiError::ConversationStorageUnavailable);
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(error) = write {
+                let rollback = transaction.roll_back(None).await;
+                files.discard().await;
+                rollback.map_err(storage_error)?;
+                return Err(error);
+            }
+            // 提交状态不明时保留文件，避免删除已提交的引用。
+            transaction.commit().await.map_err(storage_error)?;
+            Ok(id)
+        })
+    }
+
+    fn store_assistant_message<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        response: &'a AgentResponse,
+        failure: Option<&'a AiError>,
+    ) -> HttpFuture<'a, AiResult<Option<String>>> {
+        Box::pin(async move {
+            let scope = ApprovalScope {
+                conversation_id: conversation,
+                participant,
+                agent,
+            };
+            let timestamp = now();
+            let mut transaction = self.begin_owned_message(&scope, timestamp).await?;
+            let id = uuid();
+            let record = assistant_record(&id, &scope, response, failure, timestamp);
+            if !transaction
+                .table(&self.messages)
+                .insert(&[record])
+                .await
+                .map_err(storage_error)?
+            {
+                return Err(AiError::ConversationStorageUnavailable);
+            }
+            transaction.commit().await.map_err(storage_error)?;
+            Ok(Some(id))
         })
     }
 
@@ -678,7 +816,7 @@ impl ConversationStore for DatabaseConversationStore {
                     response,
                     approval: None,
                     title: None,
-                    status: ConversationMessageStatus::Completed,
+                    failure: None,
                 },
             )
             .await
@@ -693,6 +831,80 @@ fn attachment_error(_: AiError) -> DatabaseError {
 
 fn storage_error(_: DatabaseError) -> AiError {
     AiError::ConversationStorageUnavailable
+}
+
+fn validate_message_scope(scope: &ApprovalScope<'_>) -> DatabaseResult<()> {
+    scope.participant.validate()?;
+    if !valid_field(scope.agent) {
+        return Err(DatabaseError::InvalidQuery("AI 会话 Agent 名称无效"));
+    }
+    Ok(())
+}
+
+fn conversation_record(
+    id: &str,
+    participant: &ConversationParticipant,
+    title: &str,
+    timestamp: i64,
+) -> Record {
+    Record::from([
+        ("id".into(), id.into()),
+        ("participant_type".into(), participant.kind().into()),
+        ("participant_id".into(), participant.id().into()),
+        ("title".into(), title.into()),
+        ("created_at".into(), timestamp.into()),
+        ("updated_at".into(), timestamp.into()),
+    ])
+}
+
+fn assistant_record(
+    id: &str,
+    scope: &ApprovalScope<'_>,
+    response: &AgentResponse,
+    failure: Option<&AiError>,
+    timestamp: i64,
+) -> Record {
+    let mut record = message_record(
+        id,
+        scope.conversation_id,
+        scope.participant,
+        scope.agent,
+        &Message::assistant(&response.text),
+        "[]".into(),
+        timestamp,
+    );
+    let steps = if response.steps.is_empty() {
+        json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
+    } else {
+        Json::Array(
+            response
+                .steps
+                .iter()
+                .map(|step| {
+                    let mut data = json!(step);
+                    if let Some(replay) = &step.provider_replay {
+                        data["provider_replay"] = json!(replay);
+                    }
+                    data
+                })
+                .collect(),
+        )
+    };
+    let mut meta = json!(response.meta());
+    let status = match failure {
+        Some(error) => {
+            meta["error"] = json!(error.to_string());
+            ConversationMessageStatus::Failed
+        }
+        None => ConversationMessageStatus::Completed,
+    };
+    record.extend([
+        ("status".into(), status.as_str().into()),
+        ("usage".into(), json!(response.usage).to_string().into()),
+        ("meta".into(), meta.to_string().into()),
+        ("steps".into(), steps.to_string().into()),
+    ]);
+    record
 }
 
 fn message_record(
