@@ -64,7 +64,9 @@ Rust 区分 Redis 连接中断、加载中、只读和稍后重试等暂时错�
 
 macOS 用实际 Artisan 和两台 Redis 8.10.3 通过四组进程验收。短时切换保留同一个 Master，两项任务各完成一次。提升后的令牌缺失或被替换时，旧进程退出，待处理任务无保留、尝试次数为零，由普通 Worker 后续处理。持续断连时，启用快速终止的进程树也完成回收，待处理任务同样保留。单节点的完整 Artisan、进程与 HTTP 专项通过。三个扩展默认 114 项通过、25 项按环境跳过，其中 Horizon 的 23 项 Redis 专项另行实跑通过。三语站点构建与六组桌面／移动正文检查通过。证据为 `target/tmp/observability-parity/horizon-metadata-recovery-{macos-initial,macos-final,docs}.log`。
 
-隔离快照全仓格式、框架库与 Horizon 全目标严格 Clippy 通过。Linux ARM64 的 Release 进程与切换专项继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
+隔离快照全仓格式、框架库与 Horizon 全目标严格 Clippy 通过。Linux ARM64 标准 Release 在双作业及单作业下都于编译框架时收到 SIGKILL，单独提高框架的 codegen units 后再次触发同样结果。该宿主的 Docker 虚机可用内存约 8 GB。三个尝试均未生成本批可执行文件，也未进入 Linux 进程测试。证据为 `target/tmp/observability-parity/horizon-metadata-recovery-linux-release{,-serial,-codegen}.log`。
+
+继续以相同源码、单作业及仅对框架降低优化级别的隔离构建验证 Linux ARM64 进程和切换行为。结果需记录编译参数，默认优化的 Release 仍需单独验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
 
 ### Master 命令队列与动态部署
 
