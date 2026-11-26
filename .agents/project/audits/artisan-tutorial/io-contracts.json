@@ -322,8 +322,8 @@
           "factory-registry-contracts.json"
         ],
         "remaining": [
-          "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
-          "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+          "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
+          "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
         ]
       }
     ],

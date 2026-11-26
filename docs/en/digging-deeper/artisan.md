@@ -2033,7 +2033,7 @@ fn register_component_rendering() -> Result<(), ConsoleError> {
 }
 ```
 
-The default renderer uses an HTML parser and the existing output formatter. It supports the four built-in templates, inline/block/flex layout, margins, padding, fixed/full width, minimum/maximum width, text alignment and case, preset colors and color variants, bold/italic/underline/strikethrough, links and repeated flex content. This is not a complete terminal HTML/CSS engine: table/code/pre/list renderers, fractional widths, justification and custom style repositories remain unsupported. Unsupported styles return errors rather than silently dropping layout. Width and padding are bounded, and nesting is limited to 256 levels.
+The default renderer uses an HTML parser and the existing output formatter. It supports the four built-in templates, inline/block/flex layout, margins, padding, fixed/full/fractional width, minimum/maximum width, text alignment and case, preset colors and color variants, bold/italic/underline/strikethrough, links and repeated flex content. This is not a complete terminal HTML/CSS engine: table/code/pre/list renderers, custom style repositories remain unsupported. Unsupported styles return errors rather than silently dropping layout. Width and padding are bounded, and nesting is limited to 256 levels.
 
 A `ComponentViewRenderer` receives the actual compiled HTML, `OutputOptions` and the original `ComponentContext`. Install an owned renderer with `set_view_renderer(Some(Box::new(renderer)))`; it may maintain per-instance state, delegate to `BuiltinComponentViewRenderer`, or return errors. `set_view_renderer(None)` restores the default. A custom compiler's markup follows this same path; it is not replaced by a lookup of the built-in view name. Rendering does not change a global terminal output. Compile failures do not invoke the renderer; rendering failures preserve writes already performed and propagate to the caller.
 
@@ -2074,3 +2074,42 @@ fn register_component_colors() -> Result<(), ConsoleError> {
 Responsive prefixes activate at terminal widths `sm:64`, `md:76`, `lg:102`, `xl:128` and `2xl:153`. Unprefixed classes apply first, followed by active prefixes in ascending breakpoint order. An inactive prefix does not resolve its style, so an inactive unknown style does not raise an error. Widths refer to terminal columns, not browser pixels.
 
 Class separation respects whitespace inside square brackets, for example `content-repeat-[. ]`; a nonbreaking space is not a class separator. Original class names are retained: a prefixed `sm:flex-1` does not create the unprefixed `flex-1` marker used to determine flexible growth. Custom style repositories and the remaining layout features are still outside the supported subset.
+
+### Component sizing and alignment {#component-sizes-and-alignment}
+
+Use `w-1/2`, `w-2/3` or `w-full` for fractional widths, and numeric `min-w-10` / `max-w-30` for limits. Fractions use the inherited width and account for the element's original horizontal margins and padding. A zero denominator returns an error; it does not silently select the full terminal width.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct ColumnsCompiler;
+impl ComponentViewCompiler for ColumnsCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "columns" => Ok("<div class='w-20 justify-between'><span>A</span><span>B</span></div>".into()),
+            "half" => Ok("<span class='w-1/2'>Half</span>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_sizes() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:sizes", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(ColumnsCompiler)));
+            component.render_view("columns", json!({}))?;
+            component.render_view("half", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`justify-between`, `justify-evenly`, `justify-around` and `justify-center` distribute remaining space between children. The first example fixes the container at 20 columns and puts 18 spaces between A and B. These rules also apply to a non-flex container. If the remaining space is insufficient, child content is retained without adding distribution padding. Rounding uses the renderer's existing floating-point floor/ceil rules.
+
+Width arguments retain their numeric or text representation. Mixed fraction/minimum-width expressions compare those representations before resolving columns: `w-full min-w-2` selects two columns. Prefer numeric limits and verify composed layouts rather than treating every combination as CSS computed-width arithmetic.
+
+A flexible item first renders and caches its nested content; changing the item's width then reformats that cached content. Nested full-width children can therefore behave differently from assigning all flex widths before rendering descendants. Each call has its own tree and inherited-property snapshots. Invalid layout errors propagate through the same renderer and do not poison later requests. General style-method dispatch and the remaining specialized HTML renderers are still incomplete.

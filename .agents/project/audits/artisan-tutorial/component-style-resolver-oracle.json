@@ -1,0 +1,418 @@
+[
+    {
+        "html": "<div class=\"w-20\"><span class=\"max--w-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"max--w-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"max--w-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"max--w-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX--1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX--1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX--1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX--1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX-1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX-1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX-1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"FLEX-1\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"w-FULL\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"w-FULL\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"w-FULL\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"w-FULL\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"W-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed word          \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"W-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed word          \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"W-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed word          \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"W-1\/2\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed word          \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"justify--between\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"justify--between\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"justify--between\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"justify--between\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<options=,>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<options=,>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-bold font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-bold font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<options=,>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-bold font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-bold font-normal\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<options=,>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal font-bold\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal font-bold\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<options=bold>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal font-bold\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1mMixed words\u001b[22m         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"font-normal font-bold\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<options=bold>Mixed words<\/>         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"snakecase\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"snakecase\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"snakecase\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"snakecase\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "mixed words         \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"truncate-4\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mix…                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"truncate-4\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mix…                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"truncate-4\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mix…                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"truncate-4\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mix…                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"prepend-[X]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "[X]Mixed words      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"prepend-[X]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "[X]Mixed words      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"prepend-[X]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "[X]Mixed words      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"prepend-[X]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "[X]Mixed words      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"append-[Y]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed words[Y]      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"append-[Y]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed words[Y]      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"append-[Y]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed words[Y]      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20\"><span class=\"append-[Y]\">Mixed words<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed words[Y]      \n",
+        "error": null
+    }
+]

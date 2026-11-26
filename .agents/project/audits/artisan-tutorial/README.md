@@ -754,3 +754,18 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 初次严格Clippy发现词法条件可简化，按建议改布尔式且无allow，完整门禁复验；新增裸0边界后再跑全部受影响三目标与严格门禁。159文档消费者在component-palette-gates-final.log中通过，后续差异仅私有裸0过滤及其16来源场景；正式示例未变。日志和最终源码SHA记录见accepted-component-palette.json。使用既有独占热缓存、项目内TMPDIR，无独立发布二进制/数据库/持久服务；所有Source容器--rm，文档服务器/浏览器及HTTP子驱动正常退出，未开启新大型冷缓存。
 
 颜色和现有类的响应式子集完成不关闭终端布局SDK。分数宽度/分布对齐/其他Styles、table/code/pre/list/dl/hr专用渲染、自定义样式及颜色仓库、通用HTML恢复继续；自定义仓库需在媒体过滤前按原名查找，这是下一实现不能遗漏的源时机。Factory容器覆盖及Helper/HelperSet/Time等继续。只本地提交、不推送，保留其他协作者在途差异。
+
+
+## 53. 分数尺寸、分布对齐与嵌套内容缓存（2026-11-26）
+
+52已本地提交8edca26362e921230d2dae73b218e04e25e8ead5，未推送。按固定Source ValueObjects/Styles与Html/InheritStyles核对尺寸/对齐，不把PHP max的文本/数值比较改成计算后像素比较。内部Dimension保存表示，复用既有input_scalars、宽度和截断；Constraint捕获原始尺寸，Prepared缓存后代拼接后再调整外层宽度，Style只做原输出格式化。无公开API改名、依赖、配置/序列化/事件或默认具体组件快路径变化。旧版无该管线可提取，必要MIT许可继续随分发。
+
+重要源反例：flex w-20中flex-1包w-full子节点，再跟Z，最终是XZ后18空格，不是X后18空格再Z；加justify-between则X后18空格再Z。原因是源先渲染并缓存后代，随后只重格式化外层。又如min-w-1/2的原始父尺寸给后代按整数1继承，而外层自身仍取半宽；w-1/0 min-w-1/2包含纯文本可成功，不能提前计算未使用的无效祖先宽。移除早算全部像素、重新递归后代或把space写回原边距的实现，按源延迟与缓存时机表达。
+
+固定源1948尺寸场景含276真实错误全部核对输出/失败，真实HandleExceptions将非弃用warning转ErrorException，不把宽松PHP警告当成功。覆盖规范w/min/max分数和数字、覆盖顺序、缺参/零/零分母、非数字最大宽的运算失败、正负可用空间、多行、4对齐/普通与flex/空与多节点/取整、嵌套缓存、原始边距与继承间距。首轮唯一数字解析差异是w--1：源方法名吸收参数前空段后得到正1；已按实际机制修复并补颜色text--red/bg--slate-500、缺参和未使用第二顶层无效宽等场景。所有既有914渲染、2288调色断点及显示外围回归通过。
+
+实际Artisan5进程与固定20列HTTP17请求对同一来源同HTML核对输出，含5xx后恢复和12并发缓存场景。真实20列PTY5场景验证half/between/cache/nested成功0及零分母失败1，直接复用验收二进制，无复制新产物。首次PTY私有脚本有else拼写语法错误，未计通过，修正后全过；产品源码无因此改动。正式三语文档162消费者直接提取执行，三语站点和12个手机/桌面浏览器组合、workspace/all-targets严格Clippy与格式检查均过，四框架目标15父消费者通过。被父进程调用的忽略驱动不算额外独立通过。
+
+实现在独立源码先验收，通过后核对根目录13个核定路径仍等于基线才落回，保护其他在途改动。兄弟有效位置改为一次边界扫描，避免每个注释/节点重复扫描；补200注释来源场景及前后空白/space-x反例，不声称未测性能收益。沿项目独占缓存与TMPDIR，观察到共享profile回收后按正常并发重建，不另开缓存或变更磁盘规则；没有数据库/持久服务变更，Source容器--rm、浏览器/HTTP/CLI进程正常收尾。前两簇闲置私有Git索引已回收1,323,344字节，真实索引和验收证据保留。
+
+来源还实证max--w、FLEX--1、W-1/2、font-normal、snakecase、truncate、prepend/append等52场景，保存为component-style-resolver-oracle.json，尚未计原生通过。Styles71/Element7/Style5/Repository4声明及完整参数/返回可见性存component-styles-inventory.json，标明独立公开扩展对象的原生映射未完成，不能以当前私有后端推断专用公开类型已交付。下一簇补完整样式方法解析与剩余变换，再专用HTML/仓库；Factory容器覆盖和Helper/HelperSet/Time继续。命令与SHA见accepted-component-sizing.json，只本地提交，不推送。

@@ -1,0 +1,37 @@
+{
+  "source_base": "8edca26362e921230d2dae73b218e04e25e8ead5",
+  "contract": "component-sizing-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-sizing-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-sizing-site.log",
+    "target/tmp/artisan-tutorial-20261125/component-sizing-pty-final.log"
+  ],
+  "test_summaries": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.51s",
+    "test result: ok. 162 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 5,
+    "real_http_requests": 17,
+    "real_pty_cases": 5,
+    "formal_document_consumers": 162,
+    "browser_checks": 12
+  },
+  "source_oracle": {
+    "component-sizing-oracle.json": 1948,
+    "errors": 276,
+    "warning_policy": "real HandleExceptions::handleError; deprecation reports omitted, not turned into successes"
+  },
+  "failed_attempts_not_counted": [
+    "component-sizing-first.log: source w--1 parameter resolution mismatch, fixed",
+    "component-sizing-pty.log: private probe syntax error, fixed"
+  ],
+  "remaining": [
+    "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
+  ],
+  "pushed": false
+}

@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "verified_default_sizing_justification_and_prepared_content_full_style_dispatch_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer",
+  "internal_bindings": {
+    "w/wFull/wAuto/minW/maxW": "style::classes and dimensions::Dimension/target",
+    "getParentWidth/calcWidthFromFraction": "dimensions::Constraint/parent_width/fraction",
+    "justifyBetween/Evenly/Around/Center": "tree::Prepared::join_children",
+    "inheritFromStyles/toString/flex1": "immutable ancestor constraints and cached joined content before flex assignment",
+    "getLength/getInnerWidth/trimText": "existing visible_width/trim_text with effective margins"
+  },
+  "source_oracle": {
+    "component-sizing-oracle.json": 1948,
+    "errors": 276,
+    "warning_policy": "real HandleExceptions::handleError; deprecation reports omitted, not turned into successes"
+  },
+  "runtime": {
+    "real_artisan_processes": 5,
+    "real_http_requests": 17,
+    "real_pty_cases": 5,
+    "formal_document_consumers": 162,
+    "browser_checks": 12
+  },
+  "scope": [
+    "规范w/min-w/max-w类、分数/数值/文本比较与转换、0/空/零分母/缺参、w-full/w-auto覆盖顺序、嵌套原始边距/内距与正负可用宽度、多行限制。",
+    "4种分布对齐在flex和普通容器、空/1/多子节点、剩余空间不足、浮点floor/ceil余量；空flex等源错误不伪造成正常空输出。",
+    "先渲染后代并缓存拼接内容，再分配flex宽度，只重新格式化缓存。原属性快照不可被后续宽度分配改写，继承space只影响实际边距而不污染原尺寸属性。",
+    "兄弟节点前/后有效位置一次扫描，不对每个注释重新遍历；子节点先构造，顶层全部转换后只写第一项，未知构造样式和延迟尺寸错误保持时机区别。",
+    "尺寸及颜色首参数前的空段按真实方法解析跳过；例如w--1表示1，不按负数或空宽解释，text--red正常解析。其他完整动态别名仍在剩余清单。"
+  ],
+  "adaptations": [
+    "复用既有input_scalars数值/浮点文本与转换、visible_width/trim_text、Str和格式器；原生Dimension保留源int/string/null差异，无第二套PHP解释器、ANSI或输出通道。",
+    "以当前渲染独立Prepared树和不可变Arc父约束快照表达源内容缓存及继承数组复制，非全局可变状态。既有具体组件快路径及公开API不改。",
+    "原本数字参数入口归一为整数，文本分支保留非numeric宽度表达式；这与Arr混合总排序不同，未错误复用该排序来替代源标量比较。",
+    "不按理想化CSS列数重新设计混合比较，也不把余量改成整数公平分配。规范数字/fraction原始表示及浮点插值经来源逐字检验。",
+    "1,000,000填充/尺寸及256深度边界延续前簇，超出报错。兄弟位置线性扫描无量化性能收益声明。旧版无对应控制台HTML尺寸管线可提取。"
+  ],
+  "remaining": [
+    "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
+  ]
+}

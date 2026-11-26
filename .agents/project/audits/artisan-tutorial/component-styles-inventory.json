@@ -1,0 +1,1319 @@
+{
+  "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "source_inventory_complete_native_extension_mapping_pending",
+  "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
+  "verified_backend_evidence": [
+    "component-render-contracts.json",
+    "component-palette-contracts.json",
+    "component-sizing-contracts.json"
+  ],
+  "types": {
+    "Termwind\\ValueObjects\\Styles": [
+      {
+        "name": "__construct",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "properties",
+            "type": "array",
+            "optional": true,
+            "variadic": false
+          },
+          {
+            "name": "textModifiers",
+            "type": "array",
+            "optional": true,
+            "variadic": false
+          },
+          {
+            "name": "styleModifiers",
+            "type": "array",
+            "optional": true,
+            "variadic": false
+          },
+          {
+            "name": "defaultStyles",
+            "type": "array",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": ""
+      },
+      {
+        "name": "setElement",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "element",
+            "type": "Termwind\\Components\\Element",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "defaultStyles",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "array"
+      },
+      {
+        "name": "getProperties",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "array"
+      },
+      {
+        "name": "setProperties",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "properties",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "setStyle",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "style",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "hasStyle",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "style",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "bool"
+      },
+      {
+        "name": "addStyle",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "style",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "inheritFromStyles",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "styles",
+            "type": "Termwind\\ValueObjects\\Styles",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "bg",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "color",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "fontBold",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "fontNormal",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "strong",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "italic",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "underline",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "ml",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "mr",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "mb",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "mt",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "mx",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "my",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "m",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "margin",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "pl",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "pr",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "px",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "pt",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "pb",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "py",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "p",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "padding",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "spaceY",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "space",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "spaceX",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "space",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "borderT",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "width",
+            "type": "int",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "text",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "value",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "truncate",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "limit",
+            "type": "int",
+            "optional": true,
+            "variadic": false
+          },
+          {
+            "name": "end",
+            "type": "string",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "w",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "width",
+            "type": "string|int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "wFull",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "static"
+      },
+      {
+        "name": "wAuto",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "static"
+      },
+      {
+        "name": "minW",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "width",
+            "type": "string|int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "maxW",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "width",
+            "type": "string|int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "uppercase",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "lowercase",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "capitalize",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "snakecase",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "lineThrough",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "invisible",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "hidden",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "block",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "flex",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "flex1",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "justifyBetween",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "justifyAround",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "justifyEvenly",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "justifyCenter",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "contentRepeat",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "string",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "prepend",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "string",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "append",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "string",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "list",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "type",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "index",
+            "type": "int",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "with",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "properties",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "href",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "href",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      },
+      {
+        "name": "format",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "content",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "string"
+      },
+      {
+        "name": "getFormatString",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "string"
+      },
+      {
+        "name": "getMargins",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "array"
+      },
+      {
+        "name": "getPaddings",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "array"
+      },
+      {
+        "name": "applyWidth",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "content",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "string"
+      },
+      {
+        "name": "applyStyling",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "content",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "string"
+      },
+      {
+        "name": "getLength",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "text",
+            "type": "?string",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "int"
+      },
+      {
+        "name": "getInnerWidth",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "int"
+      },
+      {
+        "name": "getColorVariant",
+        "public": false,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "color",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "variant",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "string"
+      },
+      {
+        "name": "calcWidthFromFraction",
+        "public": false,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "fraction",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "styles",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "parentStyles",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "int"
+      },
+      {
+        "name": "getParentWidth",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "styles",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "int"
+      },
+      {
+        "name": "trimText",
+        "public": false,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "text",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "width",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "string"
+      }
+    ],
+    "Termwind\\Components\\Element": [
+      {
+        "name": "__construct",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "output",
+            "type": "Symfony\\Component\\Console\\Output\\OutputInterface",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "content",
+            "type": "array|string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "styles",
+            "type": "?Termwind\\ValueObjects\\Styles",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": ""
+      },
+      {
+        "name": "fromStyles",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": true,
+        "parameters": [
+          {
+            "name": "output",
+            "type": "Symfony\\Component\\Console\\Output\\OutputInterface",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "content",
+            "type": "array|string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "styles",
+            "type": "string",
+            "optional": true,
+            "variadic": false
+          },
+          {
+            "name": "properties",
+            "type": "array",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "toString",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "string"
+      },
+      {
+        "name": "__call",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "name",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "arguments",
+            "type": "array",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "mixed"
+      },
+      {
+        "name": "setContent",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "content",
+            "type": "array|string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "static"
+      },
+      {
+        "name": "render",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [
+          {
+            "name": "options",
+            "type": "int",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "void"
+      },
+      {
+        "name": "__toString",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": true,
+        "parameters": [],
+        "return": "string"
+      }
+    ],
+    "Termwind\\ValueObjects\\Style": [
+      {
+        "name": "__construct",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "callback",
+            "type": "Closure",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "color",
+            "type": "string",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": ""
+      },
+      {
+        "name": "apply",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "styles",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "void"
+      },
+      {
+        "name": "color",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "color",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "void"
+      },
+      {
+        "name": "getColor",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [],
+        "return": "string"
+      },
+      {
+        "name": "__invoke",
+        "public": true,
+        "protected": false,
+        "static": false,
+        "final": false,
+        "parameters": [
+          {
+            "name": "styles",
+            "type": "Termwind\\ValueObjects\\Styles",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "arguments",
+            "type": "string|int",
+            "optional": true,
+            "variadic": true
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Styles"
+      }
+    ],
+    "Termwind\\Repositories\\Styles": [
+      {
+        "name": "create",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "name",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          },
+          {
+            "name": "callback",
+            "type": "?Closure",
+            "optional": true,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Style"
+      },
+      {
+        "name": "flush",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [],
+        "return": "void"
+      },
+      {
+        "name": "has",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "name",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "bool"
+      },
+      {
+        "name": "get",
+        "public": true,
+        "protected": false,
+        "static": true,
+        "final": false,
+        "parameters": [
+          {
+            "name": "name",
+            "type": "string",
+            "optional": false,
+            "variadic": false
+          }
+        ],
+        "return": "Termwind\\ValueObjects\\Style"
+      }
+    ]
+  },
+  "remaining": [
+    "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
+  ]
+}

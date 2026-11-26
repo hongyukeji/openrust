@@ -2033,7 +2033,7 @@ fn register_component_rendering() -> Result<(), ConsoleError> {
 }
 ```
 
-默认渲染器复用 HTML 解析器和现有输出格式器，支持四个内置模板、行内／块级／弹性布局、边距、内距、固定／完整宽度、最小／最大宽度、对齐与大小写、固定预设颜色及色阶、粗体／斜体／下划线／删除线、链接及弹性重复填充。它还不是完整的终端 HTML/CSS 引擎：表格／代码／预格式／列表渲染、分数宽度、分布对齐和自定义样式仓库仍未支持。未支持的样式返回错误，不会静默丢弃布局。宽度和填充有安全上限，嵌套上限为 256 层。
+默认渲染器复用 HTML 解析器和现有输出格式器，支持四个内置模板、行内／块级／弹性布局、边距、内距、固定／完整／分数宽度、最小／最大宽度、对齐与大小写、固定预设颜色及色阶、粗体／斜体／下划线／删除线、链接及弹性重复填充。它还不是完整的终端 HTML/CSS 引擎：表格／代码／预格式／列表渲染、自定义样式仓库仍未支持。未支持的样式返回错误，不会静默丢弃布局。宽度和填充有安全上限，嵌套上限为 256 层。
 
 `ComponentViewRenderer` 收到实际编译结果、`OutputOptions` 和原 `ComponentContext`。通过 `set_view_renderer(Some(Box::new(renderer)))` 安装组件拥有的渲染器，可保留实例状态、委托 `BuiltinComponentViewRenderer` 或返回错误；`set_view_renderer(None)` 恢复默认。自定义编译结果也沿同一路径，不按内置视图名称替换 HTML，不切换全局终端输出。编译失败不会调用渲染器；渲染失败保留已经发生的写入并向调用者传播。
 
@@ -2074,3 +2074,42 @@ fn register_component_colors() -> Result<(), ConsoleError> {
 响应式前缀按终端列宽启用：`sm:64`、`md:76`、`lg:102`、`xl:128`、`2xl:153`。先应用无前缀类，再按断点升序应用已激活的前缀；未激活的前缀不解析对应样式，因此其中的未知样式不会触发错误。这里使用终端列，不是浏览器像素。
 
 类名拆分保留方括号内的空白，例如 `content-repeat-[. ]`；不换行空格不是类名分隔符。原始类名会保留：带前缀的 `sm:flex-1` 不会生成用于判定弹性增长的无前缀 `flex-1` 标记。自定义样式仓库及其他待补的布局功能仍不属于当前支持子集。
+
+### 组件尺寸与分布对齐 {#component-sizes-and-alignment}
+
+使用 `w-1/2`、`w-2/3` 或 `w-full` 设置分数宽度，使用数值 `min-w-10`／`max-w-30` 设置限制。分数按继承宽度计算，并处理元素原始水平边距和内距。分母为零会返回错误，不会静默采用完整终端宽度。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct ColumnsCompiler;
+impl ComponentViewCompiler for ColumnsCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "columns" => Ok("<div class='w-20 justify-between'><span>A</span><span>B</span></div>".into()),
+            "half" => Ok("<span class='w-1/2'>Half</span>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_sizes() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:sizes", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(ColumnsCompiler)));
+            component.render_view("columns", json!({}))?;
+            component.render_view("half", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`justify-between`、`justify-evenly`、`justify-around` 和 `justify-center` 在子节点间分配剩余空间。第一个示例固定容器为 20 列，在 A 与 B 之间放置 18 个空格；非 flex 容器也可使用这些规则。剩余空间不足时保留子内容，不额外添加分布填充。取整保留渲染器既定的浮点 floor／ceil 规则。
+
+宽度参数保留数值或文本表示。分数与最小宽度混用时，先比较这些表示，再解析列数：`w-full min-w-2` 会选择两列。建议使用数值限制并验收组合布局，不把所有组合当作 CSS 计算后宽度比较。
+
+弹性项目先渲染并缓存嵌套内容，再调整自身宽度、重新格式化该缓存。因此嵌套的完整宽度子节点，可能不同于先分配所有 flex 宽度再渲染后代的结果。每次调用使用独立的树和继承属性快照。无效布局沿原渲染器传播错误，不影响后续请求。完整样式方法分发及其他专用 HTML 渲染器仍未完成。

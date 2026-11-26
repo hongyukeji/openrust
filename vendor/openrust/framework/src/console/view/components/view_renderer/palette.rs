@@ -5,7 +5,7 @@ use crate::{
 };
 /// 将动态数值参数按现有标量规则转换；额外参数与固定样式调用一致地忽略。
 pub(super) fn arguments(value: &str) -> Result<(&str, i64), ConsoleError> {
-    let mut parts = value.split('-');
+    let mut parts = value.trim_start_matches('-').split('-');
     let base = parts.next().unwrap_or("");
     let variant = parts.next().unwrap_or("0");
     if input_scalars::numeric_prefix(variant) != Some(variant) {
