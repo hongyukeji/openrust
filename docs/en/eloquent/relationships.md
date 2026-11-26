@@ -1452,6 +1452,8 @@ async fn visit_latest<P: Model, R: Model>(
 
 ## Touching parent timestamps {#touching-parent-timestamps}
 
+To refresh one owner explicitly, call `BelongsTo::<Comment, Post>::new("post_id", "id").touch(&comment).await?`. It updates the owner timestamp through the relationship key without loading the owner. A missing foreign key or disabled timestamp touching skips the update. The update bypasses global scopes, including the soft-delete scope.
+
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `save_in_transaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.
 
 In a `Model for Comment` implementation, declare the relationship to `Post`.

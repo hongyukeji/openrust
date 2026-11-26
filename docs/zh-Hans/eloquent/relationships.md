@@ -1452,6 +1452,8 @@ async fn visit_latest<P: Model, R: Model>(
 
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
+主动刷新所属模型的时间戳时，可调用 `BelongsTo::<Comment, Post>::new("post_id", "id").touch(&comment).await?`。它按关联键直接更新时间戳，无需加载所属模型。外键为空或禁用时间戳触碰时跳过更新。更新会移除全局查询作用域，包括软删除作用域。
+
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `save_in_transaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。
 
 在 `Model for Comment` 的实现中声明指向 `Post` 的关系。

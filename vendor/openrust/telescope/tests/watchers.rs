@@ -37,6 +37,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/relationship-callers", relationship_callers)?;
     Route::get("/chunk-callers", chunk_callers)?;
     Route::get("/relationship-write-callers", relationship_write_callers)?;
+    Route::get("/reverse-touch-callers", reverse_touch_callers)?;
     Route::get("/relationship-load-callers", relationship_load_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
@@ -54,6 +55,30 @@ impl openrust::database::eloquent::Model for RelatedWriteProbe {
         static META: ModelMetadata = ModelMetadata::new("query_related_write_probe")
             .timestamps(None, None)
             .fillable(&["label", "owner_id", "subject_id", "subject_type"]);
+        &META
+    }
+
+    fn from_state(state: openrust::database::eloquent::ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &openrust::database::eloquent::ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut openrust::database::eloquent::ModelState {
+        &mut self.0
+    }
+}
+
+struct TouchOwnerProbe(openrust::database::eloquent::ModelState);
+
+impl openrust::database::eloquent::Model for TouchOwnerProbe {
+    fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
+        use openrust::database::eloquent::ModelMetadata;
+        static META: ModelMetadata = ModelMetadata::new("query_touch_owner_probe")
+            .timestamps(None, Some("updated_at"))
+            .soft_deletes("deleted_at");
         &META
     }
 
@@ -600,6 +625,58 @@ fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response
     })
 }
 
+fn reverse_touch_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::{
+        Value,
+        eloquent::{Attributes, Model as _, relations::BelongsTo},
+        schema::Schema,
+    };
+
+    Box::pin(async {
+        let table = "query_touch_owner_probe";
+        Schema::create(table, |blueprint| {
+            blueprint.id();
+            blueprint.string("updated_at", None);
+            blueprint.string("deleted_at", None);
+        })
+        .await
+        .unwrap();
+        let connection = Db::connection(None).unwrap();
+        let original = "2000-01-01 00:00:00";
+        let deleted = "2000-01-02 00:00:00";
+        connection
+            .table(table)
+            .insert(&[Attributes::from([
+                ("updated_at".into(), original.into()),
+                ("deleted_at".into(), deleted.into()),
+            ])])
+            .await
+            .unwrap();
+        let mut child =
+            RelatedWriteProbe::new_instance(Attributes::from([("owner_id".into(), 1i64.into())]))
+                .unwrap();
+        let owner = BelongsTo::<RelatedWriteProbe, TouchOwnerProbe>::new("owner_id", "id");
+        let touch = line!() + 1;
+        owner.touch(&child).await.unwrap();
+        TouchOwnerProbe::without_touching(owner.touch(&child))
+            .await
+            .unwrap();
+        child.set_attribute("owner_id", Value::Null);
+        owner.touch(&child).await.unwrap();
+        child.set_attribute("owner_id", 99i64);
+        let missing = line!() + 1;
+        owner.touch(&child).await.unwrap();
+        let inspect = line!() + 1;
+        let row = connection.table(table).first().await.unwrap().unwrap();
+        assert!(matches!(row.get("updated_at"), Some(Value::Text(value)) if value != original));
+        assert_eq!(row.get("deleted_at"), Some(&Value::from(deleted)));
+        Response::json(
+            http::StatusCode::OK,
+            [(touch, 1), (missing, 1), (inspect, 1)],
+        )
+    })
+}
+
 fn pivot_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use openrust::database::{
         Value,
@@ -751,6 +828,16 @@ async fn query_watcher_attributes_relationship_writes_to_the_public_entry() {
         "/api/relationship-write-callers",
         "query_related_write_probe",
         &["select ", "insert ", "update "],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_reverse_touch_to_the_public_entry() {
+    assert_query_source_lines(
+        "/api/reverse-touch-callers",
+        "query_touch_owner_probe",
+        &["select ", "update "],
     )
     .await;
 }

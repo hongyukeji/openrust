@@ -437,7 +437,13 @@ macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过上述仓储验收�
 
 Rust 在现有 HTTP 路由和 Telescope 仓储补验对应入口。三库均确认直接 upsert 的实际更新、按原关系归属恢复同一记录、通过中间表恢复、跨父记录时保留唯一键冲突、空批次无 SQL，以及各自文件与行号。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13 专项、Watcher 15 项、快照全仓格式和相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-relationship-recovery-macos.log`。
 
-其余远程关系、反向 touch、其他写入变体及 Release 与生产组合继续验收。
+其余远程关系、保存阶段的递归触碰、其他写入变体及 Release 与生产组合继续验收。
+
+#### Telescope Query 反向关联直接刷新时间戳
+
+固定 PHP 的 `BelongsTo::touch` 在真实 SQLite 上只执行一条更新时间戳的 SQL。更新跳过包括软删除在内的全局作用域。空外键及 `withoutTouching` 跳过查询，非空但不存在的所有者仍尝试更新，Telescope 记录实际文件与行号。证据为 `target/tmp/observability-parity/query-reverse-touch-upstream.log`。 [固定 BelongsTo](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsTo.php)
+
+补齐 Rust 公开的 `BelongsTo::touch(&child)`，复用关联键、Eloquent 更新时间戳和现有查询来源栈。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13 各经真实 HTTP 验证软删除行的更新时间、禁用和空外键分支、找不到所有者时的尝试及两次准确调用位置。除验证数据的读取外，触碰不加载模型。Watcher 16 项、快照全仓格式、框架及扩展相关严格 Clippy、三语构建与关系章节桌面／移动检查通过。证据为 `target/tmp/observability-parity/query-reverse-touch-{macos,core-clippy,docs,docs-chapter}.log`。其他反向类型及 Release 继续验收。
 
 ### Telescope Query 模型与集合的关系加载来源
 

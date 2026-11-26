@@ -205,6 +205,16 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 
     query_callers! {
+    /// 更新反向关联的所有者时间戳，不加载关联模型。
+    pub async fn touch(&self, child: &P) -> DatabaseResult<()> {
+        if !R::is_ignoring_touch()
+            && let Some(owner) = self.0.owner_query(child)?
+        {
+            owner.without_global_scopes().update(Attributes::new()).await?;
+        }
+        Ok(())
+    }
+
     /// Writes the owner table using the supplied rows and conflict columns.
     pub async fn upsert(
         &self,
