@@ -59,6 +59,7 @@ settings = ["dep:openrust-settings"]
 localization-database = ["dep:openrust-localization-database"]
 translate = ["dep:openrust-translate"]
 ai = ["dep:openrust-ai"]
+ai-gateway = ["ai", "dep:openrust-ai-gateway"]
 content-moderation = ["dep:openrust-content-moderation"]
 pay = ["dep:openrust-pay"]
 new-relic = ["dep:openrust-new-relic"]
@@ -86,6 +87,7 @@ openrust-settings = { path = "vendor/openrust/settings", optional = true }
 openrust-localization-database = { path = "vendor/openrust/localization-database", optional = true }
 openrust-translate = { path = "vendor/openrust/translate", optional = true }
 openrust-ai = { path = "vendor/openrust/ai", optional = true }
+openrust-ai-gateway = { path = "vendor/openrust/ai-gateway", optional = true }
 openrust-content-moderation = { path = "vendor/openrust/content-moderation", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
 openrust-new-relic = { path = "vendor/openrust/new-relic", optional = true }

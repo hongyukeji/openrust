@@ -31,4 +31,19 @@ let answer = response.text;
 
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。Vercel／AG-UI、工具、會話、Embeddings 和對外相容閘道仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
+
+## 模型閘道 {#model-gateway}
+
+啟用 `ai-gateway` feature 和 `AI_GATEWAY_ENABLED=true`。執行 `artisan vendor:publish --tag=ai-gateway-config`，在 `config/ai_gateway.rs` 的 `models` 和 `keys` 中填寫發佈關係及下游 Key 的權限，然後重新建置應用程式：
+
+```json
+{
+  "models": {"support-chat": {"provider": "deepseek", "model": "deepseek-flash"}},
+  "keys": {"support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "models": ["support-chat"], "requests_per_minute": 60}}
+}
+```
+
+在應用程式環境中為 `AI_GATEWAY_SUPPORT_KEY` 設定獨立的隨機金鑰，`DEEPSEEK_API_KEY` 仍由上游連線單獨使用。外部用戶端的基礎 URL 設為 `https://你的應用程式網域/v1`，使用下游 Key 作為 Bearer 憑證，模型填寫 `support-chat`。`GET /v1/models` 只顯示目前 Key 有權呼叫的已發佈模型。選用的 `requests_per_minute` 由應用程式的速率限制快取執行。
+
+`POST /v1/chat/completions` 支援 OpenAI 和相容連線。`POST /v1/responses` 目前需要 OpenAI 協定連線。兩個入口皆支援 JSON 和 SSE。Responses 目前採用無狀態模式，將 `store` 設為 `false`，並拒絕上游會話、舊 Response ID 和伺服器端工具。閘道使用結構化日誌 `ai_gateway.call` 記錄呼叫結果和上游回報的 Token 數。可用 `usage_channel` 指定日誌通道，通道必須允許 `info` 層級。未回報的計數記為 `null`。

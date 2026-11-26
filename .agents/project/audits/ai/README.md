@@ -1,6 +1,6 @@
 # E07 AI SDK 与模型网关契约账本
 
-固定基线、供应商矩阵、分批目标及整体完成条件见 [开发计划](../../plans/laravel-ai-sdk.md)。Laravel AI SDK 固定在 `1d269f2359aa166aaf10b212151bf556dd86a02e`，Sub2API 固定在 `0f6671457132425d1b84f3d80536b53e02942424`。目前仅推进 AI-00 的首批裁决与 AI-01 的非流式文本。网关端点级账本和 SDK 其余成员继续核对。
+固定基线、供应商矩阵、分批目标及整体完成条件见 [开发计划](../../plans/laravel-ai-sdk.md)。Laravel AI SDK 固定在 `1d269f2359aa166aaf10b212151bf556dd86a02e`，Sub2API 固定在 `0f6671457132425d1b84f3d80536b53e02942424`。当前进展包括 SDK 文本、模型发现及自托管网关的 OpenAI 文本入口。后续按端点和 SDK 公开成员继续核对。
 
 ## AI-01 非流式文本
 
@@ -25,3 +25,15 @@
 ## AI-02 两种文本 SSE 协议
 
 `Agent::stream`、`stream_with`、`StreamableAgentResponse::into_stream` 与默认 HTTP SSE 响应已消费 OpenAI Chat Completions 与 Responses 文本事件，复用上游出站流和 `eventsource-stream` 解析。验收覆盖真实 TCP、首段文本在上游结束前读取、跨 UTF-8 边界、终止与用量，以及真实应用 HTTP Kernel 的默认 SSE 响应。待补 Vercel／AG-UI、结构化输出、工具／推理／引用事件及完整的 StreamableAgentResponse 成员。
+
+## GW-02 OpenAI 自托管网关
+
+| 入口 | 公开契约及验收 |
+|---|---|
+| `GET /v1/models` | 仅列出当前 Bearer Key 可请求的公开模型名。两个下游 Key 的授权集合实测不同，上游 Key 不能访问下游端点。 |
+| `POST /v1/chat/completions` | OpenAI 和 OpenAI Compatible 同协议请求。保留业务 JSON 中的字符串原文及未知字段，以真实模型调用上游，以公开名响应客户端。支持 JSON 与 SSE。 |
+| `POST /v1/responses` | OpenAI 连接原生 JSON 与命名 SSE 事件。共享上游 Key 时按无状态请求裁决，强制 `store=false`，拒绝旧 Response ID、会话、Item Reference 和上游工具。Responses 的其他子端点、WebSocket 和持久状态仍属 GW-00／03 裁决范围。 |
+| 配置与错误 | `ai-gateway` 包独立启用，缺省关闭，公开模型和下游 Key 清单缺省为空。启动校验路由目标、模型授权和重复凭证。实际请求验证缺少凭证、未授权模型、未知模型、错误 JSON、不支持的协议、上游 429 和本地 Key 请求限额。响应不暴露上游错误原文、凭证或 Cookie。 |
+| 调用用量 | `ai_gateway.call` 记载下游 Key 名、公开模型、上游连接和模型、协议、HTTP 状态、结果及实际报告的 Token。类型未知或未报告计数保留为空；不记录凭证和正文。业务限额、账号池及持久报表归 GW-04。 |
+
+包测试通过正常 HTTP Kernel、本地 TCP 上游验收两种协议、两个下游 Key、JSON、SSE、请求限额与日志。独立应用进程加 Artisan 验收路由列表、配置发布及缓存无密钥，并由外部 HTTP 客户端验证普通 Responses、SSE 首帧提前到达和取消后上游断开。上游为协议模拟，真实 Sub2API 及托管服务商需另行验收。

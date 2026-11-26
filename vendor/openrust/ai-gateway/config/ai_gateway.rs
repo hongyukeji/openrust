@@ -1,0 +1,16 @@
+use openrust::config::{ConfigError, Environment, Value};
+use serde_json::json;
+
+pub fn load(env: &Environment) -> Result<Value, ConfigError> {
+    Ok(json!({
+        "enabled": env.get_utf8("AI_GATEWAY_ENABLED")?.is_some_and(|value| {
+            value.eq_ignore_ascii_case("true") || value == "1"
+        }),
+        "models": {
+            // "support-chat": {"provider": "deepseek", "model": "上游模型 ID"},
+        },
+        "keys": {
+            // "support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "models": ["support-chat"]},
+        }
+    }))
+}

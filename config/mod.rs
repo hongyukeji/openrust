@@ -4,6 +4,8 @@ use openrust::config::{ConfigError, Environment, Value};
 
 #[cfg(feature = "ai")]
 mod ai;
+#[cfg(feature = "ai-gateway")]
+mod ai_gateway;
 mod api;
 pub(crate) mod app;
 mod auth;
@@ -72,6 +74,12 @@ pub(crate) fn load(
     let configuration = {
         let mut configuration = configuration;
         configuration.insert("ai".to_owned(), ai::load(env)?);
+        configuration
+    };
+    #[cfg(feature = "ai-gateway")]
+    let configuration = {
+        let mut configuration = configuration;
+        configuration.insert("ai_gateway".to_owned(), ai_gateway::load(env)?);
         configuration
     };
     Ok(configuration)

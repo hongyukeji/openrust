@@ -62,13 +62,33 @@ pub trait TextProvider: Send + Sync {
             ModelCatalog::merge(Err(AiError::ModelsNotSupported), std::iter::empty())
         })
     }
+
+    fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
+        false
+    }
+
+    /// 向已配置的协议连接发送 JSON。调用方负责入站鉴权和模型授权。
+    fn relay(&self, _endpoint: TextEndpoint, _body: Value) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) enum TextProtocol {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextEndpoint {
     ChatCompletions,
     Responses,
 }
+
+impl TextEndpoint {
+    pub fn path(self) -> &'static str {
+        match self {
+            Self::ChatCompletions => "chat/completions",
+            Self::Responses => "responses",
+        }
+    }
+}
+
+pub(crate) type TextProtocol = TextEndpoint;
 
 #[derive(Deserialize)]
 struct Configuration {
@@ -249,6 +269,26 @@ impl TextProvider for OpenAiTextProvider {
                 self.list_models().await,
                 configured.default.iter().chain(&configured.ids).cloned(),
             )
+        })
+    }
+
+    fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
+        endpoint == TextEndpoint::ChatCompletions || self.protocol == endpoint
+    }
+
+    fn relay(&self, endpoint: TextEndpoint, body: Value) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async move {
+            if !self.supports_endpoint(endpoint) {
+                return Err(AiError::EndpointNotSupported);
+            }
+            let mut request = self.request(None)?;
+            if body.get("stream").and_then(Value::as_bool) == Some(true) {
+                request = request.stream();
+            }
+            request
+                .post(endpoint.path(), &body)
+                .await
+                .map_err(transport_error)
         })
     }
 
