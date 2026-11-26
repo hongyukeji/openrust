@@ -77,7 +77,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 框架默认译文与应用覆盖 {#default-translations}
 
-18语默认资源位于 `vendor/openrust/framework/src/localization/lang/`，随二进制编译交付；默认应用在 `lang/` 保留英语、简体中文、繁体中文三份可编辑的 `welcome.json`；其他默认词典无需复制到应用。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
+18 种语言的默认资源位于 `vendor/openrust/framework/src/localization/lang/`，随二进制交付。需要定制时，在应用语言目录添加覆盖文件。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
 
 ```json
 {"required": "自定义提示：:attribute 必填", "min": {"string": "至少输入 :min 个字符"}}
@@ -89,13 +89,13 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 可用语言 {#available-locales}
 
-普通应用可直接通过 `.env` 配置 `app.supported_locales`，无需编写中间件回调：
+`.env.example` 中的三语列表是注释示例。需要限制语言或指定顺序时，在 `.env` 设置 `APP_SUPPORTED_LOCALES`：
 
 ```dotenv
 APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 ```
 
-环境变量未设置时默认 `*`，自动发现框架与应用资源中的全部可用语言。`APP_SUPPORTED_LOCALES=` 生成空列表，关闭语言选择和欢迎页菜单；逗号分隔的列表按指定顺序启用语言，也支持仅来自数据库的语言。标签规范化并按首次出现去重。显式 `null`、`(null)`（不区分大小写）、非法标签及列表空项在启动时报错。直接配置仅接受 `"*"` 或 JSON 数组，拒绝 JSON `null`、其他类型及字符串。星号不作为数组成员，也不表示所有合法 BCP 47 标签都有译文。
+未设置 `APP_SUPPORTED_LOCALES` 时默认为 `*`，自动发现框架内置的 18 种语言及应用资源中的可用语言。`APP_SUPPORTED_LOCALES=` 生成空列表，关闭语言选择和欢迎页菜单；逗号分隔的列表按指定顺序启用语言，也支持仅来自数据库的语言。标签规范化并按首次出现去重。显式 `null`、`(null)`（不区分大小写）、非法标签及列表空项在启动时报错。直接配置仅接受 `"*"` 或 JSON 数组，拒绝 JSON `null`、其他类型及字符串。星号不作为数组成员，也不表示所有合法 BCP 47 标签都有译文。
 
 候选优先级为显式 `middleware.set_locale(...)` → `app.supported_locales` → 资源自动发现，显式空列表同样优先。配置列表和显式列表均跳过扫描。默认中间件在 HTTP 启动时保存一次候选；修改后重启应用，使用配置缓存时同时重建缓存。本配置不改变 `app.locale`、`app.fallback_locale` 或请求来源优先级。
 
@@ -104,7 +104,7 @@ Provider加载器包含框架内置语言；直接 `FileLoader::new(path)` 仍�
 
 默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式 `set_locale` 优先于配置；未显式设置时，`app.supported_locales` 数组跳过扫描。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
 
-例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::has_for_locale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
+要定制内置日语，可用 `lang/ja/welcome.json` 覆盖欢迎页文案，或用 `lang/ja/languages.json` 设置 `{"name":"日本語"}` 等语言信息。缺少文案继续使用正常翻译回退。模板可通过 `Lang::has_for_locale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
 
 ### URL 语言选择 {#locale-query}
 

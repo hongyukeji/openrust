@@ -77,7 +77,7 @@ The welcome page uses the current application locale for HTML `lang` and `Conten
 
 ### Framework defaults and application overrides {#default-translations}
 
-The 18 default locales live in `vendor/openrust/framework/src/localization/lang/` and are embedded in the binary. The default application keeps editable `en`, `zh-Hans` and `zh-Hant` welcome.json files under `lang/`; other built-in catalogs do not need application copies. Create only the keys you want to override, for example `lang/fr/validation.json`:
+The 18 default locales live in `vendor/openrust/framework/src/localization/lang/` and are embedded in the binary. To customize a built-in locale, add an override under the application language directory. Create only the keys you want to override, for example `lang/fr/validation.json`:
 
 ```json
 {"required": "Custom message for :attribute", "min": {"string": "At least :min characters"}}
@@ -89,13 +89,13 @@ Framework defaults require neither runtime source files nor publishing. `lang:pu
 
 ### Available Languages {#available-locales}
 
-For ordinary applications, configure `app.supported_locales` through `.env`; no middleware callback is required:
+The three-language line in `.env.example` is a commented example. To limit or reorder available languages, set `APP_SUPPORTED_LOCALES` in `.env`:
 
 ```dotenv
 APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 ```
 
-An unset variable defaults to `*`, discovering all available framework and application resource languages. `APP_SUPPORTED_LOCALES=` produces an empty list and disables locale selection and the welcome menu. A comma-separated list enables those languages in order, including database-only languages. Tags are canonicalized and deduplicated in their first occurrence order. Explicit `null` and `(null)` (case-insensitive), malformed tags and empty list entries fail at startup. Direct configuration accepts only `"*"` or a JSON array; JSON `null` and other types or strings are rejected. A wildcard is not a list entry and does not invent translations for every valid BCP 47 tag.
+When `APP_SUPPORTED_LOCALES` is unset, it defaults to `*` and discovers the 18 built-in locales and any available application language resources. `APP_SUPPORTED_LOCALES=` produces an empty list and disables locale selection and the welcome menu. A comma-separated list enables those languages in order, including database-only languages. Tags are canonicalized and deduplicated in their first occurrence order. Explicit `null` and `(null)` (case-insensitive), malformed tags and empty list entries fail at startup. Direct configuration accepts only `"*"` or a JSON array; JSON `null` and other types or strings are rejected. A wildcard is not a list entry and does not invent translations for every valid BCP 47 tag.
 
 Candidate precedence is explicit `middleware.set_locale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
 
@@ -104,7 +104,7 @@ The Provider loader includes embedded framework locales. `FileLoader::new(path)`
 
 The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `set_locale` candidates override configuration; otherwise an `app.supported_locales` array skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
 
-For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::has_for_locale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
+To customize the built-in Japanese locale, add `lang/ja/welcome.json` for welcome text or `lang/ja/languages.json` for metadata such as `{"name":"日本語"}`. Missing messages retain the normal translation fallback. Templates can use `Lang::has_for_locale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
 
 ### URL Language Selection {#locale-query}
 
