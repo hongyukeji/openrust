@@ -350,3 +350,106 @@ async fn gateway_group_filters_catalogue_targets_and_fallbacks() -> TestResult {
     assert_eq!(calls[1]["context"]["group"], "backup-team");
     Ok(())
 }
+
+#[tokio::test]
+async fn session_affinity_follows_success_and_is_scoped_to_key_and_model() -> TestResult {
+    let primary_reply = (
+        "200 OK",
+        "application/json",
+        r#"{"model":"primary","choices":[{"message":{"content":"primary"}}]}"#,
+    );
+    let backup_reply = (
+        "200 OK",
+        "application/json",
+        r#"{"model":"backup","choices":[{"message":{"content":"backup"}}]}"#,
+    );
+    let (primary, first) = fixture(
+        "primary-key",
+        "primary",
+        vec![
+            ("429 Too Many Requests", "application/json", "{}"),
+            primary_reply,
+            primary_reply,
+            primary_reply,
+            primary_reply,
+        ],
+    )
+    .await;
+    let (backup, second) = fixture(
+        "backup-key",
+        "backup",
+        vec![
+            backup_reply,
+            backup_reply,
+            ("503 Service Unavailable", "application/json", "{}"),
+        ],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(|path, env| {
+            let mut configuration = config(path, env)?;
+            let gateway = configuration.get_mut("ai_gateway").unwrap();
+            gateway["account_session_ttl"] = 60.into();
+            gateway["models"]["second"] = gateway["models"]["public"].clone();
+            gateway["keys"] = json!({
+                "caller":{"key_env":"CALLER_KEY","models":["public","second"]},
+                "second":{"key_env":"SECOND_KEY","models":["public"]},
+            });
+            Ok(configuration)
+        })
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nDEEPSEEK_URL={primary}\nDEEPSEEK_API_KEY=primary-key\nOPENAI_URL={backup}\nOPENAI_API_KEY=backup-key\nCALLER_KEY=caller-fixture\nSECOND_KEY=second-fixture\n"
+        ),
+    )?;
+    let request = |key: &str, model: &str, sessions: &[&str]| {
+        let mut request = http::Request::post("/v1/chat/completions")
+            .header("authorization", format!("Bearer {key}"))
+            .header("content-type", "application/json");
+        for session in sessions {
+            request = request.header("x-session-id", *session);
+        }
+        request.body(Body::from(
+            json!({
+                "model":model,
+                "messages":[{"role":"user","content":"request"}],
+            })
+            .to_string(),
+        ))
+    };
+    let invalid = app
+        .call(request("caller-fixture", "public", &["case", "other"])?)
+        .await?;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        invalid.json::<Value>()?["error"]["code"],
+        "invalid_session_id"
+    );
+    let invalid = app
+        .call(request("caller-fixture", "public", &["with space"])?)
+        .await?;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+
+    for (key, model, sessions, provider) in [
+        ("caller-fixture", "public", &["case"][..], "backup"),
+        ("caller-fixture", "public", &["case"], "backup"),
+        ("second-fixture", "public", &["case"], "primary"),
+        ("caller-fixture", "second", &["case"], "primary"),
+        ("caller-fixture", "public", &["case"], "primary"),
+        ("caller-fixture", "public", &["case"], "primary"),
+    ] {
+        let response = app.call(request(key, model, sessions)?).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json::<Value>()?["choices"][0]["message"]["content"],
+            provider
+        );
+    }
+    first.await?;
+    second.await?;
+    Ok(())
+}

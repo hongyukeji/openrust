@@ -9,6 +9,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "models": {
             // "support-chat": {"provider": "deepseek", "model": "上游模型 ID"},
         },
+        "account_session_ttl": null,
         "accounts": {
             // "deepseek": {"cooldown_seconds": 30, "max_concurrent_requests": 4},
         },

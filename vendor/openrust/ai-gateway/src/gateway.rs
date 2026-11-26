@@ -17,6 +17,7 @@ use subtle::ConstantTimeEq;
 use crate::{
     accounts::{Account, MAX_SECONDS},
     managed_keys::KeyStore,
+    session_affinity::{self, SessionAffinity},
 };
 
 #[derive(Default, Deserialize)]
@@ -28,6 +29,7 @@ struct Configuration {
     #[serde(default)]
     accounts: BTreeMap<String, AccountConfiguration>,
     account_cache_store: Option<String>,
+    account_session_ttl: Option<i64>,
     #[serde(default)]
     groups: BTreeMap<String, GroupConfiguration>,
     #[serde(default)]
@@ -122,6 +124,7 @@ const ENDPOINTS: [TextEndpoint; 8] = [
 ];
 
 pub(crate) struct Target {
+    pub(crate) affinity_key: String,
     provider_name: String,
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
@@ -174,6 +177,7 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
 pub(crate) struct Gateway {
     pub(crate) models: BTreeMap<String, Model>,
     pub(crate) account_cache_store: Option<String>,
+    pub(crate) account_session_ttl: Option<i64>,
     groups: BTreeMap<String, Arc<Group>>,
     keys: Vec<Arc<Key>>,
     pub(crate) managed_keys: Option<KeyStore>,
@@ -205,6 +209,12 @@ impl Gateway {
             serde_json::from_value(config).map_err(|_| invalid("ai_gateway 配置无效"))?;
         if !config.enabled {
             return Ok(None);
+        }
+        if config
+            .account_session_ttl
+            .is_some_and(|seconds| !(1..=MAX_SECONDS).contains(&seconds))
+        {
+            return Err(invalid("account_session_ttl 必须介于 1 和 86400 秒"));
         }
         let mut accounts = BTreeMap::new();
         for (name, policy) in config.accounts {
@@ -245,6 +255,7 @@ impl Gateway {
                         .text_provider(Some(&target.provider))
                         .map_err(|_| invalid(format!("公开模型 {name} 的上游连接无效")))?;
                     targets.push(Target {
+                        affinity_key: session_affinity::key(&[&target.provider, &target.model]),
                         provider,
                         upstream_model: target.model,
                         account: accounts.get(&target.provider).cloned(),
@@ -355,6 +366,7 @@ impl Gateway {
         Ok(Some(Self {
             models,
             account_cache_store: config.account_cache_store,
+            account_session_ttl: config.account_session_ttl,
             keys,
             groups,
             managed_keys,
@@ -433,6 +445,7 @@ impl Gateway {
             .into_iter()
             .collect(),
             outcome: "cancelled",
+            affinity: None,
             lease,
         }
     }
@@ -442,10 +455,22 @@ pub(crate) struct Call {
     logger: Arc<Logger>,
     context: openrust::log::LogContext,
     outcome: &'static str,
+    affinity: Option<(SessionAffinity, String)>,
     lease: Option<ConcurrencyLease>,
 }
 
 impl Call {
+    pub(crate) fn bind_affinity(&mut self, affinity: SessionAffinity, target: String) {
+        self.affinity = Some((affinity, target));
+    }
+
+    pub(crate) async fn complete(&mut self) {
+        self.outcome("completed");
+        if let Some((affinity, target)) = self.affinity.take() {
+            affinity.remember(target).await;
+        }
+    }
+
     pub(crate) async fn release(&mut self) {
         if let Some(lease) = self.lease.take()
             && lease.release().await.is_err()

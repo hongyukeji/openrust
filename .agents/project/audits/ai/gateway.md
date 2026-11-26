@@ -76,3 +76,11 @@ HTTP Kernel 及独立网关验证两个方向的工具调用、上游鉴权、�
 两端工具声明与完整历史沿用非流式转换。Anthropic 的 `input_json_delta` 和 OpenAI 的 `response.function_call_arguments.delta` 实时双向转换，保留调用 ID、事件索引和终止用量。最终参数须是合法 JSON 对象，且与之前实际发送的增量一致。缺失或矛盾的完成帧终止为协议错误，已开始的流不重放。
 
 包测试覆盖调用开始、分段参数、工具结束、终止用量和错误；独立进程的两条 HTTP 路径均在上游等待信号期间收到第一段参数，Artisan 核对路由。服务端工具、附件及特殊工具协议仍待后续批次。
+
+## GW-04 会话黏性
+
+可选的 `account_session_ttl` 使用现有 `account_cache_store`，请求带上 `X-Session-ID` 后优先选择同一个下游 Key 和公开模型最近成功的具名连接与上游模型。缓存键为长度分隔后计算的摘要。候选仍须通过端点能力、组授权、冷却及并发检查。成功的 JSON 及已确认终止的 SSE 刷新记录，失败与截断不写入。缓存出错按正常路由顺序处理请求。
+
+HTTP Kernel 验证非法和重复 ID、Key／模型别名隔离、首选失败后将可用连接写回。独立 Artisan 确认配置，两个 HTTP 进程共享 Redis 8，实测先回退并完成 SSE、跨副本命中、截断不黏连以及有效期结束回到主连接。协议上游使用真实 TCP 模拟。
+
+- [Sub2API 固定 Responses 账号选择](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go) · [Bifrost 固定路由设计](https://github.com/maximhq/bifrost/blob/53c2fcc22acd5ec4a02b4bd03da9bcb34856c055/docs/providers/provider-routing.mdx)

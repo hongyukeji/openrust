@@ -23,6 +23,7 @@ mod gateway;
 mod key_migration;
 mod managed_keys;
 mod protocol;
+mod session_affinity;
 
 pub use configuration::load as default_config;
 use gateway::Gateway;

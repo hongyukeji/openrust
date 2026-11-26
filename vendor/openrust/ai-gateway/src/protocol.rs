@@ -18,6 +18,7 @@ use crate::{
     accounts::Admission,
     compatibility::{Bridge, Translation},
     gateway::{Call, Gateway, Key, Target},
+    session_affinity::SessionAffinity,
 };
 
 type HttpResult = Result<Response, HttpError>;
@@ -458,7 +459,33 @@ async fn relay(
     let mut cooling = None::<u64>;
     let mut busy = false;
     let cache_store = gateway.account_cache_store.as_deref();
-    let mut targets = model.targets_for(endpoint, key).peekable();
+    let affinity = if let Some(seconds) = gateway.account_session_ttl {
+        match SessionAffinity::for_request(
+            request.headers(),
+            &key.limiter_key(),
+            &name,
+            cache_store,
+            seconds,
+        ) {
+            Ok(affinity) => affinity,
+            Err(()) => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_session_id",
+                    "X-Session-ID 无效",
+                );
+            }
+        }
+    } else {
+        None
+    };
+    let mut targets: Vec<_> = model.targets_for(endpoint, key).collect();
+    if let Some(affinity) = &affinity
+        && let Some(preferred) = affinity.preferred().await
+    {
+        targets.sort_by_key(|(target, _)| target.affinity_key != preferred);
+    }
+    let mut targets = targets.into_iter().peekable();
     while let Some((target, upstream_endpoint)) = targets.next() {
         let mut payload = if targets.peek().is_some() {
             data.clone()
@@ -517,6 +544,9 @@ async fn relay(
             &request_id,
             lease,
         );
+        if let Some(affinity) = &affinity {
+            call.bind_affinity(affinity.clone(), target.affinity_key.clone());
+        }
         match request_upstream(target, upstream_endpoint, payload, protocol, &mut call).await {
             Ok(upstream) => {
                 return respond(upstream, name, endpoint, streaming, protocol, bridge, call).await;
@@ -753,7 +783,7 @@ async fn respond(
         };
         data = response;
     }
-    call.outcome("completed");
+    call.complete().await;
     rename_model(&mut data, &name);
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
@@ -807,7 +837,7 @@ fn stream(
                 return;
             };
             if event.data == "[DONE]" {
-                call.outcome("completed");
+                call.complete().await;
                 yield Ok("data: [DONE]\n\n".to_owned());
                 return;
             }
@@ -827,7 +857,7 @@ fn stream(
                     || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");
             }
             if terminal {
-                call.outcome("completed");
+                call.complete().await;
             }
             call.observe_usage(&data);
             rename_model(&mut data, &name);
@@ -850,8 +880,10 @@ fn stream(
             let _ = writeln!(frame, "data: {data}\n");
             yield Ok(frame);
         }
-        call.outcome(if terminal { "completed" } else { "incomplete_stream" });
-        if !terminal {
+        if terminal {
+            call.complete().await;
+        } else {
+            call.outcome("incomplete_stream");
             yield Ok(protocol.stream_error());
         }
     };
@@ -882,7 +914,7 @@ fn bridged_stream(
                 return;
             };
             if terminal {
-                call.outcome("completed");
+                call.complete().await;
             }
             for frame in frames {
                 yield Ok(frame);

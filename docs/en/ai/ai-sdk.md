@@ -72,6 +72,8 @@ Add `fallbacks` to a public model mapping to try backup connections in order. Ea
 
 Use `accounts.deepseek.cooldown_seconds = 30` in `config/ai_gateway.rs` to pause a named upstream connection after HTTP 429, 503, or 529. A valid upstream `Retry-After` takes precedence, up to 24 hours. The pause applies to every published model using that connection. When all eligible connections are cooling down, the gateway returns HTTP 503 with `Retry-After`. Set `account_cache_store` to a shared store such as `redis` to coordinate across gateway processes.
 
+To keep a client session on the last successful upstream target, set `account_session_ttl` to a value from 1 to 86400 seconds and send `X-Session-ID` on each request. The ID is scoped to the downstream Key and public model. The preferred target still goes through authorization, cooldown and concurrency checks. Successful responses refresh the TTL. During a cache outage the gateway uses the configured order. Reuse `account_cache_store` for shared affinity across replicas.
+
 Set `accounts.deepseek.max_concurrent_requests` to cap active requests for that connection across replicas using the same cache. A stream holds a slot until it finishes or the caller disconnects. When the connection is full, the gateway checks the next eligible connection before sending the request. If all available connection slots are full, it returns HTTP 503 with `upstream_busy`.
 
 To share an access policy across keys, add a group and set the key's `group` field. A group's `models` lists published aliases. Its optional `providers` limits upstream connections for both initial requests and fallback. A key can also specify `models` to narrow that group's model list.

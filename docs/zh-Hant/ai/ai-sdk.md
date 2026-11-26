@@ -72,6 +72,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 可在 `config/ai_gateway.rs` 中設定 `accounts.deepseek.cooldown_seconds = 30`，讓具名上游連線在回傳 HTTP 429、503 或 529 後進入冷卻。上游有效的 `Retry-After` 優先，最長 24 小時。使用同一連線的所有公開模型共用冷卻狀態。可用連線都在冷卻時，閘道回傳 HTTP 503 及 `Retry-After`。多程序部署可將 `account_cache_store` 指向共用快取，例如 `redis`。
 
+需要讓同一用戶端會話優先使用上一次成功的上游時，將 `account_session_ttl` 設為 1 至 86400 秒，並在每次請求傳送 `X-Session-ID`。會話依下游 Key 與公開模型隔離。首選連線仍須通過授權、冷卻與並行檢查。成功回應會更新有效期間。快取暫時無法使用時，閘道依設定順序選路。多副本可共用 `account_cache_store` 以維持會話黏性。
+
 設定 `accounts.deepseek.max_concurrent_requests` 可限制該連線的並行請求數。使用同一快取的閘道程序共用槽位。串流請求會佔用槽位，直到結束或用戶端中斷連線。首選連線已滿時，閘道會在送出請求前檢查下一個可用連線。若所有可用連線的槽位都已滿，回傳 HTTP 503 和 `upstream_busy`。
 
 多個 Key 共用權限時，可設定群組，並在 Key 中填寫 `group`。群組的 `models` 列出公開模型別名，選填的 `providers` 限制首選與備援時可以呼叫的上游連線。Key 也可再填寫 `models`，縮小群組授予的模型範圍。
