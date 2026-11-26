@@ -410,7 +410,7 @@ let assigned = department
 
 ## 供應商檔案 {#provider-files}
 
-用 `AI_FILE_PROVIDER` 指定支援 Files API 的具名連線，也可以沿用 AI 預設連線。OpenAI 原生支援。自訂 OpenAI 相容連線提供同一 Files API 時可設定 `files: true`。
+用 `AI_FILE_PROVIDER` 指定支援 Files API 的具名連線，也可以沿用 AI 預設連線。OpenAI、Anthropic 和 OpenRouter 全球端點原生支援。自訂 OpenAI 相容連線提供同一 Files API 時可設定 `files: true`。
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -422,9 +422,9 @@ let id = file.id();
 let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 ```
 
-HTTP 上傳使用 `FileUpload::from_upload`，記憶體位元組使用 `from_bytes`，已設定磁碟上的檔案可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆寫名稱、MIME 類型及上傳用途，預設用途是 `user_data`。
+HTTP 上傳使用 `FileUpload::from_upload`，記憶體位元組使用 `from_bytes`，已設定磁碟上的檔案可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆寫名稱、MIME 類型及上傳用途，預設用途是 `user_data`。Anthropic 和 OpenRouter 在伺服器管理用途，上傳時使用預設設定。
 
-`Files::get` 讀取中繼資料，`Files::list` 依游標分頁。傳回的檔案物件沿用原連線下載、重新整理和刪除。`store_as` 將內容存入私有磁碟路徑。使用者提供檔案 ID 時，先在應用程式中查驗檔案歸屬。
+`Files::get` 讀取中繼資料，`Files::list` 依游標分頁。傳回的檔案物件沿用原連線下載、重新整理和刪除。`store_as` 將內容存入私有磁碟路徑。使用者提供檔案 ID 時，先在應用程式中查驗檔案歸屬。 供應商傳回 `downloadable: false` 時，讀取或存檔會傳回 `AiError::FileNotDownloadable`。Anthropic 和 OpenRouter 對使用者上傳的檔案採用此限制。
 
 ## 向量儲存庫 {#vector-stores}
 

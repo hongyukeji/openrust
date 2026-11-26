@@ -43,6 +43,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "OPENROUTER_API_KEY",
         "OPENROUTER_MODEL",
     )?;
+    openrouter["files"] = json!("openrouter");
     openrouter["models"]["reranking"] =
         json!({"default": env.get_utf8("OPENROUTER_RERANK_MODEL")?});
     openrouter["models"]["embeddings"] =

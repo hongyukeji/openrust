@@ -4,7 +4,10 @@ use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;
 use openrust::{
     filesystem::Visibility,
-    http::{HttpFuture, Method, UploadedFile, client::Part},
+    http::{
+        HttpFuture, Method, UploadedFile,
+        client::{Part, Response},
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +17,9 @@ use crate::{
     media_storage,
     text::{transport_error, validate},
 };
+
+mod workspace;
+pub(crate) use workspace::{WorkspaceFileProtocol, WorkspaceFileProvider};
 
 const FILE_LIMIT: usize = 100 * 1024 * 1024;
 
@@ -169,6 +175,15 @@ impl FileUpload {
         Ok(self)
     }
 
+    fn into_part(self) -> AiResult<(Part, String)> {
+        let length = self.content.len() as u64;
+        let part = Part::stream_with_length(self.content, length)
+            .file_name(self.name)
+            .mime_str(&self.mime_type)
+            .map_err(|_| AiError::InvalidFile)?;
+        Ok((part, self.purpose))
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -184,6 +199,8 @@ impl FileUpload {
 pub struct FileInfo {
     pub id: String,
     pub filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub downloadable: Option<bool>,
     pub bytes: Option<u64>,
     pub purpose: Option<String>,
     pub created_at: Option<u64>,
@@ -227,6 +244,9 @@ impl FileResponse {
     }
 
     pub async fn contents(&self) -> AiResult<Bytes> {
+        if self.file.downloadable == Some(false) {
+            return Err(AiError::FileNotDownloadable);
+        }
         validate_id(self.id())?;
         self.provider.file_contents(self.id()).await
     }
@@ -308,15 +328,12 @@ impl FileProvider for OpenAiFileProvider {
 
     fn put_file(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
         Box::pin(async move {
-            let part = Part::stream_with_length(file.content.clone(), file.content.len() as u64)
-                .file_name(file.name)
-                .mime_str(&file.mime_type)
-                .map_err(|_| AiError::InvalidFile)?;
+            let (part, purpose) = file.into_part()?;
             let response = self
                 .0
                 .request(None)?
                 .attach("file", part)
-                .post("files", &serde_json::json!({"purpose": file.purpose}))
+                .post("files", &serde_json::json!({"purpose": purpose}))
                 .await;
             validate(response)?
                 .json()
@@ -342,16 +359,7 @@ impl FileProvider for OpenAiFileProvider {
         Box::pin(async move {
             let path = format!("{}/content", file_path(id)?);
             let response = self.0.request(None)?.stream().get(&path).await;
-            let mut stream = validate(response)?.into_stream().map_err(transport_error)?;
-            let mut content = BytesMut::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(transport_error)?;
-                if content.len().saturating_add(chunk.len()) >= FILE_LIMIT {
-                    return Err(AiError::MediaTooLarge);
-                }
-                content.extend_from_slice(&chunk);
-            }
-            Ok(content.freeze())
+            read_file_contents(validate(response)?).await
         })
     }
 
@@ -379,6 +387,19 @@ impl FileProvider for OpenAiFileProvider {
             Ok(ProviderFilePage { data, next_cursor })
         })
     }
+}
+
+async fn read_file_contents(response: Response) -> AiResult<Bytes> {
+    let mut stream = response.into_stream().map_err(transport_error)?;
+    let mut content = BytesMut::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(transport_error)?;
+        if content.len().saturating_add(chunk.len()) >= FILE_LIMIT {
+            return Err(AiError::MediaTooLarge);
+        }
+        content.extend_from_slice(&chunk);
+    }
+    Ok(content.freeze())
 }
 
 #[derive(Deserialize)]

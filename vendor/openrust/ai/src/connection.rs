@@ -55,6 +55,19 @@ enum ClassificationProtocol {
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum FileConfiguration {
+    Enabled(bool),
+    Protocol(FileProtocol),
+}
+
+#[derive(Deserialize)]
+enum FileProtocol {
+    #[serde(rename = "openrouter")]
+    OpenRouter,
+}
+
+#[derive(Deserialize)]
 struct Configuration {
     name: String,
     url: String,
@@ -63,7 +76,7 @@ struct Configuration {
     #[serde(default)]
     models: Models,
     #[serde(default)]
-    files: bool,
+    files: Option<FileConfiguration>,
     #[serde(default)]
     stores: bool,
     #[serde(default = "default_store")]
@@ -323,7 +336,14 @@ impl Connection {
     }
 
     pub(crate) fn files_configured(&self) -> bool {
-        self.config.files
+        matches!(&self.config.files, Some(FileConfiguration::Enabled(true)))
+    }
+
+    pub(crate) fn uses_openrouter_files(&self) -> bool {
+        matches!(
+            &self.config.files,
+            Some(FileConfiguration::Protocol(FileProtocol::OpenRouter))
+        )
     }
 
     pub(crate) fn store(&self) -> bool {

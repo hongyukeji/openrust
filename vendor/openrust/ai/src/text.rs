@@ -34,7 +34,7 @@ use crate::{
     },
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
-    files::{FileProvider, OpenAiFileProvider},
+    files::{FileProvider, OpenAiFileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     image::{ImageProvider, OpenAiImageProvider},
     models::ListedModel,
     reranking::{HttpRerankingProvider, RerankingProtocol},
@@ -423,6 +423,12 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
+        if self.connection.uses_openrouter_files() {
+            return Some(Arc::new(WorkspaceFileProvider {
+                connection: self.connection.clone(),
+                protocol: WorkspaceFileProtocol::OpenRouter,
+            }));
+        }
         (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.files_configured())
             .then(|| Arc::new(OpenAiFileProvider(self.connection.clone())) as Arc<dyn FileProvider>)
     }

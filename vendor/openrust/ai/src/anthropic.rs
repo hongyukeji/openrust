@@ -15,11 +15,12 @@ use crate::{
     StepTextGateway, StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider, ToolCall,
     ToolDefinition, ToolStep, Usage,
     connection::{Authorization, Connection},
+    files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
     text::{transport_error, validate},
 };
 
-pub(crate) struct AnthropicTextProvider(Connection);
+pub(crate) struct AnthropicTextProvider(Arc<Connection>);
 
 impl AnthropicTextProvider {
     pub(crate) fn new(
@@ -27,12 +28,12 @@ impl AnthropicTextProvider {
         environment: Arc<Environment>,
         http: Arc<Factory>,
     ) -> AiResult<Self> {
-        Ok(Self(Connection::new(
+        Ok(Self(Arc::new(Connection::new(
             config,
             environment,
             http,
             Authorization::Anthropic,
-        )?))
+        )?)))
     }
 
     fn prompt_body(prompt: &AgentPrompt<'_>) -> Value {
@@ -106,6 +107,13 @@ impl TextProvider for AnthropicTextProvider {
 
     fn default_text_model(&self) -> AiResult<&str> {
         self.0.default_text_model()
+    }
+
+    fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
+        Some(Arc::new(WorkspaceFileProvider {
+            connection: self.0.clone(),
+            protocol: WorkspaceFileProtocol::Anthropic,
+        }))
     }
 
     fn generate_text<'a>(

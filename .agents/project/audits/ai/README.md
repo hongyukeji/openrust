@@ -285,3 +285,11 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 ## GW-03 Responses WebSocket
 
 `GET /v1/responses` 接受 `response.create`，复用 HTTP 生成、鉴权、限流及用量。覆盖独立客户端、Artisan 撤销、Chat 回退、首段、关闭码、截断和持久用量。实现边界与后续缺口见[网关验收账本](gateway.md#gw-03-responses-websocket)。
+
+## AI-06 Anthropic 与 OpenRouter 文件
+
+`Files` 复用现有公开入口和私有 Storage。Anthropic 使用固定基线的 Files beta 请求头，OpenRouter 全球预设使用 Bearer 和独立 Files 协议。上传沿用 multipart，元数据统一为 `FileInfo`，列表使用上游 `after_id`。上游返回 `downloadable: false` 时，读取或存盘在出站前返回 `FileNotDownloadable`。
+
+分别用独立 Artisan 上传，再用独立 HTTP 应用连接本地 TCP 协议服务，验证原生认证、文件元数据和时间戳、上传限制、两页游标、生成文件的私有存盘与回读、上传文件拒绝下载、删除后 404。OpenAI Files 重跑独立 HTTP 与 Artisan 通过。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。真实供应商凭证、区域 OpenRouter 端点、其他资源驱动和 Fake 继续单列。
+
+- [固定 Laravel Anthropic File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicFileGateway.php) · [固定 Laravel OpenRouter File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenRouter/OpenRouterFileGateway.php) · [Anthropic Files API](https://platform.claude.com/docs/en/build-with-claude/files) · [OpenRouter Files API](https://openrouter.ai/docs/api/api-reference/files/list-files)
