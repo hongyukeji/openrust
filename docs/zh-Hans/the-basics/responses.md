@@ -107,22 +107,11 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `ApiResponse` 提供统一业务 JSON 格式，包含 `success`、`code`、`message`，按需附带 `data`、`meta` 和 `errors`。它是业务响应扩展；HTTP 状态码仍表示请求结果。
 
-### 配置与自动封装 {#business-response-configuration}
+### 显式返回业务响应 {#business-response-configuration}
 
-`config/api.rs` 的 `response_envelope` 默认启用，读取 `API_RESPONSE_ENVELOPE`。通常无需设置环境变量；需要关闭时在自己的 `.env` 添加：
+需要统一业务格式时，由处理器显式返回 `ApiResponse`。旧的 `API_RESPONSE_ENVELOPE` 设置已移除，可从环境变量中删除。
 
-```dotenv
-API_RESPONSE_ENVELOPE=false
-```
-
-关闭后，框架异常和普通 API Resource 恢复原生格式；显式返回 `ApiResponse` 仍保持业务封装。修改配置后重启常驻应用与 Worker；使用配置缓存时重新执行 `./artisan config:cache`。
-
-自动封装适用于 API 前缀内或 `expects_json()` 为真的请求：
-
-- 框架默认 JSON 异常响应增加业务字段，验证异常继续携带字段 `errors`。自定义异常渲染器可返回自己的响应。
-- 普通 `JsonResource` 和资源集合使用业务 `data` 包装，并保留资源自身的 `links`、`meta` 等字段；已有同名顶级字段优先。
-- JSON:API 资源及 `Accept: application/vnd.api+json` 请求不使用自动业务封装。显式返回 `ApiResponse` 仍由应用自行选择格式。
-- 普通字符串、数组、`Response::json`、文件下载、流式响应和 HTML 页面不会因此自动套上业务字段；健康检查也不自动改写。
+框架默认 JSON 异常包含 `message`，验证异常还包含字段 `errors`。普通资源按资源配置包装数据，保留 `links` 和 `meta` 等元数据。JSON:API 资源遵循自己的协议格式。
 
 相关机制见[API 资源](../eloquent/resources.md)和[异常处理](./errors.md)。
 
@@ -474,7 +463,7 @@ fn sparse_item_response() -> ApiResponse<Value> {
 
 ### 应用信息接口 {#api-application-info}
 
-根应用通过 `ApiController::index` 提供公开的 `GET /api`。名称和版本读取 `app.name`、`app.version`，可通过 `APP_NAME`、`APP_VERSION` 设置；地址遵循 `API_PREFIX`，例如 `api/admin` 对应 `/api/admin`。无需认证扩展或数据库。此端点通过 `Response::json` 返回顶层字段 `name` 和 `version`。
+根应用通过 `ApiController::index` 提供公开的 `GET /api`。名称和版本读取 `app.name`、`app.version`，可通过 `APP_NAME`、`APP_VERSION` 设置；地址遵循 `API_PREFIX`，例如 `api/admin` 对应 `/api/admin`。无需认证扩展或数据库。此端点将 `ApiResponse` 交给 `Response::json`，`name` 和 `version` 位于 `data` 中。
 
 `ApiResponse` 的默认消息使用请求语言，英文为 `Success`，简体和繁体中文为 `成功`。框架随附现有 18 种默认语言的响应词条，`lang:publish` 会发布 `response.json` 供应用覆盖。自定义键缺失时遵循既有语言回退；翻译源格式错误时返回安全的服务异常，不把翻译诊断伪装成成功消息。
 

@@ -12,33 +12,5 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |
     */
     let prefix = env.get_utf8("API_PREFIX")?.unwrap_or("/api");
-    // 安装模板可供手动接线使用，不依赖应用私有的配置辅助模块。
-    let response_envelope = match env.get_utf8("API_RESPONSE_ENVELOPE")? {
-        None => true,
-        Some(value) => match value.to_ascii_lowercase().as_str() {
-            "true" | "(true)" | "1" => true,
-            "false" | "(false)" | "0" => false,
-            _ => {
-                return Err(ConfigError::InvalidType {
-                    key: "API_RESPONSE_ENVELOPE".into(),
-                    expected: "a boolean",
-                });
-            }
-        },
-    };
-    Ok(json!({
-        "prefix": prefix.trim_matches('/'),
-
-        /*
-        |--------------------------------------------------------------------------
-        | 业务 API 响应
-        |--------------------------------------------------------------------------
-        |
-        | 通过 API_RESPONSE_ENVELOPE 设置，默认启用。
-        | 为 API 或协商 JSON 的异常及普通 Resource 启用统一业务封装。
-        | 设为 false 保留原生格式；显式 ApiResponse 始终使用业务封装。
-        |
-        */
-        "response_envelope": response_envelope,
-    }))
+    Ok(json!({"prefix": prefix.trim_matches('/')}))
 }

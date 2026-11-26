@@ -107,24 +107,13 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `ApiResponse` 提供統一業務 JSON 格式，包含 `success`、`code`、`message`，按需附帶 `data`、`meta` 和 `errors`。它是業務回應擴充；HTTP 狀態碼仍表示請求結果。
 
-### 設定與自動封裝 {#business-response-configuration}
+### 明確回傳業務回應 {#business-response-configuration}
 
-`config/api.rs` 的 `response_envelope` 預設啟用，讀取 `API_RESPONSE_ENVELOPE`。通常無需設定環境變數；需要關閉時在自己的 `.env` 加入：
+需要統一業務格式時，由處理器明確回傳 `ApiResponse`。舊的 `API_RESPONSE_ENVELOPE` 設定已移除，可從環境變數中刪除。
 
-```dotenv
-API_RESPONSE_ENVELOPE=false
-```
+框架預設的 JSON 例外包含 `message`，驗證例外也包含欄位 `errors`。一般資源依資源設定包裝資料，保留 `links` 和 `meta` 等中繼資料。JSON:API 資源遵循自己的協定格式。
 
-關閉後，框架例外和一般 API Resource 恢復原生格式；明確回傳 `ApiResponse` 仍保持業務封裝。修改設定後重新啟動常駐應用程式與 Worker；使用設定快取時重新執行 `./artisan config:cache`。
-
-自動封裝適用於 API 前綴內或 `expects_json()` 為真的請求：
-
-- 框架預設 JSON 例外回應增加業務欄位，驗證例外繼續攜帶欄位 `errors`。自訂例外渲染器可回傳自己的回應。
-- 一般 `JsonResource` 和資源集合使用業務 `data` 包裝，並保留資源本身的 `links`、`meta` 等欄位；已有同名頂層欄位優先。
-- JSON:API 資源及 `Accept: application/vnd.api+json` 請求不使用自動業務封裝。明確回傳 `ApiResponse` 仍由應用程式自行選擇格式。
-- 一般字串、陣列、`Response::json`、檔案下載、串流回應和 HTML 頁面不會因此自動套上業務欄位；健康檢查也不自動改寫。
-
-相關機制見[API 資源](../eloquent/resources.md)和[例外處理](./errors.md)。
+相關機制見 [API 資源](../eloquent/resources.md)及[例外處理](./errors.md)。
 
 ### 成功、失敗與分頁 {#business-response-examples}
 
@@ -474,7 +463,7 @@ fn sparse_item_response() -> ApiResponse<Value> {
 
 ### 應用資訊介面 {#api-application-info}
 
-根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。此端點透過 `Response::json` 傳回頂層欄位 `name` 和 `version`。
+根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。此端點將 `ApiResponse` 傳給 `Response::json`，`name` 和 `version` 位於 `data` 中。
 
 `ApiResponse` 的預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
 

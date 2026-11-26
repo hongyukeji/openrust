@@ -1,6 +1,6 @@
 # 錯誤處理
 
-可選業務 JSON 封裝、設定開關和錯誤範例見[業務回應](./responses.md#business-responses)。
+明確回傳業務 JSON 錯誤的範例見[業務回應](./responses.md#business-responses)。
 
 ## 傳播領域錯誤
 

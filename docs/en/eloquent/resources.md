@@ -1,6 +1,6 @@
 # API Resources
 
-For automatic business envelopes, configuration and their JSON:API boundary, see [business responses](../the-basics/responses.md#business-response-configuration).
+For explicit business responses, see [`ApiResponse`](../the-basics/responses.md#business-responses).
 
 ## Generating Resources {#generating-resources}
 

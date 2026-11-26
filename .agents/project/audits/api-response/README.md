@@ -62,3 +62,13 @@ node target/tmp/api-response/browser.mjs
 - 使用提取的函数注册真实公开路由，在 en、zh-Hans 两个应用配置下完成26个TCP HTTP请求，逐项比较完整正文和状态，包括200、201、422、204零字节正文、分页、嵌套编辑、数组稀疏键及参数翻译。最终 extraction-final.log、runtime-final.log 通过；没有仅凭 Markdown 正则检查宣称示例可用。
 - 最终 npm --prefix target/tmp/facade-alignment/source/docs run build 通过，包含三语内容／链接检查；Chrome 在 / 和 /docs/ 挂载下完成三语桌面／移动端12组检查，每组核对新增章节锚点、正文、页面脚本及页面无横向溢出；简体中文桌面和移动截图复查通过。日志、提取源码和截图保存在 target/tmp/api-response-examples/，不在正式正文放验收过程。
 - 命令均通过 tests/build_guard.py 执行。一次性独占示例测试可执行文件验收后直接删除，不进废纸篓；实际大小及清理前后磁盘读数见 cleanup.json。保留源码、日志及正常复用的 Cargo／文档构建缓存，不触碰数据库或数据卷。本轮只提交三语正文和本条记录，不推送。
+
+## 移除全局自动封装
+
+按上述固定 Laravel 基线恢复框架默认 JSON 异常和资源响应。根应用配置与 `install:api` 的生成模板只配置 API 前缀。旧环境变量或配置缓存中的封装设置不再参与响应生成。
+
+- 默认异常使用 `message`，验证异常另含 `errors`。生产 500 使用安全消息，调试时沿用框架的诊断字段。HTTP 状态和 `Allow`、`Retry-After` 等响应头沿用原有分派逻辑。
+- 普通 `JsonResource` 和集合按资源自身规则包装数据，分页继续提供 `data`、`links` 和 `meta`。JSON:API 沿用协议资源的格式。
+- 默认 `GET /api` 由控制器将 `ApiResponse::success` 传给 `Response::json`，统一格式包含 `success`、`code`、`message` 和 `data`。Fortify 等应用中显式构造的业务响应仍按各自契约输出。
+
+本次在隔离源码中使用 Rust 1.95.0 验证。旧环境变量分别为 `true` 和 `false` 时，真实 TCP 请求覆盖默认 `/api`、401／404／405／422／429／500、资源分页和 JSON:API。安装模板也验证了旧设置为非法值时仍可只读取 API 前缀。相关测试通过 34 项。启动套件另有一项现有失败，断言启动错误省略底层消息，而 `BootstrapError::ProviderBootFailed` 的现有 Display 实现会附加底层错误。本批验收复跑跳过该项。

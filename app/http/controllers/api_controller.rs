@@ -1,6 +1,6 @@
 use super::controller::Controller;
 use openrust::{
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::Config,
 };
 use serde_json::json;
@@ -12,10 +12,10 @@ impl ApiController {
         Box::pin(async {
             Response::json(
                 StatusCode::OK,
-                json!({
+                ApiResponse::success(json!({
                     "name": Config::string("app.name")?,
                     "version": Config::string("app.version")?,
-                }),
+                })),
             )
         })
     }

@@ -1,6 +1,6 @@
 # 错误处理
 
-可选业务 JSON 封装、配置开关和错误示例见[业务响应](./responses.md#business-responses)。
+显式返回业务 JSON 错误的示例见[业务响应](./responses.md#business-responses)。
 
 ## 传播领域错误
 

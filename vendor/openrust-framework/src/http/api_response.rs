@@ -4,8 +4,8 @@ use ::http::{HeaderValue, header::CONTENT_TYPE};
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value, json};
 
-use super::{Body, HttpError, Request, Response, StatusCode};
-use crate::support::facades::{Config, Lang};
+use super::{Body, HttpError, Response, StatusCode};
+use crate::support::facades::Lang;
 
 /// 分页元数据；原生 Resource 分页继续使用自己的 links/meta。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -262,76 +262,6 @@ impl ApiResponse<()> {
     pub fn with_errors(mut self, errors: BTreeMap<String, Vec<String>>) -> Self {
         self.errors = Some(errors);
         self
-    }
-    /// 选择已启用业务封装的API前缀或普通JSON协商请求，保留JSON:API协议。
-    pub fn enabled_for(request: &Request) -> bool {
-        if request
-            .parts()
-            .headers
-            .get(::http::header::ACCEPT)
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.contains("application/vnd.api+json"))
-        {
-            return false;
-        }
-        Config::boolean("api.response_envelope").unwrap_or(false)
-            && (request.expects_json()
-                || request
-                    .api_prefix
-                    .as_deref()
-                    .filter(|prefix| !prefix.is_empty())
-                    .is_some_and(|prefix| {
-                        let path = request.decoded_path();
-                        path == prefix
-                            || path
-                                .strip_prefix(prefix)
-                                .is_some_and(|rest| rest.starts_with('/'))
-                    }))
-    }
-    pub(crate) fn translated_message(code: &str, fallback: &str) -> String {
-        Message::Translation {
-            key: format!("response.{code}"),
-            replacements: BTreeMap::new(),
-            fallback: fallback.into(),
-        }
-        .resolve()
-        .unwrap_or_else(|_| fallback.to_owned())
-    }
-    pub(crate) fn status_code(status: StatusCode) -> &'static str {
-        match status.as_u16() {
-            200..=299 => "ok",
-            400 => "bad_request",
-            401 => "unauthenticated",
-            403 => "forbidden",
-            404 => "not_found",
-            405 => "method_not_allowed",
-            409 => "conflict",
-            419 => "csrf_token_mismatch",
-            422 => "validation_failed",
-            429 => "rate_limited",
-            500 => "internal_error",
-            503 => "service_unavailable",
-            _ => "http_error",
-        }
-    }
-    pub(crate) fn status_fields(status: StatusCode) -> Result<Map<String, Value>, HttpError> {
-        let code = Self::status_code(status);
-        let message = Message::Translation {
-            key: format!("response.{code}"),
-            replacements: BTreeMap::new(),
-            fallback: if status.is_success() {
-                "Success"
-            } else {
-                status.canonical_reason().unwrap_or("HTTP Error")
-            }
-            .into(),
-        }
-        .resolve()?;
-        Ok(Map::from_iter([
-            ("success".into(), status.is_success().into()),
-            ("code".into(), code.into()),
-            ("message".into(), message.into()),
-        ]))
     }
 }
 impl<T: Serialize> ApiResponse<T> {

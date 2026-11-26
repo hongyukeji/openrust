@@ -18,7 +18,6 @@ fn configuration(_: &Path, env: &Environment) -> Result<BTreeMap<String, Value>,
             "api".into(),
             json!({
                 "prefix": env.get_utf8("API_PREFIX")?.unwrap_or("api"),
-                "response_envelope": env.get_utf8("API_RESPONSE_ENVELOPE")? == Some("true"),
             }),
         ),
     ]))
@@ -50,7 +49,7 @@ async fn send(address: std::net::SocketAddr, path: &str, accept: &str) -> (Strin
 }
 
 #[tokio::test]
-async fn exact_api_prefix_and_children_render_json_independently_of_envelope() {
+async fn exact_api_prefix_and_children_render_native_json() {
     for prefix in ["api", "api/admin"] {
         for enabled in [false, true] {
             let root = std::env::temp_dir().join(format!(
@@ -93,18 +92,13 @@ async fn exact_api_prefix_and_children_render_json_independently_of_envelope() {
                     "{headers}"
                 );
                 let value: Value = serde_json::from_str(&body).unwrap();
-                assert_eq!(value.get("success"), enabled.then_some(&json!(false)));
-                assert_eq!(
-                    value.get("code"),
-                    enabled.then_some(&json!("unauthenticated"))
-                );
-                assert!(value["message"].is_string());
+                assert_eq!(value, json!({"message":"Unauthenticated."}));
             }
             for path in [format!("/{prefix}/missing"), format!("/{prefix}?query=1")] {
                 let (headers, body) = send(address, &path, "text/html").await;
                 assert!(headers.contains("content-type: application/json"));
                 let value: Value = serde_json::from_str(&body).unwrap();
-                assert_eq!(value.get("success"), enabled.then_some(&json!(false)));
+                assert!(value.get("success").is_none());
             }
             for path in [format!("/{prefix}x"), format!("/other/{prefix}")] {
                 let (headers, _) = send(address, &path, "text/html").await;
@@ -114,7 +108,7 @@ async fn exact_api_prefix_and_children_render_json_independently_of_envelope() {
             let (headers, body) = send(address, "/outside", "application/json").await;
             assert!(headers.contains("content-type: application/json"));
             let value: Value = serde_json::from_str(&body).unwrap();
-            assert_eq!(value.get("success"), enabled.then_some(&json!(false)));
+            assert!(value.get("success").is_none());
             server.abort();
             let _ = server.await;
             std::fs::remove_dir_all(root).unwrap();

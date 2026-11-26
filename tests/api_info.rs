@@ -75,9 +75,7 @@ impl Server {
             }))
             .with_exceptions(|exceptions| {
                 exceptions.should_render_json_when(|request, _| {
-                    request.expects_json()
-                        || request.is_api_path()
-                        || ApiResponse::enabled_for(request)
+                    request.expects_json() || request.is_api_path()
                 });
             })
             .create()
@@ -219,10 +217,6 @@ fn extra_routes() -> Result<(), openrust::routing::RoutingError> {
 #[tokio::test]
 async fn real_api_uses_configuration_localizes_and_keeps_top_level_edits() {
     let server = Server::new("/api", "", true).await;
-    let (status, headers, body) = server.send("GET", "/api", "zh-Hans").await;
-    assert_eq!(status, 200);
-    assert!(headers.contains("content-type: application/json"));
-    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
     for (locale, message) in [
         ("en", "Success"),
         ("zh-Hans", "成功"),
@@ -243,12 +237,12 @@ async fn real_api_uses_configuration_localizes_and_keeps_top_level_edits() {
         ("ar", "تم بنجاح"),
         ("th", "สำเร็จ"),
     ] {
-        let (status, headers, body) = server.send("GET", "/api/empty", locale).await;
+        let (status, headers, body) = server.send("GET", "/api", locale).await;
         assert_eq!(status, 200);
         assert!(headers.contains("content-type: application/json"));
         assert_eq!(
             body,
-            json!({"success":true,"code":"ok","message":message})
+            json!({"success":true,"code":"ok","message":message,"data":{"name":"测试应用","version":"1.2.3-test"}})
         );
     }
     assert_eq!(
@@ -295,19 +289,19 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
     let server = Server::new("api/admin", "", true).await;
     let (status, _, body) = server.send("GET", "/api/admin", "zh-Hans").await;
     assert_eq!(status, 200);
-    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
-    for (method, path, status, code) in [
-        ("POST", "/api/admin", 405, "method_not_allowed"),
-        ("GET", "/api/admin/missing", 404, "not_found"),
-        ("GET", "/api/admin/unauthenticated", 401, "unauthenticated"),
-        ("GET", "/api/admin/broken", 500, "internal_error"),
+    assert_eq!(
+        body,
+        json!({"success":true,"code":"ok","message":"成功","data":{"name":"测试应用","version":"1.2.3-test"}})
+    );
+    for (method, path, status, message) in [
+        ("POST", "/api/admin", 405, "Method Not Allowed"),
+        ("GET", "/api/admin/missing", 404, "Not Found"),
+        ("GET", "/api/admin/unauthenticated", 401, "Unauthenticated."),
+        ("GET", "/api/admin/broken", 500, "Server Error"),
     ] {
         let (actual, headers, body) = server.send(method, path, "zh-Hans").await;
         assert_eq!(actual, status);
-        assert_eq!(body["success"], false);
-        assert_eq!(body["code"], code);
-        assert!(body.get("data").is_none());
-        assert!(!body.to_string().contains("private-sentinel"));
+        assert_eq!(body, json!({"message":message}));
         if status == 405 {
             assert!(headers.contains("allow:"));
         }
@@ -317,10 +311,13 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
     let native = Server::new("api", "", false).await;
     let (status, _, body) = native.send("GET", "/api", "en").await;
     assert_eq!(status, 200);
-    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
-    let (_, _, body) = native.send("GET", "/api/missing", "en").await;
-    assert!(body.get("success").is_none());
-    assert!(body.get("message").is_some());
+    assert_eq!(
+        body,
+        json!({"success":true,"code":"ok","message":"Success","data":{"name":"测试应用","version":"1.2.3-test"}})
+    );
+    let (status, _, body) = native.send("GET", "/api/missing", "en").await;
+    assert_eq!(status, 404);
+    assert_eq!(body, json!({"message":"Not Found"}));
     native.close().await;
 }
 #[tokio::test]
@@ -374,41 +371,42 @@ fn throttled(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 #[tokio::test]
 async fn resource_pagination_errors_and_protocol_boundaries_share_real_http() {
-    let server = Server::new("api", "", true).await;
-    let (status, _, page) = server.send("GET", "/api/page", "zh-Hans").await;
-    assert_eq!(status, 200);
-    assert_eq!(page["message"], "成功");
-    assert_eq!(page["code"], "ok");
-    assert_eq!(page["data"], json!([{"id":1}]));
-    assert_eq!(page["meta"]["total"], 3);
-    assert_eq!(page["meta"]["last_page"], 3);
-    assert!(page["links"]["next"].is_string());
-    let (status, _, body) = server.send("GET", "/api/missing-resource", "zh-Hans").await;
-    assert_eq!(status, 404);
-    assert_eq!(body["success"], false);
-    assert_eq!(body["code"], "not_found");
-    assert!(body.get("data").is_none());
-    let (status, _, body) = server.send("GET", "/api/validation", "zh-Hans").await;
-    assert_eq!(status, 422);
-    assert_eq!(body["code"], "validation_failed");
-    assert_eq!(body["message"], "提交的数据有误。");
-    assert!(body["errors"]["email"][0].is_string());
-    assert_ne!(body["errors"]["email"][0], "The email field is required.");
-    let (status, headers, body) = server.send("GET", "/api/throttled", "en").await;
-    assert_eq!(status, 429);
-    assert_eq!(body["code"], "rate_limited");
-    assert!(headers.contains("retry-after: 7"));
-    let (status, headers, body) = server.send("GET", "/api/json-api", "en").await;
-    assert_eq!(status, 200);
-    assert!(headers.contains("application/vnd.api+json"));
-    assert!(body.get("success").is_none());
-    assert_eq!(body["data"]["type"], "things");
-    server.close().await;
+    for legacy_enabled in [true, false] {
+        let server = Server::new("api", "", legacy_enabled).await;
+        let (status, _, page) = server.send("GET", "/api/page", "zh-Hans").await;
+        assert_eq!(status, 200);
+        assert!(page.get("message").is_none());
+        assert!(page.get("code").is_none());
+        assert!(page.get("success").is_none());
+        assert_eq!(page["data"], json!([{"id":1}]));
+        assert_eq!(page["meta"]["total"], 3);
+        assert_eq!(page["meta"]["last_page"], 3);
+        assert!(page["links"]["next"].is_string());
+        let (status, _, body) = server.send("GET", "/api/missing-resource", "zh-Hans").await;
+        assert_eq!(status, 404);
+        assert_eq!(body, json!({"data":null}));
+        let (status, _, body) = server.send("GET", "/api/validation", "zh-Hans").await;
+        assert_eq!(status, 422);
+        assert_eq!(
+            body,
+            json!({"message":"email 不能为空。","errors":{"email":["email 不能为空。"]}})
+        );
+        let (status, headers, body) = server.send("GET", "/api/throttled", "en").await;
+        assert_eq!(status, 429);
+        assert_eq!(body, json!({"message":"Too Many Attempts."}));
+        assert!(headers.contains("retry-after: 7"));
+        let (status, headers, body) = server.send("GET", "/api/json-api", "en").await;
+        assert_eq!(status, 200);
+        assert!(headers.contains("application/vnd.api+json"));
+        assert!(body.get("success").is_none());
+        assert_eq!(body["data"]["type"], "things");
+        server.close().await;
+    }
 }
 
 #[tokio::test]
 async fn invalid_translation_source_becomes_a_safe_http_error() {
-    let server = Server::new("api", "APP_DEBUG=true\n", true).await;
+    let server = Server::new("api", "", true).await;
     std::fs::create_dir_all(server._root.0.join("lang/en")).unwrap();
     std::fs::write(
         server._root.0.join("lang/en/response.json"),
@@ -417,9 +415,6 @@ async fn invalid_translation_source_becomes_a_safe_http_error() {
     .unwrap();
     let (status, _, body) = server.send("GET", "/api/empty", "en").await;
     assert_eq!(status, 500);
-    assert_eq!(body["code"], "internal_error");
-    assert_eq!(body["success"], false);
-    assert!(!body.to_string().contains("private-invalid"));
-    assert!(!body.to_string().contains("response.json"));
+    assert_eq!(body, json!({"message":"Server Error"}));
     server.close().await;
 }

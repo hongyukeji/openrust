@@ -723,7 +723,7 @@ fn full_configuration(
     let mut configuration:BTreeMap<String,Value> = [
         ("app".into(),json!({"key":"a".repeat(32),"url":std::fs::read_to_string(base.join("app-url")).unwrap(),"env":"local","name":"用户套件测试","version":"1.2.3","locale":"zh-Hans","supported_locales":[],"debug":true})),
         ("user".into(),serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()),
-        ("api".into(),json!({"prefix":serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()["api_prefix"],"response_envelope":true})),
+        ("api".into(),json!({"prefix":serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()["api_prefix"]})),
         ("database".into(),database_configuration(base)),
         ("session".into(),session_configuration(base)),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),

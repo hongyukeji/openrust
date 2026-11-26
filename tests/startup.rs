@@ -86,7 +86,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(root.0.join("routes/api.rs").exists());
     let generated_config = fs::read_to_string(&api_config).unwrap();
     assert!(generated_config.contains("API_PREFIX"));
-    assert!(generated_config.contains("API_RESPONSE_ENVELOPE"));
+    assert!(!generated_config.contains("API_RESPONSE_ENVELOPE"));
     let custom_config =
         format!("{generated_config}\n// Keep the application's API configuration.\n");
     fs::write(&api_config, &custom_config).unwrap();
@@ -276,44 +276,20 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         Ok(configuration)
     }
 
-    for (raw, expected) in [
-        ("", Some(true)),
-        ("true", Some(true)),
-        ("false", Some(false)),
-        ("1", Some(true)),
-        ("0", Some(false)),
-        ("(TRUE)", Some(true)),
-        ("(FALSE)", Some(false)),
-        ("invalid", None),
-    ] {
-        let root = TestRoot::new("api-envelope-template");
-        if !raw.is_empty() {
-            fs::write(
-                root.0.join(".env"),
-                format!("API_RESPONSE_ENVELOPE={raw}\n"),
-            )
-            .unwrap();
-        }
-        let app = Application::configure(root.0.clone())
-            .with_config(|base, env| {
-                let expected = match env.get_utf8("API_RESPONSE_ENVELOPE")? {
-                    Some("invalid") => None,
-                    Some("false" | "0" | "(FALSE)") => Some(false),
-                    _ => Some(true),
-                };
-                let installed = installed_api::load(env);
-                if let Some(expected) = expected {
-                    assert_eq!(installed.unwrap()["response_envelope"], expected);
-                } else {
-                    assert!(matches!(installed, Err(ConfigError::InvalidType { .. })));
-                }
-                web_config(base, env)
-            })
-            .create()
-            .unwrap();
-        let result = Kernel::new(app).bootstrap().await;
-        assert_eq!(result.is_ok(), expected.is_some());
-    }
+    let root = TestRoot::new("api-prefix-template");
+    fs::write(
+        root.0.join(".env"),
+        "API_PREFIX=/api/admin/\nAPI_RESPONSE_ENVELOPE=invalid\n",
+    )
+    .unwrap();
+    let app = Application::configure(root.0.clone())
+        .with_config(|base, env| {
+            assert_eq!(installed_api::load(env)?, json!({"prefix":"api/admin"}));
+            web_config(base, env)
+        })
+        .create()
+        .unwrap();
+    Kernel::new(app).bootstrap().await.unwrap();
 
     fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
         let mut configuration = api_config(root, env)?;
@@ -1864,8 +1840,8 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(value["name"], "Startup Test");
-    assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(value["data"]["name"], "Startup Test");
+    assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
 
     let welcome_request = || {
         axum::extract::Request::builder()

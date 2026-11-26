@@ -107,22 +107,11 @@ Both `Response` and `RedirectResponse` support `with_cookie(&cookie, request)` a
 
 `ApiResponse` provides a business JSON envelope with `success`, `code` and `message`, plus optional `data`, `meta` and `errors`. It is a business response extension; HTTP status codes still describe the request outcome.
 
-### Configuration and automatic envelopes {#business-response-configuration}
+### Return a business response explicitly {#business-response-configuration}
 
-`response_envelope` in `config/api.rs` is enabled by default and reads `API_RESPONSE_ENVELOPE`. Most applications need no environment entry. To disable it, add this to your own `.env`:
+Return an `ApiResponse` from a handler when the endpoint calls for a business response. The former `API_RESPONSE_ENVELOPE` setting has been removed. Existing values can be removed from the environment.
 
-```dotenv
-API_RESPONSE_ENVELOPE=false
-```
-
-When disabled, framework exceptions and ordinary API Resources retain their native format. Explicit `ApiResponse` values still use the business envelope. Restart long-running applications and Workers after changing configuration; rebuild a configuration cache with `./artisan config:cache` if used.
-
-Automatic envelopes apply to requests within the API prefix or for which `expects_json()` is true:
-
-- Default framework JSON exception responses gain business fields. Validation errors retain field `errors`. Custom exception renderers may return their own responses.
-- Ordinary `JsonResource` instances and resource collections use the business `data` wrapper and retain resource fields such as `links` and `meta`. Existing top-level fields take precedence.
-- JSON:API resources and requests accepting `application/vnd.api+json` bypass automatic business envelopes. Returning an explicit `ApiResponse` remains an application decision.
-- Strings, arrays, `Response::json`, downloads, streams and HTML are not automatically wrapped. Health checks are not automatically rewritten either.
+Default JSON exceptions contain `message` and include `errors` for validation failures. Ordinary resources apply their configured wrapper and preserve resource metadata such as `links` and `meta`. JSON:API resources use their own protocol format.
 
 See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
 
@@ -474,7 +463,7 @@ Use contiguous indexes when the public contract requires a JSON array. Removing 
 
 ### Application information {#api-application-info}
 
-The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. The endpoint returns `name` and `version` as top-level fields through `Response::json`.
+The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. This endpoint passes an `ApiResponse` to `Response::json`, with `name` and `version` in `data`.
 
 The default `ApiResponse` message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
 

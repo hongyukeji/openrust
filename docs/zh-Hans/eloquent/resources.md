@@ -1,6 +1,6 @@
 # API 资源
 
-自动业务封装、配置开关及 JSON:API 边界见[业务响应](../the-basics/responses.md#business-response-configuration)。
+显式返回统一业务格式的用法见 [`ApiResponse`](../the-basics/responses.md#business-responses)。
 
 ## 生成资源 {#generating-resources}
 

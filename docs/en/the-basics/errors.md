@@ -1,6 +1,6 @@
 # Error Handling
 
-For the optional business JSON envelope, its configuration and error examples, see [business responses](./responses.md#business-responses).
+For explicit business JSON error responses, see [business responses](./responses.md#business-responses).
 
 ## Propagating domain errors
 

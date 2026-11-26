@@ -60,28 +60,7 @@ pub(super) fn default_response(
         if let Some(HttpError::Validation(exception)) = error {
             payload["errors"] = serde_json::json!(exception.errors().messages());
         }
-        if crate::http::ApiResponse::enabled_for(request) {
-            let code = match error {
-                Some(HttpError::InvalidSignature) => "invalid_signature",
-                _ => crate::http::ApiResponse::status_code(status),
-            };
-            let custom = matches!(error, Some(HttpError::Aborted {message,..} | HttpError::AuthorizationDenied(message) | HttpError::AuthorizationDeniedWithStatus {message,..}) if !message.is_empty());
-            let safe_message = if custom && !status.is_server_error() {
-                message.to_owned()
-            } else {
-                crate::http::ApiResponse::translated_message(
-                    code,
-                    if status.is_server_error() {
-                        "Server Error"
-                    } else {
-                        message
-                    },
-                )
-            };
-            payload["success"] = false.into();
-            payload["code"] = code.into();
-            payload["message"] = safe_message.into();
-        } else if let Some(sources) = sources {
+        if let Some(sources) = sources {
             payload["sources"] = serde_json::json!(sources);
         }
         ("application/json", payload.to_string())
