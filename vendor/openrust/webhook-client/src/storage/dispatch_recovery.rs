@@ -1,5 +1,6 @@
 use super::{
     DatabaseWebhookStore, attempts,
+    diagnostics::required_number,
     lease::{assignment, settle_transaction, stopped_assignments},
     scope_key, text,
 };
@@ -14,6 +15,14 @@ use openrust::{
 
 const TABLE: &str = "webhook_dispatch_intents";
 const LEASE_SECONDS: u32 = 60;
+
+/// 当前范围内可补派的有界计数及最早就绪时间。
+#[derive(Debug, serde::Serialize)]
+pub struct DispatchBacklog {
+    pub ready: usize,
+    pub oldest_ready_at: Option<i64>,
+    pub has_more: bool,
+}
 
 pub(crate) struct DispatchMetadata {
     pub scope: String,
@@ -152,14 +161,41 @@ impl DatabaseWebhookStore {
             return Err(Error::InvalidConfig("recover.limit"));
         }
         Ok(self
-            .due_dispatches(None)?
-            .use_write_pdo()
+            .ordered_due_dispatches()?
             .select(["call_id", "route", "processing_retry_after"])
-            .order_by("available_at", "asc")
-            .order_by("call_id", "asc")
             .limit(u64::from(limit))
             .get()
             .await?)
+    }
+
+    /// 预览补派积压。超过上限时只报告至少有该数量的记录。
+    pub async fn inspect_dispatch_backlog(&self, limit: u32) -> Result<DispatchBacklog> {
+        if !(1..=500).contains(&limit) {
+            return Err(Error::InvalidConfig("recover.limit"));
+        }
+        let ready = self
+            .ordered_due_dispatches()?
+            .select(["available_at"])
+            .limit(u64::from(limit) + 1)
+            .get()
+            .await?;
+        let limit = limit as usize;
+        Ok(DispatchBacklog {
+            ready: ready.len().min(limit),
+            oldest_ready_at: ready
+                .first()
+                .map(|row| required_number(row, "available_at"))
+                .transpose()?,
+            has_more: ready.len() > limit,
+        })
+    }
+
+    fn ordered_due_dispatches(&self) -> Result<Builder<'static>> {
+        Ok(self
+            .due_dispatches(None)?
+            .use_write_pdo()
+            .order_by("available_at", "asc")
+            .order_by("call_id", "asc"))
     }
 
     pub(crate) async fn claim_dispatch(&self, id: &str, generation: u32) -> Result<Option<String>> {

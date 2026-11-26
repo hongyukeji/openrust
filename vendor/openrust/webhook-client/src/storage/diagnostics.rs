@@ -201,7 +201,7 @@ fn generation(row: &Row, key: &str) -> Result<u64> {
     u64::try_from(required_number(row, key)?).map_err(|_| Error::InvalidRecord)
 }
 
-fn required_number(row: &Row, key: &str) -> Result<i64> {
+pub(super) fn required_number(row: &Row, key: &str) -> Result<i64> {
     optional_number(row, key)?.ok_or(Error::InvalidRecord)
 }
 

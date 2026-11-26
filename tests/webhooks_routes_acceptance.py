@@ -1285,12 +1285,13 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
         )
         return int(count)
 
-    def send(profile, status):
+    def send(profile, status, payload=None):
+        payload = body if payload is None else payload
         client = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
         try:
-            client.request("POST", f"/api/package/{profile}", body, {
+            client.request("POST", f"/api/package/{profile}", payload, {
                 "Content-Type": "application/octet-stream",
-                "Signature": hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest(),
+                "Signature": hmac.new(SECRET.encode(), payload, hashlib.sha256).hexdigest(),
             })
             response = client.getresponse()
             assert response.status == status, (response.status, response.read())
@@ -1322,11 +1323,35 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "1"
             send("recovery", 200)
             send("recovery", 200)
+            send("recovery", 200, b"second-ready-receipt")
         finally:
             http_helpers["stop"](server)
 
-    receipt = sql(f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='recovery'")
+    receipt = sql(f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='recovery'"
+                  f" AND raw_body='{base64.b64encode(body).decode()}'")
     assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+    other = sql(f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='recovery' AND id<>'{receipt}'")
+    assert re.fullmatch(r"[0-9a-f-]{36}", other)
+    ready_at = int(sql(f"SELECT available_at FROM webhook_dispatch_intents WHERE call_id='{receipt}'"))
+    write_database(driver, sql, f"UPDATE webhook_dispatch_intents SET available_at={ready_at - 1} WHERE call_id='{other}'")
+    assert json.loads(command(binary, current, *sweep, "--pretend", "--backlog")) == {
+        "ready": 1, "oldest_ready_at": ready_at - 1, "has_more": True,
+    }
+    assert json.loads(command(binary, current, "webhook-client:recover", "--scope", scope, "--pretend",
+                              "--backlog", "--limit=2")) == {
+        "ready": 2, "oldest_ready_at": ready_at - 1, "has_more": False,
+    }
+    assert json.loads(command(binary, current, "webhook-client:recover", "--scope=wrong-scope", "--pretend",
+                              "--backlog")) == {
+        "ready": 0, "oldest_ready_at": None, "has_more": False,
+    }
+    invalid = subprocess.run([str(binary), "artisan", *sweep, "--backlog"], env=current,
+                             capture_output=True, text=True, timeout=20)
+    assert invalid.returncode != 0 and "--pretend" in invalid.stdout + invalid.stderr
+    assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "0"
+    assert pending_count() == 0
+    write_database(driver, sql, f"DELETE FROM webhook_dispatch_intents WHERE call_id='{other}'")
+    write_database(driver, sql, f"DELETE FROM webhook_calls WHERE id='{other}'")
     route = json.loads(sql(f"SELECT route FROM webhook_dispatch_intents WHERE call_id='{receipt}'"))
     assert set(route) == {"connection", "queue", "job", "options"}
     assert (route["connection"], route["queue"], route["job"]) == (connection, "webhook-recovery", "accepted")
@@ -1363,6 +1388,9 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert failure.returncode != 0 and "1 条待重试" in failure.stdout, failure
     assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "1"
     assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert json.loads(command(binary, current, *sweep, "--pretend", "--backlog")) == {
+        "ready": 0, "oldest_ready_at": None, "has_more": False,
+    }
     expire_claim()
 
     if redis:
@@ -1398,7 +1426,7 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
         command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(duplicate)}, *worker)
         assert not duplicate.exists()
     assert pending_count() == 0
-    print(f"{driver}: 恢复派发经 {connection} 实测 5 个 HTTP、"
+    print(f"{driver}: 恢复派发经 {connection} 实测 6 个 HTTP、"
           f"{2 if redis else 1} 次 Worker；队列故障、提交后重启、独占领取与迁移保护通过",
           flush=True)
 

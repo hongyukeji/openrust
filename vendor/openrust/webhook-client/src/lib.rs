@@ -58,8 +58,9 @@ mod webhook_config;
 pub use migration::CreateWebhookCallsTable;
 pub use processor::{VerifiedWebhook, WebhookJobDispatcher, WebhookProcessor, WebhookRuntime};
 pub use storage::{
-    AttachmentCleanupReport, DatabaseWebhookStore, ProcessingAttempt, ProcessingAttemptsPage,
-    ReceiptDiagnostics, ReceiptDispatchMode, ReceiptPersistence, ReceiptState, WebhookStore,
+    AttachmentCleanupReport, DatabaseWebhookStore, DispatchBacklog, ProcessingAttempt,
+    ProcessingAttemptsPage, ReceiptDiagnostics, ReceiptDispatchMode, ReceiptPersistence,
+    ReceiptState, WebhookStore,
 };
 
 pub use contracts::{

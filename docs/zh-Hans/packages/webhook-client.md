@@ -184,6 +184,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 ./artisan webhook-client:recover --scope=billing/site-a --limit=100
 ```
 
+在预演命令中加 `--backlog` 可输出 JSON。 `ready` 受 `--limit` 限制，`has_more` 为真时表示至少有该数量的记录就绪。 `oldest_ready_at` 为最早可补派的 Unix 秒时间，当前范围没有就绪记录时为 null。应用可调用 `DatabaseWebhookStore::inspect_dispatch_backlog` 读取同一报告，无需连接队列。
+
 派发失败时保留意图，命令以失败状态退出。60 秒后可再次领取。队列已接受任务、恢复进程却在清除意图前退出时，重试可能产生重复队列任务。各 Worker 共享接收记录的领取与完成状态。业务副作用须实现幂等，以应对处理过程中的中断。
 
 #### 补派已入列但逾期未完成的记录 {#processing-recovery}

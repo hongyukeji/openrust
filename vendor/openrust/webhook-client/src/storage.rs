@@ -7,6 +7,7 @@ mod dispatch_recovery;
 pub use diagnostics::{
     ProcessingAttempt, ProcessingAttemptsPage, ReceiptDiagnostics, ReceiptState,
 };
+pub use dispatch_recovery::DispatchBacklog;
 mod identity;
 mod lease;
 mod replay;

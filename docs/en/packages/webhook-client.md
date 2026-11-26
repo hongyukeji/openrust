@@ -184,6 +184,8 @@ Schedule the bounded command for each receipt scope. Keep the stored queue conne
 ./artisan webhook-client:recover --scope=billing/site-a --limit=100
 ```
 
+Add `--backlog` to the preview for a JSON report. `ready` is capped by `--limit`. If `has_more` is true, at least that many records are ready. `oldest_ready_at` is the earliest eligible dispatch time in Unix seconds, or null when the scope has no ready record. The application can read the same report through `DatabaseWebhookStore::inspect_dispatch_backlog` without contacting the queue.
+
 Failed dispatches keep their intent and return a failing exit status. A subsequent run may claim the intent after 60 seconds. If the queue accepts a task and the recovery process exits before clearing the intent, the next run may enqueue it again. Workers share the same receipt claim and completion state. Make business side effects idempotent to handle interruptions during processing.
 
 #### Recover an overdue receipt after enqueue {#processing-recovery}

@@ -57,6 +57,13 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 .long("pretend")
                 .action(ArgAction::SetTrue),
         );
+    let recover = recover.arg(
+        Arg::new("backlog")
+            .long("backlog")
+            .requires("pretend")
+            .help("返回可补派数量和最早就绪时间的 JSON 预览")
+            .action(ArgAction::SetTrue),
+    );
     Artisan::add(Box::new(Recover(CommandDefinition::new(recover))))?;
     let inspect = Syntax::new("webhook-client:inspect")
         .about("查询指定范围内的脱敏接收状态或处理尝试")
@@ -220,6 +227,17 @@ impl Command for Recover {
                 .map_err(ConsoleError::from_source)?;
             let store =
                 DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)?;
+            if matches.get_flag("backlog") {
+                let report = store
+                    .inspect_dispatch_backlog(limit)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                let json = serde_json::to_string(&report).map_err(ConsoleError::from_source)?;
+                output
+                    .write_raw(&format!("{json}\n"))
+                    .map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
             let queue = app
                 .make::<QueueManager>()
                 .await
