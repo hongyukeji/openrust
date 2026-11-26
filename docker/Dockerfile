@@ -35,9 +35,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
         arm64) export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc ;; \
       esac; \
     fi; \
-    cargo build --locked --release --jobs "$APP_BUILD_JOBS" --bin main --target "$triple" \
-      --features "standalone $APP_BUILD_FEATURES"; \
-    install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main
+    features="standalone $APP_BUILD_FEATURES"; \
+    cargo build --locked --release --jobs "$APP_BUILD_JOBS" --bin main --target "$triple" --features "$features"; \
+    install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main; \
+    packages="$(cargo tree --locked --offline --target "$triple" --features "$features" \
+      --edges normal --prefix none --format '{p}')"; \
+    for package in webhook-client webhook-server; do \
+      if printf '%s\n' "$packages" | grep -q "^openrust-$package "; then \
+        notices="/out/licenses/$package"; \
+        install -D -m 0644 "vendor/openrust/$package/THIRD_PARTY_NOTICES.md" "$notices/THIRD_PARTY_NOTICES.md"; \
+        install -d -m 0755 "$notices/LICENSES"; \
+        cp -R "vendor/openrust/$package/LICENSES/." "$notices/LICENSES/"; \
+      fi; \
+    done
 
 FROM debian:bookworm-slim AS runtime
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
@@ -48,7 +58,7 @@ RUN sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources
     && install -d -m 0755 -o 10001 -g 10001 /app/storage
 
 WORKDIR /app
-COPY --from=build /out/main /app/main
+COPY --from=build /out/ /app/
 COPY resources/ /app/resources/
 COPY public/ /app/public/
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/
