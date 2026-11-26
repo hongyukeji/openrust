@@ -747,7 +747,10 @@ fn dashboard_cache_config(
 
 #[tokio::test]
 async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
-    use openrust::contracts::cache::Repository as _;
+    use openrust::{
+        contracts::cache::Repository as _,
+        support::{Date, DateTimezone},
+    };
 
     let mut app = TestApp::create(|builder| {
         builder
@@ -758,6 +761,10 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
+    app.travel_to(Date::from_utc(
+        "2026-11-26T13:00:00.654321Z".parse().unwrap(),
+        DateTimezone::UTC,
+    ));
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let timestamp = jiff::Timestamp::now().as_second();
     let kinds = [
@@ -779,6 +786,14 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
     let first = app.get("/pulse/api/metrics?period=1h").await.unwrap();
     first.assert_ok();
     let first = first.json::<serde_json::Value>().unwrap();
+    for (card, _) in kinds {
+        let timing = &first["query_timing"][card];
+        assert_eq!(timing["run_at"], "2026-11-26 13:00:00", "{card}");
+        assert!(
+            timing["time"].as_f64().is_some_and(|time| time >= 0.0),
+            "{card}"
+        );
+    }
     if std::env::var_os("PULSE_TEST_CARD_REDIS_URL").is_some() {
         let manager = app
             .app()
@@ -788,7 +803,7 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
         let cache = manager.store(Some("cards")).unwrap();
         assert!(
             cache
-                .get("openrust:pulse:card:slow_requests:max:1h")
+                .get("openrust:pulse:card:query:slow_requests:max:1h")
                 .await
                 .unwrap()
                 .is_some()
@@ -813,16 +828,25 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
             assert_eq!(rows.len(), expected, "{query}, {card}");
             if expected == 1 {
                 assert_eq!(response[card], first[card]);
+                assert_eq!(response["query_timing"][card], first["query_timing"][card]);
             }
         }
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(5200)).await;
+    app.travel_to(Date::from_utc(
+        "2026-11-26T13:00:06Z".parse().unwrap(),
+        DateTimezone::UTC,
+    ));
     let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
     response.assert_ok();
     let response = response.json::<serde_json::Value>().unwrap();
     for (card, _) in kinds {
         assert_eq!(response[card].as_array().unwrap().len(), 2, "{card}");
+        assert_eq!(
+            response["query_timing"][card]["run_at"], "2026-11-26 13:00:06",
+            "{card}"
+        );
     }
 }
 
@@ -1067,6 +1091,10 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
         .set("app.env", json!("production"))
         .unwrap();
     app.get("/pulse")
+        .await
+        .unwrap()
+        .assert_status(openrust::http::StatusCode::FORBIDDEN);
+    app.get("/pulse/api/metrics?period=1h")
         .await
         .unwrap()
         .assert_status(openrust::http::StatusCode::FORBIDDEN);

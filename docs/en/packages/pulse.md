@@ -40,7 +40,7 @@ The dashboard uses native HTML, JavaScript and JSON. Publish its template with `
 
 Slow activity cards default to the slowest operation and can sort by count. Exceptions default to count and can sort by latest occurrence. Application usage shows the top ten users for requests, slow requests or jobs. Dashboard selections are kept in the page URL. The metrics endpoint accepts `slow-requests=count`, `slow-queries=count`, `slow-jobs=count`, `slow-outgoing-requests=count`, `exceptions=latest` and `usage=requests|slow_requests|jobs`.
 
-Slow activity, exception, usage, cache and queue cards cache query results for five seconds in `pulse.cache`. Each period and applicable sort or usage type selects a separate result. Cache totals and per-key rows use separate entries. Server heartbeats and graphs share a cache entry for each period and server configuration.
+Slow activity, exception, usage, cache and queue cards cache query results for five seconds in `pulse.cache`. Each period and applicable sort or usage type selects a separate result. Cache totals and per-key rows use separate entries. Server heartbeats and graphs share a cache entry for each period and server configuration. Hover over a card heading to see its query duration and execution time. The cache card shows separate timings for totals and key details.
 
 Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
 

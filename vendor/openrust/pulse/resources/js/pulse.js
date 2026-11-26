@@ -140,7 +140,7 @@ function serverSize(megabytes, precision = 0) {
     }
     return `${Math.round(megabytes * digits) / digits}MB`;
 }
-function servers(card, values, graphs) {
+function servers(card, values, graphs, queryTitle) {
     for (const row of values) {
         let data;
         try {
@@ -149,7 +149,9 @@ function servers(card, values, graphs) {
             card.append(cell('p', 'Invalid server snapshot'));
             continue;
         }
-        card.append(cell('h3', data.name));
+        const name = cell('h3', data.name);
+        if (queryTitle) name.title = queryTitle;
+        card.append(name);
         const status = row.recently_reported ? 'Recently reported' : 'Stale';
         card.append(cell('small', `${status} · Last reported ${new Date(Number(row.timestamp) * 1000).toLocaleString()}`));
         const series = Object.hasOwn(graphs, row.key) ? graphs[row.key] : undefined;
@@ -219,13 +221,33 @@ function renderCache(card, rows, {hits, misses, sample_rate: rate}) {
     }
     if (rows.length > 100) card.append(cell('small', 'Limited to 100 entries'));
 }
+function queryTimingTitle(timing, label = '') {
+    if (!Number.isFinite(timing?.time) || typeof timing.run_at !== 'string') return '';
+    const date = new Date(timing.run_at.replace(' ', 'T') + 'Z');
+    if (!Number.isFinite(date.getTime())) return '';
+    const duration = timing.time.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const runAt = date.toLocaleString(undefined, {
+        year: '2-digit', month: '2-digit', day: '2-digit',
+        hourCycle: 'h24', hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZoneName: 'short',
+    });
+    return `${label}Time: ${duration}ms; ${label}Run at: ${runAt};`;
+}
+
 function render(data) {
     const focusedTrend = document.activeElement?.dataset.serverTrend;
+    const timings = data.query_timing ?? {};
     main.replaceChildren();
     for (const [name, title] of Object.entries(names)) {
         const card = document.createElement('section');
         card.className = 'card';
-        card.append(cell('h2', title));
+        const heading = cell('h2', title);
+        const queryTitle = name === 'cache'
+            ? [queryTimingTitle(timings.cache_totals, 'Global '), queryTimingTitle(timings.cache, 'Key ')]
+                .filter(Boolean).join(' ')
+            : queryTimingTitle(timings[name]);
+        if (queryTitle) heading.title = queryTitle;
+        card.append(heading);
         addFilter(card, name);
         const values = data[name];
         const cache = data.cache_totals;
@@ -236,7 +258,7 @@ function render(data) {
             empty.className = 'empty';
             card.append(empty);
         } else if (name === 'servers') {
-            servers(card, values, data.server_graphs ?? {});
+            servers(card, values, data.server_graphs ?? {}, queryTitle);
         } else if (name === 'queues') {
             queues(card, values);
         } else if (Array.isArray(values)) {

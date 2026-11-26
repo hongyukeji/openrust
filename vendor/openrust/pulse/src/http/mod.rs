@@ -4,13 +4,13 @@ use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     support::{
-        data_get,
+        Date, DateTimezone, data_get,
         facades::{Cache, Config, Facade, Route},
         php_integer_cast, php_regular_compare,
     },
 };
 use serde_json::Value;
-use std::{future::Future, sync::Arc};
+use std::{collections::BTreeMap, future::Future, sync::Arc, time::Instant};
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
         .map_err(|_| RoutingError::NoRegistrationScope)?
@@ -106,6 +106,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             .and_then(|value| value.as_str().map(str::to_owned));
         let cache = Cache::store(cache_name.as_deref())?;
         let mut cards = serde_json::Map::new();
+        let mut timings = BTreeMap::new();
         for (name, kind) in [
             ("slow_requests", "slow_request"),
             ("slow_queries", "slow_query"),
@@ -182,7 +183,8 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 Ok(Value::Array(rows))
             })
             .await?;
-            cards.insert(name.into(), rows);
+            cards.insert(name.into(), rows.value);
+            timings.insert(name, rows.timing);
         }
         let cache_types = ["cache_hit".into(), "cache_miss".into()];
         let keys = remember_card(&cache, &format!("cache:keys:{period}"), async {
@@ -192,7 +194,8 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Ok(Value::Array(rows.into_iter().map(row).collect()))
         })
         .await?;
-        cards.insert("cache".into(), keys);
+        cards.insert("cache".into(), keys.value);
+        timings.insert("cache", keys.timing);
         let mut totals = remember_card(&cache, &format!("cache:all:{period}"), async {
             let totals = pulse
                 .aggregate_total(&cache_types, "count", interval)
@@ -208,10 +211,12 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             .and_then(|value| value.as_f64())
             .unwrap_or(1.0);
         totals
+            .value
             .as_object_mut()
             .ok_or(CacheError::InvalidValue)?
             .insert("sample_rate".into(), sample_rate.into());
-        cards.insert("cache_totals".into(), totals);
+        cards.insert("cache_totals".into(), totals.value);
+        timings.insert("cache_totals", totals.timing);
         let queues = remember_card(&cache, &format!("queues:{period}"), async {
             let values = pulse
                 .graph(
@@ -223,7 +228,8 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Ok(serde_json::to_value(values)?)
         })
         .await?;
-        cards.insert("queues".into(), queues);
+        cards.insert("queues".into(), queues.value);
+        timings.insert("queues", queues.timing);
         let options = config.get("pulse.dashboard.servers").unwrap_or_default();
         let ignore_after = match &options["ignore_after"] {
             Value::Null => None,
@@ -235,13 +241,16 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Ok(Value::Array(vec![Value::Array(systems), graphs]))
         })
         .await?;
-        let Value::Array(snapshot) = snapshot else {
+        let Value::Array(server_values) = snapshot.value else {
             return Err(CacheError::InvalidValue.into());
         };
-        let [systems, graphs]: [Value; 2] =
-            snapshot.try_into().map_err(|_| CacheError::InvalidValue)?;
+        let [systems, graphs]: [Value; 2] = server_values
+            .try_into()
+            .map_err(|_| CacheError::InvalidValue)?;
         cards.insert("servers".into(), systems);
         cards.insert("server_graphs".into(), graphs);
+        timings.insert("servers", snapshot.timing);
+        cards.insert("query_timing".into(), serde_json::to_value(timings)?);
         let mut response = Response::new(StatusCode::OK, Body::from(serde_json::to_vec(&cards)?));
         response.parts_mut().headers.insert(
             "content-type",
@@ -254,24 +263,53 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         Ok(response)
     })
 }
+#[derive(serde::Deserialize, serde::Serialize)]
+struct CardSnapshot {
+    value: Value,
+    timing: QueryTiming,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct QueryTiming {
+    time: f64,
+    run_at: String,
+}
+
 async fn remember_card(
     cache: &CacheRepository,
     key: &str,
     query: impl Future<Output = crate::Result<Value>>,
-) -> Result<Value, HttpError> {
-    let key = format!("openrust:pulse:card:{key}");
+) -> Result<CardSnapshot, HttpError> {
+    let key = format!("openrust:pulse:card:query:{key}");
     let value = cache
         .remember(&key, Some(Ttl::Seconds(5)), async {
-            let rows = query.await.map_err(|source| CacheError::Backend {
+            let run_at = Date::now(Some(DateTimezone::UTC))
+                .and_then(|date| date.format("Y-m-d H:i:s"))
+                .map_err(|source| CacheError::Backend {
+                    source: Box::new(source),
+                })?;
+            let start = Instant::now();
+            let value = query.await.map_err(|source| CacheError::Backend {
                 source: Box::new(source),
             })?;
-            Ok(CacheValue::Json(rows))
+            let snapshot = CardSnapshot {
+                value,
+                timing: QueryTiming {
+                    time: start.elapsed().as_secs_f64() * 1000.0,
+                    run_at,
+                },
+            };
+            serde_json::to_value(snapshot)
+                .map(CacheValue::Json)
+                .map_err(|source| CacheError::Backend {
+                    source: Box::new(source),
+                })
         })
         .await?;
     let CacheValue::Json(value) = value else {
         return Err(CacheError::InvalidValue.into());
     };
-    Ok(value)
+    Ok(serde_json::from_value(value)?)
 }
 async fn servers(
     pulse: &crate::Pulse,

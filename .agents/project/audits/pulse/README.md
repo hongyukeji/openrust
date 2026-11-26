@@ -126,7 +126,7 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 Pulse 的 `RemembersQueries::remember` 在配置的缓存仓储中按组件类、查询键和周期保存结果。PHP 8.5.12 使用实际 ArrayStore 核对，四秒时保留原查询结果、耗时和执行时间，第五秒重新查询。变更排序、周期或组件类会选取独立缓存项。证据为 `target/tmp/observability-parity/pulse-card-query-cache-upstream.log`。 [固定 RemembersQueries](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Concerns/RemembersQueries.php)
 
-Rust 前态在每次授权指标请求中查询四类慢操作及异常。当前通过框架 Cache 的 `remember` 在 `pulse.cache` 指定仓储中按卡片、实际排序和周期缓存汇总行五秒。真实 HTTP 在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 上确认短时复用、独立排序与周期、到期读取最新数据。同一用例在独占 Redis 8.10.3 证明选择了配置的具名仓储。Pulse Provider 22 项、Telescope Provider 20 项、快照全仓格式、相关严格 Clippy、三语构建和六组浏览器检查通过。独占 Telescope Redis 用例沿用环境条件。证据为 `target/tmp/observability-parity/pulse-card-query-cache-{macos-baseline,macos-final,docs}.log`。其余卡片见下文，查询耗时和执行时间的界面展示另行对账。
+Rust 前态在每次授权指标请求中查询四类慢操作及异常。当前通过框架 Cache 的 `remember` 在 `pulse.cache` 指定仓储中按卡片、实际排序和周期缓存汇总行五秒。真实 HTTP 在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 上确认短时复用、独立排序与周期、到期读取最新数据。同一用例在独占 Redis 8.10.3 证明选择了配置的具名仓储。Pulse Provider 22 项、Telescope Provider 20 项、快照全仓格式、相关严格 Clippy、三语构建和六组浏览器检查通过。独占 Telescope Redis 用例沿用环境条件。证据为 `target/tmp/observability-parity/pulse-card-query-cache-{macos-baseline,macos-final,docs}.log`。其余卡片和查询时间的验收见下文。
 
 ### 用量、缓存与队列卡片的查询缓存
 
@@ -139,6 +139,12 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 的授权 HTTP 通过�
 固定 Servers 在同一次五秒缓存查询中读取系统当前值、指标曲线并判断最近上报。Rust 将心跳状态和 CPU／内存历史保存在同一缓存项，按周期及已加载的服务器配置分区，使配置改动可立即选择新结果。忽略期限的输入校验在读缓存前完成。 [固定 Servers::render](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Servers.php)
 
 真实 HTTP 前态会立即读到新增的第二台服务器。修复后，SQLite、PostgreSQL 18.7、MySQL 8.4.13 及具名 Redis 8.10.3 验证五秒内心跳和曲线一致、切换周期独立读取、到期后旧心跳变为失效且新节点与相应曲线出现，以及相同周期可立即采用改变后的服务器排序。Pulse Provider 24 项、Telescope Provider 20 项通过，独占 Telescope Redis 用例按环境条件跳过。首轮验收守卫在磁盘清理期间发现仍活跃的构建，恢复空间后重试。隔离快照全仓格式、相关严格 Clippy、三语站点构建及六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-server-card-cache-{macos-baseline,macos-final,macos-retry,docs}.log`。
+
+### 查询耗时和执行时间
+
+卡片缓存同时保存查询数据、单调计时器测得的毫秒耗时，以及应用时钟在查询开始时给出的 UTC 时间。五秒内重用同一次查询的数据与时间。已授权的指标响应在 `query_timing` 中提供这些值。原生面板将执行时间转换为浏览器所在时区，在标题提示中显示，缓存总计与逐键明细分别显示，服务器主机名使用服务器卡片的同一次查询时间。新缓存键与旧格式隔离，切换版本时旧条目按原五秒期限自然到期。 [固定模板与时间呈现](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources)
+
+实际 HTTP 前态缺少时间字段。修复后在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 和具名 Redis 8.10.3 验证首次执行时间精确到秒、缓存命中沿用原时间与结果、到期后更新。缓存已热时仍验证生产模式拒绝未授权的指标访问。Pulse Provider 24 项和 Telescope Provider 20 项通过，另一个 Telescope 测试沿用独占 Redis 验收条件。实际 Chrome 以受控指标响应验证原生脚本在 375 和 1440 像素宽度渲染各类时间提示，包括切换排序。格式、严格 Clippy、三语构建及六组文档浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-query-timing-{macos-baseline,macos-final,browser-baseline,browser,docs}.log`。
 
 ### 缓存汇总和采样展示
 
