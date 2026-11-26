@@ -2398,3 +2398,32 @@ fn register_formatter_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Process helper {#console-process-helper}
+
+Register `ProcessHelper` and `DebugFormatterHelper` in the same helper set. This example requires Git on the executable search path. Pass literal arguments or a configured `PendingProcess`.
+
+`run` returns the completed result even when the process exits unsuccessfully. `must_run` preserves that result in the underlying process error. The default `VeryVerbose` threshold shows the command and its result, and `Debug` also shows live output. Terminal diagnostics use stderr. A selected output section or capture buffer retains its destination. Use `run_with` and `must_run_with` to set the threshold, supply a failure message or receive the original output bytes. To wrap a callback independently, start a session on the registered debug formatter, then pass its ID to `wrap_callback`. Processes configured without capture retain their original output settings.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, DebugFormatterHelper, HelperSet, ProcessHelper,
+};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_process_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:git-version", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let helpers = HelperSet::new();
+            let process = Arc::new(ProcessHelper::new());
+            helpers.set(Arc::new(DebugFormatterHelper::new()), None);
+            helpers.set(process.clone(), None);
+            let result = process.must_run(output, ["git", "--version"]).await?;
+            output.comment(String::from_utf8_lossy(result.output()).trim());
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

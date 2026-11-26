@@ -2398,3 +2398,32 @@ fn register_formatter_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 行程助手 {#console-process-helper}
+
+將 `ProcessHelper` 和 `DebugFormatterHelper` 加入同一個助手集合。以下範例需要能在可執行檔搜尋路徑中找到 Git。可以傳入字面參數或已設定的 `PendingProcess`。
+
+`run` 在行程以非零狀態結束時也會回傳結果。`must_run` 在底層行程錯誤中保留該結果。預設的 `VeryVerbose` 層級顯示命令及結果，`Debug` 還會顯示即時輸出。終端機診斷寫入 stderr，主動選擇的區段或擷取緩衝區保留原輸出目標。使用 `run_with` 和 `must_run_with` 設定層級、失敗提示和原始輸出位元組回呼。獨立包裝回呼時，先在已註冊的除錯助手上啟動工作階段，再將 ID 交給 `wrap_callback`。關閉擷取的行程沿用其輸出設定。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, DebugFormatterHelper, HelperSet, ProcessHelper,
+};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_process_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:git-version", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let helpers = HelperSet::new();
+            let process = Arc::new(ProcessHelper::new());
+            helpers.set(Arc::new(DebugFormatterHelper::new()), None);
+            helpers.set(process.clone(), None);
+            let result = process.must_run(output, ["git", "--version"]).await?;
+            output.comment(String::from_utf8_lossy(result.output()).trim());
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

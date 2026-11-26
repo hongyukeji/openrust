@@ -36,6 +36,10 @@ impl DebugFormatterHelper {
         Self::default()
     }
 
+    pub(super) fn forget(&self, id: &str) {
+        self.state.lock().sessions.remove(id);
+    }
+
     pub const fn get_name(&self) -> &'static str {
         "debug_formatter"
     }

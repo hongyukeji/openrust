@@ -89,6 +89,15 @@ pub struct PendingProcess {
 }
 
 impl PendingProcess {
+    /// 返回即将执行的字面命令，不改变工作目录、环境或参数。
+    pub fn command(&self) -> &Command {
+        &self.command
+    }
+
+    pub(crate) const fn captures_output(&self) -> bool {
+        !self.quiet && !self.tty
+    }
+
     pub(super) fn new(factory: Factory, command: Command) -> Self {
         Self {
             factory,
@@ -208,7 +217,7 @@ impl PendingProcess {
         if self.shutdown_pipe && (!self.input.is_empty() || self.tty) {
             return Err(Error::InvalidCommand);
         }
-        let piped = !self.quiet && !self.tty;
+        let piped = self.captures_output();
         let capture = piped && retain_output;
         let callback = callback.filter(|_| piped);
         let mut native = self.command.native()?;
@@ -320,5 +329,11 @@ impl Command {
                 crate::support::Str::is(&[pattern], &command, false)
             }
         }
+    }
+}
+
+impl<C: Into<Command>> From<C> for PendingProcess {
+    fn from(command: C) -> Self {
+        Factory::new().command(command)
     }
 }

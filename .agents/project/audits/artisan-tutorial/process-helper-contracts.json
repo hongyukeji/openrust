@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_version": "7.4.0",
+  "process_version": "7.4.0",
+  "status": "verified_process_helper_native_sdk",
+  "bindings": {
+    "ProcessHelper": [
+      "get_name",
+      "run / run_with",
+      "must_run / must_run_with",
+      "wrap_callback"
+    ]
+  },
+  "source_oracle": "process-helper-oracle.json",
+  "runtime": {
+    "source_cases": 24,
+    "framework_targets": 8,
+    "framework_parent_tests": 46,
+    "new_artisan_processes": 2,
+    "new_http_requests": 7,
+    "formal_document_consumers": 192,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "同一 HelperSet 的调试助手管理进程诊断。真实终端选择 stderr，指定缓冲或分区保留。",
+    "复用原生进程执行及其超时和退出错误。run 非零仍返回结果，must_run 将结果放入类型化错误来源。",
+    "回调取得原始字节，显示层将无效 UTF-8 转为替换字符。手动包装使用已开始的会话 ID。",
+    "命令行转义只用于文本诊断。执行始终使用原有字面参数与工作目录、环境设置。",
+    "检测到无捕获的原生进程时保留其输出政策。原生退出结果由 ProcessResult 保存。"
+  ],
+  "remaining": [
+    "Application 与 Command 的默认集合与覆盖规则继续。",
+    "Windows 真实进程验收列入发布矩阵，其余 Artisan 锚点继续。"
+  ]
+}

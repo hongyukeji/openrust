@@ -674,5 +674,13 @@
       "ProcessHelper 的进程执行、回调、失败诊断与默认集合接线。",
       "Application、Command 的助手集合与替换规则，以及其余 Artisan 锚点继续。"
     ]
+  },
+  "console_process_helper": {
+    "status": "verified_process_helper_native_sdk",
+    "contract": "process-helper-contracts.json",
+    "remaining": [
+      "Application 与 Command 的默认集合与覆盖规则继续。",
+      "Windows 真实进程验收列入发布矩阵，其余 Artisan 锚点继续。"
+    ]
   }
 }

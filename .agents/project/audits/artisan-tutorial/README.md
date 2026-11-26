@@ -874,3 +874,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 公开 FormatterHelper 的标题、文本块和截断入口，以及 DebugFormatterHelper 的会话开始、进度与结果入口接通现有输出。固定 Console 7.4.0 对照覆盖 424 个场景，包括连续同流、流切换、颜色轮换、会话重复开始、失败清理、空文本和标记转义。原生未知会话返回错误，固定 PHP 的未定义索引诊断另有记录。
 
 42 个框架父测试、真实 Artisan 3 进程、HTTP 15 请求、189 个三语文档消费者和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。固定源码采集的首轮脚本语法错误已修复，最终结果单独记录。下一簇接通 ProcessHelper 和进程消费者。见 formatter-helper-contracts.json 和 accepted-formatter-helper.json。
+
+
+## 63. 控制台进程助手
+
+按固定 Console 与 Process 7.4.0 核对执行、失败结果和实时回调。24 个真实 PHP 进程场景对照原生输出，包括正常、详细及调试模式、标准输出和错误输出以及非零退出。真实终端的诊断进入 stderr，HTTP 内部捕获保留选择的流。类型化错误包含进程结果，进程超时使用已有执行器。字节回调保持原始内容，诊断中的无效 UTF-8 转为替换字符。调试会话随调用退出回收。
+
+46 个框架父测试、真实 Artisan 2 进程、HTTP 7 请求、192 个三语文档消费者和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。固定源码对照与实际运行覆盖本机 Unix。Windows 原生执行留在发布验收范围。下一簇推进 Application 与 Command 默认助手集合。见 process-helper-contracts.json 和 accepted-process-helper.json。

@@ -86,6 +86,7 @@ try {
                     assert.equal(await page.locator('h3#console-helper-tools').count(),1);
                     assert.equal(await page.locator('h3#console-helper-sets').count(),1);
                     assert.equal(await page.locator('h3#console-formatter-helpers').count(),1);
+                    assert.equal(await page.locator('h3#console-process-helper').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

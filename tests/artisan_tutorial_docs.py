@@ -343,6 +343,10 @@ async fn formal_progress_example(){
     formatter_helpers_checks=helper_checks.replace('formal_helper_tools_example','formal_formatter_helpers_example').replace('register_helper_tools)','register_formatter_helpers)').replace('"helpers:measure"','"helpers:format-example"').replace('assert!(output.stdout.contains("Ready 3/2 é 1 min, 1 s"));','assert_eq!(output.stdout.contains("\\x1b["),flag=="--ansi");let plain=FormatterHelper::remove_decoration(output.get_formatter().as_ref(),Some(&output.stdout)).unwrap();assert!(plain.contains("[check] Ready"),"{flag}: {plain:?}");assert!(plain.contains("Processing"));assert!(plain.contains("Done"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_formatter_helpers{\n'+formatter_helpers_snippet+formatter_helpers_checks+'}\n')
 
+    process_helper_snippet=re.search(r'```rust\n(.*?)```',text.split('{#console-process-helper}',1)[1],re.S).group(1)
+    process_helper_checks=helper_checks.replace('formal_helper_tools_example','formal_process_helper_example').replace('register_helper_tools)','register_process_helpers)').replace('"helpers:measure"','"tools:git-version"').replace('assert!(output.stdout.contains("Ready 3/2 é 1 min, 1 s"));','assert!(output.stdout.contains("git version "),"{flag}: {:?}",output.stdout);')
+    parts.append('mod '+locale.replace('-','_').lower()+'_process_helper{\n'+process_helper_snippet+process_helper_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

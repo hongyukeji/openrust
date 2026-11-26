@@ -1,0 +1,626 @@
+[
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 32,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 32,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 32,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 32,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 32,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "Failed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 32,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "Failed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 32,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "Failed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 32,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "Failed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 128,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 128,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 128,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 128,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 128,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 128,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 128,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 128,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 256,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 256,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 256,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;"
+        ],
+        "exit": 0,
+        "verbosity": 256,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 0;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  Command ran successfully\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 256,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "run",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 256,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": null
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 256,
+        "console": false,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    },
+    {
+        "method": "mustRun",
+        "args": [
+            "\/bin\/sh",
+            "-c",
+            "printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;"
+        ],
+        "exit": 7,
+        "verbosity": 256,
+        "console": true,
+        "command_line": "'\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'",
+        "stdout": "hello<info>",
+        "stderr": "bad<error>",
+        "log": "  RUN  '\/bin\/sh' '-c' 'printf \"hello<info>\"; sleep 0.06; printf \"bad<error>\" >&2; exit 7;'\n  OUT  hello<info>\n  ERR  bad<error>\n  RES  7 Command did not run successfully\nFailed <info>\n",
+        "callback": [
+            [
+                "out",
+                "hello<info>"
+            ],
+            [
+                "err",
+                "bad<error>"
+            ]
+        ],
+        "error": "Symfony\\Component\\Process\\Exception\\ProcessFailedException"
+    }
+]
