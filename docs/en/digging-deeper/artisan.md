@@ -36,6 +36,10 @@ docker compose --env-file .env -f docker/docker-compose.yml exec -T app /app/mai
 docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan help migrate
 ```
 
+### Interactive Application Shell {#tinker}
+
+The core command catalog lists `tinker` as `Planned`. The interactive application shell is tracked as an optional extension. Installation, command execution, allowlists and type aliases are part of that extension.
+
 ## Source and Release Entrypoints {#source-and-release-entrypoints}
 
 The source `artisan` script changes to the application directory and forwards its arguments unchanged to Cargo. Spaces, empty arguments and non-ASCII text are preserved. The script returns the command's exit status.

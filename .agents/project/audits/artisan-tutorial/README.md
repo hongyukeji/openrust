@@ -1056,3 +1056,8 @@ SQLite 和 MySQL 8.4.13 各三组终端通过，覆盖 HTTP、日志、查询、
 固定源执行 4 次模板发布和 7 次控制器生成，验证应用覆盖、重复生成、强制覆盖、事件增删及公开形态。Rust 继续复用既有 Stub 发布器，对齐受支持的默认、单动作、资源、API 和单例模板。实际 Artisan 发布、修改、生成，编译受改模板产物后通过真实 HTTP 请求，返回预期 JSON。详见 artisan-stub-controller-contracts.json。
 
 80 项框架和应用回归、255 个三语文档示例、9 条直接源自三语文档的 CLI 命令、12 组浏览器检查、格式和隔离快照严格 Clippy 通过。按范围关闭 Stub Customization；控制器关联模型等选项按 Controllers 篇记录。
+
+
+## 90. 核心章节复核与可选 REPL
+
+按用户确认的范围，核心 43 节已验收。Tinker 的介绍、安装、使用、命令允许清单和类自动别名排除合计 5 节归入可选原生 REPL 扩展，仍待实现。固定教程使用 PsySH 和 PHP 运行时类反射。原生命令目录仍显示 Planned，实跑 help 退出 0，运行 tinker 退出 1。三语正文、站点构建和 12 组浏览器检查通过。见 accepted-artisan-optional-repl.json。

@@ -115,6 +115,9 @@ try {
                     assert.equal(await page.locator('h3#command-execution-events').count(),1);
                     assert.equal(await page.locator('h3#controller-templates').count(),1);
                     assert.equal(await page.locator('h3#laravel-sail').count(),1);
+                    const shell=page.locator('h3#tinker + p');
+                    assert.equal(await shell.count(),1);
+                    assert((await shell.innerText()).includes('Planned'));
                     assert.equal(await page.locator('h3#customizing-dev-processes').count(),1);
                     assert.equal(await page.locator('h3#filtering-dev-processes').count(),1);
                     assert.equal(await page.locator('h3#restarting-failed-processes').count(),1);

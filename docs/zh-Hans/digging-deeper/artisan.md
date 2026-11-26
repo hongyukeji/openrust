@@ -36,6 +36,10 @@ docker compose --env-file .env -f docker/docker-compose.yml exec -T app /app/mai
 docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan help migrate
 ```
 
+### 交互式应用 Shell {#tinker}
+
+核心命令列表把 `tinker` 标为 `Planned`。交互式应用 Shell 单列为可选扩展，安装、命令执行、允许列表和类型别名均属于扩展范围。
+
 ## 源码与发布入口 {#source-and-release-entrypoints}
 
 源码 `artisan` 脚本先进入应用目录，再将参数原样交给 Cargo，保留空格、空参数和非 ASCII 文本。脚本返回命令的退出码。

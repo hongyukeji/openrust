@@ -26,28 +26,53 @@
     },
     {
       "anchor": "tinker",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "deferred_optional_extension",
+      "evidence": [
+        "accepted-artisan-optional-repl.json"
+      ],
+      "remaining": [
+        "可选原生 REPL 的安装、会话和注册／访问策略尚未实现。"
+      ]
     },
     {
       "anchor": "installation",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "deferred_optional_extension",
+      "evidence": [
+        "accepted-artisan-optional-repl.json"
+      ],
+      "remaining": [
+        "可选原生 REPL 的安装、会话和注册／访问策略尚未实现。"
+      ]
     },
     {
       "anchor": "usage",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "deferred_optional_extension",
+      "evidence": [
+        "accepted-artisan-optional-repl.json"
+      ],
+      "remaining": [
+        "可选原生 REPL 的安装、会话和注册／访问策略尚未实现。"
+      ]
     },
     {
       "anchor": "command-allow-list",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "deferred_optional_extension",
+      "evidence": [
+        "accepted-artisan-optional-repl.json"
+      ],
+      "remaining": [
+        "可选原生 REPL 的安装、会话和注册／访问策略尚未实现。"
+      ]
     },
     {
       "anchor": "classes-that-should-not-be-aliased",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "deferred_optional_extension",
+      "evidence": [
+        "accepted-artisan-optional-repl.json"
+      ],
+      "remaining": [
+        "可选原生 REPL 的安装、会话和注册／访问策略尚未实现。"
+      ]
     },
     {
       "anchor": "writing-commands",
@@ -979,5 +1004,10 @@
       "本节验证已由生成器消费的应用模板。控制器模型及嵌套路由、生成 FormRequest 的选项须按 Controllers 篇继续逐入口核对；不视为全部控制器生成 API 闭合。",
       "原生类型按模块文件导出并显式声明接线。HTTP 动作模板提供类型正确的 Rust scaffold 供应用实现。"
     ]
+  },
+  "chapter_status": {
+    "core": "verified_tutorial_scope",
+    "verified_sections": 43,
+    "deferred_optional_sections": 5
   }
 }

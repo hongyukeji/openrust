@@ -1,0 +1,30 @@
+{
+  "base": "519e468d23be4e1e8625e14633d1d240bf9943cb",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "implemented_sections": 43,
+  "deferred_sections": [
+    "tinker",
+    "installation",
+    "usage",
+    "command-allow-list",
+    "classes-that-should-not-be-aliased"
+  ],
+  "scope_decision": "用户确认单列可选原生 REPL 扩展",
+  "decision_reason": "固定教程依赖 PsySH、PHP 扩展与运行时类反射。原生会话与注册／访问策略仍待选型与开发。",
+  "runtime": {
+    "catalog_entry": {
+      "name": "tinker",
+      "implemented": false
+    },
+    "help_exit": 0,
+    "execution_exit": 1,
+    "execution_error": "Command 'tinker' is not implemented yet."
+  },
+  "browser_checks": 12,
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-optional-repl-native.json",
+    "target/tmp/artisan-tutorial-20261125/controller-types-and-repl-site.log"
+  ],
+  "pushed": false
+}

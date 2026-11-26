@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 核心 43 节已验收。用户确认 Tinker 5 节单列可选原生 REPL，当前真实命令仍为 Planned，详见[章节复核](audits/artisan-tutorial/README.md#90-核心章节复核与可选-repl)。继续 Controllers，不推送。
+
 - Artisan 第88簇模板自定义已验，目前 43／48 节通过；五个 REPL 条目等待扩展范围决定。见[验收契约](audits/artisan-tutorial/artisan-stub-controller-contracts.json)。
 
 - Artisan 第87簇命令事件已验，目前 42／48 节通过；继续模板和已登记的 REPL 边界。见[验收契约](audits/artisan-tutorial/artisan-events-lifecycle-contracts.json)。
