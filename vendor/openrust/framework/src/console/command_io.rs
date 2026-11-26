@@ -15,6 +15,17 @@ impl Input {
     }
 }
 impl<'a> CommandIo<'a> {
+    pub fn get_helper_set(&self) -> Option<&super::HelperSet> {
+        self.input.get_helper_set()
+    }
+
+    pub fn get_helper(
+        &self,
+        name: &str,
+    ) -> Result<std::sync::Arc<dyn super::HelperInterface>, ConsoleError> {
+        self.input.get_helper(name)
+    }
+
     pub fn new(input: &'a Input, output: &'a mut Output) -> Self {
         Self {
             input,

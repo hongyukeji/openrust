@@ -682,5 +682,13 @@
       "Application 与 Command 的默认集合与覆盖规则继续。",
       "Windows 真实进程验收列入发布矩阵，其余 Artisan 锚点继续。"
     ]
+  },
+  "console_default_helpers": {
+    "status": "verified_application_and_command_helper_registry",
+    "contract": "default-helpers-contracts.json",
+    "remaining": [
+      "终端样式与颜色仓库、独立扩展对象和通用 HTML 恢复。",
+      "具体 Factory 的容器构造与覆盖和其余 Artisan 文档锚点继续。"
+    ]
   }
 }

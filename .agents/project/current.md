@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第64簇默认助手集合及命令登记覆盖已验，继续终端样式与颜色仓库。见[验收契约](audits/artisan-tutorial/default-helpers-contracts.json)。
+
 - Artisan 第63簇 ProcessHelper 实际进程、回调和诊断已验，继续 Application 与 Command 默认集合接线。见[验收契约](audits/artisan-tutorial/process-helper-contracts.json)。
 
 - Artisan 第62簇文本格式化和调试会话已验，继续 ProcessHelper 与默认集合接线。见[验收契约](audits/artisan-tutorial/formatter-helper-contracts.json)。

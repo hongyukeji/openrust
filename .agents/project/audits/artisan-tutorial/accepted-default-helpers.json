@@ -1,0 +1,40 @@
+{
+  "base": "cfc944f91bdd613bad2a82098282a2b6d2476ff9",
+  "contract": "default-helpers-contracts.json",
+  "results": [
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.84s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+    "test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+    "test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.30s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.75s",
+    "test result: ok. 195 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s"
+  ],
+  "runtime": {
+    "source_cases": 13,
+    "framework_targets": 9,
+    "framework_parent_tests": 49,
+    "new_artisan_processes": 3,
+    "new_http_requests": 3,
+    "formal_document_consumers": 195,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/default-helpers-second.log",
+    "target/tmp/artisan-tutorial-20261125/default-helpers-gates.log",
+    "target/tmp/artisan-tutorial-20261125/default-helpers-site.log",
+    "target/tmp/artisan-tutorial-20261125/default-helpers-source.json"
+  ],
+  "unaccepted_attempts": [
+    "default-helpers-first.log: compiler found two omitted Input reconstruction paths, fixed and exercised",
+    "default-helpers-source-first.log: fixed-source fixture used unsupported closure constructor, corrected"
+  ],
+  "remaining": [
+    "终端样式与颜色仓库、独立扩展对象和通用 HTML 恢复。",
+    "具体 Factory 的容器构造与覆盖和其余 Artisan 文档锚点继续。"
+  ],
+  "pushed": false
+}

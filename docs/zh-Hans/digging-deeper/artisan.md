@@ -2427,3 +2427,29 @@ fn register_process_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 应用与命令的助手集合 {#command-helper-sets}
+
+每个控制台应用都会建立自己的助手集合，包含 `formatter`、`debug_formatter`、`process` 和 `question`。运行中的命令通过 `Input::get_helper` 或 `CommandIo::get_helper` 按名查询助手。以下示例需要能在可执行文件搜索路径中找到 Git。
+
+注册时，`Artisan::get_helper_set` 返回当前应用的集合。`Artisan::set_helper_set` 更换后续命令继承的集合，已有命令保留其集合。使用 `Artisan::set_command_helper_set` 按名称或别名更换单个命令的集合。修改共享集合的内容会影响持有该集合的命令。查询无名助手时返回错误。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, ProcessHelper};
+use openrust::support::facades::Artisan;
+use std::{any::Any, sync::Arc};
+
+fn register_default_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:helpers", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let helper: Arc<dyn Any + Send + Sync> = input.get_helper("process")?;
+            let process = helper.downcast::<ProcessHelper>()
+                .map_err(|_| ConsoleError::new("进程助手类型不匹配"))?;
+            let result = process.must_run(output, ["git", "--version"]).await?;
+            output.comment(String::from_utf8_lossy(result.output()).trim());
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

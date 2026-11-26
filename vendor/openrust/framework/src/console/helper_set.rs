@@ -111,6 +111,16 @@ impl IntoIterator for &HelperSet {
     }
 }
 
+pub(super) fn resolve_helper(
+    helpers: Option<&HelperSet>,
+    name: &str,
+) -> Result<Arc<dyn HelperInterface>, super::ConsoleError> {
+    helpers
+        .ok_or_else(|| super::ConsoleError::new("当前命令没有关联的控制台助手集合"))?
+        .get(name)
+        .map_err(super::ConsoleError::from_source)
+}
+
 /// 所请求名称在助手集合中不存在。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HelperNotFound(String);

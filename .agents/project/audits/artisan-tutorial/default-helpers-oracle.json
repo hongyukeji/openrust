@@ -1,0 +1,20 @@
+{
+    "default": {
+        "formatter": "formatter",
+        "debug_formatter": "debug_formatter",
+        "process": "process",
+        "question": "question"
+    },
+    "separate_apps": true,
+    "stable_app_identity": true,
+    "detached_has_set": false,
+    "detached_error": "Symfony\\Component\\Console\\Exception\\LogicException",
+    "first_inherits": true,
+    "alias_shares_command": true,
+    "registered_keeps_previous_set": true,
+    "new_command_inherits_override": true,
+    "named_helper_is_alias_identity": true,
+    "command_override": true,
+    "missing_error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+    "detached_after_registration": false
+}

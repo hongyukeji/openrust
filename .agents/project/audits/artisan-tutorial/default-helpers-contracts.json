@@ -1,0 +1,52 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_version": "7.4.0",
+  "status": "verified_application_and_command_helper_registry",
+  "bindings": {
+    "Application": [
+      "get_helper_set",
+      "set_helper_set",
+      "get_command_helper_set",
+      "set_command_helper_set"
+    ],
+    "ClosureCommand": [
+      "get_helper_set",
+      "set_helper_set",
+      "get_helper"
+    ],
+    "Input": [
+      "get_helper_set",
+      "get_helper"
+    ],
+    "CommandIo": [
+      "get_helper_set",
+      "get_helper"
+    ],
+    "Artisan": [
+      "get_helper_set",
+      "set_helper_set",
+      "set_command_helper_set"
+    ]
+  },
+  "source_oracle": "default-helpers-oracle.json",
+  "runtime": {
+    "source_cases": 13,
+    "framework_targets": 9,
+    "framework_parent_tests": 49,
+    "new_artisan_processes": 3,
+    "new_http_requests": 3,
+    "formal_document_consumers": 195,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "同一应用按固定顺序惰性建立四个默认助手。控制台用于分发的副本共享其集合，独立应用隔离。",
+    "注册时取得集合引用。应用替换只影响新登记。原条目的显式覆盖对同命令别名生效，共享集合自身的修改对其持有者立即可见。",
+    "原生类式命令由注册表持有，运行时从 Input 或 CommandIo 取得同一集合。单独解析的 Input 无关联。这替代 PHP 可变 Command::setApplication 对象反向引用。",
+    "Artisan 的集合配置仅在既有注册作用域执行。执行只读取已登记元数据。输入重解析、取消令牌和内部调用都保留所选命令的集合。",
+    "内部 list、help 和任务派发没有公开命令对象，留用其原实现。类型与闭包命令共用同一调度入口。"
+  ],
+  "remaining": [
+    "终端样式与颜色仓库、独立扩展对象和通用 HTML 恢复。",
+    "具体 Factory 的容器构造与覆盖和其余 Artisan 文档锚点继续。"
+  ]
+}

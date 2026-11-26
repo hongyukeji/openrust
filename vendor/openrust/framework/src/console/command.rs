@@ -2,7 +2,7 @@ use std::{ffi::OsString, sync::Arc};
 
 use crate::foundation::Application;
 
-use super::{ConsoleError, ConsoleFuture, Input, Output};
+use super::{ConsoleError, ConsoleFuture, HelperInterface, HelperSet, Input, Output};
 
 pub(super) type Prompt =
     dyn Fn(&clap::ArgMatches) -> Result<Vec<OsString>, ConsoleError> + Send + Sync;
@@ -71,6 +71,7 @@ impl CommandDefinition {
             shutdown: None,
             interaction: Default::default(),
             stream: None,
+            helper_set: None,
             syntax: self.syntax.clone(),
             parsing_syntax: self.syntax.clone(),
             invoked_name: None,
@@ -105,9 +106,22 @@ pub trait Command: Send + Sync {
 pub struct ClosureCommand {
     pub(super) definition: CommandDefinition,
     pub(super) callback: Arc<CommandCallback>,
+    pub(super) helper_set: Option<HelperSet>,
 }
 
 impl ClosureCommand {
+    pub fn get_helper_set(&self) -> Option<&HelperSet> {
+        self.helper_set.as_ref()
+    }
+
+    pub fn set_helper_set(&mut self, helper_set: HelperSet) {
+        self.helper_set = Some(helper_set);
+    }
+
+    pub fn get_helper(&self, name: &str) -> Result<Arc<dyn HelperInterface>, ConsoleError> {
+        super::helper_set::resolve_helper(self.get_helper_set(), name)
+    }
+
     pub(crate) fn registration_key(&self) -> std::sync::Weak<clap::Command> {
         Arc::downgrade(&self.definition.syntax)
     }

@@ -99,6 +99,7 @@ pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// Parsed arguments and options for a command.
 #[derive(Clone)]
 pub struct Input {
+    pub(super) helper_set: Option<HelperSet>,
     syntax: Arc<clap::Command>,
     parsing_syntax: Arc<clap::Command>,
     invoked_name: Option<String>,
@@ -121,6 +122,7 @@ impl Input {
             invoked_name: self.invoked_name.clone(),
             matches: self.matches.clone(),
             shutdown: Some(shutdown),
+            helper_set: self.helper_set.clone(),
             interaction: self.interaction.clone(),
             stream: self.stream.clone(),
         }

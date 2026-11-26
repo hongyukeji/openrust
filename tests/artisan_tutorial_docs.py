@@ -347,6 +347,10 @@ async fn formal_progress_example(){
     process_helper_checks=helper_checks.replace('formal_helper_tools_example','formal_process_helper_example').replace('register_helper_tools)','register_process_helpers)').replace('"helpers:measure"','"tools:git-version"').replace('assert!(output.stdout.contains("Ready 3/2 é 1 min, 1 s"));','assert!(output.stdout.contains("git version "),"{flag}: {:?}",output.stdout);')
     parts.append('mod '+locale.replace('-','_').lower()+'_process_helper{\n'+process_helper_snippet+process_helper_checks+'}\n')
 
+    default_helpers_snippet=re.search(r'```rust\n(.*?)```',text.split('{#command-helper-sets}',1)[1],re.S).group(1)
+    default_helpers_checks=process_helper_checks.replace('formal_process_helper_example','formal_default_helpers_example').replace('register_process_helpers)','register_default_helpers)').replace('"tools:git-version"','"tools:helpers"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_default_helpers{\n'+default_helpers_snippet+default_helpers_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

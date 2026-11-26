@@ -2248,7 +2248,8 @@
     "60: Six owned static Helper tools and both QuestionHelper inherited surfaces verified. HelperInterface, HelperSet and command membership remain open. See helper-tools-contracts.json.",
     "61: The native HelperInterface, Helper membership and HelperSet APIs are verified separately. Application and Command default registry wiring remains open.",
     "62: FormatterHelper and DebugFormatterHelper native helper objects are verified against fixed source and real consumers. ProcessHelper and application default registry wiring remain open.",
-    "63: ProcessHelper runs and validates native process execution, selected output and callbacks. Application default registry wiring remains open."
+    "63: ProcessHelper runs and validates native process execution, selected output and callbacks. Application default registry wiring remains open.",
+    "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open."
   ],
   "native_adaptations": [
     {
@@ -2823,5 +2824,31 @@
     "Plain": 4,
     "default_unchanged": true,
     "new_variant_impact": "Downstream exhaustive Rust matches need ExplicitNormal. Existing values, default behavior, CLI, JSON/event/database formats unchanged."
+  },
+  "helper_registration": {
+    "Application": [
+      "get_helper_set",
+      "set_helper_set",
+      "get_command_helper_set",
+      "set_command_helper_set"
+    ],
+    "ClosureCommand": [
+      "get_helper_set",
+      "set_helper_set",
+      "get_helper"
+    ],
+    "Input": [
+      "get_helper_set",
+      "get_helper"
+    ],
+    "CommandIo": [
+      "get_helper_set",
+      "get_helper"
+    ],
+    "Artisan": [
+      "get_helper_set",
+      "set_helper_set",
+      "set_command_helper_set"
+    ]
   }
 }

@@ -4,6 +4,17 @@ use super::Input;
 mod mutation;
 
 impl Input {
+    pub fn get_helper_set(&self) -> Option<&super::HelperSet> {
+        self.helper_set.as_ref()
+    }
+
+    pub fn get_helper(
+        &self,
+        name: &str,
+    ) -> Result<std::sync::Arc<dyn super::HelperInterface>, super::ConsoleError> {
+        super::helper_set::resolve_helper(self.get_helper_set(), name)
+    }
+
     /// 判断定义中是否存在参数，而不是判断它当前是否有值。
     pub fn has_argument(&self, name: &str) -> bool {
         self.argument_definition(name, false) || (name == "command" && self.invoked_name.is_some())

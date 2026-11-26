@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     ffi::{OsStr, OsString},
     io::{self, IsTerminal as _},
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 
@@ -12,7 +12,8 @@ use crate::contracts::foundation::Application as _;
 use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
 use super::{
-    ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, descriptor,
+    ClosureCommand, Command, CommandDefinition, ConsoleError, DebugFormatterHelper,
+    DefaultQuestionHelper, FormatterHelper, HelperSet, Input, Output, ProcessHelper, descriptor,
     help_command, list_command, localization,
     task_command::{self, TaskCommand},
 };
@@ -24,10 +25,18 @@ enum Entry {
     Tasks(TaskCommand, CommandDefinition),
     Planned(CommandDefinition),
     Closure(ClosureCommand),
-    Command(Arc<dyn Command>),
+    Command(Arc<dyn Command>, HelperSet),
 }
 
 impl Entry {
+    fn helper_set(&self) -> Option<&HelperSet> {
+        match self {
+            Self::Closure(command) => command.get_helper_set(),
+            Self::Command(_, helpers) => Some(helpers),
+            _ => None,
+        }
+    }
+
     fn definition(&self) -> &CommandDefinition {
         match self {
             Self::List(definition)
@@ -35,7 +44,7 @@ impl Entry {
             | Self::Tasks(_, definition)
             | Self::Planned(definition) => definition,
             Self::Closure(command) => command.definition(),
-            Self::Command(command) => command.definition(),
+            Self::Command(command, _) => command.definition(),
         }
     }
 }
@@ -44,12 +53,14 @@ impl Entry {
 #[derive(Clone)]
 pub struct Application {
     commands: BTreeMap<String, Entry>,
+    helper_set: Arc<OnceLock<HelperSet>>,
 }
 
 impl Default for Application {
     fn default() -> Self {
         let mut console = Self {
             commands: BTreeMap::new(),
+            helper_set: Arc::default(),
         };
         for entry in [
             Entry::List(CommandDefinition::new(list_command::command())),
@@ -68,8 +79,53 @@ impl Application {
         Self::default()
     }
 
+    /// 按首次查询或注册的需要建立当前应用自己的默认助手集合。
+    pub fn get_helper_set(&self) -> HelperSet {
+        self.helper_set
+            .get_or_init(|| {
+                let helpers = HelperSet::new();
+                helpers.set(Arc::new(FormatterHelper::new()), None);
+                helpers.set(Arc::new(DebugFormatterHelper::new()), None);
+                helpers.set(Arc::new(ProcessHelper::new()), None);
+                helpers.set(Arc::new(DefaultQuestionHelper::new()), None);
+                helpers
+            })
+            .clone()
+    }
+
+    /// 新注册命令继承此集合。已登记命令保留登记时取得的同一集合。
+    pub fn set_helper_set(&mut self, helpers: HelperSet) {
+        self.helper_set = Arc::new(OnceLock::from(helpers));
+    }
+
     pub fn add_command(&mut self, command: Box<dyn Command>) -> Result<(), ConsoleError> {
-        self.add(Entry::Command(Arc::from(command))).map(|_| ())
+        let helpers = self.get_helper_set();
+        self.add(Entry::Command(Arc::from(command), helpers))
+            .map(|_| ())
+    }
+
+    pub fn get_command_helper_set(&self, name: &str) -> Result<Option<HelperSet>, ConsoleError> {
+        let name = self.resolve(name)?;
+        Ok(self.commands[name].helper_set().cloned())
+    }
+
+    /// 显式覆盖登记命令的集合，别名解析到同一登记项。
+    pub fn set_command_helper_set(
+        &mut self,
+        name: &str,
+        helpers: HelperSet,
+    ) -> Result<(), ConsoleError> {
+        let name = self.resolve(name)?.to_owned();
+        match self.commands.get_mut(&name) {
+            Some(Entry::Command(_, set)) => *set = helpers,
+            Some(Entry::Closure(command)) => command.set_helper_set(helpers),
+            _ => {
+                return Err(ConsoleError::new(format!(
+                    "命令不提供可覆盖的控制台助手集合：{name}"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// 注册Isolatable类型，自动装配可选隔离开关。
@@ -112,6 +168,7 @@ impl Application {
         let entry = self.add(Entry::Closure(ClosureCommand {
             definition: CommandDefinition::from_signature(signature)?,
             callback: callback.into_command_callback(),
+            helper_set: Some(self.get_helper_set()),
         }))?;
         let Entry::Closure(command) = entry else {
             unreachable!("registered closure command");
@@ -280,7 +337,7 @@ impl Application {
     fn parsing_syntax(&self, version: &'static str) -> Syntax {
         let mut syntax = self.syntax(version);
         for (name, entry) in &self.commands {
-            if let Entry::Command(command) = entry
+            if let Entry::Command(command, _) = entry
                 && command.prompting().is_some()
             {
                 syntax = syntax.mut_subcommand(name, super::prompting::relaxed);
@@ -744,7 +801,7 @@ impl Application {
                         )));
                     }
                     Entry::Closure(command) => command,
-                    Entry::Command(command) => command.as_ref(),
+                    Entry::Command(command, _) => command.as_ref(),
                 };
                 let mut parsing = self.parsing_syntax(application.version());
                 parsing.build();
@@ -764,6 +821,7 @@ impl Application {
                         .map(|input| input.interaction.shared())
                         .unwrap_or_default(),
                     stream: supplied_input.and_then(|input| input.stream.clone()),
+                    helper_set: entry.helper_set().cloned(),
                 };
                 if output.suppressed
                     || input.option("no-interaction") == Some(serde_json::Value::Bool(true))

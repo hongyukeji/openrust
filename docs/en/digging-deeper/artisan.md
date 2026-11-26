@@ -2427,3 +2427,29 @@ fn register_process_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Application and command helper sets {#command-helper-sets}
+
+Each console application initializes its own helper set with `formatter`, `debug_formatter`, `process`, and `question`. In a running command, use `Input::get_helper` or `CommandIo::get_helper` to look up a helper by name. The example below requires Git on the executable search path.
+
+During registration, `Artisan::get_helper_set` returns the current application set. `Artisan::set_helper_set` changes the set inherited by commands registered later. Existing commands retain their set. To replace one command’s set, use `Artisan::set_command_helper_set` with its name or alias. Mutating a shared set affects the commands that hold that set. An unknown helper returns an error.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, ProcessHelper};
+use openrust::support::facades::Artisan;
+use std::{any::Any, sync::Arc};
+
+fn register_default_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:helpers", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let helper: Arc<dyn Any + Send + Sync> = input.get_helper("process")?;
+            let process = helper.downcast::<ProcessHelper>()
+                .map_err(|_| ConsoleError::new("进程助手类型不匹配"))?;
+            let result = process.must_run(output, ["git", "--version"]).await?;
+            output.comment(String::from_utf8_lossy(result.output()).trim());
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

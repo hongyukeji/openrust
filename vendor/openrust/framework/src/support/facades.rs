@@ -800,6 +800,30 @@ impl Artisan {
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }
 
+    /// 返回当前注册作用域内应用的助手集合。
+    pub fn get_helper_set() -> Result<crate::console::HelperSet, ConsoleError> {
+        CONSOLE
+            .try_with(|console| console.borrow().get_helper_set())
+            .map_err(|_| ConsoleError::new("当前没有 Artisan 注册作用域"))
+    }
+
+    /// 设置此后注册的命令继承的集合。
+    pub fn set_helper_set(helpers: crate::console::HelperSet) -> Result<(), ConsoleError> {
+        CONSOLE
+            .try_with(|console| console.borrow_mut().set_helper_set(helpers))
+            .map_err(|_| ConsoleError::new("当前没有 Artisan 注册作用域"))
+    }
+
+    /// 配置已注册命令的助手集合，名称沿用命令注册表的解析规则。
+    pub fn set_command_helper_set(
+        name: &str,
+        helpers: crate::console::HelperSet,
+    ) -> Result<(), ConsoleError> {
+        CONSOLE
+            .try_with(|console| console.borrow_mut().set_command_helper_set(name, helpers))
+            .map_err(|_| ConsoleError::new("当前没有 Artisan 注册作用域"))?
+    }
+
     /// Adds a typed command to the console in the active registration scope.
     pub fn add(command: Box<dyn crate::console::Command>) -> Result<(), ConsoleError> {
         CONSOLE

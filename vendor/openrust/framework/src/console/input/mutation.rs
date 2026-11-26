@@ -98,6 +98,7 @@ impl Input {
             invoked_name: self.invoked_name.clone(),
             matches,
             shutdown: self.shutdown.clone(),
+            helper_set: self.helper_set.clone(),
             interaction: self.interaction.clone(),
             stream: self.stream.clone(),
         };
