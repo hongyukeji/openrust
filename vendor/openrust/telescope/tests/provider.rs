@@ -1549,6 +1549,133 @@ async fn console_show_renders_fixed_batch_statistics_and_limits() {
     assert_eq!(result["batch"][0]["content"]["sql"], sql);
 }
 
+#[tokio::test]
+async fn console_show_renders_request_exception_and_job_details() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let make = |kind, content: serde_json::Value| {
+        IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(uuid::Uuid::now_v7())
+    };
+    let response = format!("{}RESPONSE_END", "界".repeat(501));
+    let data = format!("{}DATA_END", "界".repeat(251));
+    let trace = (1..=16)
+        .map(|line| json!({"file":format!("/src/frame{line}.rs"), "line":line}))
+        .collect::<Vec<_>>();
+    let request = make(
+        EntryType::Request,
+        json!({
+            "method":"POST","uri":"/article","response_status":422,
+            "controller_action":"ArticleController::store","duration":1.234,"memory":8,
+            "ip_address":"192.0.2.20","middleware":["web","auth"],
+            "user":{"name":"Reader","email":"reader@example.com","id":0},
+            "payload":{"key":"value"},"response":response,
+        }),
+    );
+    let exception = make(
+        EntryType::Exception,
+        json!({
+            "class":"App::ArticleException","file":"/src/article.rs","line":4,"message":"Validation failed",
+            "line_preview":{"3":"try {","4":"return Err(error);","5":"}"},"trace":trace,
+        }),
+    );
+    let job = make(
+        EntryType::Job,
+        json!({
+            "name":"App::Translate","queue":"local","connection":"redis","status":"failed","tries":0,"timeout":0,
+            "data":{"target":data},"exception":{"message":"Worker exited","trace":trace},
+        }),
+    );
+    let [request_id, exception_id, job_id] =
+        [&request, &exception, &job].map(|entry| entry.uuid.to_string());
+    repository.store(&[request, exception, job]).await.unwrap();
+    let stored_request = repository.find(&request_id).await.unwrap();
+    let hostname = format!(
+        "Hostname\t{}",
+        stored_request.content["hostname"].as_str().unwrap()
+    );
+
+    let request = app.artisan(["telescope:show", &request_id]).await;
+    request.assert_successful();
+    for expected in [
+        "Request: POST /article -> 422",
+        &hostname,
+        "Controller\tArticleController::store",
+        "Duration\t1.234ms",
+        "Memory\t8MB",
+        "IP\t192.0.2.20",
+        "Middleware\tweb, auth",
+        "User\tReader (reader@example.com) #0",
+        "Payload",
+        "\"key\": \"value\"",
+    ] {
+        assert!(
+            request.stdout.contains(expected),
+            "{expected}: {}",
+            request.stdout
+        );
+    }
+    assert!(!request.stdout.contains("RESPONSE_END"));
+    let full = app.artisan(["telescope:show", &request_id, "--full"]).await;
+    full.assert_successful();
+    assert!(full.stdout.contains(&response));
+
+    let exception = app.artisan(["telescope:show", &exception_id]).await;
+    exception.assert_successful();
+    for expected in [
+        "Exception: ArticleException",
+        "Class\tApp::ArticleException",
+        "File\t/src/article.rs:4",
+        "Occurrences\t1",
+        "Resolved\tNo",
+        "Validation failed",
+        "Code Context",
+        "4 >\treturn Err(error);",
+        "Stack Trace",
+        "/src/frame15.rs:15",
+        "... and 1 more frames",
+    ] {
+        assert!(
+            exception.stdout.contains(expected),
+            "{expected}: {}",
+            exception.stdout
+        );
+    }
+    assert!(!exception.stdout.contains("/src/frame16.rs"));
+    let job = app.artisan(["telescope:show", &job_id, "--full"]).await;
+    job.assert_successful();
+    for expected in [
+        "Job: Translate [failed]",
+        "Status\tfailed",
+        "Queue\tlocal",
+        "Connection\tredis",
+        "Tries\t0",
+        "Timeout\t0s",
+        "Worker exited",
+        "/src/frame10.rs:10",
+        "... and 6 more frames",
+        &data,
+    ] {
+        assert!(job.stdout.contains(expected), "{expected}: {}", job.stdout);
+    }
+    assert!(!job.stdout.contains("/src/frame11.rs"));
+    let stored = app.artisan(["telescope:show", &job_id, "--json"]).await;
+    stored.assert_successful();
+    let stored: serde_json::Value = serde_json::from_str(stored.stdout.trim()).unwrap();
+    assert_eq!(
+        stored["entry"]["content"]["exception"]["trace"]
+            .as_array()
+            .unwrap()
+            .len(),
+        16
+    );
+}
+
 impl openrust::contracts::auth::Authenticatable for ObservedModel {
     fn get_auth_identifier_name(&self) -> &str {
         "id"

@@ -61,6 +61,6 @@ Watcher 覆盖请求、查询、异常、日志、任务、批次、缓存、HTT
 ./artisan telescope:clear
 ```
 
-`list` 支持 `--tag`、`--batch`、`--family` 和 `--before` 序列游标。`show` 接受 UUID、无歧义 UUID 前缀、`latest`、`latest:<type>`，可用 `--type` 过滤同批次记录。批次摘要显示查询总耗时、慢查询、重复查询组和缓存命中率。普通输出按显示宽度截断长内容，`--full` 保留完整值；JSON 始终保留捕获内容。控制台使用普通表格和时间戳，未采用 PHP 控制台的样式及相对时间描述。
+`list` 支持 `--tag`、`--batch`、`--family` 和 `--before` 序列游标。`show` 接受 UUID、无歧义 UUID 前缀、`latest`、`latest:<type>`，可用 `--type` 过滤同批次记录。批次摘要显示查询总耗时、慢查询、重复查询组和缓存命中率。请求详情显示已记录的控制器、中间件和用户信息。异常与失败任务详情显示已记录的错误消息和调用栈。普通输出按显示宽度截断长内容，`--full` 保留完整值；JSON 始终保留捕获内容。控制台使用普通表格和时间戳，未采用 PHP 控制台的样式及相对时间描述。
 
 `prune` 以应用时钟计算截止时间，默认保留 24 小时。`--hours=0.5` 将截止时间设在当前时间之前 30 分钟。负数将截止时间移到未来。`--keep-exceptions` 保留异常记录。`clear` 删除所有 Telescope 记录、标签及监控行。保留策略由应用调度器执行。`telescope:publish` 发布配置，`--force` 覆盖该文件。独立代码可用 `EntriesRepository` 实现构造 `Telescope` 并显式调用 `store().await`；应用 Provider 可在首次解析 Telescope 前替换此契约。Provider 可为 `telescope:clear` 单独绑定 `ClearableRepository`，并为 `telescope:prune` 单独绑定 `PrunableRepository`。两个命令默认使用配置的 `EntriesRepository`。

@@ -141,6 +141,12 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 
 原生 Artisan 已按这些规则输出批次统计和分类表格，包括批次短标识、慢查询与重复标记、宽度截断以及 `--full`。框架现有 PHP 数值转换和中点舍入算法供批次统计复用。SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用已存记录验收汇总、筛选、超限提示、长 SQL 和完整 JSON。Pulse Provider 24 项、Telescope Provider 21 项、仓储 14 项和框架日期区间单元测试 12 项通过。独占 Redis 用例沿用环境条件。隔离快照全仓格式、三扩展相关目标严格 Clippy、三语构建与六组文档浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-show-batch-{macos-baseline,macos-final,docs}.log`。
 
+### Show 命令的请求、异常和任务详情
+
+固定 PHP 8.5.12 通过实际 `ShowCommand::renderEntry` 核对请求的控制器、中间件与用户标识，异常的默认发生次数、未解决状态、代码行标记，以及失败任务消息。异常和失败任务分别显示最多 15 和 10 个调用栈帧。原生 Artisan 以原生表格显示这些字段，保留本地时间戳、UUID、批次及标签。请求响应与任务数据按照显示宽度截断，`--full` 保留正文，`--json` 继续返回完整记录和调用栈。可用数据由各 Watcher 的实际捕获能力决定。
+
+真实 Artisan 在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 读取已存的请求、异常和任务夹具。Pulse Provider 24 项、Telescope Provider 22 项及仓储 14 项通过。格式、严格 Clippy、三语站点构建和六组浏览器检查通过，另一个 Telescope 用例沿用独占 Redis 条件。首轮 Rust 测试发现仓储会以进程主机名替换夹具指定的主机名，复跑按存入的主机名验收。证据为 `target/tmp/observability-parity/telescope-show-primary-{upstream,macos-baseline,macos-final,macos-retry,docs}.log`。 [固定 ShowCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ShowCommand.php#L128-L216)
+
 ### RequestWatcher 的请求完成字段
 
 对账请求详情发现，固定 `RequestWatcher` 在请求结束时记录客户端 IP、会话数据和 PHP 分配器峰值。当前原生条目缺少这三项。客户端地址待复用框架的可信代理解析，会话待核对真实 HTTP 路径和脱敏。并发 Rust 进程中的全进程内存峰值不能直接当作单请求内存，需单列度量边界。 [固定 RequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L41-L62)

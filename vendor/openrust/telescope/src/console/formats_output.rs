@@ -1,3 +1,5 @@
+mod entry_details;
+
 use crate::{EntryResult, EntryType};
 use openrust::{
     console::Output,
@@ -176,11 +178,11 @@ pub(super) fn show(
     kinds: &[EntryType],
     full: bool,
 ) {
-    output.info(&format!(
-        "{}: {}",
-        entry.r#type.as_str(),
-        summary(entry, full)
-    ));
+    let heading = entry_details::heading(entry);
+    let structured = heading.is_some();
+    let heading =
+        heading.unwrap_or_else(|| format!("{}: {}", entry.r#type.as_str(), summary(entry, full)));
+    output.info(&single_line(&heading));
     output.stdout.push_str(&format!(
         "UUID\t{}\nTime\t{}\nBatch\t{}\n",
         entry.id, entry.created_at, entry.batch_id
@@ -190,7 +192,9 @@ pub(super) fn show(
             .stdout
             .push_str(&format!("Tags\t{}\n", entry.tags.join(", ")));
     }
-    if let Some(content) = entry.content.as_object() {
+    if structured {
+        entry_details::render(output, entry, full);
+    } else if let Some(content) = entry.content.as_object() {
         for (key, value) in content {
             if value.is_null() {
                 continue;
