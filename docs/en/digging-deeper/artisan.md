@@ -213,6 +213,35 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 Start a Worker for the selected destination with `./artisan queue:work redis --queue=commands`. The payload stores the command name and UTF-8 argument tokens as JSON. The Worker resolves the command in its own application, discards its console output and acknowledges a returned exit code, including a nonzero code. Return a `ConsoleError` from the command to use normal queue retries and failure recording.
 
+#### Named arguments for queued commands {#queue-named-commands}
+
+Use `Artisan::queue_named` for named, array and Boolean inputs. At dispatch, Artisan resolves the registered definition and encodes the supplied parameters as the same CLI tokens that the Worker already consumes. Unknown parameter names are reported before dispatch.
+
+For a Redis destination, call `queue_report("redis")` and run `./artisan queue:work redis --queue=commands`. The command is resolved again against the Worker’s application when the job runs.
+
+```rust
+use openrust::{
+    queue::{DispatchResult, QueueResult},
+    support::facades::Artisan,
+};
+use serde_json::json;
+
+async fn queue_report(connection: &str) -> QueueResult<DispatchResult> {
+    Artisan::queue_named(
+        "reports:deliver",
+        &[
+            ("user", json!("Ada Lovelace")),
+            ("--id", json!([5, 13])),
+            ("--urgent", json!(false)),
+        ],
+    )
+    .on_connection(connection)
+    .on_queue("commands")
+    .dispatch()
+    .await
+}
+```
+
 ## Calling Commands From Other Commands {#calling-commands-from-other-commands}
 
 Use `CommandIo::call` to run a child command with the parent’s current output. Use `call_named` for named arguments, or `call_silently` to discard the child output and keep its exit code. The call inherits the parent’s ANSI, interaction, quiet and verbosity options. Explicit child options take precedence.

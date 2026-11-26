@@ -111,16 +111,37 @@ pub(crate) async fn call_with_output(
     result.and_then(|code| replay.map(|()| code))
 }
 
+fn current_kernel() -> Result<Kernel, ConsoleError> {
+    let shared = facades::current_container()
+        .and_then(|container| container.make::<ConsoleApplication>().ok())
+        .and_then(|application| application.application.upgrade())
+        .ok_or_else(|| ConsoleError::new("No active Artisan application."))?;
+    Ok(Kernel::for_artisan(Application { shared }))
+}
+
+pub(crate) async fn queued_named_tokens(
+    command: &str,
+    arguments: &[(&str, serde_json::Value)],
+) -> Result<Vec<OsString>, ConsoleError> {
+    let mut kernel = current_kernel()?;
+    facades::scope(kernel.application.container_handle(), async {
+        kernel
+            .bootstrap_with_environment(None)
+            .await
+            .map_err(ConsoleError::from_source)?;
+        kernel
+            .artisan
+            .tokens_for_named_arguments(&kernel.application, command, arguments)
+    })
+    .await
+}
+
 pub(crate) async fn call_in_application(
     command: CommandTarget<'_>,
     arguments: crate::console::command_arguments::CommandArguments<'_>,
     output: &mut Output,
 ) -> Result<i32, ConsoleError> {
-    let shared = facades::current_container()
-        .and_then(|container| container.make::<ConsoleApplication>().ok())
-        .and_then(|application| application.application.upgrade())
-        .ok_or_else(|| ConsoleError::new("No active Artisan application."))?;
-    let mut kernel = Kernel::for_artisan(Application { shared });
+    let mut kernel = current_kernel()?;
     facades::scope(kernel.application.container_handle(), async {
         kernel
             .bootstrap_with_environment(None)

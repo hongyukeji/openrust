@@ -1,0 +1,39 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "Artisan": [
+      "queue",
+      "queue_named"
+    ],
+    "PendingCommandDispatch": [
+      "on_connection",
+      "on_queue",
+      "dispatch"
+    ]
+  },
+  "source_oracle": [
+    "artisan-queue-named-oracle.json"
+  ],
+  "runtime": {
+    "source_queue_cases": 2,
+    "framework_parent_tests": 47,
+    "queue_acceptance_parent": 1,
+    "http_requests": 12,
+    "worker_processes": 12,
+    "migration_processes": 3,
+    "formal_document_consumers": 243,
+    "browser_checks": 12,
+    "backends": [
+      "SQLite",
+      "MySQL 8.4.13",
+      "PostgreSQL 18.7",
+      "Redis 8.10.3"
+    ]
+  },
+  "decisions": [
+    "排队前依据已注册定义校验并编码具名值，序列化保持既有 UTF-8 令牌载荷，Worker 复用现有命令执行与选项校验。",
+    "源固定器由真实 Console Application 执行 QueuedCommand，核对连接、队列和 0／7 退出码；实际独立 Worker 由原生四后端验收。"
+  ],
+  "remaining": []
+}

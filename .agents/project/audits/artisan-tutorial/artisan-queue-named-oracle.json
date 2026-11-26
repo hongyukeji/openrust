@@ -1,0 +1,33 @@
+[
+    {
+        "connection": "selected",
+        "queue": "artisan-named",
+        "display": "dispatch:report",
+        "worker_return": null,
+        "command_status": 0,
+        "observed": {
+            "user": "Ada Lovelace",
+            "urgent": false,
+            "id": [
+                "5",
+                "13"
+            ],
+            "queue": "default"
+        }
+    },
+    {
+        "connection": "selected",
+        "queue": "artisan-named",
+        "display": "dispatch:report",
+        "worker_return": null,
+        "command_status": 7,
+        "observed": {
+            "user": "Léa",
+            "urgent": true,
+            "id": [
+                "7"
+            ],
+            "queue": "default"
+        }
+    }
+]

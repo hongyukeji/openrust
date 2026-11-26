@@ -825,6 +825,14 @@ impl Artisan {
         foundation::console::PendingQueuedCommand::new(command, arguments)
     }
 
+    /// 按注册定义编码具名参数，然后以现有命令队列格式派发。
+    pub fn queue_named(
+        command: &str,
+        arguments: &[(&str, serde_json::Value)],
+    ) -> foundation::console::PendingQueuedCommand {
+        foundation::console::PendingQueuedCommand::named(command, arguments)
+    }
+
     pub fn command(
         signature: &'static str,
         callback: impl Fn(&mut Output) + Send + Sync + 'static,

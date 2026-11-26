@@ -1,0 +1,46 @@
+{
+  "base": "dc76917f69ff748a8aaf0f68c89377db232f9f78",
+  "contract": "artisan-queue-named-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.51s",
+    "test result: ok. 243 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.11s"
+  ],
+  "runtime": {
+    "source_queue_cases": 2,
+    "framework_parent_tests": 47,
+    "queue_acceptance_parent": 1,
+    "http_requests": 12,
+    "worker_processes": 12,
+    "migration_processes": 3,
+    "formal_document_consumers": 243,
+    "browser_checks": 12,
+    "backends": [
+      "SQLite",
+      "MySQL 8.4.13",
+      "PostgreSQL 18.7",
+      "Redis 8.10.3"
+    ]
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-backends-final.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-source.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-queue-named-source-first.log"
+  ],
+  "unaccepted_attempts": [
+    "固定源码夹具首轮缺少枚举辅助函数，补载入后复验实际源码。"
+  ],
+  "remaining": [],
+  "pushed": false
+}

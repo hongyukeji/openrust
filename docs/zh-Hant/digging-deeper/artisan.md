@@ -213,6 +213,35 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 用 `./artisan queue:work redis --queue=commands` 啟動對應的 Worker。工作資料以 JSON 儲存命令名稱和 UTF-8 引數。Worker 在自身應用程式內解析命令，捨棄主控台輸出，並確認正常傳回的工作，即使結束代碼非零。需要使用佇列重試和失敗記錄時，在命令中回傳 `ConsoleError`。
 
+#### 排隊命令的具名參數 {#queue-named-commands}
+
+命令需要具名、陣列或布林值時，使用 `Artisan::queue_named`。派送時 Artisan 解析註冊定義，將參數編碼成 Worker 已使用的 CLI 權杖。未知參數名稱會在派送前回傳錯誤。
+
+選用 Redis 時，呼叫 `queue_report("redis")`，然後執行 `./artisan queue:work redis --queue=commands`。工作執行時，Worker 依自己的應用程式重新解析命令。
+
+```rust
+use openrust::{
+    queue::{DispatchResult, QueueResult},
+    support::facades::Artisan,
+};
+use serde_json::json;
+
+async fn queue_report(connection: &str) -> QueueResult<DispatchResult> {
+    Artisan::queue_named(
+        "reports:deliver",
+        &[
+            ("user", json!("Ada Lovelace")),
+            ("--id", json!([5, 13])),
+            ("--urgent", json!(false)),
+        ],
+    )
+    .on_connection(connection)
+    .on_queue("commands")
+    .dispatch()
+    .await
+}
+```
+
 ## 從其他命令呼叫 {#calling-commands-from-other-commands}
 
 用 `CommandIo::call` 在父命令目前輸出中執行子命令。具名參數可用 `call_named`。用 `call_silently` 捨棄子命令輸出並保留結束代碼。呼叫繼承父命令的 ANSI、互動、安靜及詳細程度選項。子命令明確選項優先。

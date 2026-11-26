@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     bus::Bus,
@@ -15,15 +16,33 @@ use crate::{
 #[must_use = "dispatch the command to enqueue it"]
 pub struct PendingQueuedCommand {
     command: String,
-    arguments: Vec<OsString>,
+    arguments: PendingArguments,
     options: DispatchOptions,
+}
+
+enum PendingArguments {
+    Tokens(Vec<OsString>),
+    Named(Vec<(String, Value)>),
 }
 
 impl PendingQueuedCommand {
     pub(crate) fn new(command: &str, arguments: &[OsString]) -> Self {
         Self {
             command: command.into(),
-            arguments: arguments.to_vec(),
+            arguments: PendingArguments::Tokens(arguments.to_vec()),
+            options: DispatchOptions::default(),
+        }
+    }
+
+    pub(crate) fn named(command: &str, parameters: &[(&str, Value)]) -> Self {
+        Self {
+            command: command.into(),
+            arguments: PendingArguments::Named(
+                parameters
+                    .iter()
+                    .map(|(name, value)| ((*name).to_owned(), value.clone()))
+                    .collect(),
+            ),
             options: DispatchOptions::default(),
         }
     }
@@ -39,8 +58,21 @@ impl PendingQueuedCommand {
     }
 
     pub async fn dispatch(self) -> QueueResult<DispatchResult> {
-        let arguments = self
-            .arguments
+        let arguments = match self.arguments {
+            PendingArguments::Tokens(arguments) => arguments,
+            PendingArguments::Named(mut arguments) => {
+                let parameters = arguments
+                    .iter_mut()
+                    .map(|(name, value)| (name.as_str(), std::mem::take(value)))
+                    .collect::<Vec<_>>();
+                super::queued_named_tokens(&self.command, &parameters)
+                    .await
+                    .map_err(|source| QueueError::Execution {
+                        source: std::sync::Arc::new(source),
+                    })?
+            }
+        };
+        let arguments = arguments
             .into_iter()
             .map(|argument| {
                 argument

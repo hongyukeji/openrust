@@ -510,8 +510,13 @@
     },
     {
       "anchor": "queueing-artisan-commands",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-queue-named-contracts.json",
+        "accepted-artisan-queue-named.json",
+        "console_artisan_queued_call",
+        "formal_queued_artisan_arguments_example"
+      ]
     },
     {
       "anchor": "calling-commands-from-other-commands",
@@ -866,5 +871,10 @@
       "命令嵌套的跨层事件顺序作为 Events 章节另行核对。",
       "任意外部原生流可通过应用自定义 AsOutput 绑定现有 Output；未声称 PHP 任意子类的同步逐次写入机制适用于 Rust 的分区缓冲。"
     ]
+  },
+  "artisan_queued_calls": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-queue-named-contracts.json",
+    "remaining": []
   }
 }

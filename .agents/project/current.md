@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第82簇队列命令已验，目前 34／48 节通过，继续核对信号处理。见[验收契约](audits/artisan-tutorial/artisan-queue-named-contracts.json)。
+
 - Artisan 第81簇程序调用与嵌套输出已验，继续队列命令与信号。见[验收契约](audits/artisan-tutorial/artisan-nested-call-contracts.json)。
 
 - Artisan 第80簇具名数组、布尔与字符串参数已验，继续程序输出和嵌套。见[验收契约](audits/artisan-tutorial/artisan-call-arguments-contracts.json)。

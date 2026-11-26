@@ -609,6 +609,19 @@ impl Application {
         .await
     }
 
+    pub(crate) fn tokens_for_named_arguments(
+        &self,
+        application: &FoundationApplication,
+        command: &str,
+        values: &[(&str, serde_json::Value)],
+    ) -> Result<Vec<OsString>, ConsoleError> {
+        let name = self.resolve(command)?;
+        let mut parser = self.parsing_syntax(application.version());
+        parser.build();
+        let definition = parser.find_subcommand(name).expect("已解析的命令存在");
+        super::command_arguments::named_arguments(definition, values)
+    }
+
     pub(crate) async fn call_arguments(
         &self,
         application: &FoundationApplication,
@@ -621,10 +634,7 @@ impl Application {
         let arguments = match arguments {
             super::command_arguments::CommandArguments::Tokens(tokens) => tokens,
             super::command_arguments::CommandArguments::Named(values) => {
-                let mut parser = self.parsing_syntax(application.version());
-                parser.build();
-                let definition = parser.find_subcommand(name).expect("已解析的命令存在");
-                prepared = super::command_arguments::named_arguments(definition, values)?;
+                prepared = self.tokens_for_named_arguments(application, name, values)?;
                 &prepared
             }
         };

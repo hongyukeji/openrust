@@ -524,6 +524,49 @@ async fn formal_nested_commands_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_nested_calls{\n'+nested_calls_snippet+nested_calls_checks+'}\n')
 
+    queue_named_snippet=re.search(r'```rust\n(.*?)```',text.split('{#queue-named-commands}',1)[1],re.S).group(1)
+    queue_named_checks=r'''
+use openrust::{
+    config::{ConfigError,Environment},
+    console::{AsyncCommandCallback,ConsoleError},
+    contracts::foundation::Application as _,
+    foundation::{Application, configuration::Routing},
+    support::facades::{App, Facade as _},
+};
+fn register() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:deliver {user} {--id=*} {--urgent}", AsyncCommandCallback::new(|app,input,_| {
+        Box::pin(async move {
+            let data=json!({"user":input.argument("user"),"id":input.option("id"),"urgent":input.option("urgent")});
+            std::fs::write(app.base_path().join("queue.json"),data.to_string())
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+fn configure(_: &std::path::Path, _: &Environment)
+    -> Result<std::collections::BTreeMap<String,serde_json::Value>,ConfigError> {
+    Ok(std::collections::BTreeMap::from([
+        ("queue".into(),json!({"default":"sync","connections":{"sync":{"driver":"sync"}}}))
+    ]))
+}
+#[tokio::test]
+async fn formal_queued_artisan_arguments_example() {
+    let root = std::env::temp_dir().join(format!("artisan-queue-named-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = Application::configure(root.clone()).with_config(configure)
+        .with_routing(Routing::default().commands(register)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        queue_report("sync").await.unwrap();
+        let data:serde_json::Value=serde_json::from_slice(&std::fs::read(root.join("queue.json")).unwrap()).unwrap();
+        assert_eq!(data,json!({"user":"Ada Lovelace","id":["5","13"],"urgent":false}));
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_queue_named{\n'+queue_named_snippet+queue_named_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')
