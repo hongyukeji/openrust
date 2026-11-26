@@ -194,13 +194,13 @@ GW-03 参考 [TokenHub 的统一入口和模型协议矩阵](https://cloud.tence
 
 ### OpenRust 自定义 AI 路由前缀
 
-`config/ai.rs` 的 `ai.route_prefix` 配置 OpenRust 自定义 AI HTTP 路由的挂载前缀，默认 `/ai`。可用环境变量 `AI_ROUTE_PREFIX` 覆盖，例如 `/api/ai`。复用现有 ServiceProvider 与路由组，只在相关功能启用时注册对应入口。前缀随首个自定义入口交付，具体端点按其功能批次确定。
+`config/ai.rs` 的 `ai.route_prefix` 配置 OpenRust 自定义 AI HTTP 路由的完整挂载前缀，默认 `/ai`。`AI_ROUTE_PREFIX=/api/ai` 直接挂载到 `/api/ai`。复用现有 ServiceProvider 与路由组，在注册时应用该值一次，避免再叠加应用的 `/api` 前缀。只在相关功能启用时注册对应入口。前缀随首个自定义入口交付，具体端点按其功能批次确定。
 
 配置仅作用于 OpenRust 自定义入口。E07 保留的外部协议兼容路由沿用现有路径和启用条件，包括 `/v1`、`/v1beta`、`/backend-api/codex`、`/v1/usage` 以及可选的无版本别名。
 
 移除 `GET /v1/sub2api/billing` 的路由注册、专用响应及 `sub2api.key_billing` 标识，同步清理 `zh-Hans`、`zh-Hant`、`en` 开发者文档中的该接口说明。GW-05 通过 `route:list` 和 HTTP 验证该入口已移除，并核对 `/v1/usage` 等保留路径及 OpenRust 自有的计量、计费与对账行为。已有 Sub2API 联调记录及上游参考链接作为历史证据保留。
 
-GW-05 用 `route:list` 和真实 HTTP 验证默认挂载、环境变量覆盖和配置缓存。覆盖后，自定义入口仅在新路径可访问，鉴权与中间件继续生效。对比修改前后的兼容路由与实际调用，确认路径、启用条件和响应契约一致。
+GW-05 用 `route:list` 和真实 HTTP 验证默认 `/ai` 挂载、`AI_ROUTE_PREFIX=/api/ai` 覆盖及配置缓存。覆盖后，路由表只注册 `/api/ai/…` 的自定义入口，并用 HTTP 验证旧 `/ai/…` 和误拼的 `/api/api/ai/…` 均未暴露该入口。鉴权与中间件继续生效。对比两种配置下的外部协议兼容路由与实际调用，确认路径、启用条件和响应契约一致。
 
 ### 模型配置、发现与发布
 
