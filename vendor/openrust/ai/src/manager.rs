@@ -207,6 +207,10 @@ impl AiManager {
         Ok(provider)
     }
 
+    pub(crate) fn embedding_cache_config(&self) -> Option<Value> {
+        self.config.get("ai.caching.embeddings")
+    }
+
     pub fn embedding_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {
         let default = if name.is_none() {
             match self.config.get("ai.default_for_embeddings") {

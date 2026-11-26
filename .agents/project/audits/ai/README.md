@@ -127,3 +127,9 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 固定 `HasMiddleware::middleware` 在 Rust 普通 Agent 契约上由 `Agent::middleware` 装配，匿名 Agent 提供 `with_middleware`。复用框架异步 Pipeline；中间件可以读取 `PendingStep` 的编号、模型、历史、累积用量和调用 ID，在本步修改模型、指令、历史或筛选工具，再调用 `NextStep::run` 继续并处理结果。实际执行核对本步启用的应用工具，即使上游仍返回被禁用的工具，也只记录失败。HTTP Kernel 加本地上游验收三步修改、上下文与工具约束。
 
 `make:agent-middleware` 生成到 `app/ai/middleware`，Agent 中间件模板加到 `ai-stubs`。独立 Artisan 验证生成、发布及生成文件编译后的真实调用。流式入口在配置中间件时显式返回未支持错误。Agent Fake 中间件、Provider 选项编辑及流式步骤待后续批次。
+
+## AI-05 Embeddings 缓存
+
+固定 `PendingEmbeddingsGeneration::cache` 的禁用、启用、有效期、指定 Cache Store 和整批／逐条两种模式均进入正常 SDK 入口。逐条命中只请求缺失输入并恢复原顺序，重复输入保持原位置。全命中没有上游用量，部分命中只记录实际调用量。缓存键覆盖具名连接、端点、凭证摘要、模型与维度，按需连接重建时不会复用其他连接的结果；自定义驱动可提供缓存隔离标识。
+
+HTTP Kernel 和 TCP 上游覆盖全命中、部分命中、顺序、重复输入、按调用关闭、整批与按需连接重建。独立 Artisan 与 HTTP 进程共享 File、Redis 8、SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 的真实缓存，验证同一个模型只收到初始批次和缺失输入。Embeddings Fake、队列、附件输入与数据库向量检索仍待各自批次。

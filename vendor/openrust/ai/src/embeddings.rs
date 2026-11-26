@@ -4,7 +4,12 @@ use async_openai::types::embeddings::{CreateEmbeddingRequest, EmbeddingInput, En
 use openrust::http::{HttpFuture, client::Response};
 use serde::{Deserialize, Serialize};
 
-use crate::{Ai, AiError, AiResult, TextEndpoint, Usage, connection::Connection, text::validate};
+use crate::{
+    Ai, AiError, AiResult, TextEndpoint, Usage,
+    connection::Connection,
+    embedding_cache::{CacheOverride, EmbeddingCache},
+    text::validate,
+};
 
 pub struct Embeddings;
 
@@ -20,6 +25,7 @@ impl Embeddings {
             inputs,
             dimensions: None,
             timeout: Duration::from_secs(30),
+            cache: None,
         })
     }
 }
@@ -28,9 +34,23 @@ pub struct PendingEmbeddingsGeneration {
     inputs: Vec<String>,
     dimensions: Option<usize>,
     timeout: Duration,
+    cache: Option<CacheOverride>,
 }
 
 impl PendingEmbeddingsGeneration {
+    pub fn cache(mut self, seconds: Option<i64>, individually: Option<bool>) -> Self {
+        let individually = if seconds.is_some_and(|seconds| seconds <= 0) {
+            None
+        } else {
+            individually.or_else(|| self.cache.as_ref().and_then(|cache| cache.individually))
+        };
+        self.cache = Some(CacheOverride {
+            seconds,
+            individually,
+        });
+        self
+    }
+
     pub fn dimensions(mut self, dimensions: usize) -> Self {
         self.dimensions = Some(dimensions);
         self
@@ -55,25 +75,33 @@ impl PendingEmbeddingsGeneration {
                 "embeddings 维度与超时必须大于零",
             ));
         }
-        let provider = Ai::embedding_provider(provider)?;
+        let manager = Ai::manager()?;
+        let provider = manager.embedding_provider(provider)?;
         let model = match model {
             Some(model) if !model.trim().is_empty() => model,
             Some(_) => return Err(AiError::MissingModel),
             None => provider.default_embeddings_model()?,
         };
-        provider
-            .embeddings(EmbeddingsPrompt {
-                inputs: &self.inputs,
-                model,
-                dimensions: self
-                    .dimensions
-                    .or_else(|| provider.default_embeddings_dimensions()),
-                timeout: self.timeout,
-            })
-            .await
+        let prompt = EmbeddingsPrompt {
+            inputs: &self.inputs,
+            model,
+            dimensions: self
+                .dimensions
+                .or_else(|| provider.default_embeddings_dimensions()),
+            timeout: self.timeout,
+        };
+        if let Some(cache) = EmbeddingCache::resolve(
+            manager.embedding_cache_config(),
+            self.cache,
+            provider.as_ref(),
+        )? {
+            return cache.generate(provider.as_ref(), prompt).await;
+        }
+        provider.embeddings(prompt).await
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct EmbeddingsPrompt<'a> {
     pub inputs: &'a [String],
     pub model: &'a str,
@@ -99,6 +127,12 @@ pub trait EmbeddingProvider: Send + Sync {
     fn name(&self) -> &str;
     fn default_embeddings_model(&self) -> AiResult<&str>;
     fn default_embeddings_dimensions(&self) -> Option<usize>;
+
+    /// 由驱动提供连接隔离标识。返回 None 时仅调用上游。
+    fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {
+        Ok(None)
+    }
+
     fn embeddings<'a>(
         &'a self,
         prompt: EmbeddingsPrompt<'a>,
@@ -118,6 +152,12 @@ impl EmbeddingProvider for OpenAiEmbeddingProvider {
 
     fn default_embeddings_dimensions(&self) -> Option<usize> {
         self.0.default_embeddings_dimensions()
+    }
+
+    fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {
+        self.0
+            .embeddings_cache_namespace("openai-embeddings")
+            .map(Some)
     }
 
     fn embeddings<'a>(

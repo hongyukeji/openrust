@@ -31,7 +31,8 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "embeddings": {
                 "cache": false,
                 "store": env.get_utf8("CACHE_STORE")?.unwrap_or("database"),
-                "individually": true
+                "individually": true,
+                "seconds": 2592000
             }
         },
         "providers": {

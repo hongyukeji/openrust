@@ -6,6 +6,7 @@ use openrust::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::{
     AiError, AiResult, ModelCatalog, TextEndpoint, models::ListedModel, text::transport_error,
@@ -123,13 +124,7 @@ impl Connection {
                     .map_err(|_| AiError::InvalidConfiguration("providers.<name>.version"))?,
             );
         }
-        if let Some(key) = &self.config.key_env {
-            let token = self
-                .environment
-                .get_utf8(key)
-                .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?
-                .filter(|token| !token.trim().is_empty())
-                .ok_or(AiError::MissingCredential)?;
+        if let Some(token) = self.credential()? {
             request = match self.authorization {
                 Authorization::Bearer => request.with_token(token),
                 Authorization::Anthropic | Authorization::Gemini => request.with_header(
@@ -147,6 +142,29 @@ impl Connection {
             };
         }
         Ok(request)
+    }
+
+    fn credential(&self) -> AiResult<Option<&str>> {
+        self.config
+            .key_env
+            .as_ref()
+            .map(|key| {
+                self.environment
+                    .get_utf8(key)
+                    .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?
+                    .filter(|token| !token.trim().is_empty())
+                    .ok_or(AiError::MissingCredential)
+            })
+            .transpose()
+    }
+
+    pub(crate) fn embeddings_cache_namespace(&self, protocol: &str) -> AiResult<String> {
+        let credential = self
+            .credential()?
+            .map(|token| format!("{:x}", Sha256::digest(token)));
+        let identity = serde_json::to_vec(&(self.name(), &self.config.url, protocol, credential))
+            .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+        Ok(format!("{:x}", Sha256::digest(identity)))
     }
 
     pub(crate) fn name(&self) -> &str {

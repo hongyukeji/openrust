@@ -16,6 +16,7 @@ mod anthropic;
 mod configuration;
 mod connection;
 mod console;
+mod embedding_cache;
 mod embeddings;
 mod error;
 mod facade;
