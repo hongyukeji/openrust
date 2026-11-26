@@ -15,3 +15,7 @@
 PE 核对正式入口 `main.exe` 预留 16 MiB 主线程栈。首次通用测试二进制预留 1 MiB，出站 Worker 实际溢出。单独装箱运输 Future 后复现了同一问题，撤回该尝试。原源码使用 `cargo rustc --test webhooks_app -- -C link-arg=/STACK:16777216` 复现正式入口的栈设置，核对 PE 后完整往返通过。临时启动脚本改用夹具要求的 `WEBHOOK_HTTP` 和 TCP 就绪检测。按请求的 JSON 类型提供合法 JSON 后，记录收到的原文以逐字节比较。
 
 本项覆盖 Windows ARM64 虚机中的原生程序。Windows x86_64 实机、Docker Desktop 和正式制品仍按发布环境验收。运行结束后删除本批隔离应用目录。
+
+### 默认测试构建复验
+
+将栈设置收敛到 Webhook 验收程序的 Windows MSVC 入口。测试在预留 16 MiB 的线程启动现有单线程 Tokio 运行时。从同一隔离源码叠加该入口改动，使用 Rust 1.94.0 和普通的 `cargo test --locked --offline --features webhook-client,webhook-server --test webhooks_app --no-run` 在 Windows 11 ARM64 复验。无栈相关的环境变量和命令行链接参数，PE 主线程仍预留 1 MiB。Artisan 迁移、配置与路由缓存、真实 HTTP 登记、独立发件及收件 Worker、原文比较和投递查询全部通过。删除隔离 SQLite 应用目录，日志保存在 `target/tmp/webhook-windows-test-stack/`。

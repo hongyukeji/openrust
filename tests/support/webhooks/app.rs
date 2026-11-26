@@ -1676,8 +1676,24 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             ),
     ))))
 }
+#[cfg(all(windows, target_env = "msvc"))]
+fn main() -> ExitCode {
+    // Cargo 的测试入口未使用正式 main.exe 的 MSVC 栈设置。
+    std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(run)
+        .expect("启动 Webhook 验收线程失败")
+        .join()
+        .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+}
+
+#[cfg(not(all(windows, target_env = "msvc")))]
+fn main() -> ExitCode {
+    run()
+}
+
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> ExitCode {
+async fn run() -> ExitCode {
     if std::env::args_os().nth(1).is_none() && std::env::var_os("WEBHOOK_HTTP").is_none() {
         return ExitCode::SUCCESS;
     }
