@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_standalone_style_property_replacement_and_merge",
+  "bindings": {
+    "TerminalStyles": [
+      "get_properties",
+      "set_properties",
+      "with",
+      "flex1"
+    ]
+  },
+  "source_oracle": "terminal-style-properties-oracle.json",
+  "runtime": {
+    "source_detached_property_cases": 25,
+    "framework_targets": 13,
+    "framework_parent_tests": 48,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 210,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "属性键保留固定格式语义。独立样式显式持有属性映射，默认 HTML 渲染路径不建立属性快照。",
+    "替换完整属性不清除独立文本和样式修饰器。每个渲染属性从同一快照同步到现有布局。",
+    "递归合并保持对象键与数组索引，空数组保留现有内容。超链接读取合并后的最后项，布尔属性沿用现有值判断。",
+    "格式所需的缺失键及非整列数返回明确错误。超出安全范围的列宽不会覆盖已有原生样式。",
+    "固定采集含额外25个附着元素场景，保留证据，未计为本批通过。"
+  ],
+  "remaining": [
+    "附着元素关联后读取／设置／继承属性、动态方法转发、完整自定义修饰器及隐式尺寸。",
+    "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
+  ]
+}

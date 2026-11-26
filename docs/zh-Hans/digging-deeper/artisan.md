@@ -2593,3 +2593,37 @@ fn register_standalone_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 独立样式属性 {#terminal-style-properties}
+
+`get_properties` 读取独立样式的当前属性。`with` 递归替换给定的键和数组位置。传入空数组会保留已有项。`set_properties` 替换整个属性映射，同时保留文本修饰器。
+
+属性保留格式化使用的键，包括 `isFirstChild`、`colors`、`options` 和 `styles`。默认样式已包含 `isFirstChild`。替换整个属性映射后若要格式化文本，请同时提供这个键。
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::TerminalStyles,
+};
+use openrust::support::facades::Artisan;
+use serde_json::{Map, json};
+
+fn register_style_properties() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:style-properties", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut styles = TerminalStyles::new();
+            styles.with(Map::from_iter([
+                ("styles".into(), json!({ "ml": 2 })),
+                ("colors".into(), json!({ "fg": "blue" })),
+            ]))?;
+            styles.with(Map::from_iter([
+                ("colors".into(), json!({ "bg": "white" })),
+            ]))?;
+
+            output.as_output().writeln(&styles.format("Properties ready")?, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

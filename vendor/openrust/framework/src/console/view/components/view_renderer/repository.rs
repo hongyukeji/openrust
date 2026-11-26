@@ -192,7 +192,7 @@ impl<'a> TerminalStyles<'a> {
     }
 
     pub fn font_bold(&mut self) -> &mut Self {
-        self.state.get_mut().bold = Some(true);
+        style::font_bold(self.state.get_mut(), true);
         self
     }
 
@@ -304,6 +304,10 @@ impl<'a> TerminalStyles<'a> {
         self.change("hidden", &[])
     }
 
+    pub fn flex1(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("flex1", &[])
+    }
+
     pub fn flex(&mut self) -> Result<&mut Self, ConsoleError> {
         self.change("flex", &[])
     }
@@ -362,6 +366,7 @@ impl TerminalStyles<'static> {
             state: StyleStorage::Owned(Box::new(Style {
                 element: "generic",
                 display: "inline",
+                properties: Some(Box::new(super::properties::defaults())),
                 ..Style::default()
             })),
             repository: None,
@@ -384,13 +389,38 @@ impl TerminalStyles<'static> {
         self
     }
 
+    pub fn get_properties(&self) -> &serde_json::Map<String, serde_json::Value> {
+        self.state
+            .get()
+            .properties
+            .as_deref()
+            .expect("独立样式始终拥有属性")
+    }
+
+    pub fn set_properties(
+        &mut self,
+        properties: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<&mut Self, ConsoleError> {
+        super::properties::set(self.state.get_mut(), properties)?;
+        Ok(self)
+    }
+
+    pub fn with(
+        &mut self,
+        properties: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<&mut Self, ConsoleError> {
+        let mut current = self.get_properties().clone();
+        super::properties::merge(&mut current, properties)?;
+        self.set_properties(current)
+    }
+
     pub fn format(&self, content: &str) -> Result<String, ConsoleError> {
         style::format(
             content.to_owned(),
             self.state.get(),
             &None,
             Terminal::new().get_width(),
-            false,
+            super::properties::format_first(self.get_properties())?,
             [0; 2],
         )
     }

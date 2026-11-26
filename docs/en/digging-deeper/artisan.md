@@ -2593,3 +2593,37 @@ fn register_standalone_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Standalone style properties {#terminal-style-properties}
+
+`get_properties` reads the current values of standalone styles. `with` recursively replaces supplied keys and array positions. Existing items remain when an update supplies an empty array. `set_properties` replaces the complete map and leaves text modifiers in place.
+
+The map retains the formatting keys, including `isFirstChild`, `colors`, `options`, and `styles`. The default style includes `isFirstChild`. Supply this key when replacing the entire map if the result will be formatted.
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::TerminalStyles,
+};
+use openrust::support::facades::Artisan;
+use serde_json::{Map, json};
+
+fn register_style_properties() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:style-properties", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut styles = TerminalStyles::new();
+            styles.with(Map::from_iter([
+                ("styles".into(), json!({ "ml": 2 })),
+                ("colors".into(), json!({ "fg": "blue" })),
+            ]))?;
+            styles.with(Map::from_iter([
+                ("colors".into(), json!({ "bg": "white" })),
+            ]))?;
+
+            output.as_output().writeln(&styles.format("Properties ready")?, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

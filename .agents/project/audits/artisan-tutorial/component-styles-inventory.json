@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "standalone_style_and_dimensions_verified_properties_attachment_pending",
+  "status": "standalone_style_properties_verified_attached_element_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -14,7 +14,8 @@
     "style-repository-contracts.json",
     "terminal-style-methods-contracts.json",
     "terminal-element-contracts.json",
-    "standalone-terminal-styles-contracts.json"
+    "standalone-terminal-styles-contracts.json",
+    "terminal-style-properties-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1404,7 +1405,11 @@
       "format",
       "get_length",
       "get_inner_width",
-      "get_parent_width"
+      "get_parent_width",
+      "get_properties",
+      "set_properties",
+      "with",
+      "flex1"
     ],
     "TerminalElement": [
       "new",

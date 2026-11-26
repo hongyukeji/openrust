@@ -916,3 +916,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 51 个独立样式场景和 39 个祖先宽度场景逐项对照固定 2.3.3。独立样式复用原格式化与尺寸计算，区分默认类存储和应用，保持自定义样式、终端宽度、Unicode 及标签处理。明确 Rust 独立样式使用拥有的状态、元素侧继续使用短借用。祖先约束采用类型化输入并按固定顺序处理。样式属性、关联和动态入口继续。
 
 45 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、207 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。见 standalone-terminal-styles-contracts.json 与 accepted-standalone-terminal-styles.json。
+
+
+## 69. 独立样式属性替换与合并
+
+固定 2.3.3 的25个独立属性场景比较每一步快照和最终渲染。覆盖完整替换、递归合并、空数组、宽度和选项、超链接位置、非法列数及缺失格式键。强类型设置在同一属性映射更新。Rust 保留元素式 CLI 的明确错误及安全深度，默认 HTML 渲染路径不增加属性映射的分配。固定源的另外25个附着元素场景仍开放，未计通过。
+
+48 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、210 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。见 terminal-style-properties-contracts.json 与 accepted-terminal-style-properties.json。

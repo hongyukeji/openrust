@@ -3,7 +3,7 @@ use super::super::display::{trim_text, visible_width};
 use super::dimensions::{self, Constraint, Dimension, Dimensions, Target};
 use super::dom::Node;
 use super::{
-    StyleRepository, TerminalStyles, palette,
+    StyleRepository, TerminalStyles, palette, properties,
     style_methods::{self, MethodCall, StyleArgument as Argument},
     style_tokens,
 };
@@ -39,6 +39,7 @@ pub(super) struct Style {
     pub(super) flex: bool,
     pub(super) space: [usize; 2],
     pub(super) href: Option<String>,
+    pub(super) properties: Option<Box<serde_json::Map<String, serde_json::Value>>>,
 }
 fn error(value: &str) -> ConsoleError {
     ConsoleError::new(format!("控制台组件暂不支持此终端样式：{value}"))
@@ -240,8 +241,8 @@ pub(super) fn apply_method(
             s.repeat = Some(value);
             transform(s, "repeat");
         }
-        "fontbold" => s.bold = Some(true),
-        "fontnormal" => s.bold = Some(false),
+        "fontbold" => font_bold(s, true),
+        "fontnormal" => font_bold(s, false),
         "strong" | "italic" | "underline" | "linethrough" | "invisible" => {
             let code = match m.name {
                 "strong" => 1,
@@ -353,7 +354,20 @@ pub(super) fn apply_method(
         }
         _ => return Err(error(expression)),
     }
+    properties::record(s, &m)?;
     Ok(())
+}
+
+pub(super) fn font_bold(style: &mut Style, enabled: bool) {
+    style.bold = Some(enabled);
+    if let Some(properties) = &mut style.properties {
+        properties::set_entry(
+            properties,
+            "options",
+            "bold",
+            serde_json::Value::Bool(enabled),
+        );
+    }
 }
 
 impl Style {
@@ -515,7 +529,9 @@ pub(super) fn format(
             tags.push(format!("{key}={value}"));
         }
     }
-    if let Some(bold) = s.bold {
+    if let Some(properties) = &s.properties {
+        tags.extend(properties::formatted_options(properties));
+    } else if let Some(bold) = s.bold {
         tags.push(if bold { "options=bold" } else { "options=," }.to_owned());
     }
     let wrap = |v: &str| {

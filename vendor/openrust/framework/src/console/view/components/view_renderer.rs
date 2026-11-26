@@ -9,6 +9,7 @@ mod layout;
 mod lists;
 mod palette;
 mod pre;
+mod properties;
 mod repository;
 pub use repository::{StyleRepository, TerminalStyle, TerminalStyles};
 pub use style_methods::StyleArgument;

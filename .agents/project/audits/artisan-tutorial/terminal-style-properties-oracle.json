@@ -1,0 +1,2170 @@
+[
+    {
+        "case": "defaults",
+        "attached": false,
+        "steps": [],
+        "progress": [],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "defaults",
+        "attached": true,
+        "steps": [],
+        "progress": [],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "first-line-string",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": "true",
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": "true",
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": "true",
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "first-line-string",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": "true",
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": "true",
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": "true",
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "first-line-zero",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": "0",
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": "0",
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "\nHello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": "0",
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "first-line-zero",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": "0",
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": "0",
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "\nHello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": "0",
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "margin-string",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "ml": "2",
+                        "mr": "3"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": "2",
+                    "mr": "3"
+                }
+            }
+        ],
+        "markup": null,
+        "error": "TypeError:str_repeat(): Argument #2 ($times) must be of type int, string given",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": "2",
+                "mr": "3"
+            }
+        }
+    },
+    {
+        "case": "margin-string",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "ml": "2",
+                        "mr": "3"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": "2",
+                    "mr": "3"
+                }
+            }
+        ],
+        "markup": null,
+        "error": "TypeError:str_repeat(): Argument #2 ($times) must be of type int, string given",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": "2",
+                "mr": "3"
+            }
+        }
+    },
+    {
+        "case": "href-array-overwrite",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "href": [
+                        "https:\/\/example.test\/first",
+                        "https:\/\/example.test\/second"
+                    ]
+                }
+            ],
+            [
+                "href",
+                "https:\/\/example.test\/update"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/update",
+                    "https:\/\/example.test\/second"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/second>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/update",
+                "https:\/\/example.test\/second"
+            ]
+        }
+    },
+    {
+        "case": "href-array-overwrite",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "href": [
+                        "https:\/\/example.test\/first",
+                        "https:\/\/example.test\/second"
+                    ]
+                }
+            ],
+            [
+                "href",
+                "https:\/\/example.test\/update"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/update",
+                    "https:\/\/example.test\/second"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/second>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/update",
+                "https:\/\/example.test\/second"
+            ]
+        }
+    },
+    {
+        "case": "href-array-empty",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "href": [
+                        "https:\/\/example.test\/first",
+                        "https:\/\/example.test\/second"
+                    ]
+                }
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/second>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/first",
+                "https:\/\/example.test\/second"
+            ]
+        }
+    },
+    {
+        "case": "href-array-empty",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "href": [
+                        "https:\/\/example.test\/first",
+                        "https:\/\/example.test\/second"
+                    ]
+                }
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/first",
+                    "https:\/\/example.test\/second"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/second>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/first",
+                "https:\/\/example.test\/second"
+            ]
+        }
+    },
+    {
+        "case": "first-line",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": true,
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": true,
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "first-line",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "isFirstChild": true,
+                    "styles": {
+                        "display": "block"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": true,
+                "styles": {
+                    "display": "block"
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        }
+    },
+    {
+        "case": "margin-sides",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "ml": 1,
+                        "mr": 2,
+                        "mt": 1,
+                        "mb": 1
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 1,
+                    "mr": 2,
+                    "mt": 1,
+                    "mb": 1
+                }
+            }
+        ],
+        "markup": "\n Hello world  \n",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        }
+    },
+    {
+        "case": "margin-sides",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "ml": 1,
+                        "mr": 2,
+                        "mt": 1,
+                        "mb": 1
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 1,
+                    "mr": 2,
+                    "mt": 1,
+                    "mb": 1
+                }
+            }
+        ],
+        "markup": "\n Hello world  \n",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        }
+    },
+    {
+        "case": "shape-invalid",
+        "attached": false,
+        "steps": [
+            [
+                "setProperties",
+                {
+                    "styles": {
+                        "width": 5
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "styles": {
+                    "width": 5
+                }
+            }
+        ],
+        "markup": null,
+        "error": "ErrorException:Undefined array key \"isFirstChild\"",
+        "properties": {
+            "styles": {
+                "width": 5
+            }
+        }
+    },
+    {
+        "case": "shape-invalid",
+        "attached": true,
+        "steps": [
+            [
+                "setProperties",
+                {
+                    "styles": {
+                        "width": 5
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "styles": {
+                    "width": 5
+                }
+            }
+        ],
+        "markup": null,
+        "error": "ErrorException:Undefined array key \"isFirstChild\"",
+        "properties": {
+            "styles": {
+                "width": 5
+            }
+        }
+    },
+    {
+        "case": "replace-full",
+        "attached": false,
+        "steps": [
+            [
+                "fontBold"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": false,
+                    "colors": {
+                        "fg": "green"
+                    },
+                    "options": []
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": false,
+                "colors": {
+                    "fg": "green"
+                },
+                "options": []
+            }
+        ],
+        "markup": "<fg=green>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "isFirstChild": false,
+            "colors": {
+                "fg": "green"
+            },
+            "options": []
+        }
+    },
+    {
+        "case": "replace-full",
+        "attached": true,
+        "steps": [
+            [
+                "fontBold"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": false,
+                    "colors": {
+                        "fg": "green"
+                    },
+                    "options": []
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": false,
+                "colors": {
+                    "fg": "green"
+                },
+                "options": []
+            }
+        ],
+        "markup": "<fg=green>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "isFirstChild": false,
+            "colors": {
+                "fg": "green"
+            },
+            "options": []
+        }
+    },
+    {
+        "case": "merge-color",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": "red"
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "bg": "blue"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": "red"
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": "red",
+                    "bg": "blue"
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=red;bg=blue>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "red",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-color",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": "red"
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "bg": "blue"
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": "red"
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": "red",
+                    "bg": "blue"
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=red;bg=blue>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "red",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-color-numeric",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "red",
+                            "green"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "yellow"
+                        ]
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": [
+                        "red",
+                        "green"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": [
+                        "yellow",
+                        "green"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=green>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "yellow",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-color-numeric",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "red",
+                            "green"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "yellow"
+                        ]
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": [
+                        "red",
+                        "green"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": [
+                        "yellow",
+                        "green"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=green>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "yellow",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-color-empty",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "red"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": []
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": [
+                        "red"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": [
+                        "red"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=red>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-color-empty",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": [
+                            "red"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "colors": {
+                        "fg": []
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": {
+                    "fg": [
+                        "red"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "colors": {
+                    "fg": [
+                        "red"
+                    ]
+                },
+                "options": [],
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<fg=red>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "merge-unknown",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "extra": {
+                        "number": 7,
+                        "array": [
+                            "old",
+                            "second"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "extra": {
+                        "array": [
+                            "new"
+                        ],
+                        "strict": true
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "extra": {
+                    "number": 7,
+                    "array": [
+                        "old",
+                        "second"
+                    ]
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "extra": {
+                    "number": 7,
+                    "array": [
+                        "new",
+                        "second"
+                    ],
+                    "strict": true
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "extra": {
+                "number": 7,
+                "array": [
+                    "new",
+                    "second"
+                ],
+                "strict": true
+            }
+        }
+    },
+    {
+        "case": "merge-unknown",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "extra": {
+                        "number": 7,
+                        "array": [
+                            "old",
+                            "second"
+                        ]
+                    }
+                }
+            ],
+            [
+                "with",
+                {
+                    "extra": {
+                        "array": [
+                            "new"
+                        ],
+                        "strict": true
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "extra": {
+                    "number": 7,
+                    "array": [
+                        "old",
+                        "second"
+                    ]
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "extra": {
+                    "number": 7,
+                    "array": [
+                        "new",
+                        "second"
+                    ],
+                    "strict": true
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "extra": {
+                "number": 7,
+                "array": [
+                    "new",
+                    "second"
+                ],
+                "strict": true
+            }
+        }
+    },
+    {
+        "case": "merge-overlap",
+        "attached": false,
+        "steps": [
+            [
+                "w",
+                10
+            ],
+            [
+                "with",
+                {
+                    "styles": {
+                        "pl": 1,
+                        "pr": 1
+                    }
+                }
+            ],
+            [
+                "mr",
+                1
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10,
+                    "pl": 1,
+                    "pr": 1
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10,
+                    "pl": 1,
+                    "pr": 1,
+                    "mr": 1
+                }
+            }
+        ],
+        "markup": " Hello wo  ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 10,
+                "pl": 1,
+                "pr": 1,
+                "mr": 1
+            }
+        }
+    },
+    {
+        "case": "merge-overlap",
+        "attached": true,
+        "steps": [
+            [
+                "w",
+                10
+            ],
+            [
+                "with",
+                {
+                    "styles": {
+                        "pl": 1,
+                        "pr": 1
+                    }
+                }
+            ],
+            [
+                "mr",
+                1
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10,
+                    "pl": 1,
+                    "pr": 1
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 10,
+                    "pl": 1,
+                    "pr": 1,
+                    "mr": 1
+                }
+            }
+        ],
+        "markup": " Hello wo  ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 10,
+                "pl": 1,
+                "pr": 1,
+                "mr": 1
+            }
+        }
+    },
+    {
+        "case": "width-auto",
+        "attached": false,
+        "steps": [
+            [
+                "w",
+                9
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 9
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": null
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": null
+            }
+        }
+    },
+    {
+        "case": "width-auto",
+        "attached": true,
+        "steps": [
+            [
+                "w",
+                9
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": 9
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "width": null
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": null
+            }
+        }
+    },
+    {
+        "case": "explicit-zero",
+        "attached": false,
+        "steps": [
+            [
+                "ml",
+                0
+            ],
+            [
+                "mx",
+                0
+            ],
+            [
+                "p",
+                0
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0,
+                    "mr": 0
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0,
+                    "mr": 0,
+                    "pt": 0,
+                    "pr": 0,
+                    "pb": 0,
+                    "pl": 0
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 0,
+                "mr": 0,
+                "pt": 0,
+                "pr": 0,
+                "pb": 0,
+                "pl": 0
+            }
+        }
+    },
+    {
+        "case": "explicit-zero",
+        "attached": true,
+        "steps": [
+            [
+                "ml",
+                0
+            ],
+            [
+                "mx",
+                0
+            ],
+            [
+                "p",
+                0
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0,
+                    "mr": 0
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "ml": 0,
+                    "mr": 0,
+                    "pt": 0,
+                    "pr": 0,
+                    "pb": 0,
+                    "pl": 0
+                }
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 0,
+                "mr": 0,
+                "pt": 0,
+                "pr": 0,
+                "pb": 0,
+                "pl": 0
+            }
+        }
+    },
+    {
+        "case": "font-false",
+        "attached": false,
+        "steps": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": false
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=,>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "font-false",
+        "attached": true,
+        "steps": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": false
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=,>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "font-true",
+        "attached": false,
+        "steps": [
+            [
+                "fontBold"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=bold>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "font-true",
+        "attached": true,
+        "steps": [
+            [
+                "fontBold"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=bold>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "css-options",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "options": {
+                        "bold": true,
+                        "underscore": true,
+                        "reverse": false
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true,
+                    "underscore": true,
+                    "reverse": false
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=bold,underscore>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true,
+                "reverse": false
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "css-options",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "options": {
+                        "bold": true,
+                        "underscore": true,
+                        "reverse": false
+                    }
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true,
+                    "underscore": true,
+                    "reverse": false
+                },
+                "isFirstChild": false
+            }
+        ],
+        "markup": "<options=bold,underscore>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true,
+                "reverse": false
+            },
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "hyperlink",
+        "attached": false,
+        "steps": [
+            [
+                "href",
+                "https:\/\/example.test\/a"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/a"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/a"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/a>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/a"
+            ]
+        }
+    },
+    {
+        "case": "hyperlink",
+        "attached": true,
+        "steps": [
+            [
+                "href",
+                "https:\/\/example.test\/a"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/a"
+                ]
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "href": [
+                    "https:\/\/example.test\/a"
+                ]
+            }
+        ],
+        "markup": "<href=https:\/\/example.test\/a>Hello world<\/>",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "href": [
+                "https:\/\/example.test\/a"
+            ]
+        }
+    },
+    {
+        "case": "flex-width",
+        "attached": false,
+        "steps": [
+            [
+                "flex"
+            ],
+            [
+                "flex1"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex"
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex",
+                    "flex-1": true
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex",
+                    "flex-1": true,
+                    "justifyContent": "center"
+                }
+            }
+        ],
+        "markup": "\nHello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "display": "flex",
+                "flex-1": true,
+                "justifyContent": "center"
+            }
+        }
+    },
+    {
+        "case": "flex-width",
+        "attached": true,
+        "steps": [
+            [
+                "flex"
+            ],
+            [
+                "flex1"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex"
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex",
+                    "flex-1": true
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "display": "flex",
+                    "flex-1": true,
+                    "justifyContent": "center"
+                }
+            }
+        ],
+        "markup": "\nHello world",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "display": "flex",
+                "flex-1": true,
+                "justifyContent": "center"
+            }
+        }
+    },
+    {
+        "case": "trim-and-replace",
+        "attached": false,
+        "steps": [
+            [
+                "truncate",
+                4,
+                "--"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": false
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": false
+            }
+        ],
+        "markup": "He--",
+        "error": null,
+        "properties": {
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "trim-and-replace",
+        "attached": true,
+        "steps": [
+            [
+                "truncate",
+                4,
+                "--"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": false
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": false
+            }
+        ],
+        "markup": "He--",
+        "error": null,
+        "properties": {
+            "isFirstChild": false
+        }
+    },
+    {
+        "case": "padding-update",
+        "attached": false,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "pl": 3,
+                        "pr": 2
+                    }
+                }
+            ],
+            [
+                "px",
+                1
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "pl": 3,
+                    "pr": 2
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "pl": 1,
+                    "pr": 1
+                }
+            }
+        ],
+        "markup": " Hello world ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "pl": 1,
+                "pr": 1
+            }
+        }
+    },
+    {
+        "case": "padding-update",
+        "attached": true,
+        "steps": [
+            [
+                "with",
+                {
+                    "styles": {
+                        "pl": 3,
+                        "pr": 2
+                    }
+                }
+            ],
+            [
+                "px",
+                1
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "pl": 3,
+                    "pr": 2
+                }
+            },
+            {
+                "colors": [],
+                "options": [],
+                "isFirstChild": false,
+                "styles": {
+                    "pl": 1,
+                    "pr": 1
+                }
+            }
+        ],
+        "markup": " Hello world ",
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "pl": 1,
+                "pr": 1
+            }
+        }
+    },
+    {
+        "case": "defaults-preservation",
+        "attached": false,
+        "steps": [
+            [
+                "addStyle",
+                "font-bold"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": true
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": true
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "isFirstChild": true
+        }
+    },
+    {
+        "case": "defaults-preservation",
+        "attached": true,
+        "steps": [
+            [
+                "addStyle",
+                "font-bold"
+            ],
+            [
+                "setProperties",
+                {
+                    "isFirstChild": true
+                }
+            ]
+        ],
+        "progress": [
+            {
+                "colors": [],
+                "options": {
+                    "bold": true
+                },
+                "isFirstChild": false
+            },
+            {
+                "isFirstChild": true
+            }
+        ],
+        "markup": "Hello world",
+        "error": null,
+        "properties": {
+            "isFirstChild": true
+        }
+    }
+]

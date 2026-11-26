@@ -2253,7 +2253,8 @@
     "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open.",
     "66: Typed style mutation entrypoints are verified. Owned style properties, element relationships and additional renderer contracts stay open.",
     "67: Typed element construction, shared styles, content replacement and output are verified. Generic style properties and dynamic methods stay open.",
-    "68: Standalone style construction, defaults and width measurements are verified. Attached-element and generic style property APIs stay open."
+    "68: Standalone style construction, defaults and width measurements are verified. Attached-element and generic style property APIs stay open.",
+    "69: Standalone style property replacement and recursive merging are verified. Attached-element and custom modifiers stay open."
   ],
   "native_adaptations": [
     {
@@ -2984,6 +2985,14 @@
       "max_width",
       "margin",
       "padding"
+    ]
+  },
+  "terminal_style_properties": {
+    "TerminalStyles": [
+      "get_properties",
+      "set_properties",
+      "with",
+      "flex1"
     ]
   }
 }
