@@ -77,6 +77,10 @@ impl Ai {
         Self::manager()?.image_provider(name)
     }
 
+    pub fn file_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::FileProvider>> {
+        Self::manager()?.file_provider(name)
+    }
+
     pub fn fake_classification(
         responses: impl IntoIterator<Item = FakeClassificationResult>,
     ) -> AiResult<Arc<FakeClassificationGateway>> {

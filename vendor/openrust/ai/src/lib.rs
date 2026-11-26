@@ -30,6 +30,7 @@ mod facade;
 mod fake;
 mod fake_embedding_gateway;
 mod fake_reranking_gateway;
+mod files;
 mod gemini;
 mod image;
 mod manager;
@@ -75,6 +76,9 @@ pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
+pub use files::{
+    FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files, ProviderFilePage,
+};
 pub use image::{
     GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,
     ImageUsage, PendingImageGeneration,

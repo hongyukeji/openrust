@@ -243,3 +243,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 独立 HTTP、Artisan、SQLite Worker、模型协议服务和真实 Reverb WebSocket 联测三种方式。通过框架频道授权接口得到订阅签名，未授权请求收到 403，未订阅客户端无事件。超过 Reverb 10 KB 入口限制的中文文本事件仍完整到达 HTTP SSE，前后的正常广播保留，拒绝投递写日志。Worker 对同一调用标识发出完成和终态失败事件，实际用量交给回调。三语构建、AI 页面在两种部署前缀的桌面与移动检查以及全站导航页渲染通过。全站浏览器脚本的安装页语言切换保留查询和锚点断言在该轮超时，独立记录于验收日志。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel BroadcastAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/BroadcastAgent.php)
+
+## AI-06 OpenAI Files API
+
+`Files::put`、`put_from_path`、`put_from_storage`、`get`、`list` 和 `delete` 复用命名连接和框架 HTTP 客户端。上传支持本地路径、Storage、HTTP 上传和内存数据，使用合法文件名、显式 MIME 及默认用途 `user_data`。文件对象保留创建它的连接，后续读取、刷新、删除均在同一连接执行。文件 ID 校验在 HTTP 请求前执行，下载有大小上限，可写入私有 Storage。
+
+独立 Artisan 把本地文本上传到协议服务。独立 HTTP 进程随后验证元数据、私有存盘回读、真实字节、游标分页、删除及删除后 404。验证拒绝非法路径式 ID，检查认证与实际 multipart。`openai` 原生支持，自定义兼容连接通过 `files: true` 开启。真实供应商凭证、其他 Files 驱动、Fake 及向量仓库继续单列。三语构建、AI 页面十二组浏览器及完整导航检查通过。
+
+- [固定 Laravel OpenAI File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiFileGateway.php) · [OpenAI Files API](https://developers.openai.com/api/reference/resources/files/methods/create)

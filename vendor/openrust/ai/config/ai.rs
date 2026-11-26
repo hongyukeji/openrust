@@ -75,6 +75,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "default_for_embeddings": env.get_utf8("AI_EMBEDDINGS_PROVIDER")?,
         "default_for_reranking": env.get_utf8("AI_RERANKING_PROVIDER")?,
         "default_for_classification": env.get_utf8("AI_CLASSIFICATION_PROVIDER")?,
+        "default_for_files": env.get_utf8("AI_FILE_PROVIDER")?,
         "caching": {
             "embeddings": {
                 "cache": false,

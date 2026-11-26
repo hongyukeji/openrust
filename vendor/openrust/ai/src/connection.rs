@@ -62,6 +62,8 @@ struct Configuration {
     key_env: Option<String>,
     #[serde(default)]
     models: Models,
+    #[serde(default)]
+    files: bool,
     #[serde(default = "default_store")]
     store: bool,
     #[serde(default = "anthropic_version")]
@@ -306,6 +308,10 @@ impl Connection {
             .embeddings
             .as_ref()
             .and_then(|models| models.dimensions)
+    }
+
+    pub(crate) fn files_configured(&self) -> bool {
+        self.config.files
     }
 
     pub(crate) fn store(&self) -> bool {

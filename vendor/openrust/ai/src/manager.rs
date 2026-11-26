@@ -355,6 +355,13 @@ impl AiManager {
             .ok_or(AiError::TranscriptionNotSupported)
     }
 
+    pub fn file_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::FileProvider>> {
+        let name = self.provider_name_for(name, "default_for_files")?;
+        self.text_provider(Some(&name))?
+            .file_provider()
+            .ok_or(AiError::FilesNotSupported)
+    }
+
     pub fn classification_provider(
         &self,
         name: Option<&str>,

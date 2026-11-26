@@ -333,3 +333,21 @@ let assigned = department
 ```
 
 测试时可以用 `Classification::fake([])` 自动生成类型化答案，也可提供答案映射或完整响应的序列，或使用 `fake_with` 根据请求生成答案。调用记录支持 `assert_classified`、`assert_not_classified` 和 `assert_nothing_classified`。开启 `prevent_stray_classifications(true)` 后，响应序列用尽即报错。
+
+## 供应商文件 {#provider-files}
+
+用 `AI_FILE_PROVIDER` 指定支持 Files API 的具名连接，也可以沿用 AI 默认连接。OpenAI 原生支持。自定义 OpenAI 兼容连接提供同一 Files API 时可设置 `files: true`。
+
+```rust
+use openrust_ai::{FileUpload, Files};
+
+let document = FileUpload::from_path("policy.txt").await?
+    .with_mime_type("text/plain")?;
+let file = Files::put(document, None).await?;
+let id = file.id();
+let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
+```
+
+HTTP 上传使用 `FileUpload::from_upload`，内存字节使用 `from_bytes`，已配置磁盘上的文件可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆盖名称、MIME 类型和上传用途，默认用途为 `user_data`。
+
+`Files::get` 读取元数据，`Files::list` 按游标分页。返回的文件对象沿用原连接下载、刷新和删除。`store_as` 将内容存入私有磁盘路径。用户提供文件 ID 时，先在应用中校验其文件归属。

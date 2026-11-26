@@ -333,3 +333,21 @@ let assigned = department
 ```
 
 In tests, use `Classification::fake([])` for generated typed answers, supply a sequence of answer maps or complete responses, or use `fake_with` to compute answers from the request. Use `assert_classified`, `assert_not_classified`, and `assert_nothing_classified` to check calls. Enable `prevent_stray_classifications(true)` to fail after the supplied responses are exhausted.
+
+## Provider files {#provider-files}
+
+Set `AI_FILE_PROVIDER` to a named Files API connection, or use the default AI connection. OpenAI supports files directly. Set `files: true` on a custom OpenAI-compatible connection if its endpoint exposes the same Files API.
+
+```rust
+use openrust_ai::{FileUpload, Files};
+
+let document = FileUpload::from_path("policy.txt").await?
+    .with_mime_type("text/plain")?;
+let file = Files::put(document, None).await?;
+let id = file.id();
+let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
+```
+
+Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory data, or `Files::put_from_storage` for a configured disk. Change the upload filename, MIME type, or purpose on `FileUpload`. The default purpose is `user_data`.
+
+`Files::get` retrieves metadata and `Files::list` supplies a cursor with each page. Handles retain their original connection for downloading, refreshing, and deleting. `store_as` writes the downloaded file to a private disk location. Before accepting a file ID from a user, check that the file belongs to that user in the application.
