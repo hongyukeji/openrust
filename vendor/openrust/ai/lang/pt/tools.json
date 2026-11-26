@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Delega uma tarefa autónoma a :agent e devolve a resposta. Inclua todas as informações necessárias, pois o agente subordinado não tem acesso ao histórico da conversa principal.",
+    "task": "A tarefa autónoma a delegar ao agente subordinado."
+  }
+}

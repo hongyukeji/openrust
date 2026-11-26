@@ -42,6 +42,7 @@ mod files;
 mod gemini;
 mod generation_options;
 mod image;
+mod localization;
 mod manager;
 mod media_storage;
 mod messages;
@@ -180,6 +181,8 @@ impl ServiceProvider for AiServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.load_bundled_translations_from(app, localization::RESOURCES, "ai")
+                .await?;
             self.commands(app, console::register);
             let config = &[("config/ai.rs", include_bytes!("../config/ai.rs").as_slice())];
             self.publishes(app, config, "ai")?;

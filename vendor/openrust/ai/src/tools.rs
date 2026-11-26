@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashSet},
     pin::Pin,
     sync::Arc,
@@ -24,6 +25,9 @@ use crate::{
 pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
+    fn localized_description(&self) -> Cow<'_, str> {
+        Cow::Borrowed(self.description())
+    }
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType;
     fn should_request_approval(&self, _request: &ToolRequest<'_>) -> Option<crate::Approval> {
         None
@@ -407,7 +411,7 @@ pub(crate) fn prepare(tools: Vec<Arc<dyn Tool>>) -> AiResult<(Vec<ToolDefinition
         }
         definitions.push(ToolDefinition {
             name: name.into(),
-            description: tool.description().into(),
+            description: tool.localized_description().into_owned(),
             schema: Type::from(tool.schema(JsonSchemaTypeFactory))
                 .to_array()
                 .map_err(|_| AiError::InvalidSchema)?,

@@ -396,6 +396,8 @@ Wrap an agent with `AgentTool::new(your_agent)` and pass it to the parent like a
 
 The child uses its own instructions, model and provider. The parent sends the task only. The child's response is returned when it completes, including when the parent is streaming.
 
+The default description and the `task` field help are translated when the tool schema is generated, using the current application locale and its configured fallback. Override individual phrases in `lang/vendor/ai/<locale>/tools.json` under `agent.description` and `agent.task`. Use `:agent` in the description to insert the tool name.
+
 ### Tool approval policy {#tool-approval}
 
 Implement `Tool::should_request_approval` to request approval for selected arguments. When the invocation has no resumable approval context, the SDK returns `AiError::ApprovalNotResumable` before executing any tool in the step. The buffered error carries the pending call IDs, tool names, arguments, and reasons.

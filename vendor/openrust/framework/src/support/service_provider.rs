@@ -179,6 +179,21 @@ pub trait ServiceProvider: Any + Send + Sync {
         })
     }
 
+    /// 注册随包编译的命名空间译文，应用同名语言资源优先。
+    fn load_bundled_translations_from<'a>(
+        &'a self,
+        app: &'a Application,
+        files: &'static [(&'static str, &'static str)],
+        namespace: &'a str,
+    ) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.make::<Localizer>()
+                .await?
+                .add_bundled_package_namespace(namespace, files)?;
+            Ok(())
+        })
+    }
+
     /// Register a compiled Blade component under a package prefix and alias.
     fn load_view_components_as<'a, C: Component + 'static>(
         &'a self,

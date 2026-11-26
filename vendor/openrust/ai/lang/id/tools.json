@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Mendelegasikan tugas mandiri kepada :agent dan mengembalikan jawabannya. Sertakan semua informasi yang diperlukan karena agen anak tidak dapat mengakses riwayat percakapan induk.",
+    "task": "Tugas mandiri yang akan didelegasikan kepada agen anak."
+  }
+}

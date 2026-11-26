@@ -18,8 +18,14 @@ use super::{Lines, TranslationError, TranslationFuture, TranslationResult};
 pub struct FileLoader {
     paths: RwLock<Vec<PathBuf>>,
     json_paths: RwLock<Vec<PathBuf>>,
-    namespaces: RwLock<HashMap<String, PathBuf>>,
+    namespaces: RwLock<HashMap<String, NamespaceFiles>>,
     bundled: bool,
+}
+
+#[derive(Clone, Default)]
+struct NamespaceFiles {
+    path: Option<PathBuf>,
+    bundled: &'static [(&'static str, &'static str)],
 }
 
 impl Clone for FileLoader {
@@ -88,7 +94,25 @@ impl FileLoader {
     }
 
     pub(super) fn register_namespace_path(&self, namespace: String, path: PathBuf) {
-        self.namespaces.write().unwrap().insert(namespace, path);
+        self.namespaces
+            .write()
+            .unwrap()
+            .entry(namespace)
+            .or_default()
+            .path = Some(path);
+    }
+
+    pub(super) fn register_bundled_namespace(
+        &self,
+        namespace: String,
+        files: &'static [(&'static str, &'static str)],
+    ) {
+        self.namespaces
+            .write()
+            .unwrap()
+            .entry(namespace)
+            .or_default()
+            .bundled = files;
     }
 
     pub(super) fn load_lines(
@@ -124,7 +148,10 @@ impl FileLoader {
             let Some(package) = self.namespaces.read().unwrap().get(namespace).cloned() else {
                 return Ok(lines);
             };
-            lines = read(&package, &relative)?;
+            lines = super::bundled::load_from(package.bundled, locale, group)?;
+            if let Some(path) = package.path {
+                merge(&mut lines, read(&path, &relative)?);
+            }
             for root in paths.iter() {
                 merge(
                     &mut lines,

@@ -1,4 +1,4 @@
-use std::any::type_name;
+use std::{any::type_name, borrow::Cow};
 
 use openrust::{
     http::HttpFuture,
@@ -6,7 +6,7 @@ use openrust::{
 };
 use serde_json::Value;
 
-use crate::{Agent, AiError, AiResult, HasStructuredOutput, Tool, ToolRequest};
+use crate::{Agent, AiError, AiResult, HasStructuredOutput, Tool, ToolRequest, localization};
 
 /// 为子 Agent 声明工具名称和用途。
 pub trait CanActAsTool: Agent + Sized {
@@ -20,7 +20,7 @@ pub trait CanActAsTool: Agent + Sized {
         AgentTool {
             agent: self,
             name,
-            description,
+            description: ToolDescription::Custom(description),
             prompt: prompt_text::<Self>,
         }
     }
@@ -28,11 +28,16 @@ pub trait CanActAsTool: Agent + Sized {
 
 type PromptAgent<A> = for<'a> fn(&'a A, &'a str) -> HttpFuture<'a, AiResult<String>>;
 
+enum ToolDescription {
+    Default(String),
+    Custom(String),
+}
+
 /// 将显式委托的任务交给独立 Agent，工具结果为子 Agent 的回答。
 pub struct AgentTool<A> {
     agent: A,
     name: String,
-    description: String,
+    description: ToolDescription,
     prompt: PromptAgent<A>,
 }
 
@@ -46,7 +51,7 @@ impl<A: Agent> AgentTool<A> {
         Self {
             agent,
             name,
-            description,
+            description: ToolDescription::Default(description),
             prompt: prompt_text::<A>,
         }
     }
@@ -69,7 +74,20 @@ impl<A: Agent> Tool for AgentTool<A> {
     }
 
     fn description(&self) -> &str {
-        &self.description
+        match &self.description {
+            ToolDescription::Default(text) | ToolDescription::Custom(text) => text,
+        }
+    }
+
+    fn localized_description(&self) -> Cow<'_, str> {
+        match &self.description {
+            ToolDescription::Default(fallback) => Cow::Owned(localization::text(
+                "ai::tools.agent.description",
+                &[("agent".into(), self.name.clone())].into(),
+                fallback,
+            )),
+            ToolDescription::Custom(text) => Cow::Borrowed(text),
+        }
     }
 
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
@@ -77,7 +95,11 @@ impl<A: Agent> Tool for AgentTool<A> {
             "task",
             schema
                 .string()
-                .description("交给子 Agent 的独立任务")
+                .description(localization::text(
+                    "ai::tools.agent.task",
+                    &Default::default(),
+                    "交给子 Agent 的独立任务。",
+                ))
                 .required(true)
                 .into(),
         )])

@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Bağımsız bir görevi :agent adlı alt ajana devreder ve yanıtını döndürür. Alt ajan üst ajanın konuşma geçmişine erişemediği için gerekli tüm bilgileri ekleyin.",
+    "task": "Alt ajana devredilecek bağımsız görev."
+  }
+}

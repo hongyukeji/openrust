@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Delega un compito autonomo a :agent e restituisce la risposta. Includi tutte le informazioni necessarie, perché l’agente secondario non può accedere alla cronologia della conversazione principale.",
+    "task": "Il compito autonomo da delegare all’agente secondario."
+  }
+}

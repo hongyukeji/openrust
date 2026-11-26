@@ -396,6 +396,8 @@ let response = agent("Search the policy documents before answering.")
 
 子 Agent 使用自己的指令、模型和连接，父 Agent 只提交这项任务。即使父 Agent 正在流式输出，子 Agent 完成后也会一次返回工具结果。
 
+默认工具说明和 `task` 参数说明在生成 Schema 时按当前应用语言及其回退配置解析。可在 `lang/vendor/ai/<locale>/tools.json` 中覆写 `agent.description` 或 `agent.task`。说明中的 `:agent` 会替换为工具名称。
+
 ### 工具审批策略 {#tool-approval}
 
 实现 `Tool::should_request_approval` 可根据工具参数要求审批。当前调用没有可恢复的审批上下文时，SDK 在执行该步骤的任何工具前返回 `AiError::ApprovalNotResumable`。普通响应的错误携带待审批的调用 ID、工具名、参数和原因。

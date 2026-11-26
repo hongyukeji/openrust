@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Delegeert een zelfstandige taak aan :agent en geeft het antwoord terug. Vermeld alle benodigde informatie, want de subagent heeft geen toegang tot de gespreksgeschiedenis van de bovenliggende agent.",
+    "task": "De zelfstandige taak die aan de subagent wordt gedelegeerd."
+  }
+}

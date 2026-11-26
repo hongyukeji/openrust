@@ -480,3 +480,11 @@ SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查
 独立 Artisan 验证显式工具名、普通子 Agent 与父工具续接。真实 HTTP 验证默认名、结构化结果和非法参数，断言非法调用没有向子连接出站。父应用用 Responses 协议，子 Agent 用独立 Chat 兼容连接，握手凭证、模型和父历史隔离由实际 TCP 请求验证。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
 
 - [固定 Laravel CanActAsTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/CanActAsTool.php) · [固定 Laravel AgentTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/AgentTool.php)
+
+## AI-03 子 Agent 工具 Schema 国际化
+
+AI 服务提供者将 18 种 BCP 47 语言的默认工具文案作为包资源嵌入。框架沿用 `Lang`、包命名空间、应用覆写及回退机制，运行产物可直接加载译文。生成工具 Schema 时解析默认委托说明及 `task` 参数说明。委托说明使用 `:agent` 替换工具名，应用自定义说明直接使用。工具名、`task`、类型和必填约束沿用既有契约。
+
+独立 Artisan 核对简中、繁中、英文、日文及未知语言回退。真实 HTTP 在同一应用、同一个 Agent 上并发验证全部 18 语，实测应用逐项覆写、法语回退、日本语流式工具续步及自定义说明。消费进程的应用根只提供覆写文件，默认译文来自运行产物。框架语言路径与语言选择回归、AI 与网关包测试、严格 Clippy 和三语文档均通过。其他内置工具说明、Artisan 和错误文案按国际化计划继续审计。
+
+- [固定 Laravel 工具说明与参数契约](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/AgentTool.php)

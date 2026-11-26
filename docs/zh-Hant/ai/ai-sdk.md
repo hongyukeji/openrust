@@ -396,6 +396,8 @@ let response = agent("Search the policy documents before answering.")
 
 子 Agent 使用自己的指令、模型和連線，父 Agent 只提交這項任務。即使父 Agent 正在串流輸出，子 Agent 完成後也會一次回傳工具結果。
 
+預設工具說明與 `task` 參數說明會在產生 Schema 時，依目前應用程式語言及其後備設定解析。可在 `lang/vendor/ai/<locale>/tools.json` 覆寫 `agent.description` 或 `agent.task`。說明中的 `:agent` 會替換成工具名稱。
+
 ### 工具審批策略 {#tool-approval}
 
 實作 `Tool::should_request_approval` 可依工具參數要求審批。目前呼叫沒有可恢復的審批上下文時，SDK 在執行該步驟的任何工具前回傳 `AiError::ApprovalNotResumable`。一般回應的錯誤包含待審批的呼叫 ID、工具名稱、參數及原因。

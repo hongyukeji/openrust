@@ -330,12 +330,20 @@ pub(crate) const CATALOGS: &[(&str, &str)] = &[
 ];
 
 pub(super) fn load(locale: &str, group: &str) -> TranslationResult<Lines> {
+    load_from(CATALOGS, locale, group)
+}
+
+pub(super) fn load_from(
+    catalogs: &[(&str, &str)],
+    locale: &str,
+    group: &str,
+) -> TranslationResult<Lines> {
     let name = if group == "*" {
         format!("{locale}.json")
     } else {
         format!("{locale}/{group}.json")
     };
-    CATALOGS.iter().find(|(path, _)| *path == name).map_or_else(
+    catalogs.iter().find(|(path, _)| *path == name).map_or_else(
         || Ok(Lines::new()),
         |(_, contents)| {
             serde_json::from_str(contents)

@@ -144,6 +144,23 @@ impl Localizer {
         });
     }
 
+    pub(crate) fn add_bundled_package_namespace(
+        &self,
+        namespace: &str,
+        files: &'static [(&'static str, &'static str)],
+    ) -> TranslationResult<()> {
+        if !valid_segment(namespace) {
+            return Err(TranslationError::InvalidKey);
+        }
+        let mut loaded = self.loaded.lock().unwrap();
+        self.loader
+            .register_bundled_namespace(namespace.to_owned(), files);
+        loaded.retain(|key, catalog| {
+            catalog.runtime.is_some() || key.namespace.as_deref() != Some(namespace)
+        });
+        Ok(())
+    }
+
     /// Adds a language directory for subsequent group and literal JSON loads.
     /// 返回当前选择器句柄，替换后已取出的句柄仍可继续使用。
     pub fn get_selector(&self) -> Arc<dyn Selector> {

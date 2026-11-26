@@ -1,0 +1,6 @@
+{
+  "agent": {
+    "description": "Délègue une tâche autonome à :agent et renvoie sa réponse. Fournissez toutes les informations nécessaires, car l’agent enfant n’a pas accès à l’historique de la conversation parente.",
+    "task": "La tâche autonome à déléguer à l’agent enfant."
+  }
+}
