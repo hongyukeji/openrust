@@ -110,7 +110,7 @@ Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redi
 
 macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite 的 HTTP 写入和消费链路、独立 Redis 失败保留与重试、隔离快照格式及相关严格 Clippy 通过。Pulse 与 Telescope 默认 89 项通过，两项按环境跳过。三语文档构建和六组桌面／移动检查通过。Windows 11 ARM64 的文件缓存、字节 Graph 及 Value 各经 SQLite 和 Redis 8.10.3 通过，独立 Redis 失败保留、重试和裁剪通过。时间裁剪的测试使用固定历史消息 ID，避免跨主机时钟差影响结果。证据为 `target/tmp/observability-parity/pulse-byte-value-{macos,docs}.log` 和 `target/tmp/observability-windows/pulse-byte-value-arm64.log`。Linux 7.0.14 ARM64 同源码通过缓存分组、字节 Graph 和 Value 的 SQLite 及 Redis 8.10.3 路径，并补验独立 Redis 失败保留、重试与裁剪。证据为 `target/tmp/observability-parity/pulse-byte-value-linux.log`。本批 Release 继续验收。
 
-同一固定 PHP 探针发现 `collapseValues` 的下一项差异。单批内 `01` 与 `1`、`1e0` 与 `1.0` 作为类型或键时按 PHP 宽松比较只保留较后提交的等值项。大小写有差异的文本、空文本与 `0`、相邻的大整数及同向溢出的整数字符串仍可独立保存。Rust 此批按原始类型和键字节精确比较，宽松比较继续对齐。证据为 `target/tmp/observability-parity/pulse-value-numeric-keys-upstream.log`。 [固定 DatabaseStorage](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Storage/DatabaseStorage.php)
+同一固定 PHP 探针发现 `collapseValues` 的下一项差异。单批内 `01` 与 `1`、`1e0` 与 `1.0` 作为类型或键时按 PHP 宽松比较只保留较后提交的等值项。大小写有差异的文本、空文本与 `0`、相邻的大整数及同向溢出的整数字符串仍可独立保存。Rust 在写库前倒序处理同批仪表值，复用框架固定 PHP 字符串比较函数。普通键按字节分组，数字候选再按 PHP 语义比较，只与已保留的项对比。负零、指数和大数边界通过，跨批次仍由数据库精确 upsert。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13 严格及非严格模式、独占 Redis 8.10.3 重试与裁剪、Pulse 和 Telescope 默认 90 项、快照格式和相关严格 Clippy 均通过。当前批次 Release 及其他目标平台继续验收。证据为 `target/tmp/observability-parity/pulse-value-numeric-keys-macos-verified.log` 和 `target/tmp/observability-parity/pulse-value-numeric-keys-upstream.log`。 [固定 DatabaseStorage](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Storage/DatabaseStorage.php)
 
 ## SlowJobs 任务尝试计时
 

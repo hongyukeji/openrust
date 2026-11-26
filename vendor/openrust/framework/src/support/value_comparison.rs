@@ -44,6 +44,16 @@ impl InputNumber {
         super::input_scalars::decimal_float(prefix).map(Self::Float)
     }
 }
+/// 为 PHP 宽松字符串比较筛选可能数值等价的候选。共享数值位模式的字符串仍须逐一比较。
+#[doc(hidden)]
+#[must_use]
+pub fn php_loose_string_numeric_bucket(text: &str) -> Option<u64> {
+    let value = InputNumber::numeric_string(text)?.as_float();
+    value
+        .is_finite()
+        .then(|| if value == 0.0 { 0 } else { value.to_bits() })
+}
+
 /// 按固定 PHP 64 位智能字符串比较判断宽松相等，保留整数溢出与无穷值的文本回退。
 /// 仅供独立扩展复用运行时语义；应用使用其领域接口。
 #[doc(hidden)]

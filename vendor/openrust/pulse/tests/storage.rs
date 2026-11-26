@@ -122,6 +122,83 @@ fn metric(timestamp: i64, key: &str, value: i64) -> Item {
         .avg()
         .into()
 }
+
+#[tokio::test]
+async fn value_batch_uses_php_loose_comparison_of_type_and_key() {
+    use openrust::database::Value as Sql;
+    use openrust_pulse::ByteValue;
+
+    let fixture = Fixture::new().await;
+    let storage = DatabaseStorage::new(fixture.connection.clone())
+        .with_chunk(1)
+        .unwrap();
+    let now = 1_795_267_800;
+    let cases: &[(&[&str], &[&str])] = &[
+        (&["01", "1"], &["1"]),
+        (&["1e0", "1.0"], &["1.0"]),
+        (&["-0.0", "0"], &["0"]),
+        (&["text", "TEXT"], &["TEXT", "text"]),
+        (&["0", ""], &["", "0"]),
+        (
+            &["9007199254740992", "9007199254740992.0", "9007199254740993"],
+            &["9007199254740992", "9007199254740993"],
+        ),
+        (
+            &["9223372036854775808", "9223372036854775809"],
+            &["9223372036854775808", "9223372036854775809"],
+        ),
+    ];
+    for (index, (keys, expected)) in cases.iter().enumerate() {
+        let kind = format!("numeric-probe-{index}");
+        let mut batch = keys
+            .iter()
+            .map(|key| PulseValue::new(now, &kind, *key, *key).into())
+            .collect::<Vec<_>>();
+        let last = keys.last().unwrap();
+        batch.push(
+            ByteValue::from_key_bytes(now - 1, &kind, last.as_bytes().to_vec(), *last).into(),
+        );
+        storage.store(&batch).await.unwrap();
+        let rows = storage.values(&kind, None).await.unwrap();
+        let mut persisted = rows
+            .iter()
+            .map(|row| match row.get("key").unwrap() {
+                Sql::Text(key) => key.as_str(),
+                other => panic!("预期文本键：{other:?}"),
+            })
+            .collect::<Vec<_>>();
+        persisted.sort_unstable();
+        assert_eq!(&persisted, expected, "{kind}");
+        let last_row = rows
+            .iter()
+            .find(|row| row.get("key") == Some(&Sql::from(*last)))
+            .unwrap();
+        let timestamp = match last_row.get("timestamp").unwrap() {
+            Sql::Integer(value) => *value,
+            Sql::Unsigned(value) => i64::try_from(*value).unwrap(),
+            other => panic!("预期整数时间戳：{other:?}"),
+        };
+        assert_eq!(timestamp, now - 1);
+    }
+    storage
+        .store(&[
+            PulseValue::new(now, "01", "same", "first").into(),
+            PulseValue::new(now - 1, "1", "same", "last").into(),
+        ])
+        .await
+        .unwrap();
+    assert!(storage.values("01", None).await.unwrap().is_empty());
+    assert_eq!(storage.values("1", None).await.unwrap().len(), 1);
+    storage
+        .store(&[PulseValue::new(now, "01", "same", "separate batch").into()])
+        .await
+        .unwrap();
+    assert_eq!(storage.values("01", None).await.unwrap().len(), 1);
+    assert_eq!(storage.values("1", None).await.unwrap().len(), 1);
+
+    fixture.close().await;
+}
+
 #[tokio::test]
 async fn database_storage_matches_upstream_aggregation_values_and_window_queries() {
     let fixture = Fixture::new().await;

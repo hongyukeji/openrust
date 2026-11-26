@@ -1,13 +1,43 @@
 use crate::{Entry, Item, Result};
 use indexmap::IndexMap;
-use openrust::database::{
-    Connection, Value as Sql,
-    query::{Builder, Expression, Record, UpsertUpdate},
+use openrust::{
+    database::{
+        Connection, Value as Sql,
+        query::{Builder, Expression, Record, UpsertUpdate},
+    },
+    support::{php_loose_string_equal, php_loose_string_numeric_bucket},
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 type AggregateKey = (String, i64, i64, Vec<u8>);
 type AggregateGroups = BTreeMap<String, IndexMap<AggregateKey, Record>>;
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum ValueKey<'a> {
+    Exact(&'a [u8]),
+    Numeric(u64),
+}
+
+impl<'a> ValueKey<'a> {
+    fn candidate(key: &'a [u8]) -> Self {
+        std::str::from_utf8(key)
+            .ok()
+            .and_then(php_loose_string_numeric_bucket)
+            .map_or(Self::Exact(key), Self::Numeric)
+    }
+
+    fn matches_bytes(&self, left: &[u8], right: &[u8]) -> bool {
+        left == right
+            || (matches!(self, Self::Numeric(_))
+                && php_loose_string_equal(
+                    std::str::from_utf8(left).expect("数值候选使用 UTF-8"),
+                    std::str::from_utf8(right).expect("数值候选使用 UTF-8"),
+                ))
+    }
+}
 
 pub struct DatabaseStorage {
     pub(super) connection: Connection,
@@ -242,8 +272,9 @@ impl DatabaseStorage {
                 _ => None,
             })
             .collect();
-        let mut values = IndexMap::new();
-        // PHP reverse()->unique() retains the last supplied value, irrespective of timestamp.
+        let mut values = Vec::new();
+        let mut retained = HashMap::<_, Vec<_>>::new();
+        // 上游倒序进行宽松比较，只用已经保留的项判断重复。
         for item in items.iter().rev() {
             let (kind, key, value, timestamp) = match item {
                 Item::Value(value) => (
@@ -260,18 +291,25 @@ impl DatabaseStorage {
                 ),
                 Item::Entry(_) => continue,
             };
-            values.entry((kind, key)).or_insert_with(|| {
-                let mut row = Record::from([
-                    ("timestamp".into(), timestamp.into()),
-                    ("type".into(), kind.into()),
-                    ("key".into(), Self::value_key(key)),
-                    ("value".into(), value.into()),
-                ]);
-                self.key_hash(key, &mut row);
-                row
-            });
+            let kind_candidate = ValueKey::candidate(kind.as_bytes());
+            let key_candidate = ValueKey::candidate(key);
+            let candidates = retained.entry((kind_candidate, key_candidate)).or_default();
+            if candidates.iter().any(|&(prior_kind, prior_key)| {
+                kind_candidate.matches_bytes(kind.as_bytes(), prior_kind)
+                    && key_candidate.matches_bytes(key, prior_key)
+            }) {
+                continue;
+            }
+            candidates.push((kind.as_bytes(), key));
+            let mut row = Record::from([
+                ("timestamp".into(), timestamp.into()),
+                ("type".into(), kind.into()),
+                ("key".into(), Self::value_key(key)),
+                ("value".into(), value.into()),
+            ]);
+            self.key_hash(key, &mut row);
+            values.push(row);
         }
-        let values: Vec<_> = values.into_values().collect();
         let aggregates = self.preaggregate(items);
         let updates: Vec<_> = aggregates
             .into_iter()
