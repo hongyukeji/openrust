@@ -574,6 +574,10 @@ let answer = response.text;
 
 Agent tools work with buffered and streaming Chat Completions, Responses, Anthropic Messages, and Gemini GenerateContent. Claude and Gemini receive their original model content again with the tool results so the provider can verify its signatures. The SDK streams text as it arrives, then emits the completed tool call and its result before the next model step. The default SSE, Vercel UI, and AG-UI formats carry these tool events. The Agent sends results back with their call IDs and exposes `tool_calls` and `tool_results` on the response. Use `with_max_steps(n)` to limit model steps. Tool execution stops on the last step, and any calls proposed in that step appear as failed results.
 
+### Tool execution events {#tool-execution-events}
+
+Listen to `InvokingTool`, `ToolInvoked`, and `ToolFailed` through the Event facade. The events share the Agent invocation ID and a tool invocation ID for the handler run. `event.invocation.call` contains the tool name, provider call ID, and actual arguments, including edits made during approval. The terminal event carries the result or typed error and the handler duration. Pending, rejected, and skipped calls do not run the handler or dispatch execution events.
+
 ### Choose a tool {#tool-choice}
 
 Use `with_tool_choice` on an anonymous Agent or `Agent::tool_choice` on a named Agent. `Auto` lets the model choose, `None` forbids tool calls, and `Required` requires at least one tool call. `ToolChoice::tool(name)` selects one registered tool. Required and named choices apply to the first step. Subsequent steps can use the result and answer normally.

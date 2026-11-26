@@ -574,6 +574,10 @@ let answer = response.text;
 
 工具呼叫支援 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的一般與串流請求。Claude 和 Gemini 會收到原始模型內容及工具結果，讓供應商核對簽章。SDK 即時送出文字，在下一次模型呼叫前送出完整的工具呼叫及結果。預設 SSE、Vercel UI 和 AG-UI 都提供對應的工具事件。Agent 用原呼叫 ID 把結果送回模型，並在回應中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步驟數。最後一個步驟提出的工具呼叫會記錄為失敗結果，工具不會執行。
 
+### 工具執行事件 {#tool-execution-events}
+
+透過 `Event` 門面監聽 `InvokingTool`、`ToolInvoked` 和 `ToolFailed`。事件共用 Agent 呼叫 ID 和本次處理器執行的工具呼叫 ID。`event.invocation.call` 包含工具名稱、供應商呼叫 ID 和實際參數，其中包含審批時的編輯。終態事件提供結果或型別化錯誤及處理器耗時。等候審批、遭拒絕或略過的呼叫不會執行處理器或分派執行事件。
+
 ### 選擇工具 {#tool-choice}
 
 匿名 Agent 使用 `with_tool_choice`，具名 Agent 實作 `Agent::tool_choice`。`Auto` 讓模型自行選擇，`None` 禁止呼叫，`Required` 要求至少呼叫一個工具。`ToolChoice::tool(name)` 指定已註冊的工具。強制呼叫與指定工具只套用於第一步，後續步驟可根據工具結果繼續回答。

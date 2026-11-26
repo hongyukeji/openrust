@@ -169,7 +169,9 @@ pub(crate) fn response(
             for call in &completed.tool_calls {
                 yield event(&invocation_id, StreamEventData::ToolCall { call: call.clone() });
             }
-            let execution = execution.run();
+            let execution = crate::request_context::in_agent_invocation(
+                &invocation_id, step - 1, agent, execution.run(),
+            );
             let results = in_tool_scope(application.as_deref(), locale.as_deref(), execution).await?;
             for result in &results {
                 yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });

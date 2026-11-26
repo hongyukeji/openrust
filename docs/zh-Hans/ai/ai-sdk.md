@@ -574,6 +574,10 @@ let answer = response.text;
 
 工具调用支持 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的普通与流式请求。Claude 和 Gemini 会收到原始模型内容及工具结果，以便供应商核对签名。SDK 实时发送文本，在下一次模型调用前发送完整的工具调用及结果。默认 SSE、Vercel UI 和 AG-UI 都提供相应的工具事件。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
 
+### 工具执行事件 {#tool-execution-events}
+
+通过 `Event` 门面监听 `InvokingTool`、`ToolInvoked` 和 `ToolFailed`。事件共用 Agent 调用 ID 和本次处理器执行的工具调用 ID。`event.invocation.call` 包含工具名、供应商调用 ID 和实际参数，其中包括审批时的编辑。终态事件提供结果或类型化错误及处理器耗时。等待审批、被拒绝或被跳过的调用不会运行处理器或分派执行事件。
+
 ### 选择工具 {#tool-choice}
 
 匿名 Agent 使用 `with_tool_choice`，具名 Agent 实现 `Agent::tool_choice`。`Auto` 让模型自行选择，`None` 禁止调用，`Required` 要求至少调用一个工具。`ToolChoice::tool(name)` 指定已注册的工具。强制调用和指定工具只作用于第一步，后续步骤可根据工具结果继续回答。

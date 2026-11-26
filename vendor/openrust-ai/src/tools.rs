@@ -42,7 +42,7 @@ pub trait Tool: Send + Sync {
 }
 
 pub struct ToolRequest<'a> {
-    call: &'a ToolCall,
+    pub(crate) call: &'a ToolCall,
     invocation_id: &'a str,
 }
 
@@ -675,12 +675,13 @@ impl ExecutionPlan<'_> {
                         arguments,
                         ..call.clone()
                     });
-                    tool.handle(ToolRequest {
+                    let request = ToolRequest {
                         call: edited.as_ref().unwrap_or(call),
                         invocation_id: &invocation_id,
-                    })
-                    .await
-                    .map_err(|_| "工具执行失败".to_owned())
+                    };
+                    crate::events::observe_tool(request, |request| tool.handle(request))
+                        .await
+                        .map_err(|_| "工具执行失败".to_owned())
                 }
                 ToolAction::Reject(message) => Err(message),
                 ToolAction::Skip(message) => Err(message.to_owned()),
