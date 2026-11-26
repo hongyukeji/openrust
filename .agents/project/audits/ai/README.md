@@ -708,7 +708,7 @@ xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上�
 
 `ProviderTool::options` 通过现有连接级 `with_provider_options` 提供网页搜索、代码执行和集合搜索，对应固定 Laravel 的 `WebSearch`、`CodeExecution` 和 `FileSearch`。网页搜索支持最多五个允许的域名，集合搜索使用已有 xAI 集合 ID 并可指定返回数量。xAI 适配器验证供应商工具定义，一次请求可另用 `with_tools` 加入本地函数。服务端工具条目随加密推理按原顺序回传，本地执行器只处理客户端函数调用。
 
-独立 Artisan 与 HTTP 在本地协议服务验证三类工具的请求结构、与本地函数合用、SSE、顺序回放、结构化响应、引用和非法定义不出站。实测 `ToolChoice::None` 会发送 `tool_choice: none`。按 xAI 约定拒绝集合元数据过滤。21 项 SDK 回归、严格 Clippy 与三语站点通过。供应商工具调用的公开结果与用量归集、其他驱动的工具映射、独立网关授权及 xAI 官方账户仍待验收。
+独立 Artisan 与 HTTP 在本地协议服务验证三类工具的请求结构、与本地函数合用、SSE、顺序回放、结构化响应、引用和非法定义不出站。实测 `ToolChoice::None` 会发送 `tool_choice: none`。按 xAI 约定拒绝集合元数据过滤。21 项 SDK 回归、严格 Clippy 与三语站点通过。供应商工具调用的公开结果与用量归集、其他驱动的工具映射及 xAI 官方账户仍待验收。网关授权见 [GW-03 xAI 原生工具授权](gateway.md#gw-03-xai-原生工具授权)。
 
 - [固定 Laravel MapsTools](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/Concerns/MapsTools.php) · [xAI 网页搜索](https://docs.x.ai/developers/tools/web-search) · [xAI 集合搜索](https://docs.x.ai/developers/tools/collections-search) · [xAI 混合工具续步](https://docs.x.ai/developers/tools/advanced-usage)
 

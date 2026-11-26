@@ -240,6 +240,12 @@ pub trait TextProvider: Send + Sync {
         }
     }
 
+    /// 返回具名连接可转发的原生 Responses 服务端工具类型。
+    fn supports_responses_server_tool(&self, kind: &str) -> bool {
+        self.supports_endpoint(TextEndpoint::Responses)
+            && matches!(kind, "web_search" | "web_search_preview")
+    }
+
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
     fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
         None
@@ -760,6 +766,15 @@ impl TextProvider for OpenAiTextProvider {
 
     fn text_model(&self, tier: TextModelTier) -> AiResult<&str> {
         self.connection.text_model(tier)
+    }
+
+    fn supports_responses_server_tool(&self, kind: &str) -> bool {
+        if matches!(self.protocol, OpenAiProtocol::Xai) {
+            matches!(kind, "web_search" | "code_interpreter" | "file_search")
+        } else {
+            self.supports_endpoint(TextEndpoint::Responses)
+                && matches!(kind, "web_search" | "web_search_preview")
+        }
     }
 
     fn normalize_reported_usage(&self, usage: &Value) -> Option<Usage> {

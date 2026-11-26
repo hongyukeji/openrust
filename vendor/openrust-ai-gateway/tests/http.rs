@@ -72,6 +72,46 @@ async fn send(
 }
 
 #[tokio::test]
+async fn xai_gateway_rejects_unapproved_collections_and_reused_containers() -> TestResult {
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(|base, env| {
+            let mut configuration = config(base, env)?;
+            let gateway = configuration.get_mut("ai_gateway").unwrap();
+            gateway["models"]["public-responses"] = json!({
+                "provider":"xai", "model":"grok-fixture",
+                "server_tools":["file_search","code_interpreter"],
+                "file_search_collections":["collection-allowed"],
+            });
+            Ok(configuration)
+        })
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        "AI_GATEWAY_ENABLED=true\nCALLER_GENERAL=caller-fixture\nCALLER_LIMITED=caller-limited\n",
+    )?;
+    for tool in [
+        json!({"type":"file_search","vector_store_ids":["collection-allowed","collection-other"]}),
+        json!({"type":"code_interpreter","container":"container-other"}),
+    ] {
+        let response = send(
+            &mut app,
+            "/v1/responses",
+            Some("Bearer caller-fixture"),
+            Some(json!({"model":"public-responses","input":"fixture","tools":[tool]})),
+        )
+        .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.json::<Value>()?["error"]["code"],
+            "unsupported_state"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn disabled_routes_are_unavailable() -> TestResult {
     let mut app = fixture()?;
     let response = app.get("/v1/models").await?;

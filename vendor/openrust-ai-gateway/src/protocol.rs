@@ -366,11 +366,15 @@ impl Protocol {
     }
 }
 
-fn responses_tools(tools: Option<&Value>, web_search_allowed: bool) -> Option<bool> {
+fn responses_tools(
+    tools: Option<&Value>,
+    allows_server_tool: impl Fn(&str, &Value) -> bool,
+) -> Option<(bool, Vec<String>)> {
     let Some(tools) = tools.filter(|tools| !tools.is_null()) else {
-        return Some(false);
+        return Some((false, Vec::new()));
     };
     let mut native = false;
+    let mut server_tools = Vec::new();
     for tool in tools.as_array()? {
         match tool["type"].as_str()? {
             "function" | "custom" => {}
@@ -385,11 +389,14 @@ fn responses_tools(tools: Option<&Value>, web_search_allowed: bool) -> Option<bo
                 }
                 native = true;
             }
-            "web_search" | "web_search_preview" if web_search_allowed => native = true,
+            kind if allows_server_tool(kind, tool) => {
+                native = true;
+                server_tools.push(kind.to_owned());
+            }
             _ => return None,
         }
     }
-    Some(native)
+    Some((native, server_tools))
 }
 
 async fn authorize(
@@ -517,6 +524,7 @@ async fn relay(
         }
     };
     let mut native_responses_only = false;
+    let mut server_tools = Vec::new();
     if matches!(
         endpoint,
         TextEndpoint::Responses | TextEndpoint::CountResponseTokens
@@ -543,22 +551,22 @@ async fn relay(
             return protocol.error(
                 StatusCode::BAD_REQUEST,
                 "unsupported_state",
-                "此端点仅支持无状态请求及客户端工具",
+                "此端点仅支持无状态请求和获准的工具",
             );
         }
-        native_responses_only = match responses_tools(
-            data.get("tools"),
-            endpoint == TextEndpoint::Responses && model.allows_web_search(),
-        ) {
-            Some(native) => native,
-            None => {
-                return protocol.error(
-                    StatusCode::BAD_REQUEST,
-                    "unsupported_state",
-                    "当前模型不支持所请求的 Responses 工具",
-                );
-            }
-        };
+        (native_responses_only, server_tools) =
+            match responses_tools(data.get("tools"), |kind, tool| {
+                endpoint == TextEndpoint::Responses && model.allows_server_tool(kind, tool)
+            }) {
+                Some(requirements) => requirements,
+                None => {
+                    return protocol.error(
+                        StatusCode::BAD_REQUEST,
+                        "unsupported_state",
+                        "当前模型不支持所请求的 Responses 工具",
+                    );
+                }
+            };
         if endpoint == TextEndpoint::CountResponseTokens {
             if data
                 .get("input")
@@ -668,7 +676,12 @@ async fn relay(
     };
     let mut targets: Vec<_> = model
         .targets_for(endpoint, key)
-        .filter(|(_, upstream)| !native_responses_only || *upstream == endpoint)
+        .filter(|(target, upstream)| {
+            (!native_responses_only || *upstream == endpoint)
+                && server_tools
+                    .iter()
+                    .all(|kind| target.provider.supports_responses_server_tool(kind))
+        })
         .collect();
     if native_responses_only && targets.is_empty() {
         return protocol.error(
@@ -922,6 +935,9 @@ fn includes_tool_history(data: &serde_json::Map<String, Value>) -> bool {
                     | "function_call_output"
                     | "custom_tool_call"
                     | "custom_tool_call_output"
+                    | "web_search_call"
+                    | "code_interpreter_call"
+                    | "file_search_call"
             )
         )
     }) || has_items("messages", |message| {

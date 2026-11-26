@@ -59,6 +59,8 @@ struct ModelConfiguration {
     #[serde(default)]
     server_tools: HashSet<ResponsesServerTool>,
     #[serde(default)]
+    file_search_collections: HashSet<String>,
+    #[serde(default)]
     fallbacks: Vec<TargetConfiguration>,
 }
 
@@ -66,6 +68,18 @@ struct ModelConfiguration {
 #[serde(rename_all = "snake_case")]
 enum ResponsesServerTool {
     WebSearch,
+    CodeInterpreter,
+    FileSearch,
+}
+
+impl ResponsesServerTool {
+    fn kind(self) -> &'static str {
+        match self {
+            Self::WebSearch => "web_search",
+            Self::CodeInterpreter => "code_interpreter",
+            Self::FileSearch => "file_search",
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -214,13 +228,37 @@ pub(crate) struct Target {
 pub(crate) struct Model {
     pub(crate) codex: Option<CodexMetadata>,
     server_tools: HashSet<ResponsesServerTool>,
+    file_search_collections: HashSet<String>,
     targets: Vec<Target>,
     endpoints: Vec<TextEndpoint>,
 }
 
 impl Model {
-    pub(crate) fn allows_web_search(&self) -> bool {
-        self.server_tools.contains(&ResponsesServerTool::WebSearch)
+    pub(crate) fn allows_server_tool(&self, kind: &str, tool: &Value) -> bool {
+        let allowed = match kind {
+            "web_search" | "web_search_preview" => ResponsesServerTool::WebSearch,
+            "code_interpreter" => ResponsesServerTool::CodeInterpreter,
+            "file_search" => ResponsesServerTool::FileSearch,
+            _ => return false,
+        };
+        if !self.server_tools.contains(&allowed) {
+            return false;
+        }
+        match allowed {
+            ResponsesServerTool::WebSearch => true,
+            // 只允许新沙箱，禁止复用客户端指定的容器。
+            ResponsesServerTool::CodeInterpreter => {
+                tool.as_object().is_some_and(|fields| fields.len() == 1)
+            }
+            ResponsesServerTool::FileSearch => {
+                let Ok(tool) = openrust_ai::ProviderTool::deserialize(tool) else {
+                    return false;
+                };
+                tool.is_valid()
+                    && matches!(tool, openrust_ai::ProviderTool::FileSearch { vector_store_ids, .. }
+                        if vector_store_ids.iter().all(|id| self.file_search_collections.contains(id)))
+            }
+        }
     }
 
     pub(crate) fn supports_key(&self, key: &Key) -> bool {
@@ -396,15 +434,26 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
-                if !model.server_tools.is_empty()
-                    && (!endpoints.contains(&TextEndpoint::Responses)
+                if model.server_tools.iter().any(|tool| {
+                    !endpoints.contains(&TextEndpoint::Responses)
                         || !targets.iter().any(|target| {
-                            target.provider.supports_endpoint(TextEndpoint::Responses)
-                        }))
-                {
+                            target.provider.supports_responses_server_tool(tool.kind())
+                        })
+                }) {
                     return Err(invalid(format!(
                         "公开模型 {name} 的服务端工具要求原生 Responses 上游"
                     )));
+                }
+                if model
+                    .server_tools
+                    .contains(&ResponsesServerTool::FileSearch)
+                    == model.file_search_collections.is_empty()
+                    || model
+                        .file_search_collections
+                        .iter()
+                        .any(|id| !valid_reported_identifier(id))
+                {
+                    return Err(invalid(format!("公开模型 {name} 的文件搜索集合授权无效")));
                 }
                 Ok((
                     name,
@@ -413,6 +462,7 @@ impl Gateway {
                         endpoints,
                         codex: model.codex,
                         server_tools: model.server_tools,
+                        file_search_collections: model.file_search_collections,
                     },
                 ))
             })

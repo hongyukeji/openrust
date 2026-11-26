@@ -30,7 +30,8 @@ impl ProviderTool {
         ProviderOptions::from_iter([("tools".into(), tools)])
     }
 
-    pub(crate) fn is_valid(&self) -> bool {
+    /// 检查工具参数是否满足当前映射约束。
+    pub fn is_valid(&self) -> bool {
         let nonblank = |value: &String| !value.trim().is_empty() && value.trim() == value;
         match self {
             Self::WebSearch { allowed_domains } => {

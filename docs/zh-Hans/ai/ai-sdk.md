@@ -230,6 +230,19 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 在 Codex 中配置 Responses 连接，填写网关基础 URL（例如 `https://your-app.example/v1`）和下游 Key，并用公开别名作为模型。原生 Responses 上游支持客户端工具命名空间。要使用上游网页搜索，在公开模型上设置 `"server_tools": ["web_search"]`。模型未启用网页搜索时，在 Codex 客户端配置中使用 `web_search = "disabled"`。
 
+使用 xAI 原生 Responses 时，在公开模型上启用所需工具。`code_interpreter` 使用 xAI 沙箱。`file_search` 只能检索 `file_search_collections` 授权的集合，请求中的每个集合 ID 必须精确匹配。下游 Key 还须有权访问支持全部所请求工具的原生连接。工具费用上限未知时沿用预算配置。启用硬预算时默认拒绝这类请求，设置 `unknown: "monitor"` 可放行并保留计费观察。
+
+```rust
+"grok-tools": {
+    "provider": "xai",
+    "model": "grok-4.7",
+    "endpoints": ["responses"],
+    "server_tools": ["web_search", "code_interpreter", "file_search"],
+    "file_search_collections": ["collection-id"],
+},
+```
+
+
 ### 网关图片生成与编辑 {#gateway-images}
 
 在 `ai_gateway.models` 发布图片模型时，显式列出 `images/generations` 和 `images/edits`。沿用 Key 或分组授权公开模型名。上游可选 OpenAI 连接，或在 `models.images` 配置图片能力的 OpenAI 兼容连接。

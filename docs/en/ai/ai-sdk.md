@@ -230,6 +230,19 @@ Add an optional `codex` object to a public model mapping to set its display name
 
 Set a Responses provider for Codex with the gateway base URL, such as `https://your-app.example/v1`, and the downstream Key. Use a published alias as the model. Native Responses upstreams can receive client tool namespaces. For upstream web search, allow `"server_tools": ["web_search"]` on the public model. Set `web_search = "disabled"` in the Codex client configuration when the model has no web search enabled.
 
+For native xAI Responses, publish the tools needed by the public model. Use `code_interpreter` for the xAI sandbox, and `file_search` for searching collections listed in `file_search_collections`. Every requested collection ID must match an allowed ID exactly. The downstream key must also be eligible to use a native connection that supports all requested tools. Tool requests with an unknown cost ceiling follow the configured budget policy. The default rejects these requests when a hard budget applies, and `unknown: "monitor"` allows them with billing observation.
+
+```rust
+"grok-tools": {
+    "provider": "xai",
+    "model": "grok-4.7",
+    "endpoints": ["responses"],
+    "server_tools": ["web_search", "code_interpreter", "file_search"],
+    "file_search_collections": ["collection-id"],
+},
+```
+
+
 ### Gateway image generation and editing {#gateway-images}
 
 Publish an image model in `ai_gateway.models` with explicit `images/generations` and `images/edits` endpoints. Authorize its public name in the usual Key or group configuration. Use an OpenAI connection or an OpenAI-compatible connection with image support configured under `models.images`.

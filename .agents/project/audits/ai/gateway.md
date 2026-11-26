@@ -183,6 +183,14 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 
 - [Responses WebSocket 并行与分叉](https://developers.openai.com/api/docs/guides/websocket-mode#fork-a-conversation-onto-a-new-stream)
 
+## GW-03 xAI 原生工具授权
+
+公开模型可在 `server_tools` 启用 `web_search`、`code_interpreter` 与 `file_search`。集合搜索需要配置 `file_search_collections`，逐项精确匹配请求的集合 ID。代码执行只允许新沙箱。选路同时验证下游 Key、分组可用连接和供应商支持的工具。相关工具请求及工具续步沿用已有防重放约束。货币费用上界未知时沿用硬预算的拒绝或监测设置。
+
+真实 HTTP、独立 Artisan 和本地原生协议服务验证默认关闭、非法静态配置、未授权集合及旧容器、分组隔离、兼容连接选择、原生 JSON 与 SSE、OpenAI 搜索兼容及 SQLite 计费。拒绝请求均未出站。监测模式保留上游实际费用。网关和 SDK 共 24 项回归、两包严格 Clippy 及三语站点检查通过。供应商官方账户的实际工具执行仍待验收。
+
+- [xAI 集合搜索](https://docs.x.ai/developers/tools/collections-search) · [xAI 工具费用](https://docs.x.ai/developers/pricing)
+
 ## GW-05 Codex 专用前缀
 
 `/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。搜索与 Realtime Calls 仍待后续验收。
