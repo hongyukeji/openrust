@@ -19,6 +19,7 @@ mod provisioning_plan;
 mod repository;
 mod signals;
 mod silenced;
+mod stopwatch;
 mod supervisor;
 pub mod supervisor_commands;
 mod tags;
@@ -56,6 +57,7 @@ pub use repository::{
     RedisHorizonCommandQueue, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
 pub use silenced::Silenced;
+pub use stopwatch::Stopwatch;
 pub use supervisor::{
     ProcessPool, Supervisor, SupervisorLooped, UnableToLaunchProcess, WorkerProcess,
     WorkerProcessRestarting,

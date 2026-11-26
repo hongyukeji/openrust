@@ -966,7 +966,7 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
         events::{Delivery, Dispatcher},
         queue::{JobOptions, Payload, QueueManager},
     };
-    use openrust_horizon::{JobDeleted, JobReleased};
+    use openrust_horizon::{JobDeleted, JobReleased, Stopwatch};
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(config)
@@ -976,6 +976,7 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
     .unwrap();
     app.boot().await.unwrap();
     let manager = app.app().make::<QueueManager>().await.unwrap();
+    let stopwatch = app.app().make::<Stopwatch>().await.unwrap();
     let queue = manager.connection(Some("redis")).unwrap();
     let repository = app.app().make::<Repository>().await.unwrap();
     let listener = Arc::new(TransportListener {
@@ -998,11 +999,13 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
         .unwrap()
         .unwrap();
     let mut released = queue.pop_now(Some("release")).await.unwrap().unwrap();
+    assert!(stopwatch.check(&release_id).is_some());
     released
         .release(Duration::from_millis(90_123))
         .await
         .unwrap();
     assert!(released.is_released());
+    assert!(stopwatch.check(&release_id).is_none());
     released.release(Duration::ZERO).await.unwrap();
     released.delete().await.unwrap();
 
@@ -1044,6 +1047,7 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
     app.artisan(["queue:work", "redis", "--once", "--force", "--memory=1024"])
         .await
         .assert_successful();
+    assert!(stopwatch.check(&failed_id).is_none());
     let retry = Payload::new("fail", json!({}))
         .unwrap()
         .with_options(JobOptions {
@@ -1055,6 +1059,7 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
     app.artisan(["queue:work", "redis", "--once", "--force", "--memory=1024"])
         .await
         .assert_successful();
+    assert!(stopwatch.check(&retry_id).is_none());
     let metrics = repository.metrics("redis", "default").await.unwrap();
     assert_eq!(
         (
@@ -1187,6 +1192,85 @@ async fn redis_completion_metrics_keep_hundredths_of_a_millisecond() {
             expected
         );
     }
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_success_timing_starts_after_reservation_recording() {
+    use openrust::{
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+        foundation::Application,
+        queue::{Payload, QueueManager},
+        support::{ProviderResult, ServiceProvider},
+    };
+    use openrust_horizon::{JobReserved, Stopwatch};
+
+    struct ReservationDelay;
+    impl Listener for ReservationDelay {
+        fn handle<'a>(
+            &'a self,
+            _: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async {
+                tokio::time::sleep(Duration::from_millis(800)).await;
+                Ok(None)
+            })
+        }
+    }
+    impl ServiceProvider for ReservationDelay {
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                app.make::<Dispatcher>().await?.listen(
+                    JobReserved::NAME,
+                    Arc::new(Self),
+                    Delivery::Sync,
+                )?;
+                Ok(())
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder.with_config(config).with_providers(vec![
+            Box::new(ReservationDelay),
+            Box::new(HorizonServiceProvider),
+        ])
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let stopwatch = app.app().make::<Stopwatch>().await.unwrap();
+    assert!(stopwatch.check("application-probe").is_none());
+    stopwatch.start("application-probe");
+    let queue = manager.connection(Some("redis")).unwrap();
+    let name = "reservation-timing";
+    let id = queue
+        .push(&Payload::new(name, json!({})).unwrap(), Some(name))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut job = queue.pop_now(Some(name)).await.unwrap().unwrap();
+    assert!(stopwatch.check(&id).is_some());
+    let before_restart = stopwatch.check("application-probe").unwrap();
+    stopwatch.start("application-probe");
+    assert!(stopwatch.check("application-probe").unwrap() < before_restart);
+    stopwatch.forget("application-probe");
+    assert!(stopwatch.check("application-probe").is_none());
+    tokio::time::sleep(Duration::from_millis(15)).await;
+    job.delete().await.unwrap();
+    assert!(stopwatch.check(&id).is_none());
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let runtime = repository
+        .metrics_repository()
+        .runtime_for_job(name)
+        .await
+        .unwrap();
+    assert!(
+        (10. ..600.).contains(&runtime),
+        "reservation listener delay was included in the successful runtime: {runtime}ms"
+    );
 }
 
 #[tokio::test]

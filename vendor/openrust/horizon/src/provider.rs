@@ -1,6 +1,6 @@
 use crate::{
     Dashboard, Error, JobDeleted, JobFailed, JobPayloadMetadata, JobPending, JobPushed, JobRecord,
-    JobReleased, JobReserved, JobsMigrated, Repository,
+    JobReleased, JobReserved, JobsMigrated, Repository, Stopwatch, stopwatch::round_milliseconds,
 };
 use openrust::support::facades::Facade;
 use openrust::{
@@ -49,6 +49,8 @@ impl ServiceProvider for HorizonServiceProvider {
                 .singleton::<crate::silenced::SilencedTypes, _>(|_| {
                     Ok(Arc::new(crate::silenced::SilencedTypes::default()))
                 })?;
+            app.container()
+                .singleton_if::<Stopwatch, _>(|_| Ok(Arc::default()))?;
             app.container()
                 .singleton::<Dashboard, _>(|_| Ok(Arc::new(Dashboard::default())))?;
             app.container()
@@ -159,7 +161,9 @@ impl ServiceProvider for HorizonServiceProvider {
                 Arc::new(crate::SendNotification),
                 Delivery::Sync,
             )?;
-            let listener = Arc::new(JobListener);
+            let listener = Arc::new(JobListener {
+                stopwatch: app.make::<Stopwatch>().await?,
+            });
             for name in [
                 RedisJobQueueing::NAME,
                 JobQueued::NAME,
@@ -176,6 +180,7 @@ impl ServiceProvider for HorizonServiceProvider {
                 JobFailed::NAME,
                 JobReleased::NAME,
                 JobAttempted::NAME,
+                JobExceptionOccurred::NAME,
             ] {
                 dispatcher.listen(name, listener.clone(), Delivery::Sync)?;
             }
@@ -183,7 +188,9 @@ impl ServiceProvider for HorizonServiceProvider {
         })
     }
 }
-struct JobListener;
+struct JobListener {
+    stopwatch: Arc<Stopwatch>,
+}
 impl Listener for JobListener {
     fn handle<'a>(
         &'a self,
@@ -308,12 +315,18 @@ impl Listener for JobListener {
                 }
                 return Ok(None);
             }
+            if let Some(event) = event.downcast_ref::<JobExceptionOccurred>() {
+                self.stopwatch
+                    .forget_attempt(&event.job.id, event.job.attempts);
+                return Ok(None);
+            }
             let release = event.downcast_ref::<JobReleased>();
             let (connection, job, phase, exception, duration) =
                 if let Some(e) = event.downcast_ref::<JobReserved>() {
                     (&e.connection_name, &e.job, "processing", None, 0.)
                 } else if let Some(e) = event.downcast_ref::<JobDeleted>() {
                     if e.failed {
+                        self.stopwatch.forget_attempt(&e.job.id, e.job.attempts);
                         return Ok(None);
                     }
                     (
@@ -321,8 +334,7 @@ impl Listener for JobListener {
                         &e.job,
                         "finalize",
                         None,
-                        // Redis 内建计时使用纳秒，换算成百分之一毫秒后再存储。
-                        ((e.duration.as_nanos() + 5_000) / 10_000) as f64 / 100.,
+                        round_milliseconds(e.duration),
                     )
                 } else if let Some(e) = event.downcast_ref::<JobFailed>() {
                     (
@@ -361,6 +373,13 @@ impl Listener for JobListener {
                         source: Box::new(source),
                     }
                 })?;
+            let duration = if phase == "finalize" && exception.is_none() {
+                self.stopwatch
+                    .check_attempt(&job.id, job.attempts)
+                    .unwrap_or(duration)
+            } else {
+                duration
+            };
             let record = JobRecord {
                 id: job.id.clone(),
                 name: job.payload.name().into(),
@@ -385,6 +404,11 @@ impl Listener for JobListener {
             .map_err(|source| EventError::Listener {
                 source: Box::new(source),
             })?;
+            if phase == "processing" {
+                self.stopwatch.start_attempt(&job.id, job.attempts);
+            } else {
+                self.stopwatch.forget_attempt(&job.id, job.attempts);
+            }
             Ok(None)
         })
     }

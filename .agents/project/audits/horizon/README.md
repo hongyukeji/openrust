@@ -216,7 +216,9 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 旧实现在真实 Redis 指标中保留 1.2349 毫秒。原生成功确认事件现在以百分之一毫秒写入，公开 `JobDeleted` 的原始 Duration 依然可供应用监听器读取。经真实 HTTP 派发公开事件，在隔离 Redis 8.10.3 的任务和队列指标仓储分别得到 1.23、1.24、1.24 毫秒。默认运行用例 2 项、独立 Redis 19 项、快照格式、包全目标严格 Clippy 及三语文档桌面和移动 6 组通过。证据为 `target/tmp/observability-parity/horizon-runtime-precision-{baseline,verified-retry,docs}.log`。
 
-Rust 的原生 Redis 保留快照在发布监听事件前开始单调计时。保留监听器与计时起点、单独 Stopwatch 的应用入口、重试和未启动计时即显式结算的行为继续核对。
+原生 Horizon 现在在保留状态入库后启动应用内 `Stopwatch`，成功确认使用该次尝试的计时。结束、失败和释放清理对应尝试，避免旧尝试清除较新的计时。单独调用 `start`、`check`、`forget` 可用于应用自有计时，未知键返回 `None`。没有本进程的匹配计时且调用方显式派发携带 Duration 的原生结束事件时，沿用事件提供的时长。固定 PHP 的结束事件没有该字段，无计时记录时记零。
+
+真实 Redis 8.10.3 保留回归在状态监听器前加入 800ms 等待。旧实现把等待算入，指标为 825.83ms。新实现在保留状态写入之后开始计时，记录了后续任务延迟且排除了前置监听器等待。同一应用通过公开 API 验证开始、重置和忘记，并核对成功、释放、终态失败与重试后的清理。默认运行用例 2 项、独立 Redis 20 项、快照格式、包全目标严格 Clippy 和三语文档桌面及移动检查通过。证据为 `target/tmp/observability-parity/horizon-reservation-timer-{baseline,verified-final,docs}.log`。最终 Release、目标平台及部署拓扑继续验收。
 
 ## 当前实现
 

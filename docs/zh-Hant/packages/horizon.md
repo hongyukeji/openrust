@@ -182,6 +182,8 @@ Redis 佇列事件記錄 ID、工作名、連線、佇列、嘗試次數、狀�
 
 `horizon.trim` 按分鐘控制工作清單保留時間：`recent`、`pending`、`completed` 預設為 60，`recent_failed`、`failed`、`monitored` 預設為 10080。工作清單每頁傳回 50 筆。`horizon.metrics.trim_snapshots.job` 與 `.queue` 預設各保留 24 個快照。平均耗時和吞吐量只計算成功完成的工作，失敗、釋放和等待重試不參與計算。每次完成事件的耗時以毫秒保留兩位小數再計入彙總。重複結束事件在下一次處理事件前忽略；手動重試重設嘗試次數時開始新的觀測。
 
+Horizon 在儲存工作的保留狀態後開始計時。應用可透過 `app.make::<openrust_horizon::Stopwatch>().await?` 取得目前程序中的計時器，用投遞 ID 查看正在計時的工作。`start(key)` 開始或重設計時，`check(key)` 傳回毫秒讀數，沒有計時則傳回 `None`，`forget(key)` 清除計時。
+
 `Repository::jobs()`、`tags()`、`metrics_repository()`、`master_supervisors()`、`supervisor_repository()`、`processes()` 與 `workload()` 提供獨立儲存庫操作。監控標籤按元資料前綴保存。每個指標的快照寫入與目前計數重設原子執行。Master 心跳 15 秒後到期，監督器心跳 30 秒後到期。元資料服務錯誤會暫停領取新工作並結束 Master，由作業系統程序管理器恢復。監控記錄會到期，不作為持久執行帳本。
 
 負載介面（預設 `/horizon/api/workload`）對單一佇列回傳 `split_queues: null`。分組佇列的 `split_queues` 以佇列名稱為鍵。去重後的鍵依序為 `0`、`1` 等連續整數時，編碼為 JSON 陣列。重複佇列在積壓數和分項中只計一次，每次出現都計入整組等待時間估算。
