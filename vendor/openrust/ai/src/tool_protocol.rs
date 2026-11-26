@@ -15,7 +15,16 @@ pub(crate) fn chat_request(
             "id":call.id, "type":"function",
             "function":{"name":call.name,"arguments":Value::Object(call.arguments.clone()).to_string()},
         })).collect::<Vec<_>>();
-        messages.push(json!({"role":"assistant","content":step.text,"tool_calls":calls}));
+        let mut assistant = json!({"role":"assistant","content":step.text,"tool_calls":calls});
+        if let Some(reasoning) = step
+            .provider_content
+            .as_ref()
+            .and_then(|content| content.get("reasoning_content"))
+            .and_then(Value::as_str)
+        {
+            assistant["reasoning_content"] = reasoning.into();
+        }
+        messages.push(assistant);
         messages.extend(step.results.iter().map(|result| {
             json!({
                 "role":"tool","tool_call_id":result.id,"content":result.result,
@@ -88,7 +97,9 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
         text: message["content"].as_str().map(str::to_owned),
         usage: Usage::from_openai(&data["usage"]),
         tool_calls,
-        provider_content: None,
+        provider_content: message["reasoning_content"]
+            .as_str()
+            .map(|reasoning| json!({"reasoning_content": reasoning})),
     })
 }
 

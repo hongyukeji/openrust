@@ -141,7 +141,7 @@ async fn http_fixture(
 async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
     let arguments = json!({"sku":"demo"}).to_string();
     let call = json!({
-        "model":"chat-fixture","choices":[{"message":{"content":null,"tool_calls":[
+        "model":"chat-fixture","choices":[{"message":{"content":null,"reasoning_content":"private fixture round","tool_calls":[
             {"id":"call_fixture","type":"function","function":{"name":"lookup","arguments":arguments}}
         ]}}],"usage":{"prompt_tokens":5,"completion_tokens":1}
     });
@@ -197,6 +197,11 @@ async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
     assert_eq!(
         chat[1]["messages"][1]["tool_calls"][0]["id"],
         "call_fixture"
+    );
+    assert!(chat[0]["messages"][0].get("reasoning_content").is_none());
+    assert_eq!(
+        chat[1]["messages"][1]["reasoning_content"],
+        "private fixture round"
     );
     let result = &chat[1]["messages"][2];
     assert_eq!(result["tool_call_id"], "call_fixture");
@@ -436,7 +441,8 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
     let chat = vec![
         events(
             vec![
-                json!({"choices":[{"delta":{"content":"Checking "},"finish_reason":null}]}),
+                json!({"choices":[{"delta":{"reasoning_content":"private "},"finish_reason":null}]}),
+                json!({"choices":[{"delta":{"reasoning_content":"stream round","content":"Checking "},"finish_reason":null}]}),
                 json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function","function":{"name":"lookup","arguments":"{\"sku\":"}}]},"finish_reason":null}]}),
                 json!({"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"demo\"}"}}]},"finish_reason":"tool_calls"}]}),
                 json!({"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":1}}),
@@ -558,6 +564,7 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
     assert!(chat_body.contains("\"type\":\"tool-input-available\""));
     assert!(chat_body.contains("\"type\":\"tool-output-available\""));
     assert!(chat_body.contains("four remaining") && chat_body.contains("\"totalTokens\":14"));
+    assert!(!chat_body.contains("private stream round"));
     let responses = app.get("/responses-stream-tools").await?;
     assert_eq!(responses.status(), StatusCode::OK);
     let response_body = std::str::from_utf8(responses.streamed_content())?;
@@ -573,6 +580,10 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
     );
     let chat = chat_calls.await?;
     assert_eq!(chat[0]["stream_options"]["include_usage"], true);
+    assert_eq!(
+        chat[1]["messages"][1]["reasoning_content"],
+        "private stream round"
+    );
     assert_eq!(chat[1]["messages"][2]["tool_call_id"], "call_fixture");
     assert_eq!(
         serde_json::from_str::<Value>(chat[1]["messages"][2]["content"].as_str().unwrap())?["quantity"],

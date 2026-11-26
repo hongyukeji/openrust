@@ -530,3 +530,14 @@ AI 服务提供者将 18 种 BCP 47 语言的默认工具文案作为包资源�
 `ai:models`、`ai:prompt`、`ai:select-model`、`make:agent`、`make:tool` 和 `make:agent-middleware` 通过包语言资源提供 18 语命令与参数说明。框架在生成帮助时读取当前语言，应用可覆写包译文。当前语言的通用参数说明优先于回退语言的单命令说明。
 
 实际 Artisan 在全部 18 语检查六个命令的 JSON 帮助，确认命令、参数、选项、默认值及用法元数据一致。验证日文 `--help`、繁中 `list`、法语应用覆写和未知语言回退。真实 HTTP 同进程并发检查各语言通过 `Artisan::call` 得到的说明。AI 与网关包测试、框架命令回归、严格 Clippy 和三语文档通过。生成器交互、网关命令帮助和错误文案仍需按计划逐项核对。
+
+### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
+
+DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。
+
+Chat 思考模式的具名工具选项触发上游 400。使用自动选择并在实际工具续轮回传 `reasoning_content` 后通过，缓冲与分片流分别验证工具历史，测试确认 UI 流不展示保留的推理片段。Chat 工具总量为 695 输入、60 输出 Token，Responses 工具总量为 692 输入、57 输出 Token。它们是上游回报的用量。本次未验证供应商账单、Embeddings 或媒体。
+
+阿里云使用官方文档指定的 Token Plan Responses 地址及隔离的 Codex 0.170.0 交互会话。上游返回 HTTP 403，代码 `AccessDenied.Unpurchased`。本次无成功生成记录。该凭证按官方规定用于兼容 AI 工具的交互链路，百炼按量付费后端另行验收。所有凭证从运行时环境读取，仓库只记录协议、状态和汇总数据。
+
+- [DeepSeek 思考模式](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/) · [Chat Completions API](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion/) · [Responses API](https://api-docs.deepseek.com/zh-cn/api/create-response/)
+- [阿里云 Token Plan 使用规范](https://help.aliyun.com/zh/model-studio/token-plan-permissions-and-usage) · [阿里云 Codex 接入](https://help.aliyun.com/zh/model-studio/codex)

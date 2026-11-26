@@ -31,6 +31,8 @@ let answer = response.text;
 
 執行 `./artisan ai:select-model --save --default` 選擇模型，並將該連線設為應用程式預設。Artisan 使用目前的預設連線，或在只有一家設定了憑證時直接提示該連線的模型。也可以指定連線名稱。手填模型使用 `--model=your-model-id`，自動化情境可加上 `--no-interaction`。儲存會寫入應用程式實際載入的環境檔。使用設定快取時，儲存後重新產生快取。
 
+使用 DeepSeek Chat Completions 的思考模式時，採用自動工具選擇。OpenRust 將上游推理欄位保留在工具步驟中，續接同一次呼叫時回傳。需要 DeepSeek 嚴格 JSON Schema 輸出時，可新增一個具名連線，使用 `driver: "openai"` 和 `url: "https://api.deepseek.com/v1"` 接入 Responses API，沿用 `DEEPSEEK_API_KEY` 環境變數。 [DeepSeek 思考模式](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/) · [DeepSeek Responses API](https://api-docs.deepseek.com/zh-cn/api/create-response/)
+
 AI 命令說明使用應用程式目前的語言。執行 `./artisan help ai:select-model` 或 `./artisan ai:prompt --help` 可查看本地化說明。可在 `lang/vendor/ai/<locale>/console.json` 中透過 `commands.<命令>.description` 覆寫命令說明，透過 `commands.<命令>.arguments.<參數>` 覆寫個別命令的參數說明。
 
 互動式連線與模型選擇使用應用程式目前的語言。各語言共用相同的數字選項和最終輸出的模型 ID。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆寫互動提示。

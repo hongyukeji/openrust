@@ -31,6 +31,8 @@ Run `./artisan ai:models deepseek` to list models, or add `--json` to distinguis
 
 Run `./artisan ai:select-model --save --default` to choose a model and save its connection as the application default. Artisan uses the current default or suggests the only configured connection with credentials. To select a specific connection, supply its name. Use `--model=your-model-id` to enter a model manually and `--no-interaction` to run without prompts. Saving uses the application’s selected environment file. If the configuration is cached, rebuild it after saving.
 
+With DeepSeek Chat Completions in thinking mode, use automatic tool selection. OpenRust keeps the upstream reasoning field with the tool step and sends it back when continuing that call. For strict JSON Schema output on DeepSeek, add a named connection with `driver: "openai"` and `url: "https://api.deepseek.com/v1"` to use the Responses API. It can use the same `DEEPSEEK_API_KEY` environment variable. [DeepSeek thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/) · [DeepSeek Responses API](https://api-docs.deepseek.com/api/create-response/)
+
 AI command help follows the application locale. Run `./artisan help ai:select-model` or `./artisan ai:prompt --help` to see localized descriptions. Override a package description in `lang/vendor/ai/<locale>/console.json` under `commands.<command>.description`, or set a command-specific argument description under `commands.<command>.arguments.<argument>`.
 
 Interactive connection and model selection follow the application locale. Numeric menu choices and the returned model ID stay stable across languages. Override the prompts through `lang/vendor/ai/<locale>/console.json` under `select_model`.

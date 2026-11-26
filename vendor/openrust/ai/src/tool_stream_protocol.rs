@@ -64,6 +64,7 @@ struct Chat {
     model: Option<String>,
     text: Option<String>,
     reason: Option<String>,
+    reasoning_content: Option<String>,
     usage: Usage,
     calls: BTreeMap<u64, Call>,
 }
@@ -87,6 +88,11 @@ impl Chat {
             return Ok(None);
         };
         let delta = &choice["delta"];
+        if let Some(reasoning) = delta["reasoning_content"].as_str() {
+            self.reasoning_content
+                .get_or_insert_default()
+                .push_str(reasoning);
+        }
         if delta["refusal"]
             .as_str()
             .is_some_and(|message| !message.is_empty())
@@ -141,7 +147,7 @@ impl Chat {
             .collect();
         let mut response = tool_protocol::chat_step(json!({
             "model":self.model,"choices":[{
-                "message":{"content":self.text,"tool_calls":calls}
+                "message":{"content":self.text,"tool_calls":calls,"reasoning_content":self.reasoning_content}
             }],
         }))?;
         response.usage = self.usage;
