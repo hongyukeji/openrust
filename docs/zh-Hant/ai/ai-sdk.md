@@ -154,3 +154,25 @@ Embeddings::assert_generated(|call| call.inputs == ["配送"]);
 ```
 
 SDK 會記錄 Fake 呼叫。Fake 不聯絡模型供應商，也不讀寫設定的向量快取。
+
+## 文件重新排序 {#reranking}
+
+用 `AI_RERANKING_PROVIDER` 選擇預設連線，再填寫該連線的 API Key 和重新排序模型 ID。
+
+| 連線 | Base URL | URL 覆寫 | API Key | Model ID |
+| --- | --- | --- | --- | --- |
+| `cohere` | `https://api.cohere.com/v2` | `COHERE_URL` | `COHERE_API_KEY` | `COHERE_RERANK_MODEL` |
+| `jina` | `https://api.jina.ai/v1` | `JINA_URL` | `JINA_API_KEY` | `JINA_RERANK_MODEL` |
+| `voyageai` | `https://api.voyageai.com/v1` | `VOYAGE_URL` | `VOYAGE_API_KEY` | `VOYAGE_RERANK_MODEL` |
+| `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_URL` | `OPENROUTER_API_KEY` | `OPENROUTER_RERANK_MODEL` |
+
+```rust
+use openrust_ai::Reranking;
+
+let result = Reranking::of(["配送", "換貨", "退貨"])?
+    .limit(2)
+    .rerank("如何退貨？")
+    .await?;
+```
+
+結果保留供應商回傳的排序順序。各項的 `index` 都指向原始文件位置，可用來取得輸入集合中的原始紀錄。

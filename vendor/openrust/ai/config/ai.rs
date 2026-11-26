@@ -10,6 +10,14 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         }))
     };
 
+    let reranker = |driver, url_env, default_url, key_env, model_env| {
+        Ok::<_, ConfigError>(json!({
+            "driver": driver,
+            "url": env.get_utf8(url_env)?.unwrap_or(default_url),
+            "key_env": key_env,
+            "models": {"reranking": {"default": env.get_utf8(model_env)?}},
+        }))
+    };
     let mut openai = provider(
         "openai",
         "OPENAI_URL",
@@ -19,13 +27,25 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     )?;
     openai["models"]["embeddings"] = json!({"default": env.get_utf8("OPENAI_EMBEDDING_MODEL")?});
 
+    let mut openrouter = provider(
+        "openai-compatible",
+        "OPENROUTER_URL",
+        "https://openrouter.ai/api/v1",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+    )?;
+    openrouter["models"]["reranking"] =
+        json!({"default": env.get_utf8("OPENROUTER_RERANK_MODEL")?});
+    openrouter["models"]["embeddings"] =
+        json!({"default": env.get_utf8("OPENROUTER_EMBEDDING_MODEL")?});
+
     Ok(json!({
         "default": env.get_utf8("AI_PROVIDER")?,
         "default_for_images": null,
         "default_for_audio": null,
         "default_for_transcription": null,
         "default_for_embeddings": env.get_utf8("AI_EMBEDDINGS_PROVIDER")?,
-        "default_for_reranking": null,
+        "default_for_reranking": env.get_utf8("AI_RERANKING_PROVIDER")?,
         "default_for_classification": null,
         "caching": {
             "embeddings": {
@@ -42,6 +62,10 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "qianfan": provider("openai-compatible", "QIANFAN_URL", "https://qianfan.baidubce.com/v2", "QIANFAN_API_KEY", "QIANFAN_MODEL")?,
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
+            "openrouter": openrouter,
+            "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,
+            "jina": reranker("jina", "JINA_URL", "https://api.jina.ai/v1", "JINA_API_KEY", "JINA_RERANK_MODEL")?,
+            "voyageai": reranker("voyageai", "VOYAGE_URL", "https://api.voyageai.com/v1", "VOYAGE_API_KEY", "VOYAGE_RERANK_MODEL")?,
             "anthropic": provider("anthropic", "ANTHROPIC_URL", "https://api.anthropic.com/v1", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL")?,
             "gemini": provider("gemini", "GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta", "GEMINI_API_KEY", "GEMINI_MODEL")?
         }

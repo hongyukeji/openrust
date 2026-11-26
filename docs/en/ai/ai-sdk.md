@@ -154,3 +154,25 @@ Embeddings::assert_generated(|call| call.inputs == ["Shipping"]);
 ```
 
 Faked calls are recorded by the SDK and do not contact the provider or write to the configured embeddings cache.
+
+## Reranking {#reranking}
+
+Set `AI_RERANKING_PROVIDER` to choose the default connection, then fill in its API key and the reranking model ID.
+
+| Connection | Base URL | URL override | API Key | Model ID |
+| --- | --- | --- | --- | --- |
+| `cohere` | `https://api.cohere.com/v2` | `COHERE_URL` | `COHERE_API_KEY` | `COHERE_RERANK_MODEL` |
+| `jina` | `https://api.jina.ai/v1` | `JINA_URL` | `JINA_API_KEY` | `JINA_RERANK_MODEL` |
+| `voyageai` | `https://api.voyageai.com/v1` | `VOYAGE_URL` | `VOYAGE_API_KEY` | `VOYAGE_RERANK_MODEL` |
+| `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_URL` | `OPENROUTER_API_KEY` | `OPENROUTER_RERANK_MODEL` |
+
+```rust
+use openrust_ai::Reranking;
+
+let result = Reranking::of(["Shipping", "Exchanges", "Returns"])?
+    .limit(2)
+    .rerank("How do I return an item?")
+    .await?;
+```
+
+Results keep the provider’s ranking order. Each `index` points to the document’s original position, so you can select the ranked items from the input collection.

@@ -15,11 +15,13 @@ use serde_json::Value;
 
 use crate::{
     Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
-    FakeTextGateway, PromptOptions, RecordedEmbeddings, StreamableAgentResponse, StructuredOutput,
-    TextPrompt, TextProvider,
+    FakeTextGateway, PromptOptions, RecordedEmbeddings, RerankingProvider, StreamableAgentResponse,
+    StructuredOutput, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
+    connection::{Authorization, Connection},
     gemini::GeminiTextProvider,
     on_demand::{OnDemandProviders, reserved_name},
+    reranking::{HttpRerankingProvider, RerankingProtocol},
     text::{OpenAiProtocol, OpenAiTextProvider},
 };
 
@@ -74,6 +76,26 @@ impl AiManager {
                     environment.clone(),
                     http.clone(),
                 )?))
+            });
+        }
+        for (driver, protocol) in [
+            ("cohere", RerankingProtocol::TopN),
+            ("jina", RerankingProtocol::TopN),
+            ("voyageai", RerankingProtocol::Voyage),
+        ] {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend(driver, move |config| {
+                let connection = Arc::new(Connection::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                    Authorization::Bearer,
+                )?);
+                Ok(Arc::new(HttpRerankingProvider {
+                    connection,
+                    protocol,
+                }))
             });
         }
         manager.extend("gemini", move |config| {
@@ -254,6 +276,21 @@ impl AiManager {
 
     pub fn embeddings_fake(&self) -> Option<Arc<FakeEmbeddingGateway>> {
         self.embeddings_fake.read().unwrap().clone()
+    }
+
+    pub fn reranking_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
+        let configured = if name.is_none() {
+            match self.config.get("ai.default_for_reranking") {
+                Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
+                None | Some(Value::Null) => None,
+                _ => return Err(AiError::InvalidConfiguration("default_for_reranking")),
+            }
+        } else {
+            None
+        };
+        self.text_provider(name.or(configured.as_deref()))?
+            .reranking_provider()
+            .ok_or(AiError::RerankingNotSupported)
     }
 
     pub fn text_provider_for(

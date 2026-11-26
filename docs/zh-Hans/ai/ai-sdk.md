@@ -154,3 +154,25 @@ Embeddings::assert_generated(|call| call.inputs == ["配送"]);
 ```
 
 SDK 记录 Fake 调用。Fake 不联系模型供应商，也不读写配置的向量缓存。
+
+## 文档重排序 {#reranking}
+
+用 `AI_RERANKING_PROVIDER` 选择默认连接，然后填写该连接的 API Key 和重排序模型 ID。
+
+| 连接 | Base URL | URL 覆盖 | API Key | Model ID |
+| --- | --- | --- | --- | --- |
+| `cohere` | `https://api.cohere.com/v2` | `COHERE_URL` | `COHERE_API_KEY` | `COHERE_RERANK_MODEL` |
+| `jina` | `https://api.jina.ai/v1` | `JINA_URL` | `JINA_API_KEY` | `JINA_RERANK_MODEL` |
+| `voyageai` | `https://api.voyageai.com/v1` | `VOYAGE_URL` | `VOYAGE_API_KEY` | `VOYAGE_RERANK_MODEL` |
+| `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_URL` | `OPENROUTER_API_KEY` | `OPENROUTER_RERANK_MODEL` |
+
+```rust
+use openrust_ai::Reranking;
+
+let result = Reranking::of(["配送", "换货", "退货"])?
+    .limit(2)
+    .rerank("如何退货？")
+    .await?;
+```
+
+结果保持供应商返回的排序顺序。每项的 `index` 都指向原始文档位置，可用来取回输入集合中的原始记录。

@@ -4,7 +4,7 @@ use openrust::{container::ServiceKey, support::facades::Facade};
 
 use crate::{
     Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeEmbeddingGateway, FakeTextGateway,
-    ModelCatalog, TextProvider,
+    ModelCatalog, RerankingProvider, TextProvider,
 };
 
 pub struct Ai;
@@ -43,6 +43,10 @@ impl Ai {
 
     pub fn embeddings_are_faked() -> AiResult<bool> {
         Ok(Self::manager()?.embeddings_fake().is_some())
+    }
+
+    pub fn reranking_provider(name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
+        Self::manager()?.reranking_provider(name)
     }
 
     pub fn embedding_provider(name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {

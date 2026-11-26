@@ -139,3 +139,11 @@ HTTP Kernel 和 TCP 上游覆盖全命中、部分命中、顺序、重复输入
 固定 `Embeddings::fake`、`isFaked`、生成断言与 `fakeEmbedding` 进入 SDK 公开调用；Rust 的闭包配置入口为 `fake_with`。替身支持脚本批次、回调、正维度自动单位向量和未配置响应时的拦截。记录输入顺序、维度、超时、连接及模型。替身在缓存前执行并按应用隔离，保留正常响应的向量数量和类型校验。
 
 包测试验证响应、元数据、断言、耗尽、归一化及跨应用隔离。独立 Artisan 与 HTTP 各走正常 SDK 入口，隔离监听器确认没有出站请求。排队替身与排队断言归生成队列批次。
+
+## AI-05 Reranking 原生文本入口
+
+固定 `Reranking::of` 和 `PendingReranking` 对应 Rust 的文档输入、限制、超时、默认或显式连接及模型。使用同一框架 HTTP 客户端。Cohere、Jina 和 OpenRouter 共用 `top_n/results`，Voyage 使用 `top_k/data`。结果保留供应商顺序、原文档索引和可用用量；重复、越界或非有限分值显式失败。四个预设有标准 URL 和环境覆盖，模型 ID 由开发者选择。OpenRouter 沿用 OpenAI Compatible 配置。
+
+HTTP Kernel 和独立 Artisan／HTTP 进程经真实 TCP 上游模拟验证四种连接、认证、线协议、用量及索引。Bedrock、Collection 便利入口、Reranking Fake 及真实供应商验收仍待对应批次。
+
+- [Cohere v2](https://docs.cohere.com/v2/reference/rerank) · [Jina AI](https://jina.ai/reranker/) · [Voyage AI](https://docs.voyageai.com/reference/reranker-api) · [OpenRouter](https://openrouter.ai/docs/api/api-reference/rerank/create-rerank)

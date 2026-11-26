@@ -26,6 +26,7 @@ pub enum AiError {
     StreamingMiddlewareNotSupported,
     EndpointNotSupported,
     EmbeddingsNotSupported,
+    RerankingNotSupported,
     EmbeddingCacheUnavailable,
     Transport,
     Timeout,
@@ -63,6 +64,7 @@ impl fmt::Display for AiError {
             }
             Self::EndpointNotSupported => formatter.write_str("该 AI 协议驱动未提供所选端点"),
             Self::EmbeddingsNotSupported => formatter.write_str("该 AI 连接不支持 Embeddings"),
+            Self::RerankingNotSupported => formatter.write_str("该 AI 连接不支持 Reranking"),
             Self::EmbeddingCacheUnavailable => formatter.write_str("Embeddings 缓存暂不可用"),
             Self::Transport => formatter.write_str("AI 供应商请求失败"),
             Self::Timeout => formatter.write_str("AI 供应商请求超时"),

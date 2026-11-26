@@ -24,12 +24,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog, StepResponse,
-    StepTextGateway, StreamableAgentResponse, StructuredOutput, ToolCall, ToolDefinition,
-    ToolResult, ToolStep,
+    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
+    RerankingProvider, StepResponse, StepTextGateway, StreamableAgentResponse, StructuredOutput,
+    ToolCall, ToolDefinition, ToolResult, ToolStep,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
+    reranking::{HttpRerankingProvider, RerankingProtocol},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -106,6 +107,10 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        None
+    }
+
+    fn reranking_provider(&self) -> Option<Arc<dyn RerankingProvider>> {
         None
     }
 
@@ -335,6 +340,15 @@ impl TextProvider for OpenAiTextProvider {
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
         self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
             Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
+        })
+    }
+
+    fn reranking_provider(&self) -> Option<Arc<dyn RerankingProvider>> {
+        self.connection.reranking_configured().then(|| {
+            Arc::new(HttpRerankingProvider {
+                connection: self.connection.clone(),
+                protocol: RerankingProtocol::TopN,
+            }) as Arc<dyn RerankingProvider>
         })
     }
 

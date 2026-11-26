@@ -28,6 +28,7 @@ mod messages;
 mod middleware;
 mod models;
 mod on_demand;
+mod reranking;
 mod streaming;
 mod structured;
 mod text;
@@ -48,6 +49,10 @@ pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};
+pub use reranking::{
+    PendingReranking, RankedDocument, Reranking, RerankingPrompt, RerankingProvider,
+    RerankingResponse,
+};
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,
     StreamableAgentResponse, VercelDataProtocol,
