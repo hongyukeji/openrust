@@ -17,5 +17,9 @@
     "missing_file": "ทักษะ [:name] ไม่มีไฟล์ [:path] แนบมาด้วย",
     "file_too_large": "ไฟล์ [:path] มีขนาดใหญ่เกินกว่าจะอ่านโดยตรง",
     "file_binary": "ไฟล์ [:path] ไม่ใช่ข้อความ UTF-8"
+  },
+  "mcp": {
+    "error": "เรียกใช้เครื่องมือ MCP ไม่สำเร็จ",
+    "error_with_detail": "เครื่องมือ MCP พบข้อผิดพลาด: :detail"
   }
 }

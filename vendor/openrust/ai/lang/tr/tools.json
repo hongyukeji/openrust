@@ -17,5 +17,9 @@
     "missing_file": "[:path] dosyası [:name] becerisine dahil değil.",
     "file_too_large": "[:path] dosyası doğrudan okunamayacak kadar büyük.",
     "file_binary": "[:path] dosyası UTF-8 metni değil."
+  },
+  "mcp": {
+    "error": "MCP aracı çalıştırılamadı.",
+    "error_with_detail": "MCP aracı hatası: :detail"
   }
 }

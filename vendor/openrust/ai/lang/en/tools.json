@@ -17,5 +17,9 @@
     "missing_file": "File [:path] is not bundled with skill [:name].",
     "file_too_large": "File [:path] is too large to read inline.",
     "file_binary": "File [:path] is not UTF-8 text."
+  },
+  "mcp": {
+    "error": "MCP tool error.",
+    "error_with_detail": "MCP tool error: :detail"
   }
 }

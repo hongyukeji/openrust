@@ -306,6 +306,19 @@ impl ObjectType {
         self
     }
 }
+
+impl TryFrom<Type> for ObjectType {
+    type Error = SchemaError;
+
+    fn try_from(schema: Type) -> Result<Self, Self::Error> {
+        if matches!(schema.kind, Kind::Object(_)) {
+            Ok(Self(schema))
+        } else {
+            Err(SchemaError::new("JSON Schema 必须为对象类型"))
+        }
+    }
+}
+
 impl ArrayType {
     pub fn new() -> Self {
         Self(Type::new(Kind::Array(None)))

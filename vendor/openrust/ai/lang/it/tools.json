@@ -17,5 +17,9 @@
     "missing_file": "Il file [:path] non è incluso nella competenza [:name].",
     "file_too_large": "Il file [:path] è troppo grande per essere letto direttamente.",
     "file_binary": "Il file [:path] non è testo UTF-8."
+  },
+  "mcp": {
+    "error": "Errore durante l’esecuzione dello strumento MCP.",
+    "error_with_detail": "Errore dello strumento MCP: :detail"
   }
 }

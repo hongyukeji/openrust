@@ -17,5 +17,9 @@
     "missing_file": "ファイル [:path] はスキル [:name] に含まれていません。",
     "file_too_large": "ファイル [:path] は大きすぎるため、そのまま読み取れません。",
     "file_binary": "ファイル [:path] は UTF-8 テキストではありません。"
+  },
+  "mcp": {
+    "error": "MCP ツールの実行に失敗しました。",
+    "error_with_detail": "MCP ツールのエラー：:detail"
   }
 }

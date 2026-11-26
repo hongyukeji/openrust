@@ -572,6 +572,20 @@ let response = agent("Search the policy documents before answering.")
 
 默认工具说明和 `task` 参数说明在生成 Schema 时按当前应用语言及其回退配置解析。可在 `lang/vendor/ai/<locale>/tools.json` 中覆写 `agent.description` 或 `agent.task`。说明中的 `:agent` 会替换为工具名称。
 
+### MCP 客户端工具 {#mcp-tools}
+
+应用通过已连接的 `rmcp` 客户端选择要提供给 Agent 的工具，再把连接对端和工具定义传给 `McpTool::new`。MCP 的连接、鉴权和传输由应用管理。模型看到带 `mcp_tools_` 前缀的工具名，OpenRust 调用 MCP 时发送原始名称和参数。创建适配器时遇到不支持的参数 Schema 会返回 `AiError::InvalidSchema`。
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{McpTool, agent};
+
+let tool = McpTool::new(client.peer().clone(), definition)?;
+let assistant = agent("").with_tools(vec![Arc::new(tool)]);
+```
+
+可用 `with_approval` 为工具调用指定应用审批策略。`annotations()` 返回 MCP 服务公布的提示。
+
 ### Agent 技能 {#agent-skills}
 
 用 `Skill::from_directory` 打开包含 `SKILL.md` 的目录。YAML 元数据声明技能名称和描述，Markdown 正文提供说明。也可用 `Skill::new` 在 Rust 中定义技能，通过 `files` 提供内联资源。

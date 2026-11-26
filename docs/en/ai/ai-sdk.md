@@ -572,6 +572,20 @@ The child uses its own instructions, model and provider. The parent sends the ta
 
 The default description and the `task` field help are translated when the tool schema is generated, using the current application locale and its configured fallback. Override individual phrases in `lang/vendor/ai/<locale>/tools.json` under `agent.description` and `agent.task`. Use `:agent` in the description to insert the tool name.
 
+### MCP client tools {#mcp-tools}
+
+Use a connected `rmcp` client to discover the tools your application wants to expose. Pass its peer and the selected definition to `McpTool::new`. The application manages the MCP connection, authentication, and transport. The model sees the tool name with a `mcp_tools_` prefix, and OpenRust sends the original name and arguments to MCP. Unsupported input schemas return `AiError::InvalidSchema` when creating the adapter.
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{McpTool, agent};
+
+let tool = McpTool::new(client.peer().clone(), definition)?;
+let assistant = agent("").with_tools(vec![Arc::new(tool)]);
+```
+
+Use `with_approval` to apply an application policy to the tool call. `annotations()` returns the hints published by the MCP server.
+
 ### Skills {#agent-skills}
 
 Use `Skill::from_directory` to open a directory with `SKILL.md`. YAML metadata supplies the skill name and description, and the Markdown body supplies the instructions. Use `Skill::new` to define a skill in Rust and add any inline resources to its `files`.

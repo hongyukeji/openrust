@@ -45,6 +45,7 @@ mod image;
 mod load_skill;
 mod localization;
 mod manager;
+mod mcp_tool;
 mod media_storage;
 mod messages;
 mod middleware;
@@ -110,6 +111,7 @@ pub use image::{
 };
 pub use load_skill::LoadSkill;
 pub use manager::AiManager;
+pub use mcp_tool::McpTool;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};

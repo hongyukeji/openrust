@@ -17,5 +17,9 @@
     "missing_file": "फ़ाइल [:path] कौशल [:name] में शामिल नहीं है।",
     "file_too_large": "फ़ाइल [:path] सीधे पढ़ने के लिए बहुत बड़ी है।",
     "file_binary": "फ़ाइल [:path] UTF-8 टेक्स्ट नहीं है।"
+  },
+  "mcp": {
+    "error": "MCP टूल चलाने में त्रुटि हुई।",
+    "error_with_detail": "MCP टूल की त्रुटि: :detail"
   }
 }

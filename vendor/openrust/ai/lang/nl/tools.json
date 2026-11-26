@@ -17,5 +17,9 @@
     "missing_file": "Bestand [:path] hoort niet bij vaardigheid [:name].",
     "file_too_large": "Bestand [:path] is te groot om direct te lezen.",
     "file_binary": "Bestand [:path] is geen UTF-8-tekst."
+  },
+  "mcp": {
+    "error": "Het uitvoeren van de MCP-tool is mislukt.",
+    "error_with_detail": "Fout in de MCP-tool: :detail"
   }
 }

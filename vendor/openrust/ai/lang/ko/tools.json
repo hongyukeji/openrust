@@ -17,5 +17,9 @@
     "missing_file": "파일 [:path]은 스킬 [:name]에 포함되어 있지 않습니다.",
     "file_too_large": "파일 [:path]이 너무 커서 직접 읽을 수 없습니다.",
     "file_binary": "파일 [:path]은 UTF-8 텍스트가 아닙니다."
+  },
+  "mcp": {
+    "error": "MCP 도구 실행에 실패했습니다.",
+    "error_with_detail": "MCP 도구 오류: :detail"
   }
 }

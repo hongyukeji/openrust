@@ -17,5 +17,9 @@
     "missing_file": "技能 [:name] 未提供檔案 [:path]。",
     "file_too_large": "檔案 [:path] 太大，無法內嵌讀取。",
     "file_binary": "檔案 [:path] 不是 UTF-8 文字。"
+  },
+  "mcp": {
+    "error": "MCP 工具執行失敗。",
+    "error_with_detail": "MCP 工具執行失敗：:detail"
   }
 }

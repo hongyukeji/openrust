@@ -17,5 +17,9 @@
     "missing_file": "Le fichier [:path] ne fait pas partie de la compétence [:name].",
     "file_too_large": "Le fichier [:path] est trop volumineux pour être lu directement.",
     "file_binary": "Le fichier [:path] n’est pas du texte UTF-8."
+  },
+  "mcp": {
+    "error": "L’outil MCP a échoué.",
+    "error_with_detail": "Erreur de l’outil MCP : :detail"
   }
 }

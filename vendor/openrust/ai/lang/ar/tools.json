@@ -17,5 +17,9 @@
     "missing_file": "الملف [:path] غير مرفق بالمهارة [:name].",
     "file_too_large": "الملف [:path] كبير جدًا للقراءة مباشرةً.",
     "file_binary": "الملف [:path] ليس نصًا بترميز UTF-8."
+  },
+  "mcp": {
+    "error": "فشل تنفيذ أداة MCP.",
+    "error_with_detail": "فشل تنفيذ أداة MCP: :detail"
   }
 }

@@ -17,5 +17,9 @@
     "missing_file": "Die Datei [:path] gehört nicht zur Fähigkeit [:name].",
     "file_too_large": "Die Datei [:path] ist zu groß zum direkten Lesen.",
     "file_binary": "Die Datei [:path] ist kein UTF-8-Text."
+  },
+  "mcp": {
+    "error": "Die Ausführung des MCP-Tools ist fehlgeschlagen.",
+    "error_with_detail": "Fehler bei der Ausführung des MCP-Tools: :detail"
   }
 }

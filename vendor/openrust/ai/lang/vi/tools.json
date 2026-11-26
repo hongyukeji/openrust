@@ -17,5 +17,9 @@
     "missing_file": "Tệp [:path] không đi kèm kỹ năng [:name].",
     "file_too_large": "Tệp [:path] quá lớn để đọc trực tiếp.",
     "file_binary": "Tệp [:path] không phải là văn bản UTF-8."
+  },
+  "mcp": {
+    "error": "Thực thi công cụ MCP thất bại.",
+    "error_with_detail": "Lỗi công cụ MCP: :detail"
   }
 }

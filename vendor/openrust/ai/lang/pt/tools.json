@@ -17,5 +17,9 @@
     "missing_file": "O arquivo [:path] não está incluído na habilidade [:name].",
     "file_too_large": "O arquivo [:path] é grande demais para leitura direta.",
     "file_binary": "O arquivo [:path] não é texto UTF-8."
+  },
+  "mcp": {
+    "error": "Erro ao executar a ferramenta MCP.",
+    "error_with_detail": "Erro da ferramenta MCP: :detail"
   }
 }
