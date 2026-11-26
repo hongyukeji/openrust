@@ -6,9 +6,12 @@ use async_openai::types::{
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
         ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
         ChatCompletionRequestUserMessageContent, ChatCompletionStreamOptions,
-        CreateChatCompletionRequest,
+        CreateChatCompletionRequest, ResponseFormat, ResponseFormatJsonSchema,
     },
-    responses::{CreateResponse, EasyInputContent, EasyInputMessage, InputItem, InputParam, Role},
+    responses::{
+        CreateResponse, EasyInputContent, EasyInputMessage, InputItem, InputParam,
+        ResponseTextParam, Role, TextResponseFormatConfiguration,
+    },
 };
 use openrust::{
     config::Environment,
@@ -22,7 +25,7 @@ use serde_json::Value;
 
 use crate::{
     AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
-    StreamableAgentResponse,
+    StreamableAgentResponse, StructuredOutput,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
@@ -65,6 +68,9 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        if prompt.structured_output.is_some() {
+            return Box::pin(async { Err(AiError::StructuredOutputNotSupported) });
+        }
         if prompt.messages.is_empty() {
             self.generate_text(prompt.text)
         } else {
@@ -76,6 +82,9 @@ pub trait TextProvider: Send + Sync {
         &'a self,
         prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        if prompt.structured_output.is_some() {
+            return Box::pin(async { Err(AiError::StructuredOutputNotSupported) });
+        }
         if prompt.messages.is_empty() {
             self.stream_text(prompt.text)
         } else {
@@ -212,6 +221,11 @@ impl OpenAiTextProvider {
         CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
+            response_format: prompt.structured_output.as_ref().map(|output| {
+                ResponseFormat::JsonSchema {
+                    json_schema: schema_format(output),
+                }
+            }),
             stream: stream.then_some(true),
             stream_options: stream.then_some(ChatCompletionStreamOptions {
                 include_usage: Some(true),
@@ -252,6 +266,13 @@ impl OpenAiTextProvider {
             instructions: (!prompt.text.instructions.is_empty())
                 .then(|| prompt.text.instructions.into()),
             input,
+            text: prompt
+                .structured_output
+                .as_ref()
+                .map(|output| ResponseTextParam {
+                    format: TextResponseFormatConfiguration::JsonSchema(schema_format(output)),
+                    verbosity: None,
+                }),
             model: Some(prompt.text.model.into()),
             store: Some(self.connection.store()),
             stream: stream.then_some(true),
@@ -373,6 +394,15 @@ impl TextProvider for OpenAiTextProvider {
                 prompt.text.model.to_owned(),
             ))
         })
+    }
+}
+
+fn schema_format(output: &StructuredOutput<'_>) -> ResponseFormatJsonSchema {
+    ResponseFormatJsonSchema {
+        name: "response".into(),
+        schema: output.schema.clone(),
+        strict: Some(output.strict),
+        description: None,
     }
 }
 

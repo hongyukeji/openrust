@@ -430,16 +430,24 @@ async fn sdk_text_stream_reads_before_eof_and_keeps_upstream_usage() -> TestResu
 
 #[tokio::test]
 async fn responses_stream_is_exposed_as_laravel_sse() -> TestResult {
+    use openrust::json_schema::JsonSchema;
+
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = format!("http://{}/private/v1", listener.local_addr()?);
     let server = tokio::spawn(async move {
         let (socket, _) = listener.accept().await.unwrap();
         let (mut socket, request) = read_request(socket, "POST", "/private/v1/responses").await;
-        assert_eq!(request.unwrap()["stream"], true);
+        let request = request.unwrap();
+        assert_eq!(request["stream"], true);
+        assert_eq!(request["text"]["format"]["type"], "json_schema");
+        assert_eq!(
+            request["text"]["format"]["schema"]["properties"]["ok"]["type"],
+            "boolean"
+        );
         let response = concat!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
             "data: {\"type\":\"response.created\",\"response\":{\"model\":\"local\"}}\n\n",
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"one\"}\n\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"{\\\"ok\\\":true}\"}\n\n",
             "data: {\"type\":\"response.output_text.done\"}\n\n",
             "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":2,\"output_tokens\":3}}}\n\n"
         );
@@ -454,7 +462,13 @@ async fn responses_stream_is_exposed_as_laravel_sse() -> TestResult {
             .with_providers(openrust_providers())
             .with_routing(Routing::default().web(|| {
                 Route::get("/stream", || async {
-                    agent("").stream("test").await.unwrap().to_response()
+                    let schema = JsonSchema::object([("ok", JsonSchema::boolean().into())]);
+                    agent("")
+                        .with_schema(schema)
+                        .stream("test")
+                        .await
+                        .unwrap()
+                        .to_response()
                 })
             }))
     })?;
@@ -475,9 +489,103 @@ async fn responses_stream_is_exposed_as_laravel_sse() -> TestResult {
         .collect::<Result<Vec<_>, _>>()?;
     assert_eq!(event.len(), 5);
     assert_eq!(event[2]["type"], "text_delta");
-    assert_eq!(event[2]["delta"], "one");
+    assert_eq!(event[2]["delta"], r#"{"ok":true}"#);
     assert_eq!(event[4]["usage"]["prompt_tokens"], 2);
     assert!(body.ends_with("data: [DONE]\n\n"));
     server.await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn structured_prompt_sends_nested_schema_and_rejects_invalid_results() -> TestResult {
+    use openrust::json_schema::JsonSchema;
+
+    let nested = JsonSchema::object([("name", JsonSchema::string().required(true).into())])
+        .without_additional_properties();
+    let schema = JsonSchema::object([(
+        "rows",
+        JsonSchema::array().items(nested).required(true).into(),
+    )])
+    .without_additional_properties();
+    let expected = json!({"rows":[{"name":"sample"}]});
+    let (chat_url, chat_server) = upstream(
+        "POST",
+        "/private/v1/chat/completions",
+        vec![
+            (
+                200,
+                json!({"choices":[{"message":{"content":expected.to_string()}}]}),
+            ),
+            (
+                200,
+                json!({"choices":[{"message":{"content":"literal answer"}}]}),
+            ),
+            (200, json!({"choices":[{"message":{"refusal":"refused"}}]})),
+        ],
+    )
+    .await;
+    let (responses_url, response_server) = upstream("POST", "/private/v1/responses", vec![
+        (200, json!({"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":expected.to_string()}]}]})),
+    ]).await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/structured", || async {
+                    let nested =
+                        JsonSchema::object([("name", JsonSchema::string().required(true).into())])
+                            .without_additional_properties();
+                    let schema = JsonSchema::object([(
+                        "rows",
+                        JsonSchema::array().items(nested).required(true).into(),
+                    )])
+                    .without_additional_properties();
+                    let agent = agent("Return rows.").with_schema(schema).strict();
+                    let good = agent.prompt("A row").await.unwrap();
+                    assert_eq!(good.structured["rows"][0]["name"], "sample");
+                    assert_eq!(
+                        good.decode::<Value>().unwrap(),
+                        json!({"rows":[{"name":"sample"}]})
+                    );
+                    assert_eq!(
+                        agent.prompt("Malformed").await.unwrap_err(),
+                        AiError::InvalidStructuredResponse
+                    );
+                    assert_eq!(agent.prompt("Refused").await.unwrap_err(), AiError::Refused);
+                    let response = agent
+                        .prompt_with(
+                            "explicit provider",
+                            PromptOptions {
+                                provider: Some("openai"),
+                                model: Some("schema-model"),
+                                timeout: None,
+                            },
+                        )
+                        .await
+                        .unwrap();
+                    Response::json(StatusCode::OK, response)
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=deepseek\nDEEPSEEK_URL={chat_url}\nDEEPSEEK_API_KEY=local-fixture-key\nDEEPSEEK_MODEL=fixture\nOPENAI_URL={responses_url}\nOPENAI_API_KEY=local-fixture-key\n"
+        ),
+    )?;
+    assert_eq!(app.get("/structured").await?.json::<Value>()?, expected);
+    let expected_schema = openrust::json_schema::Type::from(schema).to_array()?;
+    for request in chat_server.await? {
+        assert_eq!(request["response_format"]["type"], "json_schema");
+        assert_eq!(
+            request["response_format"]["json_schema"]["schema"],
+            expected_schema
+        );
+        assert_eq!(request["response_format"]["json_schema"]["strict"], true);
+    }
+    let requests = response_server.await?;
+    assert_eq!(requests[0]["text"]["format"]["type"], "json_schema");
+    assert_eq!(requests[0]["text"]["format"]["schema"], expected_schema);
+    assert_eq!(requests[0]["text"]["format"]["strict"], true);
     Ok(())
 }

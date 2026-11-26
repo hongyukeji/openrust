@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::{
     Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeTextGateway,
-    PromptOptions, StreamableAgentResponse, TextPrompt, TextProvider,
+    PromptOptions, StreamableAgentResponse, StructuredOutput, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     gemini::GeminiTextProvider,
     text::{OpenAiProtocol, OpenAiTextProvider},
@@ -207,6 +207,16 @@ impl AiManager {
         prompt: &str,
         options: PromptOptions<'_>,
     ) -> AiResult<AgentResponse> {
+        self.prompt_with_schema(agent, prompt, options, None).await
+    }
+
+    pub(crate) async fn prompt_with_schema<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+    ) -> AiResult<AgentResponse> {
         if prompt.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -225,7 +235,13 @@ impl AiManager {
                         .ok()
                         .and_then(|resolved| resolved.default_text_model().ok().map(str::to_owned))
                 });
-            return fake.respond(prompt, agent.messages(), provider, model);
+            return fake.respond(
+                prompt,
+                agent.messages(),
+                structured_output.as_ref().map(|output| output.schema),
+                provider,
+                model,
+            );
         }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
@@ -238,6 +254,7 @@ impl AiManager {
                     timeout: options.timeout,
                 },
                 messages: agent.messages(),
+                structured_output,
             })
             .await
     }
@@ -248,12 +265,22 @@ impl AiManager {
         prompt: &str,
         options: PromptOptions<'_>,
     ) -> AiResult<StreamableAgentResponse> {
+        self.stream_with_schema(agent, prompt, options, None).await
+    }
+
+    pub(crate) async fn stream_with_schema<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+    ) -> AiResult<StreamableAgentResponse> {
         if prompt.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
         if self.text_fake::<A>().is_some() {
             return self
-                .prompt(agent, prompt, options)
+                .prompt_with_schema(agent, prompt, options, structured_output)
                 .await
                 .map(StreamableAgentResponse::from_text);
         }
@@ -268,6 +295,7 @@ impl AiManager {
                     timeout: options.timeout,
                 },
                 messages: agent.messages(),
+                structured_output,
             })
             .await
     }

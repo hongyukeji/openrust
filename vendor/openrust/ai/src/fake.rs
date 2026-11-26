@@ -6,12 +6,15 @@ use std::{
     },
 };
 
+use serde_json::Value;
+
 use crate::{AgentResponse, AiError, AiResult, Message, Usage};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordedPrompt {
     pub text: String,
     pub messages: Vec<Message>,
+    pub schema: Option<Value>,
     pub provider: Option<String>,
     pub model: Option<String>,
 }
@@ -75,6 +78,7 @@ impl FakeTextGateway {
         &self,
         prompt: &str,
         messages: &[Message],
+        schema: Option<&Value>,
         provider: Option<String>,
         model: Option<String>,
     ) -> AiResult<AgentResponse> {
@@ -95,6 +99,7 @@ impl FakeTextGateway {
         self.prompts.lock().unwrap().push(RecordedPrompt {
             text: prompt.into(),
             messages: messages.to_vec(),
+            schema: schema.cloned(),
             provider: provider.clone(),
             model: model.clone(),
         });

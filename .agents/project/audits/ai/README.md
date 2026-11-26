@@ -73,3 +73,9 @@ SDK 的 `gemini` 连接支持 `Agent::prompt`、`stream` 与 `Ai::models`，使�
 按固定 `Messages/Message.php`、`MessageRole.php` 和 `Prompts/AgentPrompt.php` 增加 User／Assistant 文本历史。应用可用 `AnonymousAgent::with_messages`，或实现 `Agent::messages`。历史与本次提示一起进入正常 `prompt` 和 `stream`，Fake 可断言历史。扩展 Provider 继续支持既有纯文本接口，接收历史时需实现新的 `AgentPrompt` 入口。
 
 OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 的 Rust 消费者均通过 HTTP Kernel 和本地 TCP 协议服务核对历史顺序与角色。独立 Artisan 用 `ai:prompt --messages=...` 验证历史进入 Anthropic 上游。会话持久化、工具结果角色、附件和结构化输出仍待对应批次。
+
+## AI-02 结构化输出
+
+`HasStructuredOutput`、匿名 Agent 的 `with_schema`、`StructuredAgentResponse` 与 `decode` 复用框架的 `JsonSchema`。Rust 普通及结构化调用分别拥有静态返回类型。OpenAI Chat Completions 和 Responses 使用 JSON Schema 请求，Anthropic 使用原生 `output_config.format`，Gemini GenerateContent 使用 `generationConfig.responseJsonSchema`。返回 JSON 对象，同时保留原始文本、模型和用量。SDK 流目前发出文本增量。接入方可解码为自己的类型；输出 Schema 的执行由原生模型协议处理。
+
+正常 HTTP Kernel 加本地协议服务验收四个适配器、深层对象和数组、严格标记、拒答、非 JSON 结果和 Responses 的结构化 SSE。独立 Artisan 用 `ai:prompt --schema=...` 验证实际 HTTP 请求及 JSON 输出。模型支持差异、Anthropic 合成工具降级、Gemini Interactions、流的结构化专用事件及其余高级选项仍待对应批次。

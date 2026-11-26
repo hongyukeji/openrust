@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, error::Error, fs, time::Duration};
 use openrust::{
     config::{ConfigError, Environment},
     http::{Body, StatusCode},
+    json_schema::JsonSchema,
     testing::{TestApp, TestResponse},
 };
 use serde_json::{Value, json};
@@ -284,6 +285,9 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
             "content":[{"type":"text","text":"こんにちは"}], "stop_reason":"end_turn",
             "usage":{"input_tokens":6, "output_tokens":4}
         });
+        let mut structured = message.clone();
+        structured["content"][0]["text"] = json!({"a":"b"}).to_string().into();
+        let structured = structured.to_string();
         let events = [
             json!({"type":"message_start","message":{"model":"claude-private","usage":{"input_tokens":6}}}),
             json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
@@ -295,6 +299,7 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
         for (path, expected_stream, kind, payload) in [
             ("/anthropic/v1/messages", false, "application/json", message.to_string()),
             ("/anthropic/v1/messages", true, "text/event-stream", events.clone()),
+            ("/anthropic/v1/messages", false, "application/json", structured.clone()),
             ("/anthropic/v1/models", false, "application/json", json!({"data":[{"id":"First","display_name":"First model"}], "has_more":true, "last_id":"First"}).to_string()),
             ("/anthropic/v1/models?after_id=First", false, "application/json", json!({"data":[{"id":"Second"}], "has_more":false, "last_id":"Second"}).to_string()),
             ("/anthropic/v1/messages", true, "text/event-stream", events.clone()),
@@ -336,6 +341,10 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                         assert_eq!(messages[1], json!({"role":"assistant","content":"Earlier reply"}));
                     }
                 }
+                if payload == structured {
+                    assert_eq!(body["output_config"]["format"]["type"], "json_schema");
+                    assert_eq!(body["output_config"]["format"]["schema"]["properties"]["a"]["type"], "string");
+                }
                 assert_eq!(body["stream"] == true, expected_stream);
             }
             let headers = format!("HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", payload.len());
@@ -368,6 +377,11 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                         agent("").stream("Hi!").await.unwrap().to_response(),
                     )
                 })?;
+                Route::get("/sdk-native-structured", || async {
+                    let schema = JsonSchema::object([("a", JsonSchema::string().into())]);
+                    let response = agent("").with_schema(schema).prompt("Hi!").await.unwrap();
+                    Response::json(StatusCode::OK, response)
+                })?;
                 Route::get("/sdk-native-models", || async {
                     let catalog = Ai::models(Some("anthropic")).await.unwrap();
                     assert!(catalog.discovery_error.is_none());
@@ -395,6 +409,10 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     assert!(sdk_events.contains("こんにちは"));
     assert!(sdk_events.contains("\"prompt_tokens\":6"));
     assert!(sdk_events.contains("\"completion_tokens\":4"));
+    assert_eq!(
+        app.get("/sdk-native-structured").await?.json::<Value>()?,
+        json!({"a":"b"})
+    );
     assert_eq!(
         app.get("/sdk-native-models").await?.status(),
         StatusCode::OK

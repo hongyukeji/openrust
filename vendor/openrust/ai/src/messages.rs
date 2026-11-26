@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::TextPrompt;
+use crate::{StructuredOutput, TextPrompt};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -45,6 +45,7 @@ impl Message {
 pub struct AgentPrompt<'a> {
     pub text: TextPrompt<'a>,
     pub messages: &'a [Message],
+    pub structured_output: Option<StructuredOutput<'a>>,
 }
 
 impl<'a> From<TextPrompt<'a>> for AgentPrompt<'a> {
@@ -52,6 +53,7 @@ impl<'a> From<TextPrompt<'a>> for AgentPrompt<'a> {
         Self {
             text,
             messages: &[],
+            structured_output: None,
         }
     }
 }

@@ -83,6 +83,10 @@ impl GeminiTextProvider {
         if !prompt.text.instructions.is_empty() {
             body["systemInstruction"] = json!({"parts":[{"text":prompt.text.instructions}]});
         }
+        if let Some(output) = &prompt.structured_output {
+            body["generationConfig"] =
+                json!({"responseMimeType":"application/json","responseJsonSchema":output.schema});
+        }
         body
     }
 

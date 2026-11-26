@@ -15,6 +15,9 @@ pub enum AiError {
     MissingCredential,
     ModelsNotSupported,
     MessagesNotSupported,
+    StructuredOutputNotSupported,
+    InvalidSchema,
+    InvalidStructuredResponse,
     StreamingNotSupported,
     EndpointNotSupported,
     EmbeddingsNotSupported,
@@ -39,6 +42,11 @@ impl fmt::Display for AiError {
             Self::MissingCredential => formatter.write_str("AI 连接的环境凭证未配置"),
             Self::ModelsNotSupported => formatter.write_str("该 AI 协议驱动未提供模型目录"),
             Self::MessagesNotSupported => formatter.write_str("该 AI 协议驱动未接收历史消息"),
+            Self::StructuredOutputNotSupported => {
+                formatter.write_str("该 AI 协议驱动未提供结构化输出")
+            }
+            Self::InvalidSchema => formatter.write_str("AI 结构化输出模式无效"),
+            Self::InvalidStructuredResponse => formatter.write_str("AI 响应不是预期的 JSON 对象"),
             Self::StreamingNotSupported => formatter.write_str("该 AI 协议驱动未提供流式输出"),
             Self::EndpointNotSupported => formatter.write_str("该 AI 协议驱动未提供所选端点"),
             Self::EmbeddingsNotSupported => formatter.write_str("该 AI 连接不支持 Embeddings"),

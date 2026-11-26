@@ -1,11 +1,12 @@
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     foundation::Application,
+    json_schema::JsonSchema,
     support::facades::Artisan,
 };
 use serde_json::json;
 
-use crate::{Agent, Ai, Message, PromptOptions, agent};
+use crate::{Agent, Ai, Message, PromptOptions, StructuredAgentResponse, StructuredOutput, agent};
 
 mod select_model;
 
@@ -17,7 +18,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     }))?;
     Artisan::add(Box::new(Prompt {
         definition: CommandDefinition::from_signature(
-            "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息}",
+            "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息} {--schema= : JSON 对象模式}",
         )?,
     }))?;
     select_model::register()
@@ -107,12 +108,48 @@ impl Command for Prompt {
                     ConsoleError::new("--messages 必须为带 role 和 content 的 JSON 消息数组")
                 })?
                 .unwrap_or_default();
-            let response = agent("")
-                .with_messages(messages)
-                .prompt_with(prompt, options)
-                .await
-                .map_err(console_error)?;
-            write_line(output, &response.text)?;
+            let agent = agent("").with_messages(messages);
+            let schema = input
+                .matches()
+                .get_one::<String>("schema")
+                .map(|schema| {
+                    let schema = serde_json::from_str::<serde_json::Value>(schema)
+                        .map_err(|_| console_error(crate::AiError::InvalidSchema))?;
+                    let schema = JsonSchema::from_array(schema)
+                        .and_then(|schema| schema.to_array())
+                        .map_err(|_| console_error(crate::AiError::InvalidSchema))?;
+                    if schema["type"] != "object" {
+                        return Err(console_error(crate::AiError::InvalidSchema));
+                    }
+                    Ok(schema)
+                })
+                .transpose()?;
+            if let Some(schema) = schema.as_ref() {
+                let response = Ai::manager()
+                    .map_err(console_error)?
+                    .prompt_with_schema(
+                        &agent,
+                        prompt,
+                        options,
+                        Some(StructuredOutput {
+                            schema,
+                            strict: false,
+                        }),
+                    )
+                    .await
+                    .map_err(console_error)?;
+                let structured = StructuredAgentResponse::parse(response).map_err(console_error)?;
+                write_line(
+                    output,
+                    &serde_json::to_string(&structured).map_err(ConsoleError::from_source)?,
+                )?;
+            } else {
+                let response = agent
+                    .prompt_with(prompt, options)
+                    .await
+                    .map_err(console_error)?;
+                write_line(output, &response.text)?;
+            }
             Ok(0)
         })
     }

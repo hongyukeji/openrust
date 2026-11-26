@@ -25,6 +25,7 @@ mod manager;
 mod messages;
 mod models;
 mod streaming;
+mod structured;
 mod text;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
@@ -40,6 +41,9 @@ pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use models::{ModelCatalog, ModelInfo};
 pub use streaming::{AgentEventStream, StreamEvent, StreamEventData, StreamableAgentResponse};
+pub use structured::{
+    HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
+};
 pub use text::{AgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage};
 
 pub struct AiServiceProvider;

@@ -49,6 +49,9 @@ impl AnthropicTextProvider {
         if !prompt.text.instructions.is_empty() {
             body["system"] = prompt.text.instructions.into();
         }
+        if let Some(output) = &prompt.structured_output {
+            body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
+        }
         if stream {
             body["stream"] = true.into();
         }

@@ -4,6 +4,7 @@ use openrust::{
     config::{ConfigError, Environment},
     foundation::configuration::Routing,
     http::{Body, Response, StatusCode},
+    json_schema::JsonSchema,
     support::facades::Route,
     testing::{TestApp, TestResponse},
 };
@@ -55,6 +56,10 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
             "candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"内容"}]}}],
             "usageMetadata":{"promptTokenCount":8, "candidatesTokenCount":2}
         });
+        let mut structured = text.clone();
+        structured["candidates"][0]["content"]["parts"][0]["text"] =
+            json!({"a":"b"}).to_string().into();
+        let structured = structured.to_string();
         let content = text.to_string();
         let sse = [
             json!({"modelVersion":"private.gemini","candidates":[{"content":{"parts":[{"text":"内"}]}}]}),
@@ -63,6 +68,7 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
         for (path, kind, payload) in [
             ("/google/v1beta/models/private.gemini:generateContent", "application/json", content.clone()),
             ("/google/v1beta/models/private.gemini:streamGenerateContent?alt=sse", "text/event-stream", sse.clone()),
+            ("/google/v1beta/models/private.gemini:generateContent", "application/json", structured.clone()),
             ("/google/v1beta/models", "application/json", json!({"models":[{"name":"models/private.gemini","displayName":"Private Gemini"}],"nextPageToken":"two"}).to_string()),
             ("/google/v1beta/models?pageToken=two", "application/json", json!({"models":[{"name":"models/second"}]}).to_string()),
             ("/google/v1beta/models/private.gemini:generateContent", "application/json", content),
@@ -94,6 +100,10 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
                 if body.get("systemInstruction").is_some() {
                     assert_eq!(contents[0], json!({"role":"user","parts":[{"text":"Earlier"}]}));
                     assert_eq!(contents[1], json!({"role":"model","parts":[{"text":"Earlier reply"}]}));
+                }
+                if payload == structured {
+                    assert_eq!(body["generationConfig"]["responseMimeType"], "application/json");
+                    assert_eq!(body["generationConfig"]["responseJsonSchema"]["properties"]["a"]["type"], "string");
                 }
                 assert!(body.get("model").is_none());
             }
@@ -127,6 +137,11 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
                         agent("").stream("Hi.").await.unwrap().to_response(),
                     )
                 })?;
+                Route::get("/sdk-gemini-structured", || async {
+                    let schema = JsonSchema::object([("a", JsonSchema::string().into())]);
+                    let response = agent("").with_schema(schema).prompt("Hi.").await.unwrap();
+                    Response::json(StatusCode::OK, response)
+                })?;
                 Route::get("/sdk-gemini-models", || async {
                     let models = Ai::models(Some("gemini")).await.unwrap();
                     assert!(models.discovery_error.is_none());
@@ -146,6 +161,10 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
     assert_eq!(app.get("/sdk-gemini").await?.status(), StatusCode::OK);
     let sdk = app.get("/sdk-gemini-stream").await?;
     assert!(std::str::from_utf8(sdk.streamed_content())?.contains("\"completion_tokens\":2"));
+    assert_eq!(
+        app.get("/sdk-gemini-structured").await?.json::<Value>()?,
+        json!({"a":"b"})
+    );
     assert_eq!(
         app.get("/sdk-gemini-models").await?.status(),
         StatusCode::OK

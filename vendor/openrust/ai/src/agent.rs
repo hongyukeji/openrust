@@ -1,8 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use openrust::http::HttpFuture;
+use openrust::{http::HttpFuture, json_schema::types::ObjectType};
 
-use crate::{AgentResponse, Ai, AiResult, FakeTextGateway, Message, StreamableAgentResponse};
+use crate::{
+    AgentResponse, Ai, AiResult, FakeTextGateway, Message, StreamableAgentResponse,
+    StructuredAnonymousAgent,
+};
 
 #[derive(Clone, Copy, Default)]
 pub struct PromptOptions<'a> {
@@ -90,6 +93,10 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
 }
 
 impl AnonymousAgent {
+    pub fn with_schema(self, schema: ObjectType) -> StructuredAnonymousAgent {
+        StructuredAnonymousAgent::new(self, schema)
+    }
+
     pub fn with_messages(mut self, messages: impl IntoIterator<Item = Message>) -> Self {
         self.messages = messages.into_iter().collect();
         self
