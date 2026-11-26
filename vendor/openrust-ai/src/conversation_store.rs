@@ -159,6 +159,7 @@ pub struct DatabaseConversationStore {
     conversations: String,
     messages: String,
     attachment_disk: String,
+    generate_title: bool,
 }
 
 impl DatabaseConversationStore {
@@ -168,6 +169,7 @@ impl DatabaseConversationStore {
             conversations: CONVERSATIONS.to_owned(),
             messages: MESSAGES.to_owned(),
             attachment_disk: attachment_storage::DEFAULT_DISK.to_owned(),
+            generate_title: true,
         }
     }
 
@@ -189,12 +191,23 @@ impl DatabaseConversationStore {
             Some(Json::String(disk)) if attachment_storage::valid_disk(&disk) => disk,
             _ => return Err(AiError::InvalidConfiguration(DISK_KEY)),
         };
+        const TITLE_KEY: &str = "ai.conversations.generate_title";
+        let generate_title = match config.get(TITLE_KEY) {
+            None | Some(Json::Null) => true,
+            Some(Json::Bool(value)) => value,
+            _ => return Err(AiError::InvalidConfiguration(TITLE_KEY)),
+        };
         Ok(Self {
             connection,
             conversations,
             messages,
             attachment_disk,
+            generate_title,
         })
+    }
+
+    pub(crate) fn generates_titles(&self) -> bool {
+        self.generate_title
     }
 
     pub(crate) fn approval_store(&self) -> crate::approval_store::ApprovalStore {
@@ -395,6 +408,7 @@ impl DatabaseConversationStore {
         user: &Message,
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
+        title: Option<&str>,
     ) -> DatabaseResult<bool> {
         let ApprovalScope {
             conversation_id: id,
@@ -479,14 +493,14 @@ impl DatabaseConversationStore {
                     .update(Record::from([("updated_at".into(), timestamp.into())]))
                     .await?;
             } else {
-                let title: String = user
-                    .content
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" ")
-                    .chars()
-                    .take(80)
-                    .collect();
+                let default_title;
+                let title = match title {
+                    Some(value) => value,
+                    None => {
+                        default_title = Str::limit(&user.content, 50, "...", true);
+                        &default_title
+                    }
+                };
                 if !transaction
                     .table(&self.conversations)
                     .insert(&[Record::from([
@@ -629,6 +643,7 @@ impl ConversationStore for DatabaseConversationStore {
                 existing,
                 message,
                 response,
+                None,
                 None,
             )
             .await

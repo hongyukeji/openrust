@@ -89,6 +89,7 @@ struct ConversationTurn {
     participant: ConversationParticipant,
     agent_name: &'static str,
     attachments: Vec<Attachment>,
+    faked: bool,
 }
 
 impl ConversationTurn {
@@ -103,20 +104,35 @@ impl ConversationTurn {
         approval: Option<&ApprovalSession>,
     ) -> AiResult<()> {
         let user = Message::user_with_attachments(prompt, self.attachments.iter().cloned());
-        let stored = if let Some(approval) = approval {
-            self.store
-                .as_database()
-                .ok_or(AiError::ConversationStorageUnavailable)?
+        let stored = if let Some(database) = self.store.as_database() {
+            let title = if self.existing {
+                None
+            } else {
+                Some(
+                    crate::conversation_title::title(
+                        prompt,
+                        &response.provider,
+                        database.generates_titles(),
+                        self.faked,
+                    )
+                    .await,
+                )
+            };
+            database
                 .store_turn_with_approval(
                     self.approval_scope(),
                     self.existing,
                     &user,
                     response,
-                    Some(approval),
+                    approval,
+                    title.as_deref(),
                 )
                 .await
                 .map_err(|_| AiError::ConversationStorageUnavailable)?
         } else {
+            if approval.is_some() {
+                return Err(AiError::ConversationStorageUnavailable);
+            }
             self.store
                 .store_turn_with_message(
                     &self.id,
@@ -259,6 +275,7 @@ impl<A: Agent> PendingConversation<'_, A> {
             participant: self.participant.clone(),
             agent_name: type_name::<A>(),
             attachments: checkpoint.prompt.attachments.clone(),
+            faked: false,
             store,
         };
         let mut session = turn.approval_session().ok_or(AiError::ApprovalNotFound)?;
@@ -403,6 +420,7 @@ impl<A: Agent> PendingConversation<'_, A> {
             participant: self.participant.clone(),
             agent_name,
             attachments: attachments.to_vec(),
+            faked: manager.text_fake::<A>().is_some(),
         };
         Ok((turn, history))
     }

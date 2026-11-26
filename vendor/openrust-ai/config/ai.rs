@@ -90,11 +90,24 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     gemini["models"]["classification"] =
         json!({"default": env.get_utf8("GEMINI_CLASSIFICATION_MODEL")?});
 
+    const TITLE_ENV: &str = "AI_CONVERSATIONS_GENERATE_TITLE";
+    let generate_title = match env.get_utf8(TITLE_ENV)? {
+        None | Some("true" | "1") => true,
+        Some("false" | "0") => false,
+        _ => {
+            return Err(ConfigError::InvalidType {
+                key: TITLE_ENV.into(),
+                expected: "a boolean",
+            });
+        }
+    };
+
     Ok(json!({
         "default": env.get_utf8("AI_PROVIDER")?,
         "conversations": {
             "connection": env.get_utf8("AI_CONVERSATIONS_CONNECTION")?,
             "max_messages": 100,
+            "generate_title": generate_title,
             "attachments": {
                 "disk": env.get_utf8("AI_CONVERSATION_ATTACHMENTS_DISK")?.unwrap_or("local"),
             },

@@ -478,6 +478,8 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+默认数据库存储为新会话生成标题，使用成功连接的经济型文本模型。标题 Agent 最多读取首条提示词的 500 个显示列。可在 `config/ai.rs` 将 `conversations.generate_title` 设为 `false`，或设置 `AI_CONVERSATIONS_GENERATE_TITLE=false`，直接采用 50 个显示列的预览。标题生成失败时使用 100 个显示列的预览。Agent Fake 可通过 `ConversationTitleAgent::fake` 指定标题。
+
 在运行已发布的迁移前，可在 `config/ai.rs` 中设置 `conversations.tables.conversations` 和 `conversations.tables.messages`，也可用环境变量 `AI_CONVERSATIONS_TABLE` 和 `AI_CONVERSATION_MESSAGES_TABLE`。默认表名为 `agent_conversations` 和 `agent_conversation_messages`。使用两个不同的 SQL 标识符，可含字母、数字和下划线，也可使用数据库支持的 Schema 前缀。迁移、应用运行和回滚须使用同一套配置。已有部署要更换表名时，先迁移现有表及数据，再切换配置。
 
 已完成的 SDK 助手消息会保存模型、汇总用量，以及 `steps` 中每步的实际模型、用量、结束原因和工具结果。既有历史可继续读取其原有步骤数据。继续会话时，SDK 按顺序把助手的工具调用及其已记录结果交给模型。`conversations.max_messages` 在展开前限制读取的存储行数，历史分页仍逐行返回消息及其 `steps`。手工构造历史时，先调用 `Message::assistant_with_tool_calls`，再用 `Message::tool_results` 添加结果。

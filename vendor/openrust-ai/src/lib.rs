@@ -29,6 +29,7 @@ mod connection;
 mod console;
 mod conversation_store;
 mod conversation_stream;
+mod conversation_title;
 mod conversations;
 mod database_embeddings;
 mod embedding_cache;
@@ -94,6 +95,7 @@ pub use conversation_store::{
     ConversationPage, ConversationParticipant, ConversationStore, DatabaseConversationStore,
     StoredMessage,
 };
+pub use conversation_title::ConversationTitleAgent;
 pub use conversations::{ConversationResponse, PendingConversation, RemembersConversations};
 pub use embeddings::{
     EmbeddingProvider, Embeddings, EmbeddingsPrompt, EmbeddingsResponse,
