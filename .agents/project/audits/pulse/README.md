@@ -82,7 +82,9 @@ macOS 隔离快照通过 PCRE2 库 24 项、三扩展默认 97 项、快照全�
 
 同源码在 Linux 7.0.14 ARM64 和 Windows 11 ARM64 各通过 Pulse 模式 4 项和 Provider 15 项，覆盖 SQLite 上的真实文件缓存行为。Linux 同批通过 Telescope Provider 15 项，按条件跳过 1 项。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{linux,windows}-verified.log`。
 
-分组键仍使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 存储表示、MySQL 与 PostgreSQL 的上游结果及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。
+分组键仍使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 字节键表示、持久化及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。
+
+固定 PHP 8.5.12 的真实 CacheInteractions、Pulse 迁移与 DatabaseStorage 补验了 PostgreSQL 18.7 和 MySQL 8.4.13。两条分组规则产生的非法序列分别为 `58c358a958` 和 `59c359a959`。UTF-8 PostgreSQL 拒绝两条写入（SQLSTATE `22021`），严格 `utf8mb4` MySQL 返回 `HY000/1366`。混合合法与非法条目的批次也报错，预先存入的一条事件与四条聚合完整保留，混合批次的新条目和聚合均未留下。MySQL 显式关闭严格模式时，同样两个输入截断为 `X` 和 `Y` 并成功入库。以上是数据库实际处理分组原始字节的结果。Rust 的公开文本分组函数当前在存储前拒绝此输入，SQLite、非严格 MySQL、错误阶段及面板仍有差距。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-database-upstream.log`。
 
 ## SlowJobs 任务尝试计时
 
