@@ -7,7 +7,7 @@ assert(base,'PULSE_TEST_URL is required');
 const browser=await chromium.launch({executablePath:process.env.DOCS_BROWSER_PATH});
 try{
  const guest=await browser.newContext();
- for(const path of ['/operations/pulse','/operations/pulse/api/metrics']) assert.equal((await guest.request.get(base+path)).status(),403);
+ for(const path of ['/operations/pulse','/operations/pulse/api/metrics','/operations/pulse/api/metrics?cards=queues']) assert.equal((await guest.request.get(base+path)).status(),403);
  await guest.close();
  const context=await browser.newContext({extraHTTPHeaders:{'x-test-operator':'operator'}});
  assert.equal((await context.request.get(base+'/api/probe')).status(),200);
@@ -16,6 +16,12 @@ try{
   const page=await context.newPage();await page.setViewportSize(mobile?{width:375,height:812}:{width:1440,height:1000});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   assert.equal((await page.goto(base+'/operations/pulse')).status(),200);
+  for (const card of await page.locator('#cards > section').all()) {
+   await card.scrollIntoViewIfNeeded();
+   const name=await card.getAttribute('data-card');
+   await page.locator(`[data-card="${name}"]:not([aria-busy])`).waitFor();
+  }
+  await page.evaluate(()=>window.scrollTo(0,0));
   await page.locator('#status').filter({hasText:'Updated'}).waitFor();
   assert.equal(await page.locator('.card').count(),10);
   assert.equal(await page.locator('progress').count(),5);
@@ -102,12 +108,14 @@ try{
   await usage.getByText('ID: 99',{exact:true}).waitFor();
   assert.equal(await usage.locator('td[data-column="count"]').first().textContent(),'~4');
   await page.reload();
+  await page.locator('[data-card="slow_requests"]').scrollIntoViewIfNeeded();
   await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
+  await page.locator('[data-card="requests"]').scrollIntoViewIfNeeded();
   await usage.getByText('ID: 99',{exact:true}).waitFor();
   await page.screenshot({path:process.env.PULSE_SCREENSHOT_DIR+`/dashboard-${mobile?'mobile':'desktop'}.png`,fullPage:true});
   for (const [link,value] of [['1_hour','1h'],['6_hours','6h'],['24_hours','24h'],['7_days','7d']]) {
    assert.equal((await context.request.get(base+'/operations/pulse/api/metrics?period='+link)).status(),200);
-   const query=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period='+value));
+   const query=page.waitForResponse(r=>r.url().includes('/api/metrics?') && new URL(r.url()).searchParams.get('period')===value);
    assert.equal((await page.goto(base+'/operations/pulse?period='+link)).status(),200);
    assert.equal((await query).status(),200);
    assert.equal(await page.locator('#period').inputValue(),value);
@@ -116,7 +124,33 @@ try{
   console.log(`native Pulse ${mobile?'mobile':'desktop'}: authorization, live metrics, 4 periods, SVG, meters, text escaping and refresh PASS`);
   await page.close();
  }
+ const isolated=await context.newPage({viewport:{width:375,height:620}});
+ let delayedServers;
+ const initialCards=[];
+ await isolated.route('**/api/metrics?*', async route=>{
+  const selected=new URL(route.request().url()).searchParams.get('cards');
+  initialCards.push(selected);
+  if (selected==='servers' && !delayedServers) delayedServers=route;
+  else await route.continue();
+ });
+ assert.equal((await isolated.goto(base+'/operations/pulse')).status(),200);
+ const isolatedServers=isolated.locator('[data-card="servers"]');
+ const isolatedRequests=isolated.locator('[data-card="requests"]');
+ await isolatedRequests.getByText('ID: 42',{exact:true}).waitFor();
+ assert.equal(await isolatedServers.getAttribute('aria-busy'),'true');
+ assert(initialCards.includes('requests'));
+ assert(!initialCards.includes('queues'));
+ assert(delayedServers);
+ await delayedServers.fulfill({status:500});
+ await isolatedServers.getByText('Unable to load metrics',{exact:true}).waitFor();
+ assert(await isolatedRequests.getByText('ID: 42',{exact:true}).isVisible());
+ await isolated.click('#refresh');
+ await isolatedServers.getByRole('img',{name:/^CPU history for /}).waitFor();
+ console.log('native Pulse dashboard: deferred cards, initial error isolation and recovery PASS');
+ await isolated.close();
+
  const polling=await context.newPage();
+ await polling.setViewportSize({width:375,height:260});
  const time=new Date('2026-11-26T00:00:00Z');
  await polling.clock.install({time});
  await polling.clock.pauseAt(new Date(time.getTime()+1000));
@@ -128,7 +162,7 @@ try{
  const graph=polling.getByRole('img',{name:/^CPU history for /});
  const reading=polling.locator('[data-server-trend="cpu:acceptance"] + output');
  const oldGraph=await graph.elementHandle();
- await graph.focus();
+ await graph.evaluate(element=>element.focus({preventScroll:true}));
  assert.match(await reading.textContent(), /25%$/);
  await graph.press('ArrowLeft');
  assert.match(await reading.textContent(), /13%$/);
@@ -161,6 +195,7 @@ try{
  assert.match(await touchReading.textContent(), /13%$/);
  await touchGraph.locator('rect').last().tap();
  assert.match(await touchReading.textContent(), /25%$/);
+ await phone.locator('[data-card="queues"]').scrollIntoViewIfNeeded();
  const touchQueue=phone.getByRole('img',{name:'default queue activity',exact:true});
  const queueReading=phone.locator('.queue-reading');
  await touchQueue.locator('rect').filter({hasText:/Queued: ~7\.5/}).tap();

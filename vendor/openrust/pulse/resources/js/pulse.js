@@ -348,82 +348,165 @@ function queryTimingTitle(timing, label = '') {
     return `${label}Time: ${duration}ms; ${label}Run at: ${runAt};`;
 }
 
-function render(data) {
-    const focusedTrend = document.activeElement?.dataset.trendKey;
+const cardNodes = new Map();
+const mountedCards = new Set();
+const initialLoads = new Map();
+let activeRefresh;
+
+function createCard(name) {
+    const card = document.createElement('section');
+    card.className = 'card';
+    card.dataset.card = name;
+    card.append(cell('h2', names[name]));
+    return card;
+}
+
+function renderCard(name, data) {
+    const previous = cardNodes.get(name);
+    const active = previous.contains(document.activeElement) ? document.activeElement : null;
+    const earlierTrends = previous.querySelectorAll('[data-trend-key]');
     const timings = data.query_timing ?? {};
-    main.replaceChildren();
-    for (const [name, title] of Object.entries(names)) {
-        const card = document.createElement('section');
-        card.className = 'card';
-        const heading = cell('h2', title);
-        const queryTitle = name === 'cache'
-            ? [queryTimingTitle(timings.cache_totals, 'Global '), queryTimingTitle(timings.cache, 'Key ')]
-                .filter(Boolean).join(' ')
-            : queryTimingTitle(timings[name]);
-        if (queryTitle) heading.title = queryTitle;
-        card.append(heading);
-        addFilter(card, name);
-        const values = data[name];
-        const cache = data.cache_totals;
-        if (name === 'cache' && cache && cache.hits + cache.misses > 0) {
-            renderCache(card, values ?? [], cache);
-        } else if (!values || Object.keys(values).length === 0) {
-            const empty = cell('div', 'No data for this period');
-            empty.className = 'empty';
-            card.append(empty);
-        } else if (name === 'servers') {
-            servers(card, values, data.server_graphs ?? {}, queryTitle);
-        } else if (name === 'queues') {
-            queues(card, values, data.queue_sample_rate);
-        } else if (Array.isArray(values)) {
-            renderRows(card, values, undefined, data.sample_rates?.[name]);
-        } else {
-            for (const [key, types] of Object.entries(values)) {
-                card.append(cell('h3', key));
-                for (const [type, readings] of Object.entries(types)) {
-                    const total = Object.values(readings).reduce((sum, value) => sum + Number(value ?? 0), 0);
-                    card.append(cell('p', `${type}: ${total}`));
-                }
+    const card = createCard(name);
+    const heading = card.firstElementChild;
+    const queryTitle = name === 'cache'
+        ? [queryTimingTitle(timings.cache_totals, 'Global '), queryTimingTitle(timings.cache, 'Key ')]
+            .filter(Boolean).join(' ')
+        : queryTimingTitle(timings[name]);
+    if (queryTitle) heading.title = queryTitle;
+    addFilter(card, name);
+    const values = data[name];
+    const cache = data.cache_totals;
+    if (name === 'cache' && cache && cache.hits + cache.misses > 0) {
+        renderCache(card, values ?? [], cache);
+    } else if (!values || Object.keys(values).length === 0) {
+        const empty = cell('div', 'No data for this period');
+        empty.className = 'empty';
+        card.append(empty);
+    } else if (name === 'servers') {
+        servers(card, values, data.server_graphs ?? {}, queryTitle);
+    } else if (name === 'queues') {
+        queues(card, values, data.queue_sample_rate);
+    } else if (Array.isArray(values)) {
+        renderRows(card, values, undefined, data.sample_rates?.[name]);
+    } else {
+        for (const [key, types] of Object.entries(values)) {
+            card.append(cell('h3', key));
+            for (const [type, readings] of Object.entries(types)) {
+                const total = Object.values(readings).reduce((sum, value) => sum + Number(value ?? 0), 0);
+                card.append(cell('p', `${type}: ${total}`));
             }
         }
-        main.append(card);
     }
-    const trends = new Map(Array.from(main.querySelectorAll('[data-trend-key]'),
+    previous.replaceChildren(...card.childNodes);
+    previous.removeAttribute('aria-busy');
+    const trends = new Map(Array.from(previous.querySelectorAll('[data-trend-key]'),
         trend => [trend.dataset.trendKey, trend]));
-    for (const key of selectedTrendReadings.keys()) {
-        if (!trends.has(key)) selectedTrendReadings.delete(key);
+    for (const trend of earlierTrends) {
+        if (!trends.has(trend.dataset.trendKey)) selectedTrendReadings.delete(trend.dataset.trendKey);
     }
-    trends.get(focusedTrend)?.focus({preventScroll: true});
+    if (active?.dataset.trendKey) {
+        trends.get(active.dataset.trendKey)?.focus({preventScroll: true});
+    } else if (active?.matches('select[aria-label]')) {
+        [...previous.querySelectorAll('select')]
+            .find(select => select.getAttribute('aria-label') === active.getAttribute('aria-label'))
+            ?.focus({preventScroll: true});
+    }
 }
-let activeRefresh;
-async function refresh() {
+
+async function loadCards(requested, signal) {
+    const url = new URL(location.href);
+    url.pathname = url.pathname.replace(/\/$/, '') + '/api/metrics';
+    const options = new URLSearchParams(pageOptions);
+    options.set('period', period.value);
+    if (requested.length === cardNodes.size) {
+        options.delete('cards');
+    } else {
+        options.set('cards', requested.join(','));
+    }
+    url.search = options.toString();
+    const response = await fetch(url, {
+        credentials: 'same-origin',
+        headers: {Accept: 'application/json'},
+        signal,
+    });
+    if (!response.ok) throw new Error(response.status === 403 ? 'Access denied' : 'Unable to load metrics');
+    const data = await response.json();
+    if (signal.aborted) return;
+    for (const name of requested) renderCard(name, data);
+    status.textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function showCardFailure(name, message) {
+    const card = cardNodes.get(name);
+    card.removeAttribute('aria-busy');
+    let error = card.querySelector('[data-load-status]');
+    if (!error) {
+        error = cell('div', '');
+        error.className = 'empty';
+        error.dataset.loadStatus = '';
+        card.append(error);
+    }
+    error.textContent = message;
+    status.textContent = message;
+}
+
+async function loadOne(name, signal) {
+    try {
+        await loadCards([name], signal);
+    } catch (error) {
+        if (!signal.aborted) showCardFailure(name, error.message);
+    }
+}
+
+async function mountCard(name) {
+    mountedCards.add(name);
+    const controller = new AbortController();
+    initialLoads.set(name, controller);
+    await loadOne(name, controller.signal);
+    if (initialLoads.get(name) === controller) initialLoads.delete(name);
+}
+
+async function refresh(keepInitial = false) {
+    const requested = [...mountedCards].filter(name => !keepInitial || !initialLoads.has(name));
+    if (requested.length === 0) return;
     activeRefresh?.abort();
+    if (!keepInitial) {
+        for (const pending of initialLoads.values()) pending.abort();
+        initialLoads.clear();
+    }
     const controller = new AbortController();
     activeRefresh = controller;
     try {
-        const url = new URL(location.href);
-        url.pathname = url.pathname.replace(/\/$/, '') + '/api/metrics';
-        const options = new URLSearchParams(pageOptions);
-        options.set('period', period.value);
-        url.search = options.toString();
-        const response = await fetch(url, {
-            credentials: 'same-origin',
-            headers: {Accept: 'application/json'},
-            signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(response.status === 403 ? 'Access denied' : 'Unable to load metrics');
-        const data = await response.json();
-        if (!controller.signal.aborted) {
-            const focused = document.activeElement?.getAttribute('aria-label');
-            render(data);
-            if (focused) [...main.querySelectorAll('select')].find(select => select.getAttribute('aria-label') === focused)?.focus();
-            status.textContent = 'Updated ' + new Date().toLocaleTimeString();
-        }
+        await loadCards(requested, controller.signal);
     } catch (error) {
-        if (!controller.signal.aborted) status.textContent = error.message;
+        if (controller.signal.aborted) return;
+        if (requested.length > 1 && error.message !== 'Access denied') {
+            await Promise.all(requested.map(name => loadOne(name, controller.signal)));
+        } else {
+            for (const name of requested) showCardFailure(name, error.message);
+        }
     } finally {
         if (activeRefresh === controller) activeRefresh = undefined;
     }
+}
+
+const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        mountCard(entry.target.dataset.card);
+    }
+});
+for (const name of Object.keys(names)) {
+    const card = createCard(name);
+    const pending = cell('div', 'Loading…');
+    pending.className = 'empty';
+    pending.dataset.loadStatus = '';
+    card.setAttribute('aria-busy', 'true');
+    card.append(pending);
+    cardNodes.set(name, card);
+    main.append(card);
+    observer.observe(card);
 }
 period.addEventListener('change', () => updateOption('period', period.value));
 window.addEventListener('popstate', () => {
@@ -431,6 +514,5 @@ window.addEventListener('popstate', () => {
     selectLocationPeriod();
     refresh();
 });
-document.querySelector('#refresh').addEventListener('click', refresh);
-refresh();
-setInterval(() => { if (!activeRefresh) refresh(); }, 5000);
+document.querySelector('#refresh').addEventListener('click', () => refresh());
+setInterval(() => { if (!activeRefresh) refresh(true); }, 5000);

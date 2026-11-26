@@ -853,6 +853,72 @@ fn dashboard_cache_config(
 }
 
 #[tokio::test]
+async fn dashboard_selected_cards_skip_unrequested_queries_and_keep_the_complete_response() {
+    use openrust::{contracts::foundation::Application as _, http::StatusCode};
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(dashboard_cache_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let target = "/pulse/api/metrics";
+    let all = app.get(target).await.unwrap();
+    all.assert_ok();
+    let all = all.json::<serde_json::Value>().unwrap();
+    for card in ["servers", "requests", "jobs", "cache", "queues"] {
+        assert!(all.get(card).is_some(), "{card}");
+        assert!(all["query_timing"].get(card).is_some(), "{card}");
+    }
+    for invalid in ["", "servers,unknown", "queues,"] {
+        app.get(&format!("{target}?cards={invalid}"))
+            .await
+            .unwrap()
+            .assert_status(StatusCode::BAD_REQUEST);
+    }
+
+    let config = app.app().config().unwrap();
+    config
+        .set(
+            "pulse.dashboard.servers.ignore_after",
+            json!("invalid-duration"),
+        )
+        .unwrap();
+    for url in [target.to_owned(), format!("{target}?cards=servers")] {
+        app.get(&url)
+            .await
+            .unwrap()
+            .assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    let subset = app
+        .get(&format!("{target}?cards=cache,queues&usage=invalid"))
+        .await
+        .unwrap();
+    subset.assert_ok();
+    let subset = subset.json::<serde_json::Value>().unwrap();
+    for key in ["cache", "cache_totals", "queues", "queue_sample_rate"] {
+        assert_eq!(subset.get(key), all.get(key), "{key}");
+    }
+    assert_eq!(subset["sample_rates"], json!({}));
+    for key in [
+        "servers",
+        "server_graphs",
+        "requests",
+        "jobs",
+        "slow_requests",
+    ] {
+        assert!(subset.get(key).is_none(), "{key}");
+        assert!(subset["query_timing"].get(key).is_none(), "{key}");
+    }
+    for key in ["cache", "cache_totals", "queues"] {
+        assert_eq!(subset["query_timing"][key], all["query_timing"][key]);
+    }
+}
+
+#[tokio::test]
 async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
     use openrust::{
         contracts::cache::Repository as _,

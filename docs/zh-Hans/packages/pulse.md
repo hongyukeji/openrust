@@ -25,6 +25,8 @@ Pulse 收集应用性能指标，提供慢请求、慢 SQL、慢任务、外部 
 
 默认访问 `/pulse`。`PULSE_PATH` 与 `PULSE_DOMAIN` 自定义入口。本地环境允许访问，其他环境需要原生 `viewPulse` Gate 授权；同时配置应用认证／会话中间件。分享面板链接时可用 `period=6_hours`、`24_hours` 或 `7_days`。省略周期时显示最近一小时。浏览器后退和前进会恢复对应周期。面板路径下的 JSON 指标入口 `/api/metrics` 使用相同授权，接受这些周期、`1_hour` 及短写 `1h`、`6h`、`24h`、`7d`。
 
+卡片首次进入可视范围时独立加载。已打开的卡片每五秒一起刷新。JSON 指标可用 `cards=servers,queues` 查询指定卡片。
+
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
 gate.define_guest("viewPulse", |user, _| Box::pin(async move {

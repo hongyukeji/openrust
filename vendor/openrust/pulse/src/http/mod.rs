@@ -14,6 +14,18 @@ use std::{collections::BTreeMap, future::Future, sync::Arc, time::Instant};
 
 pub(crate) const METRICS_ROUTE: &str = "pulse.metrics";
 pub(crate) const METRICS_PATH: &str = "/api/metrics";
+const METRIC_CARDS: &[&str] = &[
+    "servers",
+    "requests",
+    "jobs",
+    "exceptions",
+    "slow_requests",
+    "slow_queries",
+    "slow_jobs",
+    "slow_outgoing_requests",
+    "cache",
+    "queues",
+];
 
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
@@ -93,7 +105,24 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Some("7d" | "7_days") => ("7d", 604800),
             _ => return Err(HttpError::InvalidRequest),
         };
-        let usage = request.query(Some("usage"))?;
+        let selected = request.query(Some("cards"))?;
+        let selected = selected
+            .as_ref()
+            .map(|query| {
+                let selected = query.as_str().ok_or(HttpError::InvalidRequest)?;
+                let cards = selected.split(',').collect::<Vec<_>>();
+                if !cards.iter().all(|card| METRIC_CARDS.contains(card)) {
+                    return Err(HttpError::InvalidRequest);
+                }
+                Ok(cards)
+            })
+            .transpose()?;
+        let wants = |card| selected.as_ref().is_none_or(|cards| cards.contains(&card));
+        let usage = if wants("requests") {
+            request.query(Some("usage"))?
+        } else {
+            None
+        };
         let (usage_type, usage_recorder) = match usage.as_ref().and_then(Value::as_str) {
             None | Some("requests") => ("user_request", "UserRequests"),
             Some("slow_requests") => ("slow_user_request", "SlowRequests"),
@@ -128,6 +157,9 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             ("requests", usage_type, usage_recorder),
             ("jobs", "user_job", "UserJobs"),
         ] {
+            if !wants(name) {
+                continue;
+            }
             let is_usage = matches!(name, "requests" | "jobs");
             let aggregates = if is_usage {
                 &["count"][..]
@@ -200,70 +232,77 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             rates.insert(name.into(), sample_rate(recorder).into());
         }
         cards.insert("sample_rates".into(), Value::Object(rates));
-        let cache_types = ["cache_hit".into(), "cache_miss".into()];
-        let keys = remember_card(&pulse, &cache, &format!("cache:keys:{period}"), async {
-            let rows = pulse
-                .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
-                .await?;
-            Ok(Value::Array(rows.into_iter().map(row).collect()))
-        })
-        .await?;
-        cards.insert("cache".into(), keys.value);
-        timings.insert("cache", keys.timing);
-        let mut totals = remember_card(&pulse, &cache, &format!("cache:all:{period}"), async {
-            let totals = pulse
-                .aggregate_total(&cache_types, "count", interval)
-                .await?;
-            Ok(serde_json::json!({
-                "hits": totals.get(&cache_types[0]).copied().flatten().unwrap_or(0.0),
-                "misses": totals.get(&cache_types[1]).copied().flatten().unwrap_or(0.0),
-            }))
-        })
-        .await?;
-        totals
-            .value
-            .as_object_mut()
-            .ok_or(CacheError::InvalidValue)?
-            .insert(
-                "sample_rate".into(),
-                sample_rate("CacheInteractions").into(),
-            );
-        cards.insert("cache_totals".into(), totals.value);
-        timings.insert("cache_totals", totals.timing);
-        let queues = remember_card(&pulse, &cache, &format!("queues:{period}"), async {
-            let values = pulse
-                .graph(
-                    &["queued", "processing", "processed", "released", "failed"].map(str::to_owned),
-                    "count",
-                    interval,
-                )
-                .await?;
-            Ok(serde_json::to_value(values)?)
-        })
-        .await?;
-        cards.insert("queues".into(), queues.value);
-        cards.insert("queue_sample_rate".into(), sample_rate("Queues").into());
-        timings.insert("queues", queues.timing);
-        let options = config.get("pulse.dashboard.servers").unwrap_or_default();
-        let ignore_after = match &options["ignore_after"] {
-            Value::Null => None,
-            value => Some(server_max_age(value)?),
-        };
-        let key = format!("servers:{period}:{:x}", md5::compute(options.to_string()));
-        let snapshot = remember_card(&pulse, &cache, &key, async {
-            let (systems, graphs) = servers(&pulse, interval, &options, ignore_after).await?;
-            Ok(Value::Array(vec![Value::Array(systems), graphs]))
-        })
-        .await?;
-        let Value::Array(server_values) = snapshot.value else {
-            return Err(CacheError::InvalidValue.into());
-        };
-        let [systems, graphs]: [Value; 2] = server_values
-            .try_into()
-            .map_err(|_| CacheError::InvalidValue)?;
-        cards.insert("servers".into(), systems);
-        cards.insert("server_graphs".into(), graphs);
-        timings.insert("servers", snapshot.timing);
+        if wants("cache") {
+            let cache_types = ["cache_hit".into(), "cache_miss".into()];
+            let keys = remember_card(&pulse, &cache, &format!("cache:keys:{period}"), async {
+                let rows = pulse
+                    .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
+                    .await?;
+                Ok(Value::Array(rows.into_iter().map(row).collect()))
+            })
+            .await?;
+            cards.insert("cache".into(), keys.value);
+            timings.insert("cache", keys.timing);
+            let mut totals = remember_card(&pulse, &cache, &format!("cache:all:{period}"), async {
+                let totals = pulse
+                    .aggregate_total(&cache_types, "count", interval)
+                    .await?;
+                Ok(serde_json::json!({
+                    "hits": totals.get(&cache_types[0]).copied().flatten().unwrap_or(0.0),
+                    "misses": totals.get(&cache_types[1]).copied().flatten().unwrap_or(0.0),
+                }))
+            })
+            .await?;
+            totals
+                .value
+                .as_object_mut()
+                .ok_or(CacheError::InvalidValue)?
+                .insert(
+                    "sample_rate".into(),
+                    sample_rate("CacheInteractions").into(),
+                );
+            cards.insert("cache_totals".into(), totals.value);
+            timings.insert("cache_totals", totals.timing);
+        }
+        if wants("queues") {
+            let queues = remember_card(&pulse, &cache, &format!("queues:{period}"), async {
+                let values = pulse
+                    .graph(
+                        &["queued", "processing", "processed", "released", "failed"]
+                            .map(str::to_owned),
+                        "count",
+                        interval,
+                    )
+                    .await?;
+                Ok(serde_json::to_value(values)?)
+            })
+            .await?;
+            cards.insert("queues".into(), queues.value);
+            cards.insert("queue_sample_rate".into(), sample_rate("Queues").into());
+            timings.insert("queues", queues.timing);
+        }
+        if wants("servers") {
+            let options = config.get("pulse.dashboard.servers").unwrap_or_default();
+            let ignore_after = match &options["ignore_after"] {
+                Value::Null => None,
+                value => Some(server_max_age(value)?),
+            };
+            let key = format!("servers:{period}:{:x}", md5::compute(options.to_string()));
+            let snapshot = remember_card(&pulse, &cache, &key, async {
+                let (systems, graphs) = servers(&pulse, interval, &options, ignore_after).await?;
+                Ok(Value::Array(vec![Value::Array(systems), graphs]))
+            })
+            .await?;
+            let Value::Array(server_values) = snapshot.value else {
+                return Err(CacheError::InvalidValue.into());
+            };
+            let [systems, graphs]: [Value; 2] = server_values
+                .try_into()
+                .map_err(|_| CacheError::InvalidValue)?;
+            cards.insert("servers".into(), systems);
+            cards.insert("server_graphs".into(), graphs);
+            timings.insert("servers", snapshot.timing);
+        }
         cards.insert("query_timing".into(), serde_json::to_value(timings)?);
         let mut response = Response::new(StatusCode::OK, Body::from(serde_json::to_vec(&cards)?));
         response.parts_mut().headers.insert(

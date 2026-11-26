@@ -25,6 +25,8 @@ To separate collection from persistence, set `PULSE_INGEST_DRIVER=redis`, choose
 
 Visit `/pulse`. Customize the entry point with `PULSE_PATH` and `PULSE_DOMAIN`. Local environments allow access; other environments require the native `viewPulse` Gate. Configure the application's authentication and session middleware as appropriate. Share a dashboard link with `period=6_hours`, `24_hours` or `7_days`. A link without a period shows the last hour. Browser back and forward restore the selected period. The authorized JSON endpoint beneath the dashboard path at `/api/metrics` accepts these names and `1_hour`, plus the short forms `1h`, `6h`, `24h` and `7d`.
 
+Cards load individually when they first enter the viewport. The dashboard refreshes opened cards together every five seconds. In the JSON endpoint, use `cards=servers,queues` to request selected cards.
+
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
 gate.define_guest("viewPulse", |user, _| Box::pin(async move {

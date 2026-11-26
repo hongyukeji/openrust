@@ -122,11 +122,13 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
-### 首屏卡片的延迟加载与隔离（待闭环）
+### 首屏卡片的延迟加载与隔离
 
 固定 Pulse 的九类指标卡片声明 `#[Lazy]`。支持范围内的 Livewire 3.6.4 与 4.0.0 会为默认惰性组件生成占位框，在进入可视范围时启动加载，首轮使用独立更新。常规轮询更新可合并。 [固定 Pulse 组件](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire) [Livewire 3.6.4](https://github.com/livewire/livewire/blob/v3.6.4/src/Features/SupportLazyLoading/SupportLazyLoading.php) [Livewire 4.0.0](https://github.com/livewire/livewire/blob/v4.0.0/src/Features/SupportLazyLoading/SupportLazyLoading.php)
 
-当前 Chrome 前态捕获首个全量指标请求。响应被挂起时卡片容器为空，500 响应后整页面无卡片。证据为 `target/tmp/observability-parity/pulse-card-lazy-browser-baseline-retry.log`。接续以现有授权入口和卡片缓存为基础，验收可视卡片独立装载、失败隔离、已装载卡片轮询与原有完整 JSON；仍需通过实际浏览器及数据库消费者。
+Chrome 前态的首个全量指标请求挂起时卡片容器为空，返回 500 后整页面无卡片。原生面板现在先生成占位框，进入可视范围后独立请求卡片。已加载的卡片可合并轮询，首轮仍在等待的卡片不会阻塞其他轮询。失败可在卡片内显示，合并请求失败时按卡片复验，支持自动刷新和手动恢复。授权指标入口接受 `cards` 选择卡片，独立复用卡片缓存，保留不带选择参数的完整指标快照。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13、具名 Redis 8.10.3 的授权 HTTP 验证卡片选择、无效值、未选查询的隔离和完整 JSON。真实 SQLite 看板及 Chrome 桌面、手机验证独立加载、延迟与错误隔离、恢复、周期、手动和定时刷新、焦点与触控，未授权的部分响应返回 403。首轮浏览器检查发现卡片节点替换时滚动目标失效，保留卡片容器后复验通过。Pulse Provider 27 项、Telescope Provider 30 项、快照格式、Pulse 严格 Clippy、三语文档与六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-card-lazy-{browser-baseline-retry,macos,macos-browser-retry,docs}.log`。
 
 ### 慢操作、异常和用量的采样计数
 
