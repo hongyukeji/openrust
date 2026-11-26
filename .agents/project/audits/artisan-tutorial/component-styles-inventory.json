@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "source_inventory_complete_repository_and_style_verified_standalone_styles_element_pending",
+  "status": "style_repository_and_direct_mutations_verified_element_and_owned_properties_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -11,7 +11,8 @@
     "component-pre-elements-contracts.json",
     "component-html-table-contracts.json",
     "component-code-contracts.json",
-    "style-repository-contracts.json"
+    "style-repository-contracts.json",
+    "terminal-style-methods-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1343,9 +1344,57 @@
       "with_styles"
     ],
     "TerminalStyles": [
-      "apply",
+      "set_style",
+      "has_style",
+      "add_style / apply",
+      "bg / bg_with",
+      "text / text_with",
+      "font_bold",
+      "font_normal",
+      "strong",
+      "italic",
+      "underline",
+      "line_through",
+      "invisible",
+      "href",
+      "ml",
+      "mr",
+      "mb",
+      "mt",
+      "mx",
+      "my",
+      "m",
+      "pl",
+      "pr",
+      "px",
+      "pt",
+      "pb",
+      "py",
+      "p",
+      "space_y",
+      "space_x",
+      "border_t / border_t_with",
+      "truncate / truncate_with",
+      "w",
+      "w_full",
+      "w_auto",
+      "min_w",
+      "max_w",
       "uppercase",
-      "font_bold"
+      "lowercase",
+      "capitalize",
+      "snakecase",
+      "hidden",
+      "block",
+      "flex",
+      "justify_between",
+      "justify_around",
+      "justify_evenly",
+      "justify_center",
+      "content_repeat",
+      "prepend",
+      "append",
+      "list / list_with"
     ]
   }
 }

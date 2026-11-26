@@ -895,3 +895,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 固定 2.3.3 的仓库注册、查询、清空、替换、颜色设置、层叠和回调接入原生样式管线。72 个渲染场景和 10 个颜色校验场景对照实际 PHP，包含精确响应式名称、大小写、普通和 ANSI 输出、空颜色、预格式文本、代码、列表及表格。显式仓库可由应用共享，独立仓库状态隔离。复用现有参数模型与渲染系统。
 
 真实 HTTP 循环样式反例触发默认工作线程栈溢出，原生增加32层共享深度上限。修复后循环返回错误，后续并发请求正常，真实 Artisan 退出码通过。32 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、198 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。独立 TerminalStyles、Element 其余入口和通用 HTML 恢复继续。见 style-repository-contracts.json 与 accepted-style-repository.json。
+
+
+## 66. 终端样式的类型化设置入口
+
+固定 2.3.3 的 188 个直接方法场景覆盖尺寸、字形、颜色、标记、边距、布局、列表和文本变换。真实 PHP 产生纯文本、ANSI 与标记结果及错误。直接调用使用借用参数切片和现有执行逻辑，跳过类名解析；按类字符串配置仍走原来的标记与顺序。源码揭示给已有链接写入空 href 会保留旧值，已复验此反例。
+
+35 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、201 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。独立 Styles 构造及属性、Element 还有待核定入口。见 terminal-style-methods-contracts.json 与 accepted-terminal-style-methods.json。

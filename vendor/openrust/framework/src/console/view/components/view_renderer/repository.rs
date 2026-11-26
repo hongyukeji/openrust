@@ -1,4 +1,5 @@
 // 第三方许可见 ../LICENSE.renderer。
+use super::style_methods::MethodCall;
 use super::{
     StyleArgument,
     style::{self, Style},
@@ -35,6 +36,99 @@ impl<'a> TerminalStyles<'a> {
         Ok(self)
     }
 
+    pub fn set_style(&mut self, name: &str) -> &mut Self {
+        style::mark(self.state, name);
+        self
+    }
+
+    pub fn has_style(&self, name: &str) -> bool {
+        self.state.markers.iter().any(|style| style == name)
+    }
+
+    fn change(
+        &mut self,
+        name: &str,
+        args: &[StyleArgument<'_>],
+    ) -> Result<&mut Self, ConsoleError> {
+        style::apply_method(
+            self.state,
+            MethodCall { name, args },
+            self.tag,
+            self.depth,
+            self.repository,
+            name,
+        )?;
+        Ok(self)
+    }
+
+    pub fn text(&mut self, value: &str) -> Result<&mut Self, ConsoleError> {
+        self.text_with(value, 0)
+    }
+
+    pub fn text_with(&mut self, value: &str, variant: i64) -> Result<&mut Self, ConsoleError> {
+        self.change(
+            "text",
+            &[StyleArgument::Text(value), StyleArgument::Integer(variant)],
+        )
+    }
+
+    pub fn bg(&mut self, color: &str) -> Result<&mut Self, ConsoleError> {
+        self.bg_with(color, 0)
+    }
+
+    pub fn bg_with(&mut self, color: &str, variant: i64) -> Result<&mut Self, ConsoleError> {
+        self.change(
+            "bg",
+            &[StyleArgument::Text(color), StyleArgument::Integer(variant)],
+        )
+    }
+
+    pub fn truncate(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.truncate_with(0, "…")
+    }
+
+    pub fn truncate_with(&mut self, limit: i64, suffix: &str) -> Result<&mut Self, ConsoleError> {
+        self.change(
+            "truncate",
+            &[StyleArgument::Integer(limit), StyleArgument::Text(suffix)],
+        )
+    }
+
+    pub fn list(&mut self, kind: &str) -> Result<&mut Self, ConsoleError> {
+        self.list_with(kind, 0)
+    }
+
+    pub fn list_with(&mut self, kind: &str, index: i64) -> Result<&mut Self, ConsoleError> {
+        self.change(
+            "list",
+            &[StyleArgument::Text(kind), StyleArgument::Integer(index)],
+        )
+    }
+
+    pub fn border_t(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.border_t_with(1)
+    }
+
+    pub fn border_t_with(&mut self, width: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("bordert", &[StyleArgument::Integer(width)])
+    }
+
+    pub fn w(&mut self, width: StyleArgument<'_>) -> Result<&mut Self, ConsoleError> {
+        self.change("w", &[width])
+    }
+
+    pub fn min_w(&mut self, width: StyleArgument<'_>) -> Result<&mut Self, ConsoleError> {
+        self.change("minw", &[width])
+    }
+
+    pub fn max_w(&mut self, width: StyleArgument<'_>) -> Result<&mut Self, ConsoleError> {
+        self.change("maxw", &[width])
+    }
+
+    pub fn add_style(&mut self, classes: &str) -> Result<&mut Self, ConsoleError> {
+        self.apply(classes)
+    }
+
     pub fn uppercase(&mut self) -> &mut Self {
         style::transform(self.state, "upper");
         self
@@ -43,6 +137,158 @@ impl<'a> TerminalStyles<'a> {
     pub fn font_bold(&mut self) -> &mut Self {
         self.state.bold = Some(true);
         self
+    }
+
+    pub fn ml(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("ml", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn mr(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("mr", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn mb(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("mb", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn mt(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("mt", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn mx(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("mx", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn my(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("my", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn m(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("m", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn pl(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("pl", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn pr(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("pr", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn px(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("px", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn pt(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("pt", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn pb(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("pb", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn py(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("py", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn p(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("p", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn space_x(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("spacex", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn space_y(&mut self, columns: i64) -> Result<&mut Self, ConsoleError> {
+        self.change("spacey", &[StyleArgument::Integer(columns)])
+    }
+
+    pub fn italic(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("italic", &[])
+    }
+
+    pub fn strong(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("strong", &[])
+    }
+
+    pub fn underline(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("underline", &[])
+    }
+
+    pub fn line_through(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("linethrough", &[])
+    }
+
+    pub fn invisible(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("invisible", &[])
+    }
+
+    pub fn font_normal(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("fontnormal", &[])
+    }
+
+    pub fn lowercase(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("lowercase", &[])
+    }
+
+    pub fn capitalize(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("capitalize", &[])
+    }
+
+    pub fn snakecase(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("snakecase", &[])
+    }
+
+    pub fn block(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("block", &[])
+    }
+
+    pub fn hidden(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("hidden", &[])
+    }
+
+    pub fn flex(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("flex", &[])
+    }
+
+    pub fn w_full(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("wfull", &[])
+    }
+
+    pub fn w_auto(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("wauto", &[])
+    }
+
+    pub fn justify_between(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("justifybetween", &[])
+    }
+
+    pub fn justify_around(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("justifyaround", &[])
+    }
+
+    pub fn justify_evenly(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("justifyevenly", &[])
+    }
+
+    pub fn justify_center(&mut self) -> Result<&mut Self, ConsoleError> {
+        self.change("justifycenter", &[])
+    }
+
+    pub fn content_repeat(&mut self, value: &str) -> Result<&mut Self, ConsoleError> {
+        self.change("contentrepeat", &[StyleArgument::Text(value)])
+    }
+
+    pub fn prepend(&mut self, value: &str) -> Result<&mut Self, ConsoleError> {
+        self.change("prepend", &[StyleArgument::Text(value)])
+    }
+
+    pub fn append(&mut self, value: &str) -> Result<&mut Self, ConsoleError> {
+        self.change("append", &[StyleArgument::Text(value)])
+    }
+
+    pub fn href(&mut self, value: &str) -> Result<&mut Self, ConsoleError> {
+        self.change("href", &[StyleArgument::Text(value)])
     }
 }
 

@@ -58,7 +58,21 @@ pub(super) struct Method<'a> {
     pub name: String,
     pub args: Vec<StyleArgument<'a>>,
 }
-impl<'a> Method<'a> {
+pub(super) struct MethodCall<'a> {
+    pub name: &'a str,
+    pub args: &'a [StyleArgument<'a>],
+}
+
+impl Method<'_> {
+    pub(super) fn as_call(&self) -> MethodCall<'_> {
+        MethodCall {
+            name: &self.name,
+            args: &self.args,
+        }
+    }
+}
+
+impl<'a> MethodCall<'a> {
     pub fn argument(&self, n: usize) -> Result<&StyleArgument<'a>, ConsoleError> {
         self.args
             .get(n)

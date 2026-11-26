@@ -360,7 +360,8 @@
         "终端SDK继续独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
         "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
       ],
-      "style_repository": "style-repository-contracts.json"
+      "style_repository": "style-repository-contracts.json",
+      "terminal_style_methods": "terminal-style-methods-contracts.json"
     },
     {
       "anchor": "tables",
@@ -698,6 +699,14 @@
     "remaining": [
       "独立 TerminalStyles 与 Element 的其他公开方法、通用 HTML 恢复。",
       "Factory 容器构造与覆盖及 Artisan 其他锚点。"
+    ]
+  },
+  "terminal_style_methods": {
+    "status": "verified_typed_style_mutation_entrypoints",
+    "contract": "terminal-style-methods-contracts.json",
+    "remaining": [
+      "独立 Styles 构造、元素关系、属性集合、继承、长度与格式查询及未核定 flex1。",
+      "Element、通用 HTML 恢复、Factory 容器构造和其余 Artisan 文档锚点。"
     ]
   }
 }

@@ -2493,3 +2493,42 @@ fn register_style_repository() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 型別化終端機樣式方法 {#typed-terminal-style-methods}
+
+註冊回呼內的 `TerminalStyles` 提供色彩、間距、尺寸、文字轉換與版面的型別化方法。整數寬度使用 `StyleArgument::Integer`，分數寬度使用 `StyleArgument::Text`。這些設定會套用到目前元素。
+
+`set_style` 記錄類別名稱，供 `has_style` 查詢。使用 `add_style` 解析並套用一組樣式類別。直接呼叫 `font_bold` 等方法只修改對應格式，不加入類別標記。
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{
+        BuiltinComponentViewRenderer, ComponentContext, ComponentViewRenderer, StyleArgument,
+        StyleRepository,
+    },
+};
+use openrust::support::facades::Artisan;
+
+fn register_terminal_styles() -> Result<(), ConsoleError> {
+    let styles = StyleRepository::new();
+    styles.create_with("report-label", |style, _| {
+        style.uppercase().font_bold();
+        style.w(StyleArgument::Integer(24))?.px(1)?.text("cyan")?;
+        Ok(())
+    });
+
+    Artisan::command_with("tools:report-label", AsyncCommandCallback::new(move |_, _, output| {
+        let styles = styles.clone();
+        Box::pin(async move {
+            BuiltinComponentViewRenderer::with_styles(styles).render(
+                "<span class='report-label'>Report ready</span>",
+                OutputFormat::Normal.into(),
+                &mut ComponentContext::Output(output.as_output()),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

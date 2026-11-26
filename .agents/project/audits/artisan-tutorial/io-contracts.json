@@ -2250,7 +2250,8 @@
     "62: FormatterHelper and DebugFormatterHelper native helper objects are verified against fixed source and real consumers. ProcessHelper and application default registry wiring remain open.",
     "63: ProcessHelper runs and validates native process execution, selected output and callbacks. Application default registry wiring remains open.",
     "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open.",
-    "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open."
+    "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open.",
+    "66: Typed style mutation entrypoints are verified. Owned style properties, element relationships and additional renderer contracts stay open."
   ],
   "native_adaptations": [
     {
@@ -2873,6 +2874,61 @@
       "apply",
       "uppercase",
       "font_bold"
+    ]
+  },
+  "terminal_style_methods": {
+    "TerminalStyles": [
+      "set_style",
+      "has_style",
+      "add_style / apply",
+      "bg / bg_with",
+      "text / text_with",
+      "font_bold",
+      "font_normal",
+      "strong",
+      "italic",
+      "underline",
+      "line_through",
+      "invisible",
+      "href",
+      "ml",
+      "mr",
+      "mb",
+      "mt",
+      "mx",
+      "my",
+      "m",
+      "pl",
+      "pr",
+      "px",
+      "pt",
+      "pb",
+      "py",
+      "p",
+      "space_y",
+      "space_x",
+      "border_t / border_t_with",
+      "truncate / truncate_with",
+      "w",
+      "w_full",
+      "w_auto",
+      "min_w",
+      "max_w",
+      "uppercase",
+      "lowercase",
+      "capitalize",
+      "snakecase",
+      "hidden",
+      "block",
+      "flex",
+      "justify_between",
+      "justify_around",
+      "justify_evenly",
+      "justify_center",
+      "content_repeat",
+      "prepend",
+      "append",
+      "list / list_with"
     ]
   }
 }

@@ -4,7 +4,7 @@ use super::dimensions::{self, Constraint, Dimension, Dimensions, Target};
 use super::dom::Node;
 use super::{
     StyleRepository, TerminalStyles, palette,
-    style_methods::{self, StyleArgument as Argument},
+    style_methods::{self, MethodCall, StyleArgument as Argument},
     style_tokens,
 };
 use crate::{
@@ -110,7 +110,7 @@ pub(super) fn transform(s: &mut Style, key: &'static str) {
         s.transform.push(key);
     }
 }
-fn mark(s: &mut Style, value: &str) {
+pub(super) fn mark(s: &mut Style, value: &str) {
     if !s.markers.iter().any(|m| m == value) {
         s.markers.push(value.to_owned());
     }
@@ -151,172 +151,184 @@ pub(super) fn apply(
         };
         let m = style_methods::resolve(resolved)?;
         mark(s, token.original);
-        match m.name.as_str() {
-            "block" => s.display = "block",
-            "flex" => s.display = "flex",
-            "hidden" => s.display = "hidden",
-            "flex1" => {}
-            "wfull" => s.width = Some(Dimension::Text("1/1".into())),
-            "wauto" => s.width = None,
-            "w" | "minw" | "maxw" => {
-                let value = match m.argument(0)? {
-                    Argument::Integer(n) if n.unsigned_abs() <= 1_000_000 => Dimension::Integer(*n),
-                    Argument::Text(v) => Dimension::Text((*v).to_owned()),
-                    _ => return Err(error(token.original)),
-                };
-                match m.name.as_str() {
-                    "w" => s.width = Some(value),
-                    "minw" => s.min = Some(value),
-                    _ => s.max = Some(value),
-                }
-            }
-            "uppercase" => transform(s, "upper"),
-            "lowercase" => transform(s, "lower"),
-            "capitalize" => transform(s, "capitalize"),
-            "snakecase" => transform(s, "snake"),
-            "prepend" => {
-                s.prepend = m.text(0)?.to_owned();
-                transform(s, "prepend");
-            }
-            "append" => {
-                s.append = m.text(0)?.to_owned();
-                transform(s, "append");
-            }
-            "truncate" => {
-                s.truncate = (
-                    m.args.first().map_or(Ok(0), Argument::integer)?,
-                    m.args.get(1).map_or(Ok("…"), Argument::text)?.to_owned(),
-                );
-                transform(s, "truncate");
-            }
-            "contentrepeat" => {
-                static UNQUOTE: LazyLock<Regex> = LazyLock::new(|| {
-                    Regex::new(r"\[?'?([^'|\]]+)'?\]?").expect("合法重复内容表达式")
-                });
-                let value = UNQUOTE.replace_all(m.text(0)?, "$1").into_owned();
-                if visible_width(&value) == 0 {
-                    return Err(error(token.original));
-                }
-                s.repeat = Some(value);
-                transform(s, "repeat");
-            }
-            "fontbold" => s.bold = Some(true),
-            "fontnormal" => s.bold = Some(false),
-            "strong" | "italic" | "underline" | "linethrough" | "invisible" => {
-                let code = match m.name.as_str() {
-                    "strong" => 1,
-                    "italic" => 3,
-                    "underline" => 4,
-                    "linethrough" => 9,
-                    _ => 8,
-                };
-                if !s.modifiers.contains(&code) {
-                    s.modifiers.push(code);
-                }
-            }
-            "justifybetween" => s.justify = Some("between"),
-            "justifyaround" => s.justify = Some("around"),
-            "justifyevenly" => s.justify = Some("evenly"),
-            "justifycenter" => s.justify = Some("center"),
-            "text" | "bg" => {
-                let value = m.text(0)?;
-                let variant = m.args.get(1).map_or(Ok(0), Argument::integer)?;
-                if m.name == "text" && matches!(value, "left" | "right" | "center") {
-                    s.align = match value {
-                        "left" => "left",
-                        "right" => "right",
-                        _ => "center",
-                    };
-                } else {
-                    let color = palette::color_value(value, variant, styles)?;
-                    let (slot, key) = if m.name == "bg" {
-                        (&mut s.bg, "bg")
-                    } else {
-                        (&mut s.fg, "fg")
-                    };
-                    if slot.is_none() {
-                        s.color_order.push(key);
-                    }
-                    *slot = Some(color);
-                }
-            }
-            "href" => {
-                let value = m.text(0)?;
-                if !value.is_empty() && value != "0" {
-                    s.href = Some(value.to_owned());
-                }
-            }
-            "bordert" => {
-                if s.element != "hr" {
-                    return Err(ConsoleError::new("分隔线样式只能用于hr元素"));
-                }
-                if let Some(arg) = m.args.first() {
-                    arg.integer()?;
-                }
-                if !s.modifiers.contains(&0) {
-                    s.modifiers.push(0);
-                }
-            }
-            "list" => {
-                let kind = m.text(0)?;
-                let index = m.args.get(1).map_or(Ok(0), Argument::integer)?;
-                if !matches!(s.element, "ul" | "ol" | "li") {
-                    return Err(ConsoleError::new("列表样式只能用于ul、ol或li元素"));
-                }
-                if s.element == "li" {
-                    let prefix = match kind {
-                        "square" => Some("▪ ".to_owned()),
-                        "disc" => Some("• ".to_owned()),
-                        "decimal" => Some(format!("{index}. ")),
-                        _ => None,
-                    };
-                    if let Some(prefix) = prefix {
-                        s.prepend = prefix;
-                        transform(s, "prepend");
-                    }
-                }
-            }
-            "setstyle" => mark(s, m.text(0)?),
-            "addstyle" => apply(s, m.text(0)?, tag, depth + 1, styles)?,
-            "m" | "mt" | "mr" | "mb" | "ml" | "mx" | "my" | "p" | "pt" | "pr" | "pb" | "pl"
-            | "px" | "py" | "spacex" | "spacey" => {
-                let n = m.integer(0)?;
-                let n = usize::try_from(n)
-                    .ok()
-                    .filter(|n| *n <= 1_000_000)
-                    .ok_or_else(|| error(token.original))?;
-                if m.name == "spacex" {
-                    s.space[0] = n;
-                } else if m.name == "spacey" {
-                    s.space[1] = n;
-                } else {
-                    let slot = if m.name.starts_with('m') {
-                        &mut s.margin
-                    } else {
-                        &mut s.padding
-                    };
-                    match &m.name[1..] {
-                        "" => *slot = [n; 4],
-                        "x" => {
-                            slot[1] = n;
-                            slot[3] = n;
-                        }
-                        "y" => {
-                            slot[0] = n;
-                            slot[2] = n;
-                        }
-                        "t" => slot[0] = n,
-                        "r" => slot[1] = n,
-                        "b" => slot[2] = n,
-                        _ => slot[3] = n,
-                    }
-                }
-            }
-            _ => return Err(error(token.original)),
-        }
+        apply_method(s, m.as_call(), tag, depth, styles, token.original)?;
     }
     Ok(())
 }
+
+pub(super) fn apply_method(
+    s: &mut Style,
+    m: MethodCall<'_>,
+    tag: &str,
+    depth: usize,
+    styles: Option<&StyleRepository>,
+    expression: &str,
+) -> Result<(), ConsoleError> {
+    match m.name {
+        "block" => s.display = "block",
+        "flex" => s.display = "flex",
+        "hidden" => s.display = "hidden",
+        "flex1" => {}
+        "wfull" => s.width = Some(Dimension::Text("1/1".into())),
+        "wauto" => s.width = None,
+        "w" | "minw" | "maxw" => {
+            let value = match m.argument(0)? {
+                Argument::Integer(n) if n.unsigned_abs() <= 1_000_000 => Dimension::Integer(*n),
+                Argument::Text(v) => Dimension::Text((*v).to_owned()),
+                _ => return Err(error(expression)),
+            };
+            match m.name {
+                "w" => s.width = Some(value),
+                "minw" => s.min = Some(value),
+                _ => s.max = Some(value),
+            }
+        }
+        "uppercase" => transform(s, "upper"),
+        "lowercase" => transform(s, "lower"),
+        "capitalize" => transform(s, "capitalize"),
+        "snakecase" => transform(s, "snake"),
+        "prepend" => {
+            s.prepend = m.text(0)?.to_owned();
+            transform(s, "prepend");
+        }
+        "append" => {
+            s.append = m.text(0)?.to_owned();
+            transform(s, "append");
+        }
+        "truncate" => {
+            s.truncate = (
+                m.args.first().map_or(Ok(0), Argument::integer)?,
+                m.args.get(1).map_or(Ok("…"), Argument::text)?.to_owned(),
+            );
+            transform(s, "truncate");
+        }
+        "contentrepeat" => {
+            static UNQUOTE: LazyLock<Regex> =
+                LazyLock::new(|| Regex::new(r"\[?'?([^'|\]]+)'?\]?").expect("合法重复内容表达式"));
+            let value = UNQUOTE.replace_all(m.text(0)?, "$1").into_owned();
+            if visible_width(&value) == 0 {
+                return Err(error(expression));
+            }
+            s.repeat = Some(value);
+            transform(s, "repeat");
+        }
+        "fontbold" => s.bold = Some(true),
+        "fontnormal" => s.bold = Some(false),
+        "strong" | "italic" | "underline" | "linethrough" | "invisible" => {
+            let code = match m.name {
+                "strong" => 1,
+                "italic" => 3,
+                "underline" => 4,
+                "linethrough" => 9,
+                _ => 8,
+            };
+            if !s.modifiers.contains(&code) {
+                s.modifiers.push(code);
+            }
+        }
+        "justifybetween" => s.justify = Some("between"),
+        "justifyaround" => s.justify = Some("around"),
+        "justifyevenly" => s.justify = Some("evenly"),
+        "justifycenter" => s.justify = Some("center"),
+        "text" | "bg" => {
+            let value = m.text(0)?;
+            let variant = m.args.get(1).map_or(Ok(0), Argument::integer)?;
+            if m.name == "text" && matches!(value, "left" | "right" | "center") {
+                s.align = match value {
+                    "left" => "left",
+                    "right" => "right",
+                    _ => "center",
+                };
+            } else {
+                let color = palette::color_value(value, variant, styles)?;
+                let (slot, key) = if m.name == "bg" {
+                    (&mut s.bg, "bg")
+                } else {
+                    (&mut s.fg, "fg")
+                };
+                if slot.is_none() {
+                    s.color_order.push(key);
+                }
+                *slot = Some(color);
+            }
+        }
+        "href" => {
+            let value = m.text(0)?;
+            if !value.is_empty() && value != "0" {
+                s.href = Some(value.to_owned());
+            }
+        }
+        "bordert" => {
+            if s.element != "hr" {
+                return Err(ConsoleError::new("分隔线样式只能用于hr元素"));
+            }
+            if let Some(arg) = m.args.first() {
+                arg.integer()?;
+            }
+            if !s.modifiers.contains(&0) {
+                s.modifiers.push(0);
+            }
+        }
+        "list" => {
+            let kind = m.text(0)?;
+            let index = m.args.get(1).map_or(Ok(0), Argument::integer)?;
+            if !matches!(s.element, "ul" | "ol" | "li") {
+                return Err(ConsoleError::new("列表样式只能用于ul、ol或li元素"));
+            }
+            if s.element == "li" {
+                let prefix = match kind {
+                    "square" => Some("▪ ".to_owned()),
+                    "disc" => Some("• ".to_owned()),
+                    "decimal" => Some(format!("{index}. ")),
+                    _ => None,
+                };
+                if let Some(prefix) = prefix {
+                    s.prepend = prefix;
+                    transform(s, "prepend");
+                }
+            }
+        }
+        "setstyle" => mark(s, m.text(0)?),
+        "addstyle" => apply(s, m.text(0)?, tag, depth + 1, styles)?,
+        "m" | "mt" | "mr" | "mb" | "ml" | "mx" | "my" | "p" | "pt" | "pr" | "pb" | "pl" | "px"
+        | "py" | "spacex" | "spacey" => {
+            let n = m.integer(0)?;
+            let n = usize::try_from(n)
+                .ok()
+                .filter(|n| *n <= 1_000_000)
+                .ok_or_else(|| error(expression))?;
+            if m.name == "spacex" {
+                s.space[0] = n;
+            } else if m.name == "spacey" {
+                s.space[1] = n;
+            } else {
+                let slot = if m.name.starts_with('m') {
+                    &mut s.margin
+                } else {
+                    &mut s.padding
+                };
+                match &m.name[1..] {
+                    "" => *slot = [n; 4],
+                    "x" => {
+                        slot[1] = n;
+                        slot[3] = n;
+                    }
+                    "y" => {
+                        slot[0] = n;
+                        slot[2] = n;
+                    }
+                    "t" => slot[0] = n,
+                    "r" => slot[1] = n,
+                    "b" => slot[2] = n,
+                    _ => slot[3] = n,
+                }
+            }
+        }
+        _ => return Err(error(expression)),
+    }
+    Ok(())
+}
+
 impl Style {
     pub(super) fn dimensions(&self) -> Dimensions {
         Dimensions {

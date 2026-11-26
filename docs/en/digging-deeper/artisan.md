@@ -2493,3 +2493,42 @@ fn register_style_repository() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Typed terminal style methods {#typed-terminal-style-methods}
+
+Inside a registered callback, `TerminalStyles` exposes typed methods for colors, spacing, sizing, text transformations, and layout. Integer and fractional widths use `StyleArgument::Integer` and `StyleArgument::Text`, respectively. The renderer applies these settings to the current element.
+
+`set_style` records a class name for checks with `has_style`. Use `add_style` to resolve and apply a class string. A direct method such as `font_bold` changes the formatting without adding a class marker.
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{
+        BuiltinComponentViewRenderer, ComponentContext, ComponentViewRenderer, StyleArgument,
+        StyleRepository,
+    },
+};
+use openrust::support::facades::Artisan;
+
+fn register_terminal_styles() -> Result<(), ConsoleError> {
+    let styles = StyleRepository::new();
+    styles.create_with("report-label", |style, _| {
+        style.uppercase().font_bold();
+        style.w(StyleArgument::Integer(24))?.px(1)?.text("cyan")?;
+        Ok(())
+    });
+
+    Artisan::command_with("tools:report-label", AsyncCommandCallback::new(move |_, _, output| {
+        let styles = styles.clone();
+        Box::pin(async move {
+            BuiltinComponentViewRenderer::with_styles(styles).render(
+                "<span class='report-label'>Report ready</span>",
+                OutputFormat::Normal.into(),
+                &mut ComponentContext::Output(output.as_output()),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

@@ -1,0 +1,43 @@
+{
+  "base": "8091bbe971042ca981e7923e9aae0daa6d689062",
+  "contract": "terminal-style-methods-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.47s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.34s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 201 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s"
+  ],
+  "runtime": {
+    "source_direct_method_cases": 188,
+    "framework_targets": 10,
+    "framework_parent_tests": 35,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 201,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/terminal-style-methods-first.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-style-methods-gates.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-style-methods-site.log",
+    "target/tmp/artisan-tutorial-20261125/owned-terminal-style-methods-source.json"
+  ],
+  "unaccepted_attempts": [
+    "owned-terminal-style-methods-source-first.log: fixture spread assignment corrected",
+    "owned-terminal-style-methods-source-body-error.log: fixture included duplicate body match branch, corrected",
+    "terminal-style-methods-missing-import.log: HTTP fixture missing Arc import, corrected",
+    "terminal-style-methods-href-difference.log: source exposed recursive property merge preserving old href; fixed and reran"
+  ],
+  "remaining": [
+    "独立 Styles 构造、元素关系、属性集合、继承、长度与格式查询及未核定 flex1。",
+    "Element、通用 HTML 恢复、Factory 容器构造和其余 Artisan 文档锚点。"
+  ],
+  "pushed": false
+}

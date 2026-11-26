@@ -1,0 +1,5718 @@
+[
+    {
+        "case": "markers",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "setStyle",
+                "flex-1"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": true,
+            "flex-1": true,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "markers",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "setStyle",
+                "flex-1"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": true,
+            "flex-1": true,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "markers",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "setStyle",
+                "flex-1"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": true,
+            "flex-1": true,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "markers",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "setStyle",
+                "flex-1"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ],
+            [
+                "setStyle",
+                "tested"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": true,
+            "flex-1": true,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "added-class",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "addStyle",
+                "font-bold text-red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=red;options=bold>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            },
+            "colors": {
+                "fg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": true
+        }
+    },
+    {
+        "case": "added-class",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "addStyle",
+                "font-bold text-red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=red;options=bold>Hello World<\/>",
+        "out": "\u001b[31;1mHello World\u001b[39;22m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            },
+            "colors": {
+                "fg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": true
+        }
+    },
+    {
+        "case": "added-class",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "addStyle",
+                "font-bold text-red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=red;options=bold>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            },
+            "colors": {
+                "fg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": true
+        }
+    },
+    {
+        "case": "added-class",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "addStyle",
+                "font-bold text-red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=red;options=bold>Hello World<\/>",
+        "out": "\u001b[31;1mHello World\u001b[39;22m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            },
+            "colors": {
+                "fg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": true
+        }
+    },
+    {
+        "case": "bg-default",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=red>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "bg-default",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=red>Hello World<\/>",
+        "out": "\u001b[41mHello World\u001b[49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "bg-default",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=red>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "bg-default",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "red"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=red>Hello World<\/>",
+        "out": "\u001b[41mHello World\u001b[49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "red"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "foreground",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "text",
+                "brand",
+                500
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=#9755aa>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "fg": "#9755aa"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "foreground",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "text",
+                "brand",
+                500
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=#9755aa>Hello World<\/>",
+        "out": "\u001b[35mHello World\u001b[39m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "fg": "#9755aa"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "foreground",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "text",
+                "brand",
+                500
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=#9755aa>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "fg": "#9755aa"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "foreground",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "text",
+                "brand",
+                500
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<fg=#9755aa>Hello World<\/>",
+        "out": "\u001b[35mHello World\u001b[39m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "fg": "#9755aa"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "text",
+                "green"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#9755aa;fg=green>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#9755aa",
+                "fg": "green"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "text",
+                "green"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#9755aa;fg=green>Hello World<\/>",
+        "out": "\u001b[32;45mHello World\u001b[39;49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#9755aa",
+                "fg": "green"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "text",
+                "green"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#9755aa;fg=green>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#9755aa",
+                "fg": "green"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "text",
+                "green"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#9755aa;fg=green>Hello World<\/>",
+        "out": "\u001b[32;45mHello World\u001b[39;49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#9755aa",
+                "fg": "green"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background-updated",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "bg",
+                "red",
+                400
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#f87171>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#f87171"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background-updated",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "bg",
+                "red",
+                400
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#f87171>Hello World<\/>",
+        "out": "\u001b[41mHello World\u001b[49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#f87171"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background-updated",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "bg",
+                "red",
+                400
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#f87171>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#f87171"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "background-updated",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "bg",
+                "brand",
+                500
+            ],
+            [
+                "bg",
+                "red",
+                400
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<bg=#f87171>Hello World<\/>",
+        "out": "\u001b[41mHello World\u001b[49m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "colors": {
+                "bg": "#f87171"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "bad-color",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "text",
+                "invalid",
+                3
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\ColorNotFound:INVALID_3",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "bad-color",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "text",
+                "invalid",
+                3
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\ColorNotFound:INVALID_3",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "bad-color",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "text",
+                "invalid",
+                3
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\ColorNotFound:INVALID_3",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "bad-color",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "text",
+                "invalid",
+                3
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\ColorNotFound:INVALID_3",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "font-bold",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "fontBold"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=bold>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-bold",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "fontBold"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=bold>Hello World<\/>",
+        "out": "\u001b[1mHello World\u001b[22m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-bold",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "fontBold"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=bold>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-bold",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "fontBold"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=bold>Hello World<\/>",
+        "out": "\u001b[1mHello World\u001b[22m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "fontNormal"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-order",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "italic"
+            ],
+            [
+                "strong"
+            ],
+            [
+                "underline"
+            ],
+            [
+                "lineThrough"
+            ],
+            [
+                "invisible"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m",
+        "out": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-order",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "italic"
+            ],
+            [
+                "strong"
+            ],
+            [
+                "underline"
+            ],
+            [
+                "lineThrough"
+            ],
+            [
+                "invisible"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m",
+        "out": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-order",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "italic"
+            ],
+            [
+                "strong"
+            ],
+            [
+                "underline"
+            ],
+            [
+                "lineThrough"
+            ],
+            [
+                "invisible"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m",
+        "out": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-order",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "italic"
+            ],
+            [
+                "strong"
+            ],
+            [
+                "underline"
+            ],
+            [
+                "lineThrough"
+            ],
+            [
+                "invisible"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m",
+        "out": "\u001b[8m\u001b[9m\u001b[4m\u001b[1m\u001b[3mHello World\u001b[0m\u001b[0m\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal-overrides",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "fontBold"
+            ],
+            [
+                "italic"
+            ],
+            [
+                "fontNormal"
+            ],
+            [
+                "underline"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m<\/>",
+        "out": "\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal-overrides",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "fontBold"
+            ],
+            [
+                "italic"
+            ],
+            [
+                "fontNormal"
+            ],
+            [
+                "underline"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m<\/>",
+        "out": "\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal-overrides",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "fontBold"
+            ],
+            [
+                "italic"
+            ],
+            [
+                "fontNormal"
+            ],
+            [
+                "underline"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m<\/>",
+        "out": "\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "font-normal-overrides",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "fontBold"
+            ],
+            [
+                "italic"
+            ],
+            [
+                "fontNormal"
+            ],
+            [
+                "underline"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<options=,>\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m<\/>",
+        "out": "\u001b[4m\u001b[3mHello World\u001b[0m\u001b[0m\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "options": {
+                "bold": false
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "upper",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "uppercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "HELLO WORLD",
+        "out": "HELLO WORLD\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "upper",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "uppercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "HELLO WORLD",
+        "out": "HELLO WORLD\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "upper",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "uppercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "HELLO WORLD",
+        "out": "HELLO WORLD\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "upper",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "uppercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "HELLO WORLD",
+        "out": "HELLO WORLD\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "lower",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "lowercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello world",
+        "out": "hello world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "lower",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "lowercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello world",
+        "out": "hello world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "lower",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "lowercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello world",
+        "out": "hello world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "lower",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "lowercase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello world",
+        "out": "hello world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "capitalize",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "capitalize"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "capitalize",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "capitalize"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "capitalize",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "capitalize"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "capitalize",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "capitalize"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "snake",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "snakecase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello _world",
+        "out": "hello _world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "snake",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "snakecase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello _world",
+        "out": "hello _world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "snake",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "snakecase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello _world",
+        "out": "hello _world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "snake",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "snakecase"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "hello _world",
+        "out": "hello _world\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "transform-order",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "prepend",
+                "opening "
+            ],
+            [
+                "uppercase"
+            ],
+            [
+                "append",
+                " finishing"
+            ],
+            [
+                "prepend",
+                "extra "
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "EXTRA HELLO WORLD finishing",
+        "out": "EXTRA HELLO WORLD finishing\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "transform-order",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "prepend",
+                "opening "
+            ],
+            [
+                "uppercase"
+            ],
+            [
+                "append",
+                " finishing"
+            ],
+            [
+                "prepend",
+                "extra "
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "EXTRA HELLO WORLD finishing",
+        "out": "EXTRA HELLO WORLD finishing\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "transform-order",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "prepend",
+                "opening "
+            ],
+            [
+                "uppercase"
+            ],
+            [
+                "append",
+                " finishing"
+            ],
+            [
+                "prepend",
+                "extra "
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "EXTRA HELLO WORLD finishing",
+        "out": "EXTRA HELLO WORLD finishing\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "transform-order",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "prepend",
+                "opening "
+            ],
+            [
+                "uppercase"
+            ],
+            [
+                "append",
+                " finishing"
+            ],
+            [
+                "prepend",
+                "extra "
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "EXTRA HELLO WORLD finishing",
+        "out": "EXTRA HELLO WORLD finishing\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "repeat",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "contentRepeat",
+                "[+'+'!]"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "++!++!++!++!++!++!++!++!",
+        "out": "++!++!++!++!++!++!++!++!\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "repeat",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "contentRepeat",
+                "[+'+'!]"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "++!++!++!++!++!++!++!++!",
+        "out": "++!++!++!++!++!++!++!++!\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "repeat",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "contentRepeat",
+                "[+'+'!]"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "++!++!++!++!++!++!++!++!++!++!++!++!++!",
+        "out": "++!++!++!++!++!++!++!++!++!++!++!++!++!\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "repeat",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "contentRepeat",
+                "[+'+'!]"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "++!++!++!++!++!++!++!++!++!++!++!++!++!",
+        "out": "++!++!++!++!++!++!++!++!++!++!++!++!++!\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-repeat",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "contentRepeat",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-repeat",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "contentRepeat",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-repeat",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "contentRepeat",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-repeat",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "contentRepeat",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "contentRepeat": true
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-default",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "truncate"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello W…",
+        "out": "Hello W…\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-default",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "truncate"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello W…",
+        "out": "Hello W…\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-default",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "truncate"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello W…",
+        "out": "Hello W…\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-default",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "truncate"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello W…",
+        "out": "Hello W…\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "truncate",
+                5,
+                "--"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hel--",
+        "out": "Hel--\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "truncate",
+                5,
+                "--"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hel--",
+        "out": "Hel--\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "truncate",
+                5,
+                "--"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hel--",
+        "out": "Hel--\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "truncate",
+                5,
+                "--"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hel--",
+        "out": "Hel--\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-width",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "p",
+                1
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "        \n Hello~ \n        ",
+        "out": "        \n Hello~ \n        \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8,
+                "pt": 1,
+                "pr": 1,
+                "pb": 1,
+                "pl": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-width",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "p",
+                1
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "        \n Hello~ \n        ",
+        "out": "        \n Hello~ \n        \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8,
+                "pt": 1,
+                "pr": 1,
+                "pb": 1,
+                "pl": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-width",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "p",
+                1
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "        \n Hello~ \n        ",
+        "out": "        \n Hello~ \n        \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8,
+                "pt": 1,
+                "pr": 1,
+                "pb": 1,
+                "pl": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-width",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                8
+            ],
+            [
+                "p",
+                1
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "        \n Hello~ \n        ",
+        "out": "        \n Hello~ \n        \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 8,
+                "pt": 1,
+                "pr": 1,
+                "pb": 1,
+                "pl": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-fraction",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello~",
+        "out": "Hello~\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-fraction",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello~",
+        "out": "Hello~\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-fraction",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello Wor~",
+        "out": "Hello Wor~\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "truncate-fraction",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "truncate",
+                0,
+                "~"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello Wor~",
+        "out": "Hello Wor~\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wfull",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "wFull"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World             ",
+        "out": "Hello World             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/1"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wfull",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "wFull"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World             ",
+        "out": "Hello World             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/1"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wfull",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "wFull"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World                             ",
+        "out": "Hello World                             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/1"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wfull",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "wFull"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World                             ",
+        "out": "Hello World                             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/1"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wauto",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": null
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wauto",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": null
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wauto",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": null
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "wauto",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "wAuto"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": null
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "constraints",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "maxW",
+                9
+            ],
+            [
+                "minW",
+                5
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello",
+        "out": "Hello\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4",
+                "maxWidth": 9,
+                "minWidth": 5
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "constraints",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "maxW",
+                9
+            ],
+            [
+                "minW",
+                5
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello",
+        "out": "Hello\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4",
+                "maxWidth": 9,
+                "minWidth": 5
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "constraints",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "maxW",
+                9
+            ],
+            [
+                "minW",
+                5
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello",
+        "out": "Hello\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4",
+                "maxWidth": 9,
+                "minWidth": 5
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "constraints",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/4"
+            ],
+            [
+                "maxW",
+                9
+            ],
+            [
+                "minW",
+                5
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello",
+        "out": "Hello\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/4",
+                "maxWidth": 9,
+                "minWidth": 5
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "invalid-fraction",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/0"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/0"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "invalid-fraction",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/0"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/0"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "invalid-fraction",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                "1\/0"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/0"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "invalid-fraction",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                "1\/0"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": "1\/0"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "alignment",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "text",
+                "center"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "    Hello World     ",
+        "out": "    Hello World     \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 20,
+                "text-align": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "alignment",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "text",
+                "center"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "    Hello World     ",
+        "out": "    Hello World     \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 20,
+                "text-align": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "alignment",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "text",
+                "center"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "    Hello World     ",
+        "out": "    Hello World     \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 20,
+                "text-align": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "alignment",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                20
+            ],
+            [
+                "text",
+                "center"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "    Hello World     ",
+        "out": "    Hello World     \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "width": 20,
+                "text-align": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-sides",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "ml",
+                1
+            ],
+            [
+                "mr",
+                2
+            ],
+            [
+                "mt",
+                1
+            ],
+            [
+                "mb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n Hello World  \n",
+        "out": "\n Hello World  \n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-sides",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "ml",
+                1
+            ],
+            [
+                "mr",
+                2
+            ],
+            [
+                "mt",
+                1
+            ],
+            [
+                "mb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n Hello World  \n",
+        "out": "\n Hello World  \n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-sides",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "ml",
+                1
+            ],
+            [
+                "mr",
+                2
+            ],
+            [
+                "mt",
+                1
+            ],
+            [
+                "mb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n Hello World  \n",
+        "out": "\n Hello World  \n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-sides",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "ml",
+                1
+            ],
+            [
+                "mr",
+                2
+            ],
+            [
+                "mt",
+                1
+            ],
+            [
+                "mb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n Hello World  \n",
+        "out": "\n Hello World  \n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "ml": 1,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-axis",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "m",
+                1
+            ],
+            [
+                "mx",
+                3
+            ],
+            [
+                "my",
+                2
+            ],
+            [
+                "ml",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n\nHello World   \n\n",
+        "out": "\n\nHello World   \n\n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "mt": 2,
+                "mb": 2,
+                "ml": 0,
+                "mr": 3
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-axis",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "m",
+                1
+            ],
+            [
+                "mx",
+                3
+            ],
+            [
+                "my",
+                2
+            ],
+            [
+                "ml",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n\nHello World   \n\n",
+        "out": "\n\nHello World   \n\n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "mt": 2,
+                "mb": 2,
+                "ml": 0,
+                "mr": 3
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-axis",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "m",
+                1
+            ],
+            [
+                "mx",
+                3
+            ],
+            [
+                "my",
+                2
+            ],
+            [
+                "ml",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n\nHello World   \n\n",
+        "out": "\n\nHello World   \n\n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "mt": 2,
+                "mb": 2,
+                "ml": 0,
+                "mr": 3
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "margin-axis",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "m",
+                1
+            ],
+            [
+                "mx",
+                3
+            ],
+            [
+                "my",
+                2
+            ],
+            [
+                "ml",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "\n\nHello World   \n\n",
+        "out": "\n\nHello World   \n\n\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "mt": 2,
+                "mb": 2,
+                "ml": 0,
+                "mr": 3
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-sides",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "pl",
+                1
+            ],
+            [
+                "pr",
+                2
+            ],
+            [
+                "pt",
+                1
+            ],
+            [
+                "pb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "              \n Hello World  \n              ",
+        "out": "              \n Hello World  \n              \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pl": 1,
+                "pr": 2,
+                "pt": 1,
+                "pb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-sides",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "pl",
+                1
+            ],
+            [
+                "pr",
+                2
+            ],
+            [
+                "pt",
+                1
+            ],
+            [
+                "pb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "              \n Hello World  \n              ",
+        "out": "              \n Hello World  \n              \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pl": 1,
+                "pr": 2,
+                "pt": 1,
+                "pb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-sides",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "pl",
+                1
+            ],
+            [
+                "pr",
+                2
+            ],
+            [
+                "pt",
+                1
+            ],
+            [
+                "pb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "              \n Hello World  \n              ",
+        "out": "              \n Hello World  \n              \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pl": 1,
+                "pr": 2,
+                "pt": 1,
+                "pb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-sides",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "pl",
+                1
+            ],
+            [
+                "pr",
+                2
+            ],
+            [
+                "pt",
+                1
+            ],
+            [
+                "pb",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "              \n Hello World  \n              ",
+        "out": "              \n Hello World  \n              \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pl": 1,
+                "pr": 2,
+                "pt": 1,
+                "pb": 1
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-axis",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "p",
+                1
+            ],
+            [
+                "px",
+                2
+            ],
+            [
+                "py",
+                1
+            ],
+            [
+                "pr",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "             \n  Hello World\n             ",
+        "out": "             \n  Hello World\n             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pt": 1,
+                "pr": 0,
+                "pb": 1,
+                "pl": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-axis",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "p",
+                1
+            ],
+            [
+                "px",
+                2
+            ],
+            [
+                "py",
+                1
+            ],
+            [
+                "pr",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "             \n  Hello World\n             ",
+        "out": "             \n  Hello World\n             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pt": 1,
+                "pr": 0,
+                "pb": 1,
+                "pl": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-axis",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "p",
+                1
+            ],
+            [
+                "px",
+                2
+            ],
+            [
+                "py",
+                1
+            ],
+            [
+                "pr",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "             \n  Hello World\n             ",
+        "out": "             \n  Hello World\n             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pt": 1,
+                "pr": 0,
+                "pb": 1,
+                "pl": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "padding-axis",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "p",
+                1
+            ],
+            [
+                "px",
+                2
+            ],
+            [
+                "py",
+                1
+            ],
+            [
+                "pr",
+                0
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "             \n  Hello World\n             ",
+        "out": "             \n  Hello World\n             \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "pt": 1,
+                "pr": 0,
+                "pb": 1,
+                "pl": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "display",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "block"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "display",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "block"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "display",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "block"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "display",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "block"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hidden",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "hidden"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "",
+        "out": "\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hidden",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "hidden"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "",
+        "out": "\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hidden",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "hidden"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "",
+        "out": "\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hidden",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "hidden"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "",
+        "out": "\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hyperlink",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/space%20here"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/space%20here>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/space%%20here"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hyperlink",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/space%20here"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/space%20here>Hello World<\/>",
+        "out": "\u001b]8;;https:\/\/example.test\/space%20here\u001b\\Hello World\u001b]8;;\u001b\\\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/space%%20here"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hyperlink",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/space%20here"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/space%20here>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/space%%20here"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "hyperlink",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/space%20here"
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/space%20here>Hello World<\/>",
+        "out": "\u001b]8;;https:\/\/example.test\/space%20here\u001b\\Hello World\u001b]8;;\u001b\\\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/space%%20here"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "cleared-href",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/form"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/form>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/form"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "cleared-href",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/form"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/form>Hello World<\/>",
+        "out": "\u001b]8;;https:\/\/example.test\/form\u001b\\Hello World\u001b]8;;\u001b\\\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/form"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "cleared-href",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/form"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/form>Hello World<\/>",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/form"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "cleared-href",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                "https:\/\/example.test\/form"
+            ],
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "<href=https:\/\/example.test\/form>Hello World<\/>",
+        "out": "\u001b]8;;https:\/\/example.test\/form\u001b\\Hello World\u001b]8;;\u001b\\\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": [
+                "https:\/\/example.test\/form"
+            ]
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-href",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": []
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-href",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": []
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-href",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": []
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "empty-href",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "href",
+                ""
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": "Hello World",
+        "out": "Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            },
+            "href": []
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "child-spacing",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "spaceX",
+                1
+            ],
+            [
+                "spaceY",
+                2
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first\n\n two",
+        "out": "first\n\n two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "spaceX": 1,
+                "spaceY": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "child-spacing",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "spaceX",
+                1
+            ],
+            [
+                "spaceY",
+                2
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first\n\n two",
+        "out": "first\n\n two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "spaceX": 1,
+                "spaceY": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "child-spacing",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "spaceX",
+                1
+            ],
+            [
+                "spaceY",
+                2
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first\n\n two",
+        "out": "first\n\n two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "spaceX": 1,
+                "spaceY": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "child-spacing",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "spaceX",
+                1
+            ],
+            [
+                "spaceY",
+                2
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first\n\n two",
+        "out": "first\n\n two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block",
+                "spaceX": 1,
+                "spaceY": 2
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-between",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyBetween"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first        two",
+        "out": "first        two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "between"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-between",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyBetween"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first        two",
+        "out": "first        two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "between"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-between",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyBetween"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first        two",
+        "out": "first        two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "between"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-between",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyBetween"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "first        two",
+        "out": "first        two\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "between"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-around",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyAround"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first    two  ",
+        "out": "  first    two  \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "around"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-around",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyAround"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first    two  ",
+        "out": "  first    two  \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "around"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-around",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyAround"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first    two  ",
+        "out": "  first    two  \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "around"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-around",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyAround"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first    two  ",
+        "out": "  first    two  \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "around"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-evenly",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyEvenly"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first  two    ",
+        "out": "  first  two    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "evenly"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-evenly",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyEvenly"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first  two    ",
+        "out": "  first  two    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "evenly"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-evenly",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyEvenly"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first  two    ",
+        "out": "  first  two    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "evenly"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-evenly",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyEvenly"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "  first  two    ",
+        "out": "  first  two    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "evenly"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-center",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "    firsttwo    ",
+        "out": "    firsttwo    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-center",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "    firsttwo    ",
+        "out": "    firsttwo    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-center",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "    firsttwo    ",
+        "out": "    firsttwo    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "flex-center",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "w",
+                16
+            ],
+            [
+                "flex"
+            ],
+            [
+                "justifyCenter"
+            ]
+        ],
+        "html": "<div class='probe'><span>first<\/span><span>two<\/span><\/div>",
+        "markup": "    firsttwo    ",
+        "out": "    firsttwo    \n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "flex",
+                "width": 16,
+                "justifyContent": "center"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-default",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT"
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────",
+        "out": "────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-default",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT"
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────",
+        "out": "────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-default",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT"
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────────────────────",
+        "out": "────────────────────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-default",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT"
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────────────────────",
+        "out": "────────────────────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-hr",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT",
+                2
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────",
+        "out": "────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-hr",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT",
+                2
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────",
+        "out": "────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-hr",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT",
+                2
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────────────────────",
+        "out": "────────────────────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-hr",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT",
+                2
+            ]
+        ],
+        "html": "<hr class='probe'><\/hr>",
+        "markup": "────────────────────────────────────────",
+        "out": "────────────────────────────────────────\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "border-invalid",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:`border-t` can only be used on an \"hr\" element.",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "border-invalid",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:`border-t` can only be used on an \"hr\" element.",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "border-invalid",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "borderT",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:`border-t` can only be used on an \"hr\" element.",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "border-invalid",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "borderT",
+                1
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:`border-t` can only be used on an \"hr\" element.",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "list-default",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal"
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "0. Hello World",
+        "out": "0. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-default",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal"
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "0. Hello World",
+        "out": "0. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-default",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal"
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "0. Hello World",
+        "out": "0. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-default",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal"
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "0. Hello World",
+        "out": "0. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-index",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "7. Hello World",
+        "out": "7. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-index",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "7. Hello World",
+        "out": "7. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-index",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "7. Hello World",
+        "out": "7. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-index",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<li class='probe'>Hello World<\/li>",
+        "markup": "7. Hello World",
+        "out": "7. Hello World\n",
+        "error": null,
+        "properties": {
+            "isFirstChild": true,
+            "styles": {
+                "display": "block"
+            }
+        },
+        "has": {
+            "tested": false,
+            "flex-1": false,
+            "font-bold": false
+        }
+    },
+    {
+        "case": "list-invalid",
+        "width": 24,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style list-none cannot be used with Termwind\\Components\\Div",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "list-invalid",
+        "width": 24,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style list-none cannot be used with Termwind\\Components\\Div",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "list-invalid",
+        "width": 40,
+        "ansi": false,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style list-none cannot be used with Termwind\\Components\\Div",
+        "properties": null,
+        "has": null
+    },
+    {
+        "case": "list-invalid",
+        "width": 40,
+        "ansi": true,
+        "methods": [
+            [
+                "list",
+                "decimal",
+                7
+            ]
+        ],
+        "html": "<div class='probe'>Hello World<\/div>",
+        "markup": null,
+        "out": "",
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style list-none cannot be used with Termwind\\Components\\Div",
+        "properties": null,
+        "has": null
+    }
+]
