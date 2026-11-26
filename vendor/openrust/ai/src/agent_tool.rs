@@ -1,0 +1,107 @@
+use std::any::type_name;
+
+use openrust::{
+    http::HttpFuture,
+    json_schema::{JsonSchemaTypeFactory, types::ObjectType},
+};
+use serde_json::Value;
+
+use crate::{Agent, AiError, AiResult, HasStructuredOutput, Tool, ToolRequest};
+
+/// 为子 Agent 声明工具名称和用途。
+pub trait CanActAsTool: Agent + Sized {
+    fn name(&self) -> &str;
+
+    fn description(&self) -> &str;
+
+    fn into_tool(self) -> AgentTool<Self> {
+        let name = self.name().to_owned();
+        let description = self.description().to_owned();
+        AgentTool {
+            agent: self,
+            name,
+            description,
+            prompt: prompt_text::<Self>,
+        }
+    }
+}
+
+type PromptAgent<A> = for<'a> fn(&'a A, &'a str) -> HttpFuture<'a, AiResult<String>>;
+
+/// 将显式委托的任务交给独立 Agent，工具结果为子 Agent 的回答。
+pub struct AgentTool<A> {
+    agent: A,
+    name: String,
+    description: String,
+    prompt: PromptAgent<A>,
+}
+
+impl<A: Agent> AgentTool<A> {
+    pub fn new(agent: A) -> Self {
+        let kind = type_name::<A>().split('<').next().unwrap_or_default();
+        let name = kind.rsplit("::").next().unwrap_or("agent").to_owned();
+        let description = format!(
+            "将独立任务交给 {name} 并返回回答。请给出完整任务，子 Agent 无法读取父会话历史。"
+        );
+        Self {
+            agent,
+            name,
+            description,
+            prompt: prompt_text::<A>,
+        }
+    }
+
+    pub fn agent(&self) -> &A {
+        &self.agent
+    }
+}
+
+impl<A: HasStructuredOutput> AgentTool<A> {
+    pub fn with_structured_output(mut self) -> Self {
+        self.prompt = prompt_structured::<A>;
+        self
+    }
+}
+
+impl<A: Agent> Tool for AgentTool<A> {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        &self.description
+    }
+
+    fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
+        schema.object([(
+            "task",
+            schema
+                .string()
+                .description("交给子 Agent 的独立任务")
+                .required(true)
+                .into(),
+        )])
+    }
+
+    fn handle<'a>(&'a self, request: ToolRequest<'a>) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async move {
+            let task = request
+                .get("task")
+                .and_then(Value::as_str)
+                .filter(|task| !task.trim().is_empty())
+                .ok_or(AiError::InvalidToolArguments)?;
+            (self.prompt)(&self.agent, task).await
+        })
+    }
+}
+
+fn prompt_text<'a, A: Agent>(agent: &'a A, task: &'a str) -> HttpFuture<'a, AiResult<String>> {
+    Box::pin(async move { Ok(agent.prompt(task).await?.text) })
+}
+
+fn prompt_structured<'a, A: HasStructuredOutput>(
+    agent: &'a A,
+    task: &'a str,
+) -> HttpFuture<'a, AiResult<String>> {
+    Box::pin(async move { Ok(agent.prompt_structured(task).await?.response.text) })
+}

@@ -14,6 +14,7 @@ use openrust::{
 mod agent;
 mod agent_broadcast;
 mod agent_queue;
+mod agent_tool;
 mod anthropic;
 mod approval_store;
 mod approval_turn;
@@ -66,6 +67,7 @@ mod usage;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
+pub use agent_tool::{AgentTool, CanActAsTool};
 pub use approval_turn::{ApprovalResponse, PendingToolApprovals};
 pub use approvals::{Approval, Decision, Decisions, PendingApproval};
 pub use attachments::{Attachment, DocumentAttachment};

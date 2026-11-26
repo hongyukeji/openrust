@@ -388,6 +388,12 @@ let response = agent("Search the policy documents before answering.")
     .await?;
 ```
 
+### Use an agent as a tool {#agent-as-tool}
+
+Wrap an agent with `AgentTool::new(your_agent)` and pass it to the parent like any other tool. The tool uses the child type name by default and accepts a required `task` string. Implement `CanActAsTool` and call `into_tool()` to set the name and description explicitly. Use `with_structured_output()` on a child implementing `HasStructuredOutput` to return its output as a JSON string within the tool result.
+
+The child uses its own instructions, model and provider. The parent sends the task only. The child's response is returned when it completes, including when the parent is streaming.
+
 ### Tool approval policy {#tool-approval}
 
 Implement `Tool::should_request_approval` to request approval for selected arguments. When the invocation has no resumable approval context, the SDK returns `AiError::ApprovalNotResumable` before executing any tool in the step. The buffered error carries the pending call IDs, tool names, arguments, and reasons.

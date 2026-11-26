@@ -472,3 +472,11 @@ SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查
 独立 Artisan 及真实 HTTP 在 SQLite 和原生 PostgreSQL 18.7 上注册类型化监听器。监听器实际读回待审批和已保存会话状态，核对流式／普通请求、审批结果和并发只发一次。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
 
 - [固定 Laravel ToolApprovalRequested](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Events/ToolApprovalRequested.php) · [固定 Laravel ToolApprovalResolved](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Events/ToolApprovalResolved.php)
+
+## AI-03 子 Agent 工具
+
+`AgentTool` 将具名子 Agent 注册为普通工具，默认使用类型名。实现固定 Laravel `CanActAsTool` 对应的方法后，通过 `into_tool()` 指定名称与说明。`task` 按框架 JSON Schema 声明为必填字符串。子 Agent 使用自己的连接、模型、指令和消息，父 Agent 只提交独立任务。结构化子 Agent 可用 `with_structured_output()` 返回 JSON 文本。当前工具结果在子 Agent 完成后交付，子 Agent 流式活动与父子调用追踪仍待验收。
+
+独立 Artisan 验证显式工具名、普通子 Agent 与父工具续接。真实 HTTP 验证默认名、结构化结果和非法参数，断言非法调用没有向子连接出站。父应用用 Responses 协议，子 Agent 用独立 Chat 兼容连接，握手凭证、模型和父历史隔离由实际 TCP 请求验证。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
+
+- [固定 Laravel CanActAsTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/CanActAsTool.php) · [固定 Laravel AgentTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/AgentTool.php)

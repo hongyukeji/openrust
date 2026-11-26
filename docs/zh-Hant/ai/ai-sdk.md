@@ -388,6 +388,12 @@ let response = agent("Search the policy documents before answering.")
     .await?;
 ```
 
+### 將 Agent 作為工具 {#agent-as-tool}
+
+用 `AgentTool::new(your_agent)` 包裝子 Agent，再和一般工具一樣傳給父 Agent。預設使用子 Agent 的型別名稱，工具要求提供 `task` 字串。實作 `CanActAsTool` 並呼叫 `into_tool()` 可明確指定名稱和說明。子 Agent 實作了 `HasStructuredOutput` 時，可透過 `with_structured_output()` 將其 JSON 字串作為工具結果。
+
+子 Agent 使用自己的指令、模型和連線，父 Agent 只提交這項任務。即使父 Agent 正在串流輸出，子 Agent 完成後也會一次回傳工具結果。
+
 ### 工具審批策略 {#tool-approval}
 
 實作 `Tool::should_request_approval` 可依工具參數要求審批。目前呼叫沒有可恢復的審批上下文時，SDK 在執行該步驟的任何工具前回傳 `AiError::ApprovalNotResumable`。一般回應的錯誤包含待審批的呼叫 ID、工具名稱、參數及原因。
