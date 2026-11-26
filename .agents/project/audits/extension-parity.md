@@ -30,6 +30,8 @@ macOS 以 `8df774457` 及 `b4424267f` 的 Pulse 修复文件构建根应用。�
 
 macOS 从完整归档 `1d5388cdff898cf78974d12be9a3c88d648ff084` 验证锁定依赖和三个扩展组合。默认 142 项通过，独占 Redis 8.10.3 单独执行条件用例 25 项和 Pulse 具名缓存 1 项。Horizon 实际 Artisan 和 HTTP 进程矩阵通过，覆盖任务执行、进程替换、一分钟冷却、创建失败恢复、暂停继续、正常排空、元数据失联回收与授权脱敏。该提交的根应用也通过三个扩展启用和关闭的实际包发现、配置缓存及命令复验，启用时从 SQLite 和独占 Redis 读取三个扩展的结果。构建使用开发配置。证据为 `target/tmp/observability-parity/observability-exact-1d5388cdf-macos.log`。
 
+更新的完整归档 `4fbb2e4f910eecab7a89ca49f2e7a1daaedee336` 包含 Telescope 调度、重定向与列表筛选，Pulse 卡片挂载、后台轮询和暂停状态，以及 Horizon 任务计时。macOS 开发构建默认 147 项，独占 Redis 8.10.3 条件用例 27 项和具名 Pulse 缓存 1 项均通过。完整 Horizon 进程与 HTTP 矩阵复验通过。根应用同时启用三个扩展时完成发现、配置缓存和迁移，SQLite 读回一条 Pulse 系统记录及一条 Telescope 命令记录，Redis 状态命令通过。关闭三个扩展重新构建后，默认命令和配置缓存未装配这些扩展。首次触及宿主磁盘停线，清理后以同一源码完整复跑。证据为 `target/tmp/observability-parity/observability-intact-4fbb2e4f9-macos{,-retry}.log`。
+
 macOS ARM64 从完整归档 `af5a3b36a9852d42bff5c601ba57d26d2f287be2` 用 Rust 1.94.0 和默认 Release 配置构建三个扩展同时启用的根应用。实际 Mach-O ARM64 发布程序完成包发现、配置缓存及迁移，Pulse 心跳和 Telescope 命令写入并读回 SQLite，Horizon 状态命令连接隔离 Redis 8.10.3。首轮触及磁盘停线后安全退出，清理完成后以相同提交重新构建。证据为 `target/tmp/observability-parity/observability-exact-release-macos{,-retry}.log`。后续源码及目标部署组合仍按发布快照验收。
 
 ### Windows ARM64 三扩展根应用优化构建
