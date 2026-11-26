@@ -211,24 +211,7 @@ impl StreamResponse {
         {
             return None;
         }
-        let mut response = self.finish(metadata);
-        let last = response.steps.last()?;
-        response.provider.clone_from(&last.provider);
-        response.model.clone_from(&last.model);
-        response.text.clone_from(&last.text);
-        response.reasoning.clone_from(&last.reasoning);
-        response.citations.clone_from(&last.citations);
-        response.tool_calls = response
-            .steps
-            .iter()
-            .flat_map(|step| step.tool_calls.iter().cloned())
-            .collect();
-        response.tool_results = response
-            .steps
-            .iter()
-            .flat_map(|step| step.tool_results.iter().cloned())
-            .collect();
-        Some(response)
+        self.finish(metadata).into_completed_steps()
     }
 
     pub(crate) fn finish(mut self, metadata: Option<&StreamMetadata>) -> AgentResponse {

@@ -246,8 +246,13 @@ pub struct StructuredAgentResponse {
 
 impl StructuredAgentResponse {
     pub(crate) fn parse(response: AgentResponse) -> AiResult<Self> {
-        let structured =
-            serde_json::from_str(&response.text).map_err(|_| AiError::InvalidStructuredResponse)?;
+        Self::parse_with_history(response).map_err(|_| AiError::InvalidStructuredResponse)
+    }
+
+    pub(crate) fn parse_with_history(response: AgentResponse) -> Result<Self, Box<AgentResponse>> {
+        let Ok(structured) = serde_json::from_str(&response.text) else {
+            return Err(Box::new(response));
+        };
         Ok(Self {
             structured,
             response,

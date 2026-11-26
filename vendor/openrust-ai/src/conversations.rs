@@ -179,6 +179,16 @@ impl ConversationTurn {
         }
     }
 
+    async fn save_failed_steps(&self, prompt: &str, partial: &AgentResponse) {
+        if self
+            .persist_turn(prompt, partial, None, ConversationMessageStatus::Failed)
+            .await
+            .is_err()
+        {
+            let _ = Log::warning("AI 会话的已完成工具步骤保存失败", &Default::default());
+        }
+    }
+
     async fn buffered_outcome(
         &self,
         prompt: &str,
@@ -186,13 +196,7 @@ impl ConversationTurn {
     ) -> AiResult<AgentResponse> {
         match outcome {
             Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
-                if self
-                    .persist_turn(prompt, &partial, None, ConversationMessageStatus::Failed)
-                    .await
-                    .is_err()
-                {
-                    let _ = Log::warning("AI 会话的已完成工具步骤保存失败", &Default::default());
-                }
+                self.save_failed_steps(prompt, &partial).await;
                 Err(error)
             }
             outcome => outcome.map_err(ProviderAttemptError::into_error),
@@ -562,7 +566,15 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
             .prompt_in_session(self.agent, prompt, options, Some(schema), &history, None)
             .await;
         let response = turn.buffered_outcome(prompt, outcome).await?;
-        let response = StructuredAgentResponse::parse(response)?;
+        let response = match StructuredAgentResponse::parse_with_history(response) {
+            Ok(response) => response,
+            Err(response) => {
+                if let Some(partial) = response.into_completed_tool_steps() {
+                    turn.save_failed_steps(prompt, &partial).await;
+                }
+                return Err(AiError::InvalidStructuredResponse);
+            }
+        };
         turn.persist(prompt, &response.response).await?;
         Ok(turn.reply(response))
     }

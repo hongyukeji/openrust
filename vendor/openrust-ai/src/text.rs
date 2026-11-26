@@ -106,6 +106,39 @@ impl AgentResponse {
         self
     }
 
+    pub(crate) fn into_completed_steps(mut self) -> Option<Self> {
+        let (first, remaining) = self.steps.split_first()?;
+        let last = remaining.last().unwrap_or(first);
+        self.provider.clone_from(&last.provider);
+        self.model.clone_from(&last.model);
+        self.text.clone_from(&last.text);
+        self.reasoning.clone_from(&last.reasoning);
+        self.citations.clone_from(&last.citations);
+        self.usage = remaining.iter().fold(first.usage.clone(), |usage, step| {
+            step.usage.clone().combine(&usage)
+        });
+        self.tool_calls = self
+            .steps
+            .iter()
+            .flat_map(|step| step.tool_calls.iter().cloned())
+            .collect();
+        self.tool_results = self
+            .steps
+            .iter()
+            .flat_map(|step| step.tool_results.iter().cloned())
+            .collect();
+        Some(self)
+    }
+
+    pub(crate) fn into_completed_tool_steps(mut self) -> Option<Self> {
+        let last_tool_step = self
+            .steps
+            .iter()
+            .rposition(|step| !step.tool_results.is_empty())?;
+        self.steps.truncate(last_tool_step + 1);
+        self.into_completed_steps()
+    }
+
     pub(crate) fn public_step(&self, finish_reason: FinishReason) -> Step {
         Step {
             text: self.text.clone(),

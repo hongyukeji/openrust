@@ -69,7 +69,7 @@ where
             }
             yield event;
         };
-        match (failure, final_event) {
+        let result = match (failure, final_event) {
             (None, Some(end)) => {
                 let mut response = response.finish(metadata.as_ref());
                 if response.steps.is_empty() && metadata.as_ref().is_some_and(StreamMetadata::stopped) {
@@ -80,18 +80,30 @@ where
                     if let Some(last) = response.steps.last() {
                         response.text.clone_from(&last.text);
                     }
-                    response = StructuredAgentResponse::parse(response)?.response;
+                    StructuredAgentResponse::parse_with_history(response)
+                        .map(|complete| (complete.response, end))
+                        .map_err(|response| (AiError::InvalidStructuredResponse, response.into_completed_tool_steps()))
+                } else {
+                    Ok((response, end))
                 }
+            }
+            (failure, _) => Err((
+                failure.unwrap_or(AiError::InvalidResponse),
+                response.failed_turn(metadata.as_ref()),
+            )),
+        };
+        match result {
+            Ok((response, end)) => {
                 persist(response, ConversationMessageStatus::Completed).await?;
                 yield end;
             }
-            (failure, _) => {
-                if let Some(partial) = response.failed_turn(metadata.as_ref())
+            Err((error, partial)) => {
+                if let Some(partial) = partial
                     && persist(partial, ConversationMessageStatus::Failed).await.is_err()
                 {
                     let _ = Log::warning("AI 流式会话的已完成工具步骤保存失败", &Default::default());
                 }
-                Err(failure.unwrap_or(AiError::InvalidResponse))?;
+                Err(error)?;
             }
         }
     };
