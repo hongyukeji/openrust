@@ -21,6 +21,7 @@ const TTL_SECONDS: i64 = 86_400;
 pub(crate) struct ApprovalStore {
     connection: Connection,
     disk: String,
+    messages: String,
 }
 
 pub(crate) struct ApprovalScope<'a> {
@@ -36,12 +37,12 @@ pub(crate) enum SavedApproval<T> {
 }
 
 impl ApprovalStore {
-    pub(crate) fn new(connection: Connection, disk: String) -> Self {
-        Self { connection, disk }
-    }
-
-    pub(crate) fn disk(&self) -> &str {
-        &self.disk
+    pub(crate) fn new(connection: Connection, disk: String, messages: String) -> Self {
+        Self {
+            connection,
+            disk,
+            messages,
+        }
     }
 
     fn query(&self, scope: &ApprovalScope<'_>, id: &str) -> Builder<'static> {
@@ -50,6 +51,7 @@ impl ApprovalStore {
 
     pub(crate) async fn insert(
         &self,
+        transaction: &mut Transaction,
         scope: &ApprovalScope<'_>,
         id: &str,
         snapshot: &impl Serialize,
@@ -72,7 +74,7 @@ impl ApprovalStore {
             ("created_at".into(), timestamp.into()),
             ("updated_at".into(), timestamp.into()),
         ]);
-        if !self.connection.table(TABLE).insert(&[row]).await? {
+        if !transaction.table(TABLE).insert(&[row]).await? {
             return Err(DatabaseError::InvalidQuery("AI 工具审批记录未保存"));
         }
         Ok(())
@@ -264,8 +266,17 @@ impl ApprovalStore {
             ("revision".into(), next.into()),
             ("updated_at".into(), now().into()),
         ]);
+        let mut transaction = self
+            .connection
+            .begin_transaction()
+            .await
+            .map_err(storage_error)?;
+        if let Some(message_id) = snapshot["history_message_id"].as_str() {
+            self.update_paused_results(&mut transaction, scope, message_id, results, edits)
+                .await?;
+        }
         if !replace_claim(
-            self.query(scope, id).r#where("revision", "=", revision),
+            scoped(transaction.table(TABLE), scope, id).r#where("revision", "=", revision),
             current_claim,
             fields,
         )
@@ -274,7 +285,85 @@ impl ApprovalStore {
         {
             return Err(AiError::ApprovalConsumed);
         }
+        transaction.commit().await.map_err(storage_error)?;
         Ok(next)
+    }
+
+    async fn update_paused_results(
+        &self,
+        transaction: &mut Transaction,
+        scope: &ApprovalScope<'_>,
+        message_id: &str,
+        results: &[ToolResult],
+        edits: Option<&BTreeMap<String, Map<String, Json>>>,
+    ) -> AiResult<()> {
+        let row = self
+            .paused_query(transaction, scope, message_id)
+            .select(["steps"])
+            .first()
+            .await
+            .map_err(storage_error)?
+            .ok_or(AiError::ApprovalConsumed)?;
+        let mut steps: Vec<Json> =
+            serde_json::from_str(text(&row, "steps").map_err(storage_error)?)
+                .map_err(|_| AiError::ConversationStorageUnavailable)?;
+        let step = steps
+            .last_mut()
+            .ok_or(AiError::ConversationStorageUnavailable)?;
+        let calls = step["tool_calls"]
+            .as_array_mut()
+            .ok_or(AiError::ConversationStorageUnavailable)?;
+        if calls.len() != results.len()
+            || calls
+                .iter()
+                .zip(results)
+                .any(|(call, result)| call["id"] != result.id)
+        {
+            return Err(AiError::InvalidApprovalDecisions);
+        }
+        if let Some(edits) = edits {
+            for (call, result) in calls.iter_mut().zip(results) {
+                if let Some(arguments) = edits.get(&result.id) {
+                    call["arguments"] = serde_json::json!(arguments);
+                }
+            }
+        }
+        step["tool_results"] = serde_json::json!(results);
+        self.paused_query(transaction, scope, message_id)
+            .update(Record::from([
+                (
+                    "steps".into(),
+                    encode(&steps).map_err(storage_error)?.into(),
+                ),
+                ("updated_at".into(), now().into()),
+            ]))
+            .await
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    fn paused_query<'a>(
+        &self,
+        transaction: &'a mut Transaction,
+        scope: &ApprovalScope<'_>,
+        message_id: &str,
+    ) -> Builder<'a> {
+        paused_history(transaction.table(&self.messages), scope, message_id)
+    }
+
+    pub(crate) async fn has_paused_history(
+        &self,
+        scope: &ApprovalScope<'_>,
+        message_id: &str,
+    ) -> AiResult<bool> {
+        paused_history(
+            self.connection.table(&self.messages).use_write_pdo(),
+            scope,
+            message_id,
+        )
+        .exists()
+        .await
+        .map_err(storage_error)
     }
 
     pub(crate) async fn approval_results(
@@ -301,20 +390,29 @@ impl ApprovalStore {
             .transpose()
     }
 
-    pub(crate) async fn settle<T: Serialize>(
+    pub(crate) async fn settle(
         &self,
         scope: &ApprovalScope<'_>,
         id: &str,
         claim: &str,
-        next: Option<(i64, &T)>,
+    ) -> DatabaseResult<bool> {
+        replace_claim(self.query(scope, id), claim, settled_fields()).await
+    }
+
+    pub(crate) async fn replace_paused(
+        &self,
+        transaction: &mut Transaction,
+        scope: &ApprovalScope<'_>,
+        id: &str,
+        claim: &str,
+        revision: i64,
+        snapshot: &ApprovalCheckpoint,
     ) -> DatabaseResult<bool> {
         let mut fields = settled_fields();
-        if let Some((revision, snapshot)) = next {
-            fields.insert("state".into(), "pending".into());
-            fields.insert("revision".into(), revision.saturating_add(1).into());
-            fields.insert("snapshot".into(), encode(snapshot)?.into());
-        }
-        replace_claim(self.query(scope, id), claim, fields).await
+        fields.insert("state".into(), "pending".into());
+        fields.insert("revision".into(), revision.saturating_add(1).into());
+        fields.insert("snapshot".into(), encode(snapshot)?.into());
+        replace_claim(scoped(transaction.table(TABLE), scope, id), claim, fields).await
     }
 
     pub(crate) async fn complete(
@@ -343,6 +441,16 @@ fn scoped<'a>(query: Builder<'a>, scope: &ApprovalScope<'_>, id: &str) -> Builde
         .r#where("id", "=", id)
         .r#where("conversation_id", "=", scope.conversation_id)
         .r#where("participant_key", "=", scope.participant.key(scope.agent))
+}
+
+pub(crate) fn paused_history<'a>(
+    query: Builder<'a>,
+    scope: &ApprovalScope<'_>,
+    id: &str,
+) -> Builder<'a> {
+    scoped(query, scope, id)
+        .r#where("role", "=", "assistant")
+        .r#where("status", "=", "paused")
 }
 
 fn settled_fields() -> Record {

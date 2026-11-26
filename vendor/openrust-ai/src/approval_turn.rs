@@ -8,8 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval, ToolResult,
+    AgentResponse, AiError, AiResult, ConversationParticipant, DatabaseConversationStore, Message,
+    PendingApproval, ToolResult,
     approval_store::{ApprovalScope, ApprovalStore},
+    conversation_store::{PausePersistence, TurnPersistence},
     events::{ToolApprovalRequested, ToolApprovalResolved, dispatch_tool_approval},
     messages::PromptAttachmentArchive,
     tools::ApprovalCheckpoint,
@@ -27,11 +29,13 @@ pub struct PendingToolApprovals {
 }
 
 pub(crate) struct ApprovalSession {
+    database: DatabaseConversationStore,
     store: ApprovalStore,
     pub(crate) conversation_id: String,
     participant: ConversationParticipant,
     agent: String,
     pub(crate) existing: bool,
+    pub(crate) history_message_id: Option<String>,
     claim: Option<ApprovalClaim>,
     resolved: Option<ToolApprovalResolved>,
     archive: Option<PromptAttachmentArchive>,
@@ -44,13 +48,19 @@ struct ApprovalClaim {
 }
 
 impl ApprovalSession {
-    pub(crate) fn new(store: ApprovalStore, scope: ApprovalScope<'_>, existing: bool) -> Self {
+    pub(crate) fn new(
+        database: DatabaseConversationStore,
+        scope: ApprovalScope<'_>,
+        existing: bool,
+    ) -> Self {
         ApprovalSession {
-            store,
+            store: database.approval_store(),
+            database,
             conversation_id: scope.conversation_id.into(),
             participant: scope.participant.clone(),
             agent: scope.agent.into(),
             existing,
+            history_message_id: None,
             claim: None,
             resolved: None,
             archive: None,
@@ -87,41 +97,38 @@ impl ApprovalSession {
     pub(crate) async fn pause(
         &self,
         mut checkpoint: ApprovalCheckpoint,
+        response: &AgentResponse,
     ) -> AiResult<PendingToolApprovals> {
         let id = self
             .claim
             .as_ref()
             .map_or_else(|| Str::ulid().to_string(), |claim| claim.id.clone());
-        checkpoint.attachments = match &self.archive {
-            Some(archive) => Some(archive.clone()),
-            None => {
-                PromptAttachmentArchive::store(self.store.disk(), &id, &checkpoint.prompt).await?
-            }
-        };
-        if let Some(claim) = &self.claim {
-            if !self
-                .store
-                .settle(
-                    &self.scope(),
-                    &id,
-                    &claim.token,
-                    Some((claim.revision, &checkpoint)),
-                )
-                .await
-                .map_err(|_| AiError::ConversationStorageUnavailable)?
-            {
-                if self.archive.is_none()
-                    && let Some(archive) = &checkpoint.attachments
-                {
-                    archive.discard().await;
-                }
-                return Err(AiError::ApprovalConsumed);
-            }
-        } else {
-            self.store
-                .insert(&self.scope(), &id, &checkpoint)
-                .await
-                .map_err(|_| AiError::ConversationStorageUnavailable)?;
+        checkpoint.attachments = self.archive.clone();
+        let user = Message::user_with_attachments(
+            &checkpoint.prompt.text,
+            checkpoint.prompt.attachments.iter().cloned(),
+        );
+        if !self
+            .database
+            .store_turn_with_approval(
+                self.scope(),
+                self.existing,
+                &user,
+                TurnPersistence {
+                    response,
+                    approval: Some(self),
+                    title: None,
+                    failure: None,
+                    pause: Some(PausePersistence {
+                        id: &id,
+                        checkpoint: &mut checkpoint,
+                    }),
+                },
+            )
+            .await
+            .map_err(|_| AiError::ConversationStorageUnavailable)?
+        {
+            return Err(AiError::ApprovalConsumed);
         }
         let pending = PendingToolApprovals {
             id,
@@ -137,6 +144,31 @@ impl ApprovalSession {
         })
         .await;
         Ok(pending)
+    }
+
+    pub(crate) async fn persist_pause(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+        checkpoint: &ApprovalCheckpoint,
+    ) -> DatabaseResult<bool> {
+        if let Some(claim) = &self.claim {
+            self.store
+                .replace_paused(
+                    transaction,
+                    &self.scope(),
+                    id,
+                    &claim.token,
+                    claim.revision,
+                    checkpoint,
+                )
+                .await
+        } else {
+            self.store
+                .insert(transaction, &self.scope(), id, checkpoint)
+                .await?;
+            Ok(true)
+        }
     }
 
     pub(crate) async fn store_approval_results(
@@ -193,7 +225,7 @@ impl ApprovalSession {
         };
         if self
             .store
-            .settle::<ApprovalCheckpoint>(&self.scope(), &claim.id, &claim.token, None)
+            .settle(&self.scope(), &claim.id, &claim.token)
             .await
             .map_err(|_| AiError::ConversationStorageUnavailable)?
         {

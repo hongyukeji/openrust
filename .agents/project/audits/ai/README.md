@@ -205,8 +205,8 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 | --- | --- |
 | `storeConversation` | `ConversationStore::store_conversation` 接收参与者、标题及可选 ID，省略 ID 时生成 UUIDv7。按 OpenRust 已有会话归属契约，参与者必填。 |
 | `storeUserMessage` | `store_user_message` 检查参与者与消息角色，保存用户消息并更新会话时间。附件继续使用私有 Storage。 |
-| `storeAssistantMessage` | `store_assistant_message` 保存助手消息、用量、模型与步骤，接受可选的 `AiError`，失败时保留 `meta.error`。普通会话仍用原子整轮写入并复用相同的助手记录结构。审批后的续写仍经专用审批入口，暂停记录的逐项对齐待验。 |
-| `storeApprovalResults` | `ConversationStore::store_approval_results` 对已领取的会话及审批写入同一步的工具结果。SDK 在下一次模型请求前完成写入，归属、领取者及快照版本一同约束更新。保存于既有审批快照，最终转入会话历史。 |
+| `storeAssistantMessage` | `store_assistant_message` 保存助手消息、用量、模型与步骤，接受可选的 `AiError`，失败时保留 `meta.error`。普通会话用原子整轮写入。审批经专用入口按快照关联的消息 ID 更新暂停记录，复用助手记录结构。 |
+| `storeApprovalResults` | `ConversationStore::store_approval_results` 对已领取的会话及审批写入同一步的工具结果。SDK 在下一次模型请求前完成写入，归属、领取者及快照版本一同约束更新。当前数据写入快照与原暂停消息；旧快照在首次写入会话历史前继续只更新快照。 |
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan 与 HTTP 验证明确定义和生成 ID、重复 ID 拒绝、大小写不同参与者拒绝且不落附件、时间更新、私有附件逐字节回读、助手完成和失败状态。SQLite 另验证普通、流式结构化失败留下已有工具步骤和错误摘要，并复验跨进程审批及附件迁移。SDK 回归 16 项，默认及自定义表、具名连接、严格 Clippy 和三语站点通过。
 
@@ -587,7 +587,7 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan／HTTP 实测文件�
 
 - [固定 Laravel ResolvesPendingApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ResolvesPendingApprovals.php) · [固定 Laravel ResumesToolApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/ResumesToolApprovals.php)
 
-审批领取后将该步骤的完整结果按工具调用 ID、名称和顺序核对，写入私有快照的 `resolved_results`。同结果可重复提交，变更结果会被拒绝。旧快照原 JSON 的附件内容或引用随原记录保留，新快照继续只使用附件引用。独立进程通过 `PendingConversation::approval_results_for` 可在模型续跑期间读取结果。正常完成、失败历史提交或再次暂停继续走原事务边界。进程中断后仍可读取结果，领取状态防止再次执行工具。审批恢复后的单行暂停历史合并仍单独核对。
+审批领取后将该步骤的完整结果按工具调用 ID、名称和顺序核对，写入私有快照的 `resolved_results`。同结果可重复提交，变更结果会被拒绝。旧快照原 JSON 的附件内容或引用随原记录保留，新快照继续只使用附件引用。独立进程通过 `PendingConversation::approval_results_for` 可在模型续跑期间读取结果。正常完成、失败历史提交或再次暂停继续走原事务边界。进程中断后仍可读取结果，领取状态防止再次执行工具。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测独立 Artisan 创建审批、HTTP 领取、本地 Responses 上游阻塞、独立 HTTP／Artisan 读取与身份隔离。强制终止续跑进程后保留结果并拒绝重复执行。SQLite 注入快照写入失败时，上游收到零次后续请求，独立 HTTP 读取含原工具结果的失败历史。三库复验旧附件、重复审批、SSE 三种格式、并发领取及私有附件归档；SDK 16 项、严格 Clippy 和三语文档构建通过。
 
@@ -599,9 +599,15 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测独立 Artisan 创建审批、HT
 
 - [固定 Laravel TextGenerationLoop::resolveApprovalResults](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php#L978) · [Claude 工具推理回放](https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows) · [Gemini GenerateContent 思考签名](https://aistudio.google.com/docs/thought-signatures?generate-content=true)
 
+暂停事件前用同一数据库事务保存会话、用户消息、`paused` 助手消息与审批快照。快照记录稳定的助手消息 ID，再次暂停、成功或失败更新这条助手记录。工具结果与编辑参数在模型续跑前同时持久化到快照和当时的助手步骤。恢复前检查该关联消息的状态及归属。未关联消息的旧快照仍能恢复，并在成功、失败或再次暂停时写入历史。用户历史文件与临时审批文件分开管理，提交失败状态已知时清理本次写入的文件。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的独立 Artisan／HTTP 实测暂停即有两条历史消息、保持助手和用户 ID、正常／重复暂停时累计步骤、模型续跑中可读原行的结果与编辑参数、完成后保留原用户附件引用。SQLite 验证无关联消息的旧内联快照、恢复时缺失暂停行直接拒绝、初次审批写入失败回滚数据库和文件、结果写入失败保留真实执行结果，并复验默认／Vercel／AG-UI 的流式恢复。SDK 16 项、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel DatabaseConversationStore::resumePausedRow](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php#L214)
+
 ## AI-03 流式工具审批事件
 
-具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照，再交付工具声明及 `tool_approval_request`。流在审批处结束，会话历史等恢复完成后再持久化。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。
+具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。
 
 SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查审批项已保存。真实 HTTP 分别通过默认 SSE、Vercel 与 AG-UI 读取审批，在另一进程恢复一次，再验证旧审批无法重用。OpenAI Responses 上游使用本地 TCP 服务，相关包测试、严格 Clippy 和三语文档通过。
 

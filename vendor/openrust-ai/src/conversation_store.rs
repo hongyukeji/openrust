@@ -14,9 +14,13 @@ use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AgentResponse, AiError, AiResult, Message, MessageRole, ToolCall, ToolResult,
-    approval_store::ApprovalScope, approval_turn::ApprovalSession, attachment_storage,
-    attachments::AttachmentBudget, provider_replay::ProviderReplay,
+    AgentResponse, AiError, AiResult, Message, MessageRole, PendingApproval, ToolCall, ToolResult,
+    approval_store::{ApprovalScope, paused_history},
+    approval_turn::ApprovalSession,
+    attachment_storage,
+    attachments::AttachmentBudget,
+    messages::PromptAttachmentArchive,
+    provider_replay::ProviderReplay,
 };
 
 const CONVERSATIONS: &str = "agent_conversations";
@@ -85,6 +89,12 @@ pub(crate) struct TurnPersistence<'a> {
     pub(crate) approval: Option<&'a ApprovalSession>,
     pub(crate) title: Option<&'a str>,
     pub(crate) failure: Option<&'a AiError>,
+    pub(crate) pause: Option<PausePersistence<'a>>,
+}
+
+pub(crate) struct PausePersistence<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) checkpoint: &'a mut crate::tools::ApprovalCheckpoint,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -231,6 +241,7 @@ impl dyn ConversationStore {
     }
 }
 
+#[derive(Clone)]
 pub struct DatabaseConversationStore {
     connection: Connection,
     conversations: String,
@@ -291,6 +302,7 @@ impl DatabaseConversationStore {
         crate::approval_store::ApprovalStore::new(
             self.connection.clone(),
             self.attachment_disk.clone(),
+            self.messages.clone(),
         )
     }
 
@@ -351,7 +363,7 @@ impl DatabaseConversationStore {
             .connection
             .table(&self.messages)
             .use_write_pdo()
-            .select(["id", "role", "content", "attachments", "steps"])
+            .select(["id", "role", "content", "attachments", "steps", "status"])
             .r#where("conversation_id", "=", conversation)
             .order_by_desc("id")
             .limit(limit)
@@ -364,7 +376,11 @@ impl DatabaseConversationStore {
                 .include(&message.attachments)
                 .map_err(|_| DatabaseError::InvalidQuery("AI 会话历史附件超限"))?;
             turns.push(if message.role == MessageRole::Assistant {
-                replay_steps(message, text(&row, "steps")?)?
+                replay_steps(
+                    message,
+                    text(&row, "steps")?,
+                    text(&row, "status")? == "paused",
+                )?
             } else {
                 vec![message]
             });
@@ -491,6 +507,7 @@ impl DatabaseConversationStore {
             approval,
             title,
             failure,
+            mut pause,
         } = outcome;
         let ApprovalScope {
             conversation_id: id,
@@ -502,32 +519,34 @@ impl DatabaseConversationStore {
             return Err(DatabaseError::InvalidQuery("AI 会话首条消息角色无效"));
         }
         let user_id = uuid();
+        let previous_message = approval.and_then(|session| session.history_message_id.as_deref());
+        let assistant_id = previous_message.map(str::to_owned).unwrap_or_else(uuid);
         let mut transaction = self.connection.begin_transaction().await?;
-        let files = attachment_storage::write(&self.attachment_disk, &user_id, &user.attachments)
-            .await
-            .map_err(|_| DatabaseError::InvalidQuery("AI 会话附件写入失败"))?;
+        let files = if previous_message.is_none() {
+            Some(
+                attachment_storage::write(&self.attachment_disk, &user_id, &user.attachments)
+                    .await
+                    .map_err(|_| DatabaseError::InvalidQuery("AI 会话附件写入失败"))?,
+            )
+        } else {
+            None
+        };
+        let mut created_archive = false;
         let write = async {
-            let attachments = files.json().map_err(|_| DatabaseError::InvalidScalar)?;
-            let assistant_id = uuid();
             let timestamp = now();
-            let rows = [
-                message_record(
-                    &user_id,
-                    id,
-                    participant,
-                    agent,
-                    user,
-                    attachments,
-                    timestamp,
-                ),
-                assistant_record(&assistant_id, &scope, response, failure, timestamp),
-            ];
-            if existing {
+            if existing || previous_message.is_some() {
                 if !self
                     .touch_owned_conversation(&mut transaction, &scope, timestamp)
                     .await?
                 {
                     return Ok(false);
+                }
+                if let Some(title) = title {
+                    transaction
+                        .table(&self.conversations)
+                        .r#where("id", "=", id)
+                        .update(Record::from([("title".into(), title.into())]))
+                        .await?;
                 }
             } else {
                 let default_title;
@@ -546,13 +565,79 @@ impl DatabaseConversationStore {
                     return Err(DatabaseError::InvalidQuery("AI 会话未保存"));
                 }
             }
-            if !transaction.table(&self.messages).insert(&rows).await? {
-                return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
+            let mut assistant = assistant_record(
+                &assistant_id,
+                &scope,
+                response,
+                failure,
+                timestamp,
+                pause
+                    .as_ref()
+                    .map(|pause| pause.checkpoint.pending.as_slice()),
+            );
+            if let Some(files) = &files {
+                let attachments = files.json().map_err(|_| DatabaseError::InvalidScalar)?;
+                let user = message_record(
+                    &user_id,
+                    id,
+                    participant,
+                    agent,
+                    user,
+                    attachments,
+                    timestamp,
+                );
+                if !transaction
+                    .table(&self.messages)
+                    .insert(&[user, assistant])
+                    .await?
+                {
+                    return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
+                }
+            } else {
+                for column in [
+                    "id",
+                    "conversation_id",
+                    "participant_type",
+                    "participant_id",
+                    "participant_key",
+                    "agent",
+                    "role",
+                    "created_at",
+                    "attachments",
+                ] {
+                    assistant.remove(column);
+                }
+                if paused_history(transaction.table(&self.messages), &scope, &assistant_id)
+                    .update(assistant)
+                    .await?
+                    != 1
+                {
+                    return Ok(false);
+                }
             }
-            if let Some(approval) = approval
-                && !approval.complete(&mut transaction).await?
-            {
-                return Ok(false);
+            if let Some(approval) = approval {
+                let transitioned = match &mut pause {
+                    Some(pause) => {
+                        pause.checkpoint.history_message_id = Some(assistant_id);
+                        if pause.checkpoint.attachments.is_none() {
+                            pause.checkpoint.attachments = PromptAttachmentArchive::store(
+                                &self.attachment_disk,
+                                pause.id,
+                                &pause.checkpoint.prompt,
+                            )
+                            .await
+                            .map_err(|_| DatabaseError::InvalidQuery("AI 工具审批附件写入失败"))?;
+                            created_archive = pause.checkpoint.attachments.is_some();
+                        }
+                        approval
+                            .persist_pause(&mut transaction, pause.id, pause.checkpoint)
+                            .await?
+                    }
+                    None => approval.complete(&mut transaction).await?,
+                };
+                if !transitioned {
+                    return Ok(false);
+                }
             }
             Ok(true)
         }
@@ -561,14 +646,25 @@ impl DatabaseConversationStore {
             Ok(true) => {
                 // 提交结果不明时保留文件，避免已提交的引用失效。
                 transaction.commit().await?;
-                if let Some(approval) = approval {
+                if pause.is_none()
+                    && let Some(approval) = approval
+                {
                     approval.discard_archived_attachments().await;
                 }
                 Ok(true)
             }
             result => {
                 let rollback = transaction.roll_back(None).await;
-                files.discard().await;
+                if let Some(files) = files {
+                    files.discard().await;
+                }
+                if created_archive
+                    && let Some(archive) = pause
+                        .as_ref()
+                        .and_then(|pause| pause.checkpoint.attachments.as_ref())
+                {
+                    archive.discard().await;
+                }
                 rollback?;
                 result
             }
@@ -745,7 +841,7 @@ impl ConversationStore for DatabaseConversationStore {
             let timestamp = now();
             let mut transaction = self.begin_owned_message(&scope, timestamp).await?;
             let id = uuid();
-            let record = assistant_record(&id, &scope, response, failure, timestamp);
+            let record = assistant_record(&id, &scope, response, failure, timestamp, None);
             if !transaction
                 .table(&self.messages)
                 .insert(&[record])
@@ -860,6 +956,7 @@ impl ConversationStore for DatabaseConversationStore {
                     approval: None,
                     title: None,
                     failure: None,
+                    pause: None,
                 },
             )
             .await
@@ -906,6 +1003,7 @@ fn assistant_record(
     response: &AgentResponse,
     failure: Option<&AiError>,
     timestamp: i64,
+    pending: Option<&[PendingApproval]>,
 ) -> Record {
     let mut record = message_record(
         id,
@@ -916,7 +1014,7 @@ fn assistant_record(
         "[]".into(),
         timestamp,
     );
-    let steps = if response.steps.is_empty() {
+    let mut steps = if response.steps.is_empty() {
         json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
     } else {
         Json::Array(
@@ -933,12 +1031,25 @@ fn assistant_record(
                 .collect(),
         )
     };
+    if let Some(pending) = pending
+        && let Some(calls) = steps
+            .as_array_mut()
+            .and_then(|steps| steps.last_mut())
+            .and_then(|step| step["tool_calls"].as_array_mut())
+    {
+        for call in calls {
+            if let Some(approval) = pending.iter().find(|approval| call["id"] == approval.id) {
+                call["approval_reason"] = json!(approval.reason);
+            }
+        }
+    }
     let mut meta = json!(response.meta());
     let status = match failure {
         Some(error) => {
             meta["error"] = json!(error.to_string());
             ConversationMessageStatus::Failed
         }
+        None if pending.is_some() => ConversationMessageStatus::Paused,
         None => ConversationMessageStatus::Completed,
     };
     record.extend([
@@ -1000,7 +1111,7 @@ async fn message(row: &Row) -> DatabaseResult<Message> {
     }
 }
 
-fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> {
+fn replay_steps(fallback: Message, steps: &str, paused: bool) -> DatabaseResult<Vec<Message>> {
     #[derive(Deserialize)]
     struct StoredStep {
         #[serde(default)]
@@ -1025,8 +1136,21 @@ fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> 
         let mut calls = Vec::new();
         let mut results = Vec::new();
         for call in step.tool_calls {
-            if let Some(result) = step.tool_results.iter().find(|result| result.id == call.id) {
-                results.push(result.clone());
+            if let Some(result) = step
+                .tool_results
+                .iter()
+                .find(|result| result.id == call.id)
+                .cloned()
+                .or_else(|| {
+                    paused.then(|| ToolResult {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        result: "会话继续前，此工具调用尚未获得批准".into(),
+                        failed: true,
+                    })
+                })
+            {
+                results.push(result);
                 calls.push(call);
             }
         }
@@ -1134,8 +1258,12 @@ mod tests {
             ],
             "tool_results":[{"id":"answered","name":"lookup","result":"lookup failed","failed":true}]
         }]);
-        let result =
-            replay_steps(Message::assistant("Use another key"), &steps.to_string()).unwrap();
+        let result = replay_steps(
+            Message::assistant("Use another key"),
+            &steps.to_string(),
+            false,
+        )
+        .unwrap();
         assert_eq!(result.len(), 3);
         assert_eq!(result[0].tool_calls[0].id, "answered");
         assert_eq!(result[0].tool_calls.len(), 1);

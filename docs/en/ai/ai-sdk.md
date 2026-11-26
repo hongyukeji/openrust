@@ -711,6 +711,8 @@ After approval completes, `ApprovalResponse::Completed(response)` contains a box
 
 Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
 
+When a turn pauses for approval, history immediately shows its user message and a `paused` assistant message. After approval, the SDK saves the tool results on that assistant message. The message keeps its ID through further pauses, completion, or failure. The original user message retains its attachment references.
+
 Resuming approval saves the step’s tool results before the next model request. Call `approval_results_for` with the same participant, agent, conversation, and approval ID to read the saved results while the turn is active. After completion, read them from conversation history. If the resuming process exits before it finishes, the saved results remain available and duplicate approval calls are rejected to prevent repeating tools.
 
 With `Decision::edit`, the tool runs with the approved arguments. The approval checkpoint saves the edit with its result, and the response and conversation history retain the executed arguments. When replay requires native reasoning blocks for the same connection and model, the SDK preserves the original blocks and supplies the actual tool results. Generic replay uses the edited arguments.

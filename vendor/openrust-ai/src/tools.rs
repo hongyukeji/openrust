@@ -251,6 +251,8 @@ pub(crate) struct ApprovalCheckpoint {
     pub(crate) pending: Vec<PendingApproval>,
     pub(crate) existing: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) history_message_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) attachments: Option<PromptAttachmentArchive>,
     replay_scope: String,
     run: ToolRun,
@@ -514,20 +516,31 @@ impl ToolRun {
                 pending: plan.pending,
             });
         };
+        let mut paused = self.clone();
+        paused.add_step(
+            step.response.clone(),
+            Vec::new(),
+            step.requested_model.clone(),
+        );
+        let response = paused.completed_response(provider, prompt.text.model)?;
         session
-            .pause(ApprovalCheckpoint {
-                provider: provider.name().to_owned(),
-                prompt: OwnedPrompt::from(prompt),
-                pending: plan.pending,
-                existing: session.existing,
-                attachments: None,
-                replay_scope,
-                run: self,
-                response: step.response,
-                requested_model: step.requested_model,
-                allowed: step.allowed,
-                invocation_ids: plan.invocation_ids,
-            })
+            .pause(
+                ApprovalCheckpoint {
+                    provider: provider.name().to_owned(),
+                    prompt: OwnedPrompt::from(prompt),
+                    pending: plan.pending,
+                    existing: session.existing,
+                    history_message_id: None,
+                    attachments: None,
+                    replay_scope,
+                    run: self,
+                    response: step.response,
+                    requested_model: step.requested_model,
+                    allowed: step.allowed,
+                    invocation_ids: plan.invocation_ids,
+                },
+                &response,
+            )
             .await
     }
 

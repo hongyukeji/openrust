@@ -151,6 +151,7 @@ impl ConversationTurn {
                         approval,
                         title: title.as_deref(),
                         failure,
+                        pause: None,
                     },
                 )
                 .await
@@ -231,9 +232,9 @@ impl ConversationTurn {
     }
 
     fn approval_session(&self) -> Option<ApprovalSession> {
-        let store = self.store.as_database()?.approval_store();
+        let database = self.store.as_database()?.clone();
         Some(ApprovalSession::new(
-            store,
+            database,
             self.approval_scope(),
             self.existing,
         ))
@@ -447,12 +448,23 @@ impl<A: Agent> PendingConversation<'_, A> {
         if store
             .conversation_belongs_to(scope.conversation_id, scope.participant)
             .await?
-            != checkpoint.existing
+            != (checkpoint.existing || checkpoint.history_message_id.is_some())
         {
             return Err(AiError::ApprovalNotFound);
         }
         let provider = manager.text_provider(Some(&checkpoint.provider))?;
         checkpoint.verify_connection(provider.as_ref())?;
+        if let Some(message) = &checkpoint.history_message_id
+            && !store
+                .as_database()
+                .ok_or(AiError::ApprovalNotFound)?
+                .approval_store()
+                .has_paused_history(&scope, message)
+                .await?
+        {
+            load_approval(store.as_ref(), &scope, id).await?;
+            return Err(AiError::ApprovalNotFound);
+        }
         if let Some(archive) = &checkpoint.attachments
             && let Err(error) = archive.restore(id, &mut checkpoint.prompt).await
         {
@@ -471,6 +483,9 @@ impl<A: Agent> PendingConversation<'_, A> {
         };
         let mut session = turn.approval_session().ok_or(AiError::ApprovalNotFound)?;
         session.set_archive(checkpoint.attachments.clone());
+        session
+            .history_message_id
+            .clone_from(&checkpoint.history_message_id);
         Ok(ApprovalResume {
             turn,
             checkpoint,
