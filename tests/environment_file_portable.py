@@ -26,7 +26,7 @@ def main():
 name = "environment-file-portable"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.95"
 [workspace]
 [lib]
 name = "openrust"

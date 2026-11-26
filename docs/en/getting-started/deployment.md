@@ -2,15 +2,15 @@
 
 ## Build the Application
 
-Use Rust 1.94 or later and the checked-in lockfile. Build on the target operating system and architecture, or use a separately verified cross-compilation toolchain.
+Use Rust 1.95 or later and the checked-in lockfile. Build on the target operating system and architecture, or use a separately verified cross-compilation toolchain.
 
 ```sh
-cargo +1.94.0 build --locked --release --features standalone
+cargo +1.95.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 cp LICENSE THIRD_PARTY_NOTICES.md release/
-cp "$(rustc +1.94.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
+cp "$(rustc +1.95.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
 ```
 
 For a standalone macOS release, prefix the Cargo command with `PCRE2_SYS_STATIC=1` to use the locked bundled PCRE2. Check `otool -L release/main` before shipping to catch dependencies on Homebrew paths.
@@ -143,12 +143,12 @@ Build the release with Rust and the MSVC build tools for the target architecture
 If `main.exe` imports `VCRUNTIME140.dll`, install the Visual C++ v14 Redistributable for the executable's architecture on the deployment host. Use a runtime version at least as recent as the build tools used to build the executable. [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
 
 ```powershell
-cargo +1.94.0 build --locked --release --features standalone
+cargo +1.95.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
-Copy-Item (Join-Path (rustc +1.94.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
+Copy-Item (Join-Path (rustc +1.95.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'

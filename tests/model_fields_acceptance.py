@@ -38,7 +38,7 @@ def main():
     for crate in ('openrust', 'tokio'):
         library = max(deps.glob(f'lib{crate}-*.rlib'), key=lambda path: path.stat().st_mtime)
         libraries[crate] = library
-    compiler = ['rustup', 'run', '1.94.0', 'rustc', '--edition=2024', '-L', f'dependency={deps}']
+    compiler = ['rustup', 'run', '1.95.0', 'rustc', '--edition=2024', '-L', f'dependency={deps}']
     for crate, library in libraries.items():
         compiler.extend(['--extern', f'{crate}={library}'])
 

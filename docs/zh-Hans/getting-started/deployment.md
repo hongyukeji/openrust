@@ -2,15 +2,15 @@
 
 ## 构建应用
 
-使用 Rust 1.94 或更新版本及仓库锁文件。在目标操作系统与架构构建，或使用另行验收的交叉编译工具链。
+使用 Rust 1.95 或更新版本及仓库锁文件。在目标操作系统与架构构建，或使用另行验收的交叉编译工具链。
 
 ```sh
-cargo +1.94.0 build --locked --release --features standalone
+cargo +1.95.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 cp LICENSE THIRD_PARTY_NOTICES.md release/
-cp "$(rustc +1.94.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
+cp "$(rustc +1.95.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
 ```
 
 构建 macOS 独立发布产物时，在 Cargo 命令前加上 `PCRE2_SYS_STATIC=1`，使用锁定的内嵌 PCRE2。发布前用 `otool -L release/main` 检查是否链接了 Homebrew 路径下的动态库。
@@ -143,12 +143,12 @@ HTTP、受管 Worker 和调度器共用应用进程。受管 Worker 沿用独立
 如果 `main.exe` 导入 `VCRUNTIME140.dll`，请在部署主机安装与可执行文件架构匹配的 Visual C++ v14 可再发行组件，版本至少与构建时使用的工具链相同。[Microsoft Visual C++ 可再发行组件](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
 
 ```powershell
-cargo +1.94.0 build --locked --release --features standalone
+cargo +1.95.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
-Copy-Item (Join-Path (rustc +1.94.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
+Copy-Item (Join-Path (rustc +1.95.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'

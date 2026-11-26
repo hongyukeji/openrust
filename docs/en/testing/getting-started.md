@@ -8,7 +8,7 @@ Run the application’s tests with Artisan or run every workspace member with Ca
 
 ```sh
 ./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
-cargo +1.94.0 test --workspace --locked
+cargo +1.95.0 test --workspace --locked
 ```
 
 Artisan runs Cargo from the application root, streams its output and returns its exit status. It uses the `CARGO` executable from the environment when set, otherwise `cargo` from the executable search path.
@@ -106,8 +106,8 @@ Artisan generates feature tests in `tests/feature/` and unit tests in `tests/uni
 Declare `mod health_test;` in `tests/feature/main.rs` and `mod greeting_test;` in `tests/unit/main.rs` so Cargo can discover the files. For nested names, declare each parent module too. Then run the selected tests.
 
 ```sh
-cargo +1.94.0 test --locked --test feature test_health_test
-cargo +1.94.0 test --locked --test unit test_greeting_test
+cargo +1.95.0 test --locked --test feature test_health_test
+cargo +1.95.0 test --locked --test unit test_greeting_test
 ```
 
 Use `-f` or `--force` to replace a generated file. To customize the templates, add `stubs/test.rs.stub` or `stubs/test.unit.rs.stub` at the application root. The generator substitutes `{{test}}` with the Rust function name.

@@ -8,7 +8,7 @@
 
 ```sh
 ./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
-cargo +1.94.0 test --workspace --locked
+cargo +1.95.0 test --workspace --locked
 ```
 
 Artisan 从应用根目录运行 Cargo，实时输出结果并返回 Cargo 的退出状态。优先使用环境中的 `CARGO` 可执行文件，未设置时从可执行文件搜索路径调用 `cargo`。
@@ -106,8 +106,8 @@ Artisan 把功能测试写入 `tests/feature/`，把单元测试写入 `tests/un
 在 `tests/feature/main.rs` 声明 `mod health_test;`，在 `tests/unit/main.rs` 声明 `mod greeting_test;`，让 Cargo 发现测试文件。嵌套名称也需要声明各级模块。然后运行指定测试。
 
 ```sh
-cargo +1.94.0 test --locked --test feature test_health_test
-cargo +1.94.0 test --locked --test unit test_greeting_test
+cargo +1.95.0 test --locked --test feature test_health_test
+cargo +1.95.0 test --locked --test unit test_greeting_test
 ```
 
 使用 `-f` 或 `--force` 覆盖已有测试文件。在应用根目录添加 `stubs/test.rs.stub` 或 `stubs/test.unit.rs.stub` 可自定义模板。生成器把 `{{test}}` 替换为 Rust 测试函数名。

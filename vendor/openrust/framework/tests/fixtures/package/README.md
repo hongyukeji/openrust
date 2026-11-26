@@ -16,11 +16,11 @@ export TMPDIR="$PWD/target/tmp/package-acceptance"
 binaries=$(mktemp -d)
 cp Cargo.lock "$fixture/Cargo.lock"
 export CARGO_TARGET_DIR="$PWD/target/tmp/package-acceptance/target"
-cargo +1.94.0 build --offline --manifest-path "$fixture/app/Cargo.toml"
+cargo +1.95.0 build --offline --manifest-path "$fixture/app/Cargo.toml"
 cp "$CARGO_TARGET_DIR/debug/package-probe-app" "$binaries/with-package"
-cargo +1.94.0 build --offline --locked --no-default-features --manifest-path "$fixture/app/Cargo.toml"
+cargo +1.95.0 build --offline --locked --no-default-features --manifest-path "$fixture/app/Cargo.toml"
 cp "$CARGO_TARGET_DIR/debug/package-probe-app" "$binaries/without-package"
-cargo +1.94.0 test --offline --locked --manifest-path "$fixture/Cargo.toml"
+cargo +1.95.0 test --offline --locked --manifest-path "$fixture/Cargo.toml"
 python3 "$fixture/verify.py" "$binaries/with-package" "$binaries/without-package"
 ```
 

@@ -5,7 +5,7 @@
 可选 `openrust-oidc` 包提供 OpenID Connect RP，支持授权码＋PKCE S256、Discovery、JWKS 与 UserInfo。启用根 Cargo 特性 `oidc` 并重建，包发现会注册 `OidcManager` 与 `Oidc` facade。应用自行注册固定 Web 登录与回调路由，默认不开放端点。Passport 保持 OAuth2 授权服务器范围，不自动成为 OIDC Provider。
 
 ```sh
-cargo +1.94.0 build --locked --features oidc --bin main
+cargo +1.95.0 build --locked --features oidc --bin main
 ```
 
 启用包时 `oidc.providers` 默认为空。需要显式选用 `work` 示例时，运行 `./artisan vendor:publish --tag=oidc-config`，在 `config/mod.rs` 的模块声明和配置映射中分别加入 `mod oidc;` 与 `("oidc".to_owned(), oidc::load(env)?),`，然后重新构建；也可显式执行 `init --extensions=oidc` 发布并登记该模板。发布默认保留已有文件，传入 `--force` 才覆盖。

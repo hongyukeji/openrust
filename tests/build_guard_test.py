@@ -80,7 +80,7 @@ class BuildGuardTest(unittest.TestCase):
             self.assertEqual(Project(self.root).active_builds(), [])
 
     def test_process_scan_detects_macos_truncated_command(self):
-        listing = '123 /Users/Home/.rus /Users/Home/.rustup/toolchains/1.94.0/bin/cargo check\n'
+        listing = '123 /Users/Home/.rus /Users/Home/.rustup/toolchains/1.95.0/bin/cargo check\n'
         cwd = subprocess.CompletedProcess([], 0, stdout=f'p123\nfcwd\nn{self.root}\n')
         with patch('build_guard.subprocess.check_output', return_value=listing), patch('build_guard.subprocess.run', return_value=cwd):
             self.assertEqual(Project(self.root).active_builds(), [123])
@@ -129,7 +129,7 @@ class BuildGuardTest(unittest.TestCase):
     def test_cli_inherits_project_tmp_target_and_fixed_toolchain(self):
         target = self.workspace / 'target/tmp/build-guard-tests/cli-target'
         temporary = self.workspace / 'target/tmp/build-guard-tests/cli-tmp'
-        script = 'import os; from pathlib import Path; assert os.environ["RUSTUP_TOOLCHAIN"]=="1.94.0"; assert Path(os.environ["TMPDIR"]).is_dir(); assert Path(os.environ["CARGO_TARGET_DIR"]).is_dir()'
+        script = 'import os; from pathlib import Path; assert os.environ["RUSTUP_TOOLCHAIN"]=="1.95.0"; assert Path(os.environ["TMPDIR"]).is_dir(); assert Path(os.environ["CARGO_TARGET_DIR"]).is_dir()'
         result = subprocess.run([sys.executable, '-B', str(self.workspace / 'tests/build_guard.py'),
                                  '--workflow', 'build-guard-tests', '--target-dir', str(target),
                                  '--tmp-dir', str(temporary), '--', *self.command(script)], capture_output=True, text=True)

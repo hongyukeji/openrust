@@ -62,7 +62,7 @@ impl Generated {
             .env("DB_MASK_BINDINGS", "true")
             .env("BCRYPT_ROUNDS", "4")
             .env("CARGO_TARGET_DIR", &self.target)
-            .env("RUSTUP_TOOLCHAIN", "1.94.0");
+            .env("RUSTUP_TOOLCHAIN", "1.95.0");
         for name in [
             "APP_CONFIG_CACHE",
             "APP_PACKAGES_CACHE",

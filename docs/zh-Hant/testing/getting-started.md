@@ -8,7 +8,7 @@
 
 ```sh
 ./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
-cargo +1.94.0 test --workspace --locked
+cargo +1.95.0 test --workspace --locked
 ```
 
 Artisan 從應用程式根目錄執行 Cargo，即時輸出結果並回傳 Cargo 的結束狀態。優先使用環境中的 `CARGO` 執行檔，未設定時從執行檔搜尋路徑呼叫 `cargo`。
@@ -106,8 +106,8 @@ Artisan 將功能測試寫入 `tests/feature/`，將單元測試寫入 `tests/un
 在 `tests/feature/main.rs` 宣告 `mod health_test;`，在 `tests/unit/main.rs` 宣告 `mod greeting_test;`，讓 Cargo 探索測試檔案。巢狀名稱也需要宣告各層模組。然後執行指定測試。
 
 ```sh
-cargo +1.94.0 test --locked --test feature test_health_test
-cargo +1.94.0 test --locked --test unit test_greeting_test
+cargo +1.95.0 test --locked --test feature test_health_test
+cargo +1.95.0 test --locked --test unit test_greeting_test
 ```
 
 使用 `-f` 或 `--force` 覆寫既有測試檔案。在應用程式根目錄加入 `stubs/test.rs.stub` 或 `stubs/test.unit.rs.stub` 可自訂樣板。產生器會將 `{{test}}` 替換為 Rust 測試函式名稱。

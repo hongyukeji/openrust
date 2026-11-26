@@ -79,6 +79,6 @@ export OPENRUST_TEST_REDIS_TLS_CONTAINER="$cid" OPENRUST_TEST_REDIS_TLS_PORT="$f
 export OPENRUST_TEST_REDIS_TLS_SOURCE="$second" OPENRUST_TEST_REDIS_TLS_DESTINATION="$third"
 export OPENRUST_REQUIRE_REDIS_TLS=1
 SSL_CERT_FILE="$fixture/untrusted.pem" OPENRUST_TEST_REDIS_TLS_UNTRUSTED=1 \
-    cargo +1.94.0 test --test redis --locked --offline redis_cluster_tls_follows_hostless_redirects -- --exact
+    cargo +1.95.0 test --test redis --locked --offline redis_cluster_tls_follows_hostless_redirects -- --exact
 SSL_CERT_FILE="$fixture/ca.pem" \
-    cargo +1.94.0 test --test redis --locked --offline redis_cluster_tls_follows_hostless_redirects -- --exact
+    cargo +1.95.0 test --test redis --locked --offline redis_cluster_tls_follows_hostless_redirects -- --exact

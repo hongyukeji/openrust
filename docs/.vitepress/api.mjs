@@ -8,7 +8,7 @@ export function loadApi(directory, root) {
     const manifest = JSON.parse(readFileSync(path.join(directory, "build-info.json"), "utf8"));
     const fail = (reason) => { throw new Error(`Invalid API export: ${reason}`); };
     if (manifest.schema !== 1 || !/^[0-9a-f]{40}$/.test(manifest.revision) ||
-        manifest.rust !== "1.94.0" || typeof manifest.target !== "string" || !/^[a-zA-Z0-9_-]+$/.test(manifest.target) || manifest.features !== "all" ||
+        manifest.rust !== "1.95.0" || typeof manifest.target !== "string" || !/^[a-zA-Z0-9_-]+$/.test(manifest.target) || manifest.features !== "all" ||
         manifest.dependencies_documented !== false) fail("unsupported build information");
     const hash = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
     if (manifest.cargo_lock_sha256 !== hash(path.join(root, "Cargo.lock"))) fail("Cargo.lock differs from the documented source");

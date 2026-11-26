@@ -17,7 +17,7 @@ def parser_binary():
     root = Path(__file__).resolve().parents[1]
     base = root.parent
     assert base.parent.name == 'tmp' and base.parent.parent.name == 'target', '请通过 build_guard 在项目隔离快照中准备 Rust 解析器'
-    assert os.environ.get('RUSTUP_TOOLCHAIN') == '1.94.0'
+    assert os.environ.get('RUSTUP_TOOLCHAIN') == '1.95.0'
     assert Path(os.environ['CARGO_TARGET_DIR']).resolve().is_relative_to(base)
     with (base / 'generated-layering-parser-build.log').open('w') as log:
         result = subprocess.run(['cargo', 'test', '--locked', '-p', 'openrust-framework', '--test', 'model_layering_parser', '--no-run', '--message-format=json'],

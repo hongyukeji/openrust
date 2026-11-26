@@ -94,7 +94,7 @@ def main():
     (source / '.env').chmod(0o600)
     runtime = os.environ.copy()
     runtime['APP_BASE_PATH'] = str(source)
-    runtime['RUSTUP_TOOLCHAIN'] = '1.94.0'
+    runtime['RUSTUP_TOOLCHAIN'] = '1.95.0'
     binary = Path(runtime['CARGO_TARGET_DIR']) / 'debug/main'
     initial_binary = Path(os.environ['OPENRUST_INIT_BINARY'])
     initial_extensions = ['--extensions=api,broadcasting,reverb,grpc'] if os.environ.get('OPENRUST_INIT_TEST_INTEGRATIONS') else ['--extensions=api']

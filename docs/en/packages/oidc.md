@@ -5,7 +5,7 @@
 The optional `openrust-oidc` package implements an OpenID Connect relying party using the authorization code flow with PKCE S256, Discovery, JWKS and UserInfo. Enable the root `oidc` Cargo feature and rebuild; package discovery registers `OidcManager` and the `Oidc` facade. Applications register their own fixed web login and callback routes. No routes are enabled by default. Passport remains an OAuth2 authorization server; it does not become an OIDC provider.
 
 ```sh
-cargo +1.94.0 build --locked --features oidc --bin main
+cargo +1.95.0 build --locked --features oidc --bin main
 ```
 
 Enabling the package starts with an empty `oidc.providers` map. To select the `work` example explicitly, run `./artisan vendor:publish --tag=oidc-config`, add `mod oidc;` and `("oidc".to_owned(), oidc::load(env)?),` to the declarations and configuration map in `config/mod.rs`, then rebuild. Alternatively, explicit `init --extensions=oidc` publishes and registers this template. Publishing preserves existing files unless `--force` is supplied.

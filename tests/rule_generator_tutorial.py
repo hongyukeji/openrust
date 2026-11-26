@@ -65,7 +65,7 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='rule-consumer-') as temp:
         text = text.replace('Box::pin(async {', 'Box::pin(async move {').replace(
             '::std::result::Result::Ok(::std::vec::Vec::new())',
             '::std::result::Result::Ok(if value.is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty())) { vec![validation::RuleFailure::new(format!("The {attribute} is required."))] } else { ::std::vec::Vec::new() })')
-        text = subprocess.check_output(['rustfmt', '+1.94.0', '--edition', '2024', '--emit', 'stdout'], input=text.replace('{{class}}', 'GeneratedRule').encode()).decode().replace('GeneratedRule', '{{class}}')
+        text = subprocess.check_output(['rustfmt', '+1.95.0', '--edition', '2024', '--emit', 'stdout'], input=text.replace('{{class}}', 'GeneratedRule').encode()).decode().replace('GeneratedRule', '{{class}}')
         stub.write_text(text)
     artisan('make:rule', 'Checked')
     artisan('make:rule', 'ImplicitChecked', '--implicit')
@@ -111,7 +111,7 @@ fn validate(request:&mut Request)->HttpFuture<'_,Result<Response,HttpError>>{Box
 '''
 target = source / 'vendor/openrust/framework/tests/rule_generated_tutorial.rs'
 target.write_text(code)
-subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
+subprocess.run(['rustfmt', '+1.95.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
 for name, expected in hashes.items():
     assert hashlib.sha256((fixture / name).read_bytes()).hexdigest() == expected, name
 subprocess.run(['cargo', 'test', '--manifest-path', str(source / 'Cargo.toml'), '-p', 'openrust-framework', '--test', 'rule_generated_tutorial', '--locked'], check=True)

@@ -46,8 +46,8 @@ def main():
         print(name,'PASS',round(time.monotonic()-start,2),'s',flush=True);count+=1
         return result.stdout+result.stderr
     manifest=str(consumer/'Cargo.toml')
-    run('lock',['cargo','+1.94.0','metadata','--format-version','1','--offline','--manifest-path',manifest])
-    cargo=['cargo','+1.94.0','build','--locked','--offline','--features','standalone','--manifest-path',manifest]
+    run('lock',['cargo','+1.95.0','metadata','--format-version','1','--offline','--manifest-path',manifest])
+    cargo=['cargo','+1.95.0','build','--locked','--offline','--features','standalone','--manifest-path',manifest]
     run('build',cargo)
     assert not marker.exists(),'构建执行了业务代码'
     binary=target/'debug/blade-native-consumer'

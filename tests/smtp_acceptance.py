@@ -1,6 +1,6 @@
 """Exercise the existing SMTP fixture against isolated Mailpit TLS/auth inboxes.
 
-Build mail_notifications with Rust 1.94 in an isolated snapshot first, then pass
+Build mail_notifications with Rust 1.95 in an isolated snapshot first, then pass
 its test executable and an empty evidence directory. No relay is configured.
 """
 

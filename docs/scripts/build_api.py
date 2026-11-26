@@ -42,13 +42,13 @@ def main():
     env = dict(os.environ)
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         parser.error("revision must be a full Git commit SHA")
-    env.update(CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN="1.94.0")
-    compiler = subprocess.check_output(["rustc", "+1.94.0", "-vV"], text=True)
+    env.update(CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN="1.95.0")
+    compiler = subprocess.check_output(["rustc", "+1.95.0", "-vV"], text=True)
     host = next(line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: "))
     env["CARGO_BUILD_TARGET"] = host
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "0")
     env["RUSTDOCFLAGS"] = " ".join(filter(None, [env.get("RUSTDOCFLAGS"), "-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links"]))
-    cargo = ["cargo", "+1.94.0"]
+    cargo = ["cargo", "+1.95.0"]
     metadata = json.loads(subprocess.check_output(cargo + ["metadata", "--locked", "--no-deps", "--all-features", "--format-version", "1"], cwd=root, env=env))
     members = set(metadata["workspace_members"])
     crates = []
@@ -88,7 +88,7 @@ def main():
         parser.error("workspace contains no documented libraries")
     # Rustdoc may leave removed items behind when reusing a target directory.
     source = target / host / "doc"
-    # Cargo 1.94 clean --doc does not remove explicit-target documentation.
+    # Cargo 1.95 clean --doc does not remove explicit-target documentation.
     if source.exists():
         shutil.rmtree(source)
     subprocess.run(cargo + ["doc", "--locked", "--workspace", "--all-features", "--no-deps", "--target", host], cwd=root, env=env, check=True)
@@ -101,10 +101,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix="openrust-api-", dir=output.parent) as temporary:
         staging = Path(temporary) / "api"
         shutil.copytree(source, staging)
-        manifest = {"schema": 1, "revision": revision, "rust": "1.94.0", "target": host, "features": "all", "dependencies_documented": False, "cargo_lock_sha256": hashlib.sha256((root / "Cargo.lock").read_bytes()).hexdigest(), "source_sha256": fingerprints, "source_roots": sorted(source_roots), "crates": crates}
+        manifest = {"schema": 1, "revision": revision, "rust": "1.95.0", "target": host, "features": "all", "dependencies_documented": False, "cargo_lock_sha256": hashlib.sha256((root / "Cargo.lock").read_bytes()).hexdigest(), "source_sha256": fingerprints, "source_roots": sorted(source_roots), "crates": crates}
         (staging / "build-info.json").write_text(json.dumps(manifest, indent=2) + "\n")
         links = "\n".join(f'<li><a href="{html.escape(c["index"], quote=True)}">{html.escape(c["package"])}</a> {html.escape(c["version"])}</li>' for c in crates)
-        (staging / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenRust API reference</title><main><h1>OpenRust API reference</h1><p>Source: <code>' + html.escape(revision) + '</code></p><p>Target: ' + html.escape(host) + '</p><p>Rust 1.94.0; all workspace features. Dependency APIs link to their external documentation.</p><ul>' + links + '</ul><p><a href="build-info.json">Build information</a></p></main></html>\n')
+        (staging / "index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenRust API reference</title><main><h1>OpenRust API reference</h1><p>Source: <code>' + html.escape(revision) + '</code></p><p>Target: ' + html.escape(host) + '</p><p>Rust 1.95.0; all workspace features. Dependency APIs link to their external documentation.</p><ul>' + links + '</ul><p><a href="build-info.json">Build information</a></p></main></html>\n')
         # A new directory path prevents accidental replacement of a prior export.
         staging.rename(output)
     print(f"Exported {len(crates)} workspace libraries to {output}")

@@ -11,9 +11,9 @@
 從儲存庫根目錄執行檢查：
 
 ```sh
-cargo +1.94.0 fmt --all --check
-cargo +1.94.0 test --workspace --locked
-cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
+cargo +1.95.0 fmt --all --check
+cargo +1.95.0 test --workspace --locked
+cargo +1.95.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 涉及 HTTP、Artisan 或後端驅動的行為時，使用對應的實際入口驗收，並在提交說明中記錄環境與結果。文件變更見[文件網站指南](https://github.com/hongyukeji/openrust/tree/master/docs)。

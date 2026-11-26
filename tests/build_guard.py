@@ -213,7 +213,7 @@ def main():
     temporary = project.local(args.tmp_dir or base / 'tmp')
     target.mkdir(parents=True, exist_ok=True)
     temporary.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ, TMPDIR=str(temporary), CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN='1.94.0')
+    env = dict(os.environ, TMPDIR=str(temporary), CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN='1.95.0')
     received = None
 
     def cancel(signum, _frame):

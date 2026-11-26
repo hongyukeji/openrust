@@ -22,7 +22,7 @@ def main():
                         'CACHE_STORE=array\nSESSION_DRIVER=array\nQUEUE_CONNECTION=sync\n'
                         'MAIL_FROM_NAME="${APP_NAME}" # preserve reference\n')
     runtime = {k: v for k, v in os.environ.items() if not k.startswith(('APP_', 'DB_', 'MAIL_', 'CACHE_', 'SESSION_', 'QUEUE_', 'GRPC_', 'REVERB_'))}
-    runtime.update(APP_BASE_PATH=str(source), RUSTUP_TOOLCHAIN='1.94.0')
+    runtime.update(APP_BASE_PATH=str(source), RUSTUP_TOOLCHAIN='1.95.0')
     subprocess.run([str(args.binary.resolve()), 'artisan', 'init', '--extensions=grpc',
                     '--without-migration', '--no-interaction'], cwd=source, env=runtime, check=True)
     text = env_path.read_text()

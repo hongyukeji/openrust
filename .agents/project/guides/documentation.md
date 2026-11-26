@@ -61,7 +61,7 @@ node tests/check_scope.mjs
 
 ## 可追溯 API 快照
 
-API 参考统一通过可追溯导出接入站点。Python 3.11+、Rust 1.94.0、锁定依赖、全部 feature、构建主机目标与无依赖库文档构成导出契约。在独立干净快照根目录执行：
+API 参考统一通过可追溯导出接入站点。Python 3.11+、Rust 1.95.0、锁定依赖、全部 feature、构建主机目标与无依赖库文档构成导出契约。在独立干净快照根目录执行：
 
 ```sh
 npm --prefix docs ci

@@ -672,5 +672,5 @@ async fn formal_command_execution_events_example() {
     parts.append('mod '+locale.replace('-','_').lower()+'_execution_events{\n'+lifecycle_snippet+lifecycle_checks+'}\n')
 
 
-target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
+target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.95.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

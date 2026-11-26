@@ -146,7 +146,7 @@ def run():
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     origin = f"http://{'localhost' if passkeys or init_auth else '127.0.0.1'}:{port}"
-    env = dict(os.environ, RUSTUP_TOOLCHAIN="1.94.0", APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
+    env = dict(os.environ, RUSTUP_TOOLCHAIN="1.95.0", APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
                APP_KEY="base64:" + base64.b64encode(b"a" * 32).decode(), APP_URL=origin,
                APP_DISABLED_RUNNERS="queue,schedule,reverb,grpc", APP_PORT=str(port), SERVER_PORT=str(port),
                SESSION_DRIVER="array", CACHE_STORE="array", DB_CONNECTION=driver,
@@ -170,7 +170,7 @@ def run():
     def build(*args):
         available = int(subprocess.check_output(["df", "-kP", str(source)], text=True).splitlines()[-1].split()[3])
         assert available > 31_250_000, f"Disk stop: {available} KiB"
-        subprocess.run(["cargo", "+1.94.0", *args], cwd=generated, env=env, check=True)
+        subprocess.run(["cargo", "+1.95.0", *args], cwd=generated, env=env, check=True)
 
     server = None
     try:

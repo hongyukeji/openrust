@@ -86,5 +86,5 @@ mod doc_temp {
     pub fn tempdir()->std::io::Result<Directory>{let path=std::env::temp_dir().join(format!("doc-log-{}-{}",std::process::id(),NEXT.fetch_add(1,Ordering::SeqCst)));std::fs::create_dir(&path)?;Ok(Directory(path))}
 }
 '''
-target=source/'tests/logging_docs_generated.rs';target.write_text(temporary+'\n'+'\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
+target=source/'tests/logging_docs_generated.rs';target.write_text(temporary+'\n'+'\n'.join(parts));subprocess.run(['rustfmt','+1.95.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'formal tutorial consumers')

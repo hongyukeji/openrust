@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM rust:1.94.0-bookworm AS build
+FROM --platform=$BUILDPLATFORM rust:1.95.0-bookworm AS build
 ARG TARGETARCH
 WORKDIR /src
 COPY ecdhe.rs .

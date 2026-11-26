@@ -2,7 +2,7 @@
 
 ## Requirements
 
-Install Rust 1.94.0 or newer with Cargo. OpenRust uses the Rust 2024 edition. The application and the framework crate under `vendor/openrust/framework/` are built together. The first build downloads the dependencies recorded in `Cargo.lock`.
+Install Rust 1.95.0 or newer with Cargo. OpenRust uses the Rust 2024 edition. The application and the framework crate under `vendor/openrust/framework/` are built together. The first build downloads the dependencies recorded in `Cargo.lock`.
 
 ## Full initialization {#complete-initialization}
 
@@ -27,25 +27,25 @@ Run these commands from the application root. Copy the environment template when
 ```sh
 cp .env.example .env
 touch database/database.sqlite
-cargo +1.94.0 build --locked
+cargo +1.95.0 build --locked
 ./artisan key:generate
 ./artisan migrate
 ./artisan inspire
-cargo +1.94.0 run --locked
+cargo +1.95.0 run --locked
 ```
 
 The template uses SQLite for application data, sessions, cache and queues. Create the database file and run the migrations before using these services.
 
 The HTTP listener defaults to `127.0.0.1:8000`. Visit `http://localhost:8000/` for the welcome page or `/up` for the health check. Stop the service with Ctrl+C.
 
-The application can also start without an environment file. To choose a different port in `.env`, set `APP_PORT=9081`. With the template’s default listener host, `APP_URL` expands to `http://127.0.0.1:9081`. An explicit process environment value overrides its file value. For example, `APP_PORT=9081 cargo +1.94.0 run --locked` selects port 9081. See [configuration](configuration.md) for URL overrides and environment selection.
+The application can also start without an environment file. To choose a different port in `.env`, set `APP_PORT=9081`. With the template’s default listener host, `APP_URL` expands to `http://127.0.0.1:9081`. An explicit process environment value overrides its file value. For example, `APP_PORT=9081 cargo +1.95.0 run --locked` selects port 9081. See [configuration](configuration.md) for URL overrides and environment selection.
 
 On Windows, copy the template with `copy .env.example .env` and run `artisan.bat inspire`. Use an MSVC Rust toolchain for the target architecture. For a release without Cargo, use the Windows standalone steps. [Windows standalone deployment](deployment.md#windows-standalone)
 
 ## Building a standalone application
 
 ```sh
-cargo +1.94.0 build --release --locked --features standalone
+cargo +1.95.0 build --release --locked --features standalone
 ```
 
 Place `target/release/main` in the deployment root and include `resources/views/welcome.blade.html`. Also include any website files in `public/` and public disk files in `storage/app/public/`. The executable reads `.env` from its own directory. Set the absolute process environment value `APP_BASE_PATH` when the application root is elsewhere. Run `./main artisan inspire` from that directory, or use an absolute executable path. See [request lifecycle](../architecture-concepts/lifecycle.md) for source and standalone root resolution.

@@ -74,7 +74,7 @@
 - 应用包清单入口固定为 `bootstrap/packages.rs` 的 `pub(super) const fn manifest() -> PackageManifest`，`bootstrap/app.rs` 通过 `.withPackages(super::packages::manifest())` 装配。生成文件仅在 packages 模块的私有 compiled 子模块中引入，Rust 别名通过 `crate::bootstrap::packages::package_aliases` 按需访问，不在应用入口暴露生成常量，不手工维护扩展清单；`bootstrap/providers.rs` 继续只登记应用 Provider。保留现有 Cargo 编译期发现和框架 `withPackages(PackageManifest)` 契约，不为入口写法新增注册库、回调层或运行时扫描。
 - 包默认配置和可发布模板放在所属包目录，由包 Provider 合并；默认根 `config/` 不预装可选包配置，不为可选包增加 feature 分支。根应用保留核心驱动连接配置，不因此装配可选服务端。显式安装通过现有发布与源码锁机制接入编译型配置，重复安装保留应用定制；OIDC 身份提供方等业务示例只在显式选用后生成。配置缓存命中时跳过包默认配置的环境读取与合并，以缓存快照为准。
 - 业务示例、集成测试专用类型和装配放在文档或所属包的 tests／fixtures 中。用户应用实际采用某个业务组时，才在该应用的 Provider 中显式注册；框架仓库默认应用不承载所有扩展的演示接线。
-- 验收同时检查启用／关闭扩展、包发现、注册与启动不访问未迁移数据库、迁移登记及自定义配置边界。运行 `cargo +1.94.0 test --test application_skeleton`，检查根应用 Provider／业务目录的扩展引用及根配置的可选包预装；配置验收同时覆盖包独立使用、应用覆盖、缓存快照及显式安装保留定制，阻止 Provider 再出现扩展引用或 feature 分支；该测试约束仓库默认骨架，不限制用户应用的正常定制。
+- 验收同时检查启用／关闭扩展、包发现、注册与启动不访问未迁移数据库、迁移登记及自定义配置边界。运行 `cargo +1.95.0 test --test application_skeleton`，检查根应用 Provider／业务目录的扩展引用及根配置的可选包预装；配置验收同时覆盖包独立使用、应用覆盖、缓存快照及显式安装保留定制，阻止 Provider 再出现扩展引用或 feature 分支；该测试约束仓库默认骨架，不限制用户应用的正常定制。
 
 ## 旧版实现复用
 
@@ -163,10 +163,10 @@ Docker 方案调研区分开发环境与发布运行环境：Sail／Laradock用�
 
 ## 验收清单
 
-- **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
+- **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.95.0 运行 `cargo +1.95.0 fmt --all --check` 和 `cargo +1.95.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
 - **持久化时间单位。** 缓存过期和锁租约等共享引擎值须在驱动边界转换为固定上游迁移声明的单位与列类型；数据库缓存 `expiration` 使用 Unix 秒，永久值按上游有限时长持久化，不把引擎毫秒或无限哨兵直接写入整数列。验收使用正式迁移类型，并覆盖永久值、过期和锁，不能通过扩大测试列类型掩盖三库错误。
 - **方言修饰符。** 按固定 Laravel grammar 分别核对每个驱动的输出和忽略行为；某项仅由 MySQL 输出，不代表其他驱动应报错。共享迁移使用 `first`／`after` 时，非 MySQL 驱动忽略排序提示，保留其原生列顺序。回归同时覆盖跨驱动 SQL、实际迁移和数据保留。
-- **测试范围。** 日常使用 Rust 1.94.0；数据库覆盖 PostgreSQL 18、MySQL 8（现有夹具为 8.4）、SQLite，缓存覆盖 Redis 8、database、file。执行与改动相关的定向测试：共享数据库行为在三库分别验收，共享缓存行为在三种缓存驱动分别验收；database 缓存涉及 SQL 的路径同时覆盖三库。驱动专属能力核对对应驱动和其他驱动的适用行为，不将单一驱动通过扩展为全部通过。筛选、隔离和版本核对见下文；缺少覆盖如实列为未验，不延后到发布才发现日常三库兼容问题。
+- **测试范围。** 日常使用 Rust 1.95.0；数据库覆盖 PostgreSQL 18、MySQL 8（现有夹具为 8.4）、SQLite，缓存覆盖 Redis 8、database、file。执行与改动相关的定向测试：共享数据库行为在三库分别验收，共享缓存行为在三种缓存驱动分别验收；database 缓存涉及 SQL 的路径同时覆盖三库。驱动专属能力核对对应驱动和其他驱动的适用行为，不将单一驱动通过扩展为全部通过。筛选、隔离和版本核对见下文；缺少覆盖如实列为未验，不延后到发布才发现日常三库兼容问题。
 - **文档。** 纯指引改动检查引用、路径和锚点。文档站改动按[维护指南](guides/documentation.md)在本地构建三语站点，并运行[浏览器检查](../../docs/tests/check_browser.mjs)，覆盖 `/` 与 `/docs/`。
 - **模拟与实机边界。** 真实目标清单包括第三方账号/权限、最终收件人、商户资金、物理设备、平台后端和正式部署。先复用成熟服务及已有夹具运行实际HTTP/浏览器/Artisan与失败恢复；使用REQUIRE或显式入口防止缺服务静默跳过。每轮SQS FIFO使用独立队列，避免去重窗口污染。证据注明模拟器/客户端版本、源码快照、实际驱动和TLS终止位置，不能把本地协议、虚拟认证器或分开的TLS与明文链路写成真实供应商/设备/全链路TLS通过；人工发布批准始终单列。
 - **记录。** 记录实际执行的命令、环境和结果，说明跳过项或外部服务限制。检查本批差异及空白错误，暂存、提交和推送遵循当次授权。
@@ -180,12 +180,12 @@ Docker 方案调研区分开发环境与发布运行环境：Sail／Laradock用�
 - 日常开发沿用 Cargo 原生增量编译和并发策略，保留 IDE 的调试能力及热缓存。不得仅为减少磁盘占用而全局关闭增量、固定低并发或强制所有任务串行；确有资源压力时，只对当前受影响命令按需设置，记录原因。不新增工具链文件或改变 Cargo.toml 的 rust-version。
 - 源码验收仍使用独立快照，构建缓存按工作流复用：同一工作流复用已登记的独占 CARGO_TARGET_DIR，并沿用 Cargo 自身的缓存与锁；不同工作流核对归属和占用，避免每批复制一份完整 target。一个任务完成不代表其缓存已废弃，不要求下一批从零构建。一次性复现或发布验收需要干净构建时，明确理由后单独进行。
 - 新大型构建前及验收阶段边界检查 df，并盘点根 target 与本项目临时构建目录的归属、用途和占用。可用空间小于或等于32 GB（31,250,000 KiB）时停止新增构建，自动清理本项目全部编译产物，无需再次确认清理；范围包括根及项目隔离验收目录中的Cargo target（含增量／依赖编译缓存）、文档构建dist／cache，不因仍可复用而保留。先通知协作者暂停相关构建，等待当前构建安全退出，核对目录归属与进程占用，取得Cargo排他锁后清理并保留锁文件原inode；无法安全取得锁时先报告阻塞，不带锁外删除。保留源码、未提交改动、验收日志、依赖下载缓存、独立交付文件、数据库及全部数据卷，不删除其他项目产物。清理前后记录df实测GB／GiB及净释放量，空间仍不足则保持停线；恢复执行遵循当前交接及用户暂停指令。未触及停线时继续复用缓存，只回收确认废弃且闲置的产物，不每批清空；根缓存达到8 GiB本身不构成清理理由。
-- 代理构建与验收命令统一通过 `python3 -B tests/build_guard.py --workflow <工作流> -- <命令>` 执行。已有缓存用 `--target-dir` 指定项目内独占目录；需要短临时路径时用 `--tmp-dir`。守卫向子进程传递项目内 `TMPDIR`、`CARGO_TARGET_DIR` 与 `RUSTUP_TOOLCHAIN=1.94.0`，在启动前、运行中及退出后检查磁盘。触线时安全停止自己的进程组，核对协作构建、持有全部 Cargo profile 锁后清理；其他构建占用时保留产物并报告，不能直接删除。运行中触线返回75，清理完成后由代理继续原命令；成功或失败退出后的触线清理保留原退出码。记录位于 `target/tmp/build-guard-events.jsonl`。守卫不修改增量与并发，不会拦截绕过入口直接启动的 Cargo，仍须执行上述阶段边界检查。
+- 代理构建与验收命令统一通过 `python3 -B tests/build_guard.py --workflow <工作流> -- <命令>` 执行。已有缓存用 `--target-dir` 指定项目内独占目录；需要短临时路径时用 `--tmp-dir`。守卫向子进程传递项目内 `TMPDIR`、`CARGO_TARGET_DIR` 与 `RUSTUP_TOOLCHAIN=1.95.0`，在启动前、运行中及退出后检查磁盘。触线时安全停止自己的进程组，核对协作构建、持有全部 Cargo profile 锁后清理；其他构建占用时保留产物并报告，不能直接删除。运行中触线返回75，清理完成后由代理继续原命令；成功或失败退出后的触线清理保留原退出码。记录位于 `target/tmp/build-guard-events.jsonl`。守卫不修改增量与并发，不会拦截绕过入口直接启动的 Cargo，仍须执行上述阶段边界检查。
 - 成功、失败、取消及崩溃后的下一轮都要核对临时资源；区分可复用缓存和废弃产物，不将“退出即删所有target”作为统一策略。实际清理前确认所属任务结束、无进程占用；必要时使用 Cargo 原生清理命令并指定已废弃目录。手工清理根debug缓存还须取得其 .cargo-lock 排他锁，持锁保留锁文件本身，避免其他 Cargo 通过重建锁文件进入。记录真实回收量，不能只报告 du 逻辑总量。
 
 ### 日常数据库与缓存验收
 
-2026-11-21 用户将日常开发与验收调整为 PostgreSQL 18、MySQL 8、SQLite 三库，以及 Redis、database、file 三种缓存驱动，覆盖此前仅 PostgreSQL 或仅 MySQL 的日常验收规则。数据库其他版本、SQL Server 和商业嵌入端点仍按发布矩阵验证。仓库不通过工具链文件固定版本；保留 `Cargo.toml` 的 `rust-version` 声明最低版本，日常验收显式使用 `cargo +1.94.0`。通过验收环境分别选择数据库与缓存驱动；本地 `.env` 的默认连接不代表完整验收范围，也不要求切换或搬迁已有开发数据。
+2026-11-21 用户将日常开发与验收调整为 PostgreSQL 18、MySQL 8、SQLite 三库，以及 Redis、database、file 三种缓存驱动，覆盖此前仅 PostgreSQL 或仅 MySQL 的日常验收规则。数据库其他版本、SQL Server 和商业嵌入端点仍按发布矩阵验证。仓库不通过工具链文件固定版本；保留 `Cargo.toml` 的 `rust-version` 声明最低版本，日常验收显式使用 `cargo +1.95.0`。通过验收环境分别选择数据库与缓存驱动；本地 `.env` 的默认连接不代表完整验收范围，也不要求切换或搬迁已有开发数据。
 
 临时数据库验收使用 `python3 -B tests/postgres_acceptance.py -- <验收命令>`，本地 Docker 须已有 `postgres:18`。入口核对镜像数据目录 `/var/lib/postgresql`（包含 18 的版本化 PGDATA），以 1 GiB tmpfs 承载数据，使用随机回环端口、临时凭据和批次标签。通过同一账号／数据库的 `SHOW server_version_num` 确认 18.x 后，向命令提供 `OPENRUST_TEST_POSTGRES_URL`、`OPENRUST_REQUIRE_POSTGRES=1` 和 `OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER`。不把开发库连接传给会建表／删表的测试。
 
@@ -195,7 +195,7 @@ Docker 方案调研区分开发环境与发布运行环境：Sail／Laradock用�
 python3 -B tests/postgres_acceptance.py -- sh -c '
   export OPENRUST_TEST_POSTGRES_JSON_URL="$OPENRUST_TEST_POSTGRES_URL"
   export OPENRUST_REQUIRE_POSTGRES_JSON=1
-  cargo +1.94.0 test --locked -p openrust-framework --test database_query \
+  cargo +1.95.0 test --locked -p openrust-framework --test database_query \
     json_predicates_run_on_postgres_in_both_prepare_modes -- --exact
 '
 ```
@@ -204,7 +204,7 @@ MySQL 日常验收使用 `python3 -B tests/mysql_acceptance.py -- <验收命令>
 
 同批并行测试也必须隔离数据库对象；不能因为容器独占就让多个用例互删同名表。MySQL 优先复用 `TestApp::mysql` 的独立数据库与归属校验，确保 Artisan 子进程和验证连接共用各自夹具的 URL。异步用例须等待夹具关闭并核对数据库已回收；不得用全局串行化掩盖冲突，缺少必需连接变量时应失败，不能提前返回计为通过。
 
-代理验收的 Cargo 仍在独立源码快照与按工作流复用的独占 target 中运行，不在活跃工作树编译变动源码；增量与并发按上述构建产物管理执行，不强制每批冷构建。保留32 GB磁盘停线与安全清理规则。会在内部运行 Cargo 的安装器、生成应用和验收夹具，须向子进程传递 `RUSTUP_TOOLCHAIN=1.94.0` 并核对实际工具链；仅给外层 Cargo 加 `+1.94.0` 不能保证内层构建使用相同版本。用 `-p`、`--test` 和 `--exact` 定位函数，显式核对每项测试及辅助夹具连接的驱动，分批执行以控制资源；不依赖无筛选 workspace 测试偶然覆盖三库。
+代理验收的 Cargo 仍在独立源码快照与按工作流复用的独占 target 中运行，不在活跃工作树编译变动源码；增量与并发按上述构建产物管理执行，不强制每批冷构建。保留32 GB磁盘停线与安全清理规则。会在内部运行 Cargo 的安装器、生成应用和验收夹具，须向子进程传递 `RUSTUP_TOOLCHAIN=1.95.0` 并核对实际工具链；仅给外层 Cargo 加 `+1.95.0` 不能保证内层构建使用相同版本。用 `-p`、`--test` 和 `--exact` 定位函数，显式核对每项测试及辅助夹具连接的驱动，分批执行以控制资源；不依赖无筛选 workspace 测试偶然覆盖三库。
 
 缓存共享行为分别通过 Redis、database、file 实际驱动验证，按改动覆盖读写、过期、删除及锁等相关路径。Redis 使用专属隔离实例，先核对 `INFO server` 为 8.x 与 `PING`；不在开发 Redis 执行清库或修改 ACL。database 缓存使用对应三库的隔离数据库／表，file 缓存使用批次专属临时目录；不对开发缓存执行清空操作。仅影响某一驱动的变更可定向验收，但须说明范围，不能计为其他驱动已通过。
 

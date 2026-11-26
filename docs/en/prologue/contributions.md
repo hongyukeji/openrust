@@ -11,9 +11,9 @@ Keep application integration in the root application and framework code in `vend
 Run the repository checks from the root:
 
 ```sh
-cargo +1.94.0 fmt --all --check
-cargo +1.94.0 test --workspace --locked
-cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
+cargo +1.95.0 fmt --all --check
+cargo +1.95.0 test --workspace --locked
+cargo +1.95.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 Use actual HTTP, Artisan or backend requests for behavior specific to those entry points. State the environment and result in the contribution. For documentation changes, see the [documentation workspace](https://github.com/hongyukeji/openrust/tree/master/docs).

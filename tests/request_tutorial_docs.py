@@ -134,5 +134,5 @@ target = source / 'vendor/openrust/framework/tests/request_docs_generated.rs'
 if not target.resolve().is_relative_to(source):
     parser.error('生成路径不能通过符号链接逃逸源码快照')
 target.write_text(code)
-subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target)], check=True)
+subprocess.run(['rustfmt', '+1.95.0', '--edition', '2024', str(target)], check=True)
 print('已直接提取三语正式教程，生成 HTTP Kernel 消费者')

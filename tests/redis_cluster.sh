@@ -93,16 +93,16 @@ done
 docker exec "$cid" redis-server --version
 HORIZON_CLUSTER_TEST_PORTS="$first,$second,$third" \
 HORIZON_CLUSTER_TEST_STANDALONE_PORT="$standalone" HORIZON_CLUSTER_TEST_PASSWORD=cluster-fixture \
-    cargo +1.94.0 test --locked --offline -p openrust-horizon --test cluster \
+    cargo +1.95.0 test --locked --offline -p openrust-horizon --test cluster \
     redis_cluster_metadata_and_queue_transport_use_public_horizon_consumers -- --ignored --exact
 export OPENRUST_TEST_REDIS_CLUSTER_PORT="$first" OPENRUST_REQUIRE_REDIS_CLUSTER=1
 export OPENRUST_TEST_REDIS_CLUSTER_CONTAINER="$cid" OPENRUST_TEST_REDIS_CLUSTER_FIXTURE="$fixture"
-cargo +1.94.0 test --test redis --locked --offline redis_cluster_routes_commands_and_cache_locks_across_shards -- --exact
+cargo +1.95.0 test --test redis --locked --offline redis_cluster_routes_commands_and_cache_locks_across_shards -- --exact
 export OPENRUST_TEST_REDIS_CLUSTER_SECOND_PORT="$second"
 export OPENRUST_TEST_REDIS_INDEPENDENT_CLUSTER_PORT="$independent" OPENRUST_TEST_REDIS_CLUSTER_STANDALONE_PORT="$standalone"
-cargo +1.94.0 test --test redis --locked --offline redis_cluster_flushes_only_a_separate_lock_database -- --exact
-cargo +1.94.0 test --test redis --locked --offline redis_cluster_tags_flush_and_prune -- --exact
-cargo +1.94.0 test -p openrust-framework --test throttling --locked --offline redis_cluster_admits_all_named_quotas_atomically -- --exact
-cargo +1.94.0 test --test redis --locked --offline redis_cluster_migrates_and_recovers_without_replaying_a_write -- --exact
+cargo +1.95.0 test --test redis --locked --offline redis_cluster_flushes_only_a_separate_lock_database -- --exact
+cargo +1.95.0 test --test redis --locked --offline redis_cluster_tags_flush_and_prune -- --exact
+cargo +1.95.0 test -p openrust-framework --test throttling --locked --offline redis_cluster_admits_all_named_quotas_atomically -- --exact
+cargo +1.95.0 test --test redis --locked --offline redis_cluster_migrates_and_recovers_without_replaying_a_write -- --exact
 
-cargo +1.94.0 test -p openrust-framework --test queue_worker --locked --offline artisan_worker_rate_limits_use_real_redis_cluster -- --exact
+cargo +1.95.0 test -p openrust-framework --test queue_worker --locked --offline artisan_worker_rate_limits_use_real_redis_cluster -- --exact

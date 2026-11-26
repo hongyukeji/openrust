@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="Cargo.toml"><img src="https://img.shields.io/badge/OpenRust-workspace-blue" alt="OpenRust 版本由 Cargo.toml 统一管理"></a>
-  <a href="Cargo.toml"><img src="https://img.shields.io/badge/Rust-v1.94%2B-dea584" alt="Rust v1.94 或更新版本"></a>
+  <a href="Cargo.toml"><img src="https://img.shields.io/badge/Rust-v1.95%2B-dea584" alt="Rust v1.95 或更新版本"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT 许可证"></a>
 </p>
 
@@ -23,7 +23,7 @@ OpenRust 是一个 Rust Web 应用框架，提供完整的应用目录与统一�
 
 ## 快速开始
 
-安装 Rust 1.94 或更新版本，在项目根目录运行。
+安装 Rust 1.95 或更新版本，在项目根目录运行。
 
 ```sh
 cargo run

@@ -11,9 +11,9 @@
 从仓库根目录运行检查：
 
 ```sh
-cargo +1.94.0 fmt --all --check
-cargo +1.94.0 test --workspace --locked
-cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
+cargo +1.95.0 fmt --all --check
+cargo +1.95.0 test --workspace --locked
+cargo +1.95.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 涉及 HTTP、Artisan 或后端驱动的行为时，用对应的实际入口验收，并在提交说明中记录环境与结果。文档改动见[文档站指南](https://github.com/hongyukeji/openrust/tree/master/docs)。

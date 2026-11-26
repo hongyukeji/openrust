@@ -92,7 +92,7 @@ def run():
         probe.bind(('127.0.0.1', 0))
         port = probe.getsockname()[1]
     origin = f'http://127.0.0.1:{port}'
-    env = dict(os.environ, RUSTUP_TOOLCHAIN='1.94.0', APP_BASE_PATH=str(generated), APP_ENV='testing', APP_DEBUG='false', APP_LOCALE='en',
+    env = dict(os.environ, RUSTUP_TOOLCHAIN='1.95.0', APP_BASE_PATH=str(generated), APP_ENV='testing', APP_DEBUG='false', APP_LOCALE='en',
                APP_KEY='base64:' + base64.b64encode(b'a' * 32).decode(), APP_URL=origin, APP_HOST='127.0.0.1', APP_PORT=str(port), SERVER_PORT=str(port),
                DB_CONNECTION='mysql', DB_URL=os.environ['OPENRUST_TEST_MYSQL_URL'], DB_PREFIX='ml_',
                CACHE_STORE='array', SESSION_DRIVER='array', QUEUE_CONNECTION='sync', MAIL_MAILER='array', BCRYPT_ROUNDS='4',

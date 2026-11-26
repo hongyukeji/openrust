@@ -10,7 +10,7 @@ The guides explain application behavior. Rustdoc lists the public Rust modules, 
 
 ## Build a source snapshot
 
-Use Python 3.11 or newer, Rust 1.94.0, and a clean committed source snapshot. From the repository root, choose a new output directory and a dedicated Cargo artifact directory:
+Use Python 3.11 or newer, Rust 1.95.0, and a clean committed source snapshot. From the repository root, choose a new output directory and a dedicated Cargo artifact directory:
 
 ```sh
 python3 -B docs/scripts/build_api.py --output target/tmp/api/export --target-dir target/tmp/api/cargo-target

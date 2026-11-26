@@ -10,7 +10,7 @@ Rust 型別和 trait 使用 `UpperCamelCase`，方法與欄位使用 `snake_case
 
 ## 建置原始碼快照
 
-使用 Python 3.11 或更新版本、Rust 1.94.0 與已提交的乾淨原始碼快照。在儲存庫根目錄選擇新的輸出目錄與專用 Cargo 產物目錄：
+使用 Python 3.11 或更新版本、Rust 1.95.0 與已提交的乾淨原始碼快照。在儲存庫根目錄選擇新的輸出目錄與專用 Cargo 產物目錄：
 
 ```sh
 python3 -B docs/scripts/build_api.py --output target/tmp/api/export --target-dir target/tmp/api/cargo-target

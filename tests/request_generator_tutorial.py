@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='request-consumer-') as te
     end = text.index('\n        })', start) + len('\n        })')
     text = text[:start] + '        ::std::boxed::Box::pin(async { ::std::result::Result::Ok(()) })' + text[end:]
     text = text.replace('::std::result::Result::Ok(validation::RuleSet::new())', 'validation::RuleSet::parse([("title", "required|string|min:3")])')
-    text = subprocess.check_output(['rustfmt', '+1.94.0', '--edition', '2024', '--emit', 'stdout'], input=text.replace('{{class}}', 'GeneratedRequest').encode()).decode().replace('GeneratedRequest', '{{class}}')
+    text = subprocess.check_output(['rustfmt', '+1.95.0', '--edition', '2024', '--emit', 'stdout'], input=text.replace('{{class}}', 'GeneratedRequest').encode()).decode().replace('GeneratedRequest', '{{class}}')
     stub.write_text(text)
     artisan('make:request', 'ApprovedRequest')
     shutil.copy2(app / 'app/http/requests/approved_request.rs', fixture / 'approved.rs')
@@ -98,7 +98,7 @@ async fn generated_request_types_authorize_and_validate_real_http_before_dispatc
 '''
 target = source / 'vendor/openrust/framework/tests/request_generated_tutorial.rs'
 target.write_text(code)
-subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
+subprocess.run(['rustfmt', '+1.95.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
 for name, expected in json.loads((evidence / 'request-generator-commands.json').read_text())['sha256'].items():
     assert hashlib.sha256((fixture / name).read_bytes()).hexdigest() == expected, name
 subprocess.run(['cargo', 'test', '--manifest-path', str(source / 'Cargo.toml'), '-p', 'openrust-framework', '--test', 'request_generated_tutorial', '--locked'], check=True)
