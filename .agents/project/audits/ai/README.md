@@ -617,7 +617,11 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测同一审批批次的一次工具�
 
 - [固定 Laravel ToolResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/ToolResult.php) · [固定 Laravel Vercel 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php#L243) · [固定 Laravel AG-UI 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php#L440)
 
-`ToolResult.arguments` 随结果保留实际执行参数，未执行的拒绝保留原拟参数。与工具请求共享同一参数来源，供 SDK、审批事件和存储直接读取。旧 JSON 缺省为空对象，构造器仍可直接使用。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的独立 HTTP／Artisan 使用四种模拟协议核对参数、暂停快照和完成历史。SQLite 另核对审批事件。原始协议块照常回放。SDK 17 项、严格 Clippy 和三语站点通过。供应商支持的独立 `result_id` 仍待核对。
+`ToolResult.arguments` 随结果保留实际执行参数，未执行的拒绝保留原拟参数。与工具请求共享同一参数来源，供 SDK、审批事件和存储直接读取。旧 JSON 缺省为空对象，构造器仍可直接使用。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的独立 HTTP／Artisan 使用四种模拟协议核对参数、暂停快照和完成历史。SQLite 另核对审批事件。原始协议块照常回放。SDK 17 项、严格 Clippy 和三语站点通过。
+
+Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`result_id` 保存上游 `call_id`。历史和供应商返回使用此关联 ID，原生推理块继续按连接范围回放。无独立条目 ID 的连接与旧记录沿用单一 ID。SQLite、PostgreSQL、MySQL 独立 HTTP／Artisan 核对同连接及跨凭证回放、审批和库中两种 ID。SQLite 复验 Chat、Anthropic 和 Gemini。SDK 流真实验证 AG-UI 的调用与结果 ID、原生出站映射。SDK 17 项、严格 Clippy 与三语站点通过。Ollama 原生适配仍按供应商批次核对。
+
+- [固定 Laravel Responses 工具调用解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/ParsesTextResponses.php#L236)
 
 ## AI-03 流式工具审批事件
 

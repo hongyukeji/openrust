@@ -71,7 +71,7 @@ impl AnthropicTextProvider {
             .iter()
             .map(|result| {
                 json!({
-                    "type":"tool_result","tool_use_id":result.id,
+                    "type":"tool_result","tool_use_id":result.wire_id(),
                     "content":result.text(),"is_error":!result.successful(),
                 })
             })
@@ -104,7 +104,7 @@ impl AnthropicTextProvider {
                 }
                 content.extend(message.tool_calls.iter().map(|call| {
                     json!({
-                        "type":"tool_use","id":call.id,"name":call.name,"input":call.arguments,
+                        "type":"tool_use","id":call.wire_id(),"name":call.name,"input":call.arguments,
                     })
                 }));
                 messages.push(json!({"role":"assistant","content":content}));
@@ -435,6 +435,7 @@ pub(crate) fn parse_step(mut response: Value) -> AiResult<StepResponse> {
     for block in blocks {
         match block["type"].as_str() {
             Some("tool_use") => tool_calls.push(ToolCall {
+                result_id: None,
                 id: block["id"].as_str().ok_or(AiError::InvalidResponse)?.into(),
                 name: block["name"]
                     .as_str()

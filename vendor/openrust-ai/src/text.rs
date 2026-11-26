@@ -483,7 +483,7 @@ impl OpenAiTextProvider {
                         .map(|call| {
                             ChatCompletionMessageToolCalls::Function(
                                 ChatCompletionMessageToolCall {
-                                    id: call.id.clone(),
+                                    id: call.wire_id().to_owned(),
                                     function: FunctionCall {
                                         name: call.name.clone(),
                                         arguments: Value::Object(call.arguments.clone())
@@ -511,7 +511,7 @@ impl OpenAiTextProvider {
                             content: ChatCompletionRequestToolMessageContent::Text(
                                 result.result.clone(),
                             ),
-                            tool_call_id: result.id.clone(),
+                            tool_call_id: result.wire_id().to_owned(),
                         })
                     }));
                 }
@@ -595,7 +595,7 @@ impl OpenAiTextProvider {
                         history.extend(entry.tool_calls.iter().map(|call| {
                             InputItem::Item(Item::FunctionCall(FunctionToolCall {
                                 arguments: Value::Object(call.arguments.clone()).to_string(),
-                                call_id: call.id.clone(),
+                                call_id: call.wire_id().to_owned(),
                                 name: call.name.clone(),
                                 ..Default::default()
                             }))
@@ -604,7 +604,7 @@ impl OpenAiTextProvider {
                     MessageRole::ToolResult => {
                         history.extend(entry.tool_results.iter().map(|result| {
                             InputItem::Item(Item::FunctionCallOutput(FunctionCallOutputItemParam {
-                                call_id: Some(result.id.clone()),
+                                call_id: Some(result.wire_id().to_owned()),
                                 output: FunctionCallOutput::Text(result.result.clone()),
                                 id: None,
                                 status: None,

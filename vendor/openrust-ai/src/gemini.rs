@@ -152,7 +152,7 @@ impl GeminiTextProvider {
                     }
                     parts.extend(message.tool_calls.iter().map(|call| {
                         json!({
-                            "functionCall":{"id":call.id,"name":call.name,"args":call.arguments}
+                            "functionCall":{"id":call.wire_id(),"name":call.name,"args":call.arguments}
                         })
                     }));
                     ("model", parts)
@@ -168,7 +168,7 @@ impl GeminiTextProvider {
                                 .as_ref()
                                 .and_then(|ids| ids.get(index))
                                 .cloned()
-                                .unwrap_or_else(|| Some(Value::from(result.id.as_str())));
+                                .unwrap_or_else(|| Some(Value::from(result.wire_id())));
                             Self::function_result(result, id)
                         })
                         .collect(),
@@ -603,6 +603,7 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
             None => Default::default(),
         };
         tool_calls.push(ToolCall {
+            result_id: None,
             id,
             name: function["name"]
                 .as_str()

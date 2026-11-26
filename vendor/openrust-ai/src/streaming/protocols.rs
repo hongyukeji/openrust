@@ -197,7 +197,7 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                             yield payload(json!({"type":"TOOL_CALL_END","toolCallId":call.id}));
                         }
                         StreamEventData::ToolResult { result } => {
-                            let mut data = json!({"type":"TOOL_CALL_RESULT","messageId":event.id,"toolCallId":result.id,"content":result.result,"role":"tool"});
+                            let mut data = json!({"type":"TOOL_CALL_RESULT","messageId":result.result_id.as_deref().unwrap_or(&event.id),"toolCallId":result.id,"content":result.result,"role":"tool"});
                             if let Some(error) = result.error() {
                                 data["metadata"] = json!({"error":error});
                                 if result.denied {

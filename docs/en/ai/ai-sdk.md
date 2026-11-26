@@ -717,6 +717,8 @@ Rejecting with `Decision::reject(None)`, boolean `false`, or a blank result ends
 
 `ToolResult.arguments` contains the arguments used for the call, including any approved edits. For rejected calls it contains the proposed arguments. Old records without this field deserialize with an empty map.
 
+A Responses function call with distinct item and call IDs exposes the item ID as `ToolCall.id` and the call ID as `result_id`. Submit approval decisions using the ID returned in the approval request. Provider replies and history replay use `result_id` when present.
+
 When a turn pauses for approval, history immediately shows its user message and a `paused` assistant message. After approval, the SDK saves the tool results on that assistant message. The message keeps its ID through further pauses, completion, or failure. The original user message retains its attachment references.
 
 Resuming approval saves the step’s tool results before the next model request. Call `approval_results_for` with the same participant, agent, conversation, and approval ID to read the saved results while the turn is active. After completion, read them from conversation history. If the resuming process exits before it finishes, the saved results remain available and duplicate approval calls are rejected to prevent repeating tools.

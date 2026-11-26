@@ -78,7 +78,10 @@ impl Tool for Lookup {
                 .map_err(|_| openrust_ai::AiError::InvalidToolArguments)?;
             let args = request.decode::<Arguments>()?;
             assert_eq!(args.sku, "demo");
-            assert_eq!(request.tool_call_id(), "call_fixture");
+            assert!(matches!(
+                request.tool_call_id(),
+                "call_fixture" | "fc_fixture"
+            ));
             assert_eq!(request.tool_invocation_id().len(), 26);
             self.0.fetch_add(1, Ordering::Relaxed);
             Ok(json!({"sku":args.sku,"quantity":4}).to_string())
@@ -647,7 +650,7 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
                 json!({"type":"response.output_text.delta","delta":"Checking "}),
                 json!({"type":"response.completed","response":{"status":"completed","output":[
                 {"type":"message","content":[{"type":"output_text","text":"Checking "}]},
-                {"type":"function_call","call_id":"call_fixture","name":"lookup","arguments":"{\"sku\":\"demo\"}"}
+                {"type":"function_call","id":"fc_fixture","call_id":"call_fixture","name":"lookup","arguments":"{\"sku\":\"demo\"}"}
             ],"usage":{"input_tokens":5,"output_tokens":1}}}),
             ],
             false,
@@ -749,6 +752,8 @@ async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestR
     assert!(
         response_body.contains("TOOL_CALL_START") && response_body.contains("TOOL_CALL_RESULT")
     );
+    assert!(response_body.contains("\"toolCallId\":\"fc_fixture\""));
+    assert!(response_body.contains("\"messageId\":\"call_fixture\""));
     assert!(
         response_body.contains("four remaining") && response_body.contains("\"totalTokens\":14")
     );

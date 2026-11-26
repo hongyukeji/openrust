@@ -12,7 +12,7 @@ pub(crate) fn chat_request(
         .ok_or(AiError::InvalidResponse)?;
     for step in history {
         let calls = step.calls.iter().map(|call| json!({
-            "id":call.id, "type":"function",
+            "id":call.wire_id(), "type":"function",
             "function":{"name":call.name,"arguments":Value::Object(call.arguments.clone()).to_string()},
         })).collect::<Vec<_>>();
         let mut assistant = json!({"role":"assistant","content":step.text,"tool_calls":calls});
@@ -27,7 +27,7 @@ pub(crate) fn chat_request(
         messages.push(assistant);
         messages.extend(step.results.iter().map(|result| {
             json!({
-                "role":"tool","tool_call_id":result.id,"content":result.result,
+                "role":"tool","tool_call_id":result.wire_id(),"content":result.text(),
             })
         }));
     }
@@ -62,14 +62,14 @@ pub(crate) fn responses_request(
                 }
                 input.extend(step.calls.iter().map(|call| {
                     json!({
-                        "type":"function_call", "call_id":call.id,
+                        "type":"function_call", "call_id":call.wire_id(),
                         "name":call.name, "arguments":Value::Object(call.arguments.clone()).to_string(),
                     })
                 }));
             }
             input.extend(step.results.iter().map(|result| {
                 json!({
-                    "type":"function_call_output", "call_id":result.id, "output":result.result,
+                    "type":"function_call_output", "call_id":result.wire_id(), "output":result.text(),
                 })
             }));
         }
@@ -133,7 +133,16 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     let output = data["output"].as_array().ok_or(AiError::InvalidResponse)?;
     for item in output {
         match item["type"].as_str() {
-            Some("function_call") => tool_calls.push(parse_call(&item["call_id"], item)?),
+            Some("function_call") => {
+                let mut call = parse_call(&item["call_id"], item)?;
+                if let Some(item_id) = item["id"]
+                    .as_str()
+                    .filter(|id| !id.is_empty() && *id != call.id)
+                {
+                    call.result_id = Some(std::mem::replace(&mut call.id, item_id.to_owned()));
+                }
+                tool_calls.push(call);
+            }
             Some("reasoning") => {
                 reasoning.extend(crate::text::public_summary_text(&item["summary"]))
             }
@@ -222,5 +231,6 @@ fn parse_call(id: &Value, function: &Value) -> AiResult<ToolCall> {
         id: id.into(),
         name: name.into(),
         arguments,
+        result_id: None,
     })
 }

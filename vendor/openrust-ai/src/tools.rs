@@ -80,6 +80,14 @@ pub struct ToolCall {
     pub id: String,
     pub name: String,
     pub arguments: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_id: Option<String>,
+}
+
+impl ToolCall {
+    pub(crate) fn wire_id(&self) -> &str {
+        self.result_id.as_deref().unwrap_or(&self.id)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,6 +96,8 @@ pub struct ToolResult {
     pub name: String,
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub arguments: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_id: Option<String>,
     pub result: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub denied: bool,
@@ -101,6 +111,7 @@ impl ToolResult {
             id: id.into(),
             name: name.into(),
             arguments: Map::new(),
+            result_id: None,
             result: result.into(),
             denied: false,
             failed: false,
@@ -117,6 +128,10 @@ impl ToolResult {
 
     pub fn text(&self) -> &str {
         &self.result
+    }
+
+    pub(crate) fn wire_id(&self) -> &str {
+        self.result_id.as_deref().unwrap_or(&self.id)
     }
 }
 
@@ -793,8 +808,13 @@ pub(crate) fn prepare(tools: Vec<Arc<dyn Tool>>) -> AiResult<(Vec<ToolDefinition
 }
 
 pub(crate) fn validate_calls(calls: &[ToolCall], seen: &mut HashSet<String>) -> AiResult<()> {
+    let mut wire_ids = HashSet::new();
     for call in calls {
-        if call.id.trim().is_empty() || !seen.insert(call.id.clone()) {
+        if call.id.trim().is_empty()
+            || call.wire_id().trim().is_empty()
+            || !wire_ids.insert(call.wire_id())
+            || !seen.insert(call.id.clone())
+        {
             return Err(AiError::InvalidResponse);
         }
     }
@@ -989,6 +1009,7 @@ impl ExecutionPlan<'_> {
             results.push(ToolResult {
                 id: call.id.clone(),
                 name: call.name.clone(),
+                result_id: call.result_id.clone(),
                 arguments: match call {
                     Cow::Owned(call) => call.arguments,
                     Cow::Borrowed(call) => call.arguments.clone(),
