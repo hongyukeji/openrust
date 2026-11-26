@@ -190,6 +190,63 @@ impl Ai {
         Self::manager()?.transcription_provider(name)
     }
 
+    pub fn fake_images(
+        responses: impl IntoIterator<Item = crate::ImageResponse>,
+    ) -> AiResult<Arc<crate::FakeImageGateway>> {
+        Ok(Self::manager()?.fake_images(responses))
+    }
+
+    pub fn fake_images_with(
+        resolve: impl Fn(&crate::RecordedImage) -> AiResult<crate::ImageResponse>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<crate::FakeImageGateway>> {
+        Ok(Self::manager()?.fake_images_with(resolve))
+    }
+
+    #[track_caller]
+    pub fn assert_image_generated(
+        predicate: impl Fn(&crate::RecordedImage) -> bool,
+    ) -> AiResult<()> {
+        crate::Image::assert_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_image_not_generated(
+        predicate: impl Fn(&crate::RecordedImage) -> bool,
+    ) -> AiResult<()> {
+        crate::Image::assert_not_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_images_generated() -> AiResult<()> {
+        crate::Image::assert_nothing_generated()
+    }
+
+    #[track_caller]
+    pub fn assert_image_queued(
+        predicate: impl Fn(&crate::RecordedQueuedImage) -> bool,
+    ) -> AiResult<()> {
+        crate::Image::assert_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_image_not_queued(
+        predicate: impl Fn(&crate::RecordedQueuedImage) -> bool,
+    ) -> AiResult<()> {
+        crate::Image::assert_not_queued(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_images_queued() -> AiResult<()> {
+        crate::Image::assert_nothing_queued()
+    }
+
+    pub fn images_are_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.image_fake().is_some())
+    }
+
     pub fn image_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
         Self::manager()?.image_provider(name)
     }

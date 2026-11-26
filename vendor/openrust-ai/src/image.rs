@@ -3,15 +3,16 @@ use std::{fmt, path::Path, sync::Arc, time::Duration};
 use bytes::Bytes;
 pub use openrust::image::Format as ImageFormat;
 use openrust::{
-    filesystem::Visibility,
+    filesystem::{Storage, Visibility},
     http::{HttpFuture, UploadedFile, client::Part},
-    support::Str,
+    support::{Str, facades::Facade},
 };
 use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
-    Ai, AiError, AiResult, Usage,
+    Ai, AiError, AiResult, FakeImageGateway, MediaQueueCatch, MediaQueueThen, QueuedImageResponse,
+    QueuedMediaSource, RecordedImage, RecordedQueuedImage, Usage,
     attachments::{MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, data_url},
     connection::Connection,
     media_storage,
@@ -33,6 +34,82 @@ impl Image {
             quality: None,
             timeout: None,
         })
+    }
+
+    pub fn register_queue_then(
+        name: impl Into<String>,
+        callback: MediaQueueThen<ImageResponse>,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .image_queue_callbacks()
+            .register_then(name, callback)
+    }
+
+    pub fn register_queue_catch(
+        name: impl Into<String>,
+        callback: MediaQueueCatch,
+    ) -> openrust::queue::QueueResult<()> {
+        Ai::manager()
+            .map_err(openrust::queue::QueueError::execution)?
+            .image_queue_callbacks()
+            .register_catch(name, callback)
+    }
+
+    pub fn fake(
+        responses: impl IntoIterator<Item = ImageResponse>,
+    ) -> AiResult<Arc<FakeImageGateway>> {
+        Ai::fake_images(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&RecordedImage) -> AiResult<ImageResponse> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeImageGateway>> {
+        Ai::fake_images_with(resolve)
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::images_are_faked()
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeImageGateway>> {
+        Ai::manager()?.image_fake().ok_or(AiError::FakeNotInstalled)
+    }
+
+    #[track_caller]
+    pub fn assert_queued(predicate: impl Fn(&RecordedQueuedImage) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(predicate: impl Fn(&RecordedQueuedImage) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_queued();
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_generated(predicate: impl Fn(&RecordedImage) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_generated(predicate: impl Fn(&RecordedImage) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_generated() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_generated();
+        Ok(())
     }
 }
 
@@ -77,6 +154,70 @@ impl PendingImageGeneration {
         self
     }
 
+    pub fn queue(self) -> AiResult<QueuedImageResponse> {
+        self.queue_with(None, None)
+    }
+
+    pub fn queue_with(
+        self,
+        provider: Option<&str>,
+        model: Option<&str>,
+    ) -> AiResult<QueuedImageResponse> {
+        self.request(model.unwrap_or("queued")).validate()?;
+        let attachments = self
+            .attachments
+            .into_iter()
+            .map(|attachment| {
+                attachment
+                    .source
+                    .ok_or(AiError::InvalidConfiguration("images.queue_source"))
+            })
+            .collect::<AiResult<_>>()?;
+        Ok(QueuedImageResponse::image(RecordedQueuedImage {
+            prompt: self.prompt,
+            attachments,
+            size: self.size,
+            quality: self.quality,
+            timeout: self.timeout,
+            provider: provider.map(str::to_owned),
+            model: model.map(str::to_owned),
+        }))
+    }
+
+    pub(crate) async fn from_queued(prompt: &RecordedQueuedImage) -> AiResult<Self> {
+        if prompt.attachments.len() > MAX_ATTACHMENTS {
+            return Err(AiError::InvalidImage);
+        }
+        let mut pending = Image::of(&prompt.prompt)?;
+        for attachment in &prompt.attachments {
+            let image = match attachment {
+                QueuedMediaSource::Path { path } if path.is_absolute() => {
+                    ImageAttachment::from_path(path).await?
+                }
+                QueuedMediaSource::Path { .. } => return Err(AiError::InvalidImage),
+                QueuedMediaSource::Storage { disk, path } => {
+                    ImageAttachment::from_storage(path, Some(disk)).await?
+                }
+            };
+            pending.attachments.push(image);
+        }
+        pending.size.clone_from(&prompt.size);
+        pending.quality.clone_from(&prompt.quality);
+        pending.timeout = prompt.timeout;
+        Ok(pending)
+    }
+
+    fn request<'a>(&'a self, model: &'a str) -> ImagePrompt<'a> {
+        ImagePrompt {
+            prompt: &self.prompt,
+            attachments: &self.attachments,
+            model,
+            size: self.size.as_deref(),
+            quality: self.quality.as_deref(),
+            timeout: self.timeout,
+        }
+    }
+
     pub async fn generate(self) -> AiResult<ImageResponse> {
         self.generate_with(None, None).await
     }
@@ -86,19 +227,36 @@ impl PendingImageGeneration {
         provider: Option<&str>,
         model: Option<&str>,
     ) -> AiResult<ImageResponse> {
-        let provider = Ai::image_provider(provider)?;
+        let manager = Ai::manager()?;
+        if let Some(fake) = manager.image_fake() {
+            let selected_model = model.map(str::to_owned).or_else(|| {
+                manager
+                    .image_provider(provider)
+                    .ok()?
+                    .default_image_model()
+                    .ok()
+                    .map(str::to_owned)
+            });
+            self.request(selected_model.as_deref().unwrap_or("fake"))
+                .validate()?;
+            return fake.respond(RecordedImage {
+                prompt: self.prompt,
+                attachments: self.attachments,
+                size: self.size,
+                quality: self.quality,
+                timeout: self.timeout,
+                provider: manager
+                    .provider_name_for(provider, "default_for_images")
+                    .ok(),
+                model: selected_model,
+            });
+        }
+        let provider = manager.image_provider(provider)?;
         let model = match model {
             Some(model) => model,
             None => provider.default_image_model()?,
         };
-        let request = ImagePrompt {
-            prompt: &self.prompt,
-            attachments: &self.attachments,
-            model,
-            size: self.size.as_deref(),
-            quality: self.quality.as_deref(),
-            timeout: self.timeout,
-        };
+        let request = self.request(model);
         request.validate()?;
         provider.generate_image(request).await
     }
@@ -153,11 +311,20 @@ fn detect_format(bytes: &Bytes) -> Option<ImageFormat> {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ImageAttachment {
     content: Bytes,
     format: ImageFormat,
+    source: Option<QueuedMediaSource>,
 }
+
+impl PartialEq for ImageAttachment {
+    fn eq(&self, other: &Self) -> bool {
+        self.content == other.content && self.format == other.format
+    }
+}
+
+impl Eq for ImageAttachment {}
 
 impl fmt::Debug for ImageAttachment {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -176,7 +343,11 @@ impl ImageAttachment {
             return Err(AiError::InvalidImage);
         }
         let format = detect_format(&content).ok_or(AiError::InvalidImage)?;
-        Ok(Self { content, format })
+        Ok(Self {
+            content,
+            format,
+            source: None,
+        })
     }
 
     pub fn from_upload(file: &UploadedFile) -> AiResult<Self> {
@@ -184,7 +355,10 @@ impl ImageAttachment {
     }
 
     pub async fn from_path(path: impl AsRef<Path>) -> AiResult<Self> {
-        let content = media_storage::read_path(path.as_ref(), MAX_ATTACHMENT_BYTES)
+        let path = tokio::fs::canonicalize(path)
+            .await
+            .map_err(|_| AiError::MediaStorageUnavailable)?;
+        let content = media_storage::read_path(&path, MAX_ATTACHMENT_BYTES)
             .await
             .map_err(|error| {
                 if matches!(error, AiError::MediaTooLarge) {
@@ -193,11 +367,20 @@ impl ImageAttachment {
                     error
                 }
             })?;
-        Self::from_bytes(content)
+        let mut image = Self::from_bytes(content)?;
+        image.source = Some(QueuedMediaSource::Path { path });
+        Ok(image)
     }
 
     pub async fn from_storage(path: &str, disk: Option<&str>) -> AiResult<Self> {
-        let content = media_storage::read(path, disk, MAX_ATTACHMENT_BYTES)
+        let disk = match disk.filter(|name| !name.is_empty()) {
+            Some(disk) => disk.to_owned(),
+            None => Storage::get_facade_root()
+                .map_err(|_| AiError::MediaStorageUnavailable)?
+                .get_default_driver()
+                .map_err(|_| AiError::MediaStorageUnavailable)?,
+        };
+        let content = media_storage::read(path, Some(&disk), MAX_ATTACHMENT_BYTES)
             .await
             .map_err(|error| {
                 if matches!(error, AiError::MediaTooLarge) {
@@ -207,7 +390,12 @@ impl ImageAttachment {
                 }
             })?
             .ok_or(AiError::InvalidImage)?;
-        Self::from_bytes(content)
+        let mut image = Self::from_bytes(content)?;
+        image.source = Some(QueuedMediaSource::Storage {
+            disk,
+            path: path.to_owned(),
+        });
+        Ok(image)
     }
 
     pub fn mime(&self) -> &'static str {
@@ -323,6 +511,19 @@ pub struct ImageResponse {
 }
 
 impl ImageResponse {
+    pub(crate) fn fake_placeholder(provider: String, model: String) -> Self {
+        Self {
+            images: vec![GeneratedImage {
+                content: Bytes::from_static(b"fake-image-content"),
+                format: ImageFormat::Png,
+                revised_prompt: None,
+            }],
+            usage: ImageUsage::default(),
+            provider,
+            model,
+        }
+    }
+
     pub fn first_image(&self) -> AiResult<&GeneratedImage> {
         self.images.first().ok_or(AiError::InvalidResponse)
     }

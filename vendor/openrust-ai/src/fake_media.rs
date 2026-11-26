@@ -11,8 +11,9 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AiError, AiResult, AudioFormat, AudioResponse, AudioVoice, RecordedQueuedTranscription,
-    TranscriptionResponse, TranscriptionSegment, TranscriptionUsage,
+    AiError, AiResult, AudioFormat, AudioResponse, AudioVoice, ImageAttachment, ImageResponse,
+    RecordedQueuedImage, RecordedQueuedTranscription, TranscriptionResponse, TranscriptionSegment,
+    TranscriptionUsage,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,13 +68,13 @@ enum Responses<Request, Response> {
     Callback(Box<Resolver<Request, Response>>),
 }
 
-struct AudioFake<Request, Response> {
+struct MediaFake<Request, Response> {
     responses: Responses<Request, Response>,
     recorded: Mutex<Vec<Request>>,
     prevent_stray: AtomicBool,
 }
 
-impl<Request, Response> AudioFake<Request, Response> {
+impl<Request, Response> MediaFake<Request, Response> {
     fn new(responses: Responses<Request, Response>) -> Self {
         Self {
             responses,
@@ -94,7 +95,7 @@ impl<Request, Response> AudioFake<Request, Response> {
 }
 
 pub struct FakeAudioGateway(
-    AudioFake<RecordedAudio, AudioResponse>,
+    MediaFake<RecordedAudio, AudioResponse>,
     Mutex<Vec<RecordedAudio>>,
 );
 
@@ -142,7 +143,7 @@ impl FakeAudioGateway {
 }
 
 pub struct FakeTranscriptionGateway(
-    AudioFake<RecordedTranscription, FakeTranscriptionResult>,
+    MediaFake<RecordedTranscription, FakeTranscriptionResult>,
     Mutex<Vec<RecordedQueuedTranscription>>,
 );
 
@@ -210,7 +211,7 @@ impl FakeTranscriptionGateway {
 impl FakeAudioGateway {
     pub(crate) fn new(responses: impl IntoIterator<Item = AudioResponse>) -> Self {
         Self(
-            AudioFake::new(Responses::Sequence(Mutex::new(
+            MediaFake::new(Responses::Sequence(Mutex::new(
                 responses.into_iter().collect(),
             ))),
             Mutex::default(),
@@ -221,7 +222,7 @@ impl FakeAudioGateway {
         resolve: impl Fn(&RecordedAudio) -> AiResult<AudioResponse> + Send + Sync + 'static,
     ) -> Self {
         Self(
-            AudioFake::new(Responses::Callback(Box::new(resolve))),
+            MediaFake::new(Responses::Callback(Box::new(resolve))),
             Mutex::default(),
         )
     }
@@ -263,7 +264,7 @@ impl FakeAudioGateway {
 impl FakeTranscriptionGateway {
     pub(crate) fn new(responses: impl IntoIterator<Item = FakeTranscriptionResult>) -> Self {
         Self(
-            AudioFake::new(Responses::Sequence(Mutex::new(
+            MediaFake::new(Responses::Sequence(Mutex::new(
                 responses.into_iter().collect(),
             ))),
             Mutex::default(),
@@ -277,7 +278,7 @@ impl FakeTranscriptionGateway {
         + 'static,
     ) -> Self {
         Self(
-            AudioFake::new(Responses::Callback(Box::new(resolve))),
+            MediaFake::new(Responses::Callback(Box::new(resolve))),
             Mutex::default(),
         )
     }
@@ -310,5 +311,116 @@ impl FakeTranscriptionGateway {
     #[track_caller]
     pub fn assert_nothing_generated(&self) {
         assert!(self.0.recorded.lock().unwrap().is_empty(), "发现了转录请求");
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecordedImage {
+    pub prompt: String,
+    pub attachments: Vec<ImageAttachment>,
+    pub size: Option<String>,
+    pub quality: Option<String>,
+    pub timeout: Option<Duration>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+}
+
+pub struct FakeImageGateway(
+    MediaFake<RecordedImage, ImageResponse>,
+    Mutex<Vec<RecordedQueuedImage>>,
+);
+
+impl FakeImageGateway {
+    pub(crate) fn record_queued(&self, prompt: RecordedQueuedImage) {
+        self.1.lock().unwrap().push(prompt);
+    }
+
+    pub fn recorded_queued(&self) -> Vec<RecordedQueuedImage> {
+        self.1.lock().unwrap().clone()
+    }
+
+    #[track_caller]
+    pub fn assert_queued(&self, predicate: impl Fn(&RecordedQueuedImage) -> bool) {
+        assert!(
+            self.recorded_queued().iter().any(predicate),
+            "未发现匹配的图像生成队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(&self, predicate: impl Fn(&RecordedQueuedImage) -> bool) {
+        assert!(
+            !self.recorded_queued().iter().any(predicate),
+            "发现了不应发生的图像生成队列任务"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_queued(&self) {
+        assert!(self.1.lock().unwrap().is_empty(), "发现了图像生成队列任务");
+    }
+
+    pub(crate) fn respond(&self, request: RecordedImage) -> AiResult<ImageResponse> {
+        let response = self.0.next(&request)?.unwrap_or_else(|| {
+            ImageResponse::fake_placeholder(
+                request.provider.clone().unwrap_or_default(),
+                request.model.clone().unwrap_or_default(),
+            )
+        });
+        self.0.recorded.lock().unwrap().push(request);
+        Ok(response)
+    }
+}
+
+impl FakeImageGateway {
+    pub(crate) fn new(responses: impl IntoIterator<Item = ImageResponse>) -> Self {
+        Self(
+            MediaFake::new(Responses::Sequence(Mutex::new(
+                responses.into_iter().collect(),
+            ))),
+            Mutex::default(),
+        )
+    }
+
+    pub(crate) fn with(
+        resolve: impl Fn(&RecordedImage) -> AiResult<ImageResponse> + Send + Sync + 'static,
+    ) -> Self {
+        Self(
+            MediaFake::new(Responses::Callback(Box::new(resolve))),
+            Mutex::default(),
+        )
+    }
+
+    pub fn prevent_stray_images(&self, prevent: bool) -> &Self {
+        self.0.prevent_stray.store(prevent, Ordering::Relaxed);
+        self
+    }
+
+    pub fn recorded(&self) -> Vec<RecordedImage> {
+        self.0.recorded.lock().unwrap().clone()
+    }
+
+    #[track_caller]
+    pub fn assert_generated(&self, predicate: impl Fn(&RecordedImage) -> bool) {
+        assert!(
+            self.recorded().iter().any(predicate),
+            "未发现匹配的图像生成请求"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_not_generated(&self, predicate: impl Fn(&RecordedImage) -> bool) {
+        assert!(
+            !self.recorded().iter().any(predicate),
+            "发现了不应发生的图像生成请求"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_generated(&self) {
+        assert!(
+            self.0.recorded.lock().unwrap().is_empty(),
+            "发现了图像生成请求"
+        );
     }
 }

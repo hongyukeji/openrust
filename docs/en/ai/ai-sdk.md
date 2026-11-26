@@ -902,6 +902,10 @@ Use `square()`, `portrait()` or `landscape()` for standard sizes. Use `size()`, 
 
 OpenAI and OpenAI-compatible connections that implement the Images API can return inline PNG, JPEG, or WebP. Add `models.images` to enable this capability on a compatible connection. Read MIME type and bytes through `first_image()`, or save them with `store` and `store_as`. Use `store_publicly` or `store_publicly_as` to request public visibility from the selected disk.
 
+Use `Image::fake([])?` to return placeholder bytes, or supply an `ImageResponse` with valid images when a test reads or stores the result. Use `Image::fake_with` to build the response from the recorded prompt, reference images, size, quality and selected connection. Call `assert_generated` or `assert_queued` for the corresponding step. Enable `prevent_stray_images(true)` to catch an exhausted response sequence.
+
+To queue a generation or edit, use `queue()` or `queue_with(provider, model)`, configure the job and call `dispatch().await`. Load queued reference images with `ImageAttachment::from_storage` or `from_path` so the Worker can reopen them. The queue stores file references in attachment order. Register named callbacks during application boot with `Image::register_queue_then` and `Image::register_queue_catch`.
+
 ## Speech and transcription {#audio}
 
 Choose a connection and model for each capability. OpenAI uses `OPENAI_API_KEY` and supports the optional `OPENAI_URL` override.

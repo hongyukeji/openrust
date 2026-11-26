@@ -902,6 +902,10 @@ let path = response.store_as("generated", "pear.png", None).await?;
 
 支持 Images API 的 OpenAI 及 OpenAI 兼容连接可返回内联的 PNG、JPEG 或 WebP。兼容连接通过 `models.images` 启用图像能力。用 `first_image()` 读取 MIME 类型和字节，或用 `store` 和 `store_as` 写入磁盘。需要公开可见时，调用 `store_publicly` 或 `store_publicly_as`。
 
+用 `Image::fake([])?` 返回占位字节。测试需要读取或保存有效图像时，可传入含有效图片的 `ImageResponse`。用 `Image::fake_with` 根据已记录的提示词、参考图、尺寸、质量和连接构造响应。用 `assert_generated` 检查生成，用 `assert_queued` 检查派发。调用 `prevent_stray_images(true)` 后，响应序列用尽会报错。
+
+图像生成或编辑可通过 `queue()` 或 `queue_with(provider, model)` 排队。配置任务后调用 `dispatch().await`。通过 `ImageAttachment::from_storage` 或 `from_path` 加载排队任务的参考图，确保 Worker 能重新读取。队列按附件顺序保存文件引用。在应用启动时用 `Image::register_queue_then` 和 `Image::register_queue_catch` 注册具名回调。
+
 ## 语音生成与转录 {#audio}
 
 为两种能力分别选择连接和模型。OpenAI 沿用 `OPENAI_API_KEY`，可用 `OPENAI_URL` 覆盖服务地址。

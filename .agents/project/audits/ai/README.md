@@ -290,9 +290,17 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Image::of`、`PendingImageGeneration` 和 `ImageProvider` 接入默认或显式连接及模型。OpenAI Images API 经框架 HTTP 客户端发送 JSON 生图，带参考图时发送 multipart 编辑请求。支持标准比例、显式尺寸、质量和超时。兼容连接由 `models.images` 显式启用。输入可来自本地字节或已配置 Storage 磁盘。只接收受支持的内联位图，返回原始字节、MIME、模型、修订提示和上游报告的用量。
 
-包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Gemini、xAI、Bedrock、图像 Fake、队列、广播及供应商实机仍留在后续验收范围。
+包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Gemini、xAI、Bedrock、广播及供应商实机仍留在后续验收范围。
 
 - [OpenAI Images 生图](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI Images 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
+
+### 图像 Fake 与队列
+
+`Image::fake`／`fake_with` 复用当前应用的媒体 Fake 状态。支持完整响应、占位字节、按请求构造响应、严格响应序列及生成和排队断言。图像排队沿用媒体 Worker 和具名回调。编辑时载荷保存有序的本地文件和具名 Storage 引用。Worker 重新读取图像，保留参考图顺序和模型选择。
+
+独立 Artisan 验证占位、回调、严格序列、排队断言及拒绝内联参考图。独立 HTTP 生产端和 SQLite Worker 通过本地 OpenAI Images 协议服务验证两种来源的 PNG 字节、multipart 顺序、尺寸、画质、模型覆盖、Worker 凭证和私有落盘。检查队列载荷只保留文件引用，删除参考图后触发终态失败回调。16 项 SDK 回归、严格 Clippy 与三语文档站点通过。
+
+- [固定 Laravel FakeImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeImageGateway.php) · [固定 Laravel 图像队列](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/PendingResponses/PendingImageGeneration.php)
 
 ## AI-06 OpenAI 文本转语音与录音转录
 

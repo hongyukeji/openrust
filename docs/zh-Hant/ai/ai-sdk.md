@@ -902,6 +902,10 @@ let path = response.store_as("generated", "pear.png", None).await?;
 
 支援 Images API 的 OpenAI 及 OpenAI 相容連線可回傳內嵌的 PNG、JPEG 或 WebP。相容連線透過 `models.images` 啟用圖像功能。用 `first_image()` 讀取 MIME 類型與位元組，或用 `store` 與 `store_as` 寫入磁碟。需要公開可見時，呼叫 `store_publicly` 或 `store_publicly_as`。
 
+用 `Image::fake([])?` 回傳佔位位元組。測試需要讀取或儲存有效影像時，可傳入含有效圖片的 `ImageResponse`。用 `Image::fake_with` 依記錄的提示詞、參考圖、尺寸、品質和連線建立回應。用 `assert_generated` 檢查產生，用 `assert_queued` 檢查派發。呼叫 `prevent_stray_images(true)` 後，回應序列用盡會回報錯誤。
+
+影像產生或編輯可透過 `queue()` 或 `queue_with(provider, model)` 排入佇列。設定任務後呼叫 `dispatch().await`。透過 `ImageAttachment::from_storage` 或 `from_path` 載入排入佇列任務的參考圖，確保 Worker 能重新讀取。佇列依附件順序保存檔案參照。在應用程式啟動時用 `Image::register_queue_then` 和 `Image::register_queue_catch` 註冊具名回呼。
+
 ## 語音生成與轉錄 {#audio}
 
 為兩項能力分別選擇連線與模型。OpenAI 沿用 `OPENAI_API_KEY`，也可用 `OPENAI_URL` 覆寫服務位址。

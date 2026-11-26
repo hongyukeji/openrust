@@ -38,8 +38,8 @@ mod error;
 pub mod events;
 mod facade;
 mod fake;
-mod fake_audio;
 mod fake_embedding_gateway;
+mod fake_media;
 mod fake_reranking_gateway;
 mod files;
 mod gemini;
@@ -107,11 +107,11 @@ pub use embeddings::{
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, FakeTextResult, RecordedPrompt, RecordedQueuedPrompt};
-pub use fake_audio::{
-    FakeAudioGateway, FakeTranscriptionGateway, FakeTranscriptionResult, RecordedAudio,
-    RecordedTranscription,
-};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
+pub use fake_media::{
+    FakeAudioGateway, FakeImageGateway, FakeTranscriptionGateway, FakeTranscriptionResult,
+    RecordedAudio, RecordedImage, RecordedTranscription,
+};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
 pub use files::{
     FakeFileGateway, FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files,
@@ -126,8 +126,9 @@ pub use load_skill::LoadSkill;
 pub use manager::AiManager;
 pub use mcp_tool::{McpServerTool, McpTool};
 pub use media_queue::{
-    MediaQueueCatch, MediaQueueThen, QueuedAudioResponse, QueuedAudioSource, QueuedMediaResponse,
-    QueuedTranscriptionResponse, RecordedQueuedTranscription,
+    MediaQueueCatch, MediaQueueThen, QueuedAudioResponse, QueuedAudioSource, QueuedImageResponse,
+    QueuedMediaResponse, QueuedMediaSource, QueuedTranscriptionResponse, RecordedQueuedImage,
+    RecordedQueuedTranscription,
 };
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{

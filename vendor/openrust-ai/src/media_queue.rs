@@ -16,8 +16,8 @@ use openrust::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Ai, AiError, AudioResponse, PendingAudioGeneration, RecordedAudio, Transcription,
-    TranscriptionResponse,
+    Ai, AiError, AudioResponse, ImageResponse, PendingAudioGeneration, PendingImageGeneration,
+    RecordedAudio, Transcription, TranscriptionResponse,
 };
 
 const GENERATE_MEDIA: &str = "openrust.ai.generate-media";
@@ -116,9 +116,22 @@ fn insert_callback<T>(
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "snake_case")]
-pub enum QueuedAudioSource {
+pub enum QueuedMediaSource {
     Path { path: PathBuf },
     Storage { disk: String, path: String },
+}
+
+pub type QueuedAudioSource = QueuedMediaSource;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordedQueuedImage {
+    pub prompt: String,
+    pub attachments: Vec<QueuedMediaSource>,
+    pub size: Option<String>,
+    pub quality: Option<String>,
+    pub timeout: Option<Duration>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,6 +148,7 @@ pub struct RecordedQueuedTranscription {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum MediaPrompt {
     Audio { prompt: RecordedAudio },
+    Image { prompt: RecordedQueuedImage },
     Transcription { prompt: RecordedQueuedTranscription },
 }
 
@@ -153,6 +167,7 @@ pub struct QueuedMediaResponse {
 }
 
 pub type QueuedAudioResponse = QueuedMediaResponse;
+pub type QueuedImageResponse = QueuedMediaResponse;
 pub type QueuedTranscriptionResponse = QueuedMediaResponse;
 
 impl QueuedMediaResponse {
@@ -166,6 +181,10 @@ impl QueuedMediaResponse {
             dispatch: DispatchOptions::default(),
             job: JobOptions::default(),
         }
+    }
+
+    pub(crate) fn image(prompt: RecordedQueuedImage) -> Self {
+        Self::new(MediaPrompt::Image { prompt })
     }
 
     pub(crate) fn audio(prompt: RecordedAudio) -> Self {
@@ -210,6 +229,13 @@ impl QueuedMediaResponse {
         let ai = Ai::manager().map_err(QueueError::execution)?;
         let payload = Payload::new(GENERATE_MEDIA, &self.work)?.with_options(self.job);
         match &self.work.prompt {
+            MediaPrompt::Image { prompt } => {
+                ai.image_queue_callbacks()
+                    .validate(&self.work.then, &self.work.catch)?;
+                if let Some(fake) = ai.image_fake() {
+                    fake.record_queued(prompt.clone());
+                }
+            }
             MediaPrompt::Audio { prompt } => {
                 ai.audio_queue_callbacks()
                     .validate(&self.work.then, &self.work.catch)?;
@@ -246,6 +272,18 @@ impl JobHandler for GenerateMedia {
                 .map_err(|_| QueueError::InvalidPayload)?;
             let ai = Ai::manager().map_err(QueueError::execution)?;
             match work.prompt {
+                MediaPrompt::Image { prompt } => {
+                    let callbacks = ai.image_queue_callbacks();
+                    callbacks.validate(&work.then, &work.catch)?;
+                    let pending = PendingImageGeneration::from_queued(&prompt)
+                        .await
+                        .map_err(QueueError::execution)?;
+                    let response = pending
+                        .generate_with(prompt.provider.as_deref(), prompt.model.as_deref())
+                        .await
+                        .map_err(QueueError::execution)?;
+                    callbacks.completed(&work.then, &response).await
+                }
                 MediaPrompt::Audio { prompt } => {
                     let callbacks = ai.audio_queue_callbacks();
                     callbacks.validate(&work.then, &work.catch)?;
@@ -291,6 +329,9 @@ impl JobHandler for GenerateMedia {
                 .map_err(|_| QueueError::InvalidPayload)?;
             let ai = Ai::manager().map_err(QueueError::execution)?;
             match work.prompt {
+                MediaPrompt::Image { .. } => {
+                    ai.image_queue_callbacks().failed(&work.catch, error).await
+                }
                 MediaPrompt::Audio { .. } => {
                     ai.audio_queue_callbacks().failed(&work.catch, error).await
                 }
@@ -306,3 +347,5 @@ impl JobHandler for GenerateMedia {
 
 pub(crate) type AudioQueueCallbacks = MediaQueueCallbacks<AudioResponse>;
 pub(crate) type TranscriptionQueueCallbacks = MediaQueueCallbacks<TranscriptionResponse>;
+
+pub(crate) type ImageQueueCallbacks = MediaQueueCallbacks<ImageResponse>;

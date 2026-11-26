@@ -27,7 +27,7 @@ use crate::{
     connection::{Authorization, Connection},
     error::ProviderAttemptError,
     gemini::GeminiTextProvider,
-    media_queue::{AudioQueueCallbacks, TranscriptionQueueCallbacks},
+    media_queue::{AudioQueueCallbacks, ImageQueueCallbacks, TranscriptionQueueCallbacks},
     ollama::OllamaProvider,
     on_demand::{OnDemandProviders, reserved_name},
     reranking::{HttpRerankingProvider, RerankingProtocol},
@@ -44,6 +44,8 @@ pub struct AiManager {
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
+    image_callbacks: ImageQueueCallbacks,
+    image_fake: RwLock<Option<Arc<crate::FakeImageGateway>>>,
     audio_callbacks: AudioQueueCallbacks,
     transcription_callbacks: TranscriptionQueueCallbacks,
     audio_fake: RwLock<Option<Arc<FakeAudioGateway>>>,
@@ -68,6 +70,8 @@ impl AiManager {
             factories: RwLock::default(),
             providers: Mutex::default(),
             fakes: RwLock::default(),
+            image_callbacks: Default::default(),
+            image_fake: Default::default(),
             audio_callbacks: Default::default(),
             transcription_callbacks: Default::default(),
             audio_fake: RwLock::default(),
@@ -378,6 +382,37 @@ impl AiManager {
             None | Some(Value::Null) => self.get_default_instance(),
             _ => Err(AiError::InvalidConfiguration(field)),
         }
+    }
+
+    pub(crate) fn image_queue_callbacks(&self) -> &ImageQueueCallbacks {
+        &self.image_callbacks
+    }
+
+    pub fn fake_images(
+        &self,
+        responses: impl IntoIterator<Item = crate::ImageResponse>,
+    ) -> Arc<crate::FakeImageGateway> {
+        self.install_image_fake(crate::FakeImageGateway::new(responses))
+    }
+
+    pub fn fake_images_with(
+        &self,
+        resolve: impl Fn(&crate::RecordedImage) -> AiResult<crate::ImageResponse>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Arc<crate::FakeImageGateway> {
+        self.install_image_fake(crate::FakeImageGateway::with(resolve))
+    }
+
+    fn install_image_fake(&self, fake: crate::FakeImageGateway) -> Arc<crate::FakeImageGateway> {
+        let fake = Arc::new(fake);
+        *self.image_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn image_fake(&self) -> Option<Arc<crate::FakeImageGateway>> {
+        self.image_fake.read().unwrap().clone()
     }
 
     pub fn image_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
