@@ -33,6 +33,11 @@ try{
   }
   assert(await page.getByText(/^Recently reported · Last reported /).isVisible());
   assert(await page.getByText(/^Stale · Last reported /).isVisible());
+  for (const [name, percentage] of [['Memory · 2GB / 8GB', '25'], ['/ · 100MB / 200MB', '50']]) {
+   const meter=page.getByRole('progressbar',{name});
+   assert(await meter.isVisible());
+   assert.equal(await meter.getAttribute('value'),percentage);
+  }
   assert.equal(await page.locator('svg polyline').count(),5);
   assert((await page.locator('#cards').innerText()).includes('ID: 42'));
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));

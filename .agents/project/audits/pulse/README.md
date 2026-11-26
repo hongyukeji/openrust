@@ -146,7 +146,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 框架区间 12 项通过，包含既有固定 PHP 样本及本批复合区间回归。实际指标 HTTP 在 SQLite、PostgreSQL 和 MySQL 验证复合时限、月单位、负时限及隐藏主机的历史清理。Pulse 与 Telescope Provider 共 37 项通过，独立 Redis 用例按环境跳过。桌面和移动浏览器、三语站点构建及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-server-interval-{verified,docs}.log`。
 
-接续核对集合字段排序、PHP 相对时间语法其余边界和磁盘用量格式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+服务器当前内存和磁盘读数按固定视图以 1024 换算 MB、GB、TB，内存最多一位小数，磁盘取整数。原生仪表用原始读数计算使用率。实际 Chrome 桌面和移动视口验证内存 `2GB / 8GB` 与 25%、磁盘 `100MB / 200MB` 与 50%。证据为 `target/tmp/observability-parity/pulse-dashboard-server-size-verified.log`。
+
+接续核对集合字段排序和 PHP 相对时间语法其余边界。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
 
 ## SlowJobs 任务尝试计时
 

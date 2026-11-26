@@ -89,6 +89,16 @@ function serverTrend(card, label, readings, limit, unit) {
     }
     card.append(svg);
 }
+function serverSize(megabytes, precision = 0) {
+    const digits = 10 ** precision;
+    if (megabytes >= 1024 * 1024) {
+        return `${Math.round(megabytes / (1024 * 1024) * digits) / digits}TB`;
+    }
+    if (megabytes >= 1024) {
+        return `${Math.round(megabytes / 1024 * digits) / digits}GB`;
+    }
+    return `${Math.round(megabytes * digits) / digits}MB`;
+}
 function servers(card, values, graphs) {
     for (const row of values) {
         let data;
@@ -104,10 +114,10 @@ function servers(card, values, graphs) {
         const series = Object.hasOwn(graphs, row.key) ? graphs[row.key] : undefined;
         meter(card, `CPU · ${data.cpu}%`, Number(data.cpu), 100);
         serverTrend(card, `CPU history for ${data.name}`, series?.cpu, 100, '%');
-        meter(card, `Memory · ${data.memory_used} / ${data.memory_total} MiB`, Number(data.memory_used), Number(data.memory_total));
+        meter(card, `Memory · ${serverSize(data.memory_used, 1)} / ${serverSize(data.memory_total, 1)}`, Number(data.memory_used), Number(data.memory_total));
         serverTrend(card, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total), ' MiB');
         for (const disk of data.storage ?? []) {
-            meter(card, `${disk.directory} · ${disk.used} / ${disk.total} MiB`, Number(disk.used), Number(disk.total));
+            meter(card, `${disk.directory} · ${serverSize(disk.used)} / ${serverSize(disk.total)}`, Number(disk.used), Number(disk.total));
         }
     }
 }
