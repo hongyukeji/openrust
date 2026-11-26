@@ -12,7 +12,7 @@ NEW_RELIC_APP_NAME=Orders
 NEW_RELIC_REGION=us
 ```
 
-透過執行階段環境提供 New Relic 擷取授權金鑰 `NEW_RELIC_LICENSE_KEY`。Provider 啟動時讀取授權金鑰，設定快取不會儲存該值。服務名稱預設採用應用程式名稱。依帳號的擷取區域選擇 `us`、`eu`、`jp` 或 `us-gov`。變更啟用狀態、服務名稱或區域後，重新產生應用程式設定快取。
+透過執行階段環境提供 New Relic 擷取授權金鑰 `NEW_RELIC_LICENSE_KEY`。Provider 啟動時讀取授權金鑰，設定快取不會儲存該值。服務名稱預設採用應用程式名稱。依帳號的擷取區域選擇 `us`、`eu`、`jp` 或 `us-gov`。變更啟用狀態、服務名稱或區域後，重新產生應用程式設定快取。 直連日本區域時，使用 HTTPS 透過 443 連接埠將 OTLP 傳送至 `otlp.jp.nr-data.net`。
 
 使用 OpenTelemetry Collector 時，將 `NEW_RELIC_COLLECTOR_ENDPOINT` 設為其基礎 URL。接受 HTTPS 或使用回送 IP 的 HTTP 位址，位址不得包含認證資訊、路徑、查詢或片段。應用程式使用 OTLP HTTP/protobuf 傳送至 `/v1/traces` 和 `/v1/metrics`，啟用日誌匯出時也會傳送至 `/v1/logs`。請在 Collector 的 New Relic 匯出器中設定授權金鑰。
 

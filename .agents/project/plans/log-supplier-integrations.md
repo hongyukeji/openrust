@@ -109,3 +109,17 @@ Rust 1.94.0 在 macOS ARM64 完成数据库与队列矩阵，在 Debian Bookworm
 在隔离的 Windows 11 ARM64 虚机上，从 `63dd69a31` 的干净归档使用 Rust 1.94.0 编译 `new_relic_app`，启用 `new-relic`。检查实际 PE 的 ARM64 类型和与正式入口一致的 16 MiB 主线程栈。应用以回环 HTTP 发送，测试用 TCP 转发器通过私有网将数据送到隔离的 OTLP 收集器，使用 `opentelemetry-proto 1.43.0` 解码。
 
 默认禁用时无上报。配置与路由缓存文件均生成，文件中没有测试授权金钥。缓存后实际 HTTP 覆盖路由模板、W3C 父链路、404 与 500、结构化日志关联、下游 HTTP 和 SQLite 操作、临时故障重试及 OTLP 部分拒收。独立 Artisan 失败、实际 SQLite Worker 的成功与失败、批量任务关联和隔离子进程均通过。任务释放后重新领取保留生产者关联，硬超时 Worker 返回 77 并导出超时耗时，新 Worker 可继续处理。日志位于 `target/tmp/new-relic-windows/`。真实租户的摄取、页面和 NRQL、Windows x86_64 发布制品、托管 SQS 仍保留验收。
+
+<a id="regional-https-otlp"></a>
+
+### 四区域 HTTPS 直连与凭据边界
+
+复核 New Relic 官方 OTLP 与网络文档。日本区域 HTTPS 入口为 `otlp.jp.nr-data.net:443`，原实现使用 `otlp.jp01.nr-data.net`。以 `d93c340d1` 的 Linux ARM64 验收制品运行新增回归时，美国和欧洲通过，日本的规范域名未收到任何请求。将 `jp` 映射改为官方地址，复用原有 Rust OTLP 导出器及 TLS 校验。 [New Relic OTLP 端点及鉴权](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/) · [New Relic 网络端点表](https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/)
+
+用 Rust 1.94.0 构建实际应用。验收容器关闭外部网络，将四个官方域名及两个测试域名仅映射到容器回环。使用自建 CA 和匹配域名的证书，在 443 端口运行 TLS 收集器。以 `opentelemetry-proto 1.43.0` 和 `protobuf 6.33.5` 解码真实请求。
+
+- `us`、`eu`、`jp`、`us-gov` 均验证 TLS、SNI、HTTP Host、`/v1/traces`、`/v1/metrics` 和单一的运行时 `api-key`。同一试验确认配置缓存未保存许可证或通用 OTEL 请求头值。
+- 实际 HTTP 在配置、路由缓存后产生日志、请求 Span 和错误。独立 Artisan 迁移、派发和 Worker 处理 SQLite 任务，收集器解码三种信号并核对业务结果、任务耗时和日志 Trace ID。
+- 自定义 HTTPS 收集器只收到无许可证的 OTLP，通用 OTEL 请求头无法替换直连密钥。导出器未跟随测试重定向。替换信任根及使用证书不匹配的域名时，收集器均未收到 HTTP 导出请求。
+
+复验入口为 `tests/new_relic_tls_acceptance.py`。隔离容器需先将脚本列出的名称解析到回环，并提供涵盖除错误域名外各名称的证书、签发 CA 和另一信任根。脚本在 `TMPDIR` 内创建运行目录，按参数读取应用制品及证书。原有 SQLite／database 队列 OTLP 套件复验通过。冻结源码工作区格式、New Relic crate 全目标严格 Clippy、三语静态构建和两种部署路径的六项区域浏览器检查通过。应用目录、证书、容器及文档产物已清理。保留修复前后的实测日志于 `target/tmp/new-relic-tls-transport/`。本批未使用真实租户，托管摄取、配额、APM 页面和 NRQL 仍按正式环境验收。

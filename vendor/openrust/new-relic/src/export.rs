@@ -72,7 +72,7 @@ impl Destination {
             Some(value) => match value.as_str() {
                 Some("us") => Some("otlp.nr-data.net"),
                 Some("eu") => Some("otlp.eu01.nr-data.net"),
-                Some("jp") => Some("otlp.jp01.nr-data.net"),
+                Some("jp") => Some("otlp.jp.nr-data.net"),
                 Some("us-gov") => Some("gov-otlp.nr-data.net"),
                 _ => None,
             },

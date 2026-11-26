@@ -12,7 +12,7 @@ NEW_RELIC_APP_NAME=Orders
 NEW_RELIC_REGION=us
 ```
 
-Provide the New Relic ingest license as `NEW_RELIC_LICENSE_KEY` through the runtime environment. The provider reads it at startup, outside the configuration cache. The service name defaults to the application name. Choose `us`, `eu`, `jp`, or `us-gov` for the account's ingest region. Rebuild the application configuration cache after changing the enable flag, name, or region.
+Provide the New Relic ingest license as `NEW_RELIC_LICENSE_KEY` through the runtime environment. The provider reads it at startup, outside the configuration cache. The service name defaults to the application name. Choose `us`, `eu`, `jp`, or `us-gov` for the account's ingest region. Rebuild the application configuration cache after changing the enable flag, name, or region. Direct export for the Japan region sends OTLP over HTTPS to `otlp.jp.nr-data.net` on port 443.
 
 For an OpenTelemetry Collector, set `NEW_RELIC_COLLECTOR_ENDPOINT` to its base URL. Use HTTPS or a loopback IP with HTTP, with no credentials, path, query, or fragment. The application sends OTLP HTTP/protobuf to `/v1/traces` and `/v1/metrics`, and to `/v1/logs` when log export is enabled. Configure the Collector's New Relic exporter with the license.
 
