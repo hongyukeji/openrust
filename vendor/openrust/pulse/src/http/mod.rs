@@ -1,10 +1,11 @@
 pub mod middleware;
 use openrust::{
+    cache::{CacheError, Ttl, Value as CacheValue},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     support::{
         data_get,
-        facades::{Config, Facade, Route},
+        facades::{Cache, Config, Facade, Route},
         php_integer_cast, php_regular_compare,
     },
 };
@@ -99,6 +100,11 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Some(_) => return Err(HttpError::InvalidRequest),
         };
         let pulse = crate::facades::Pulse::get_facade_root()?;
+        let config = Config::get_facade_root()?;
+        let cache_name = config
+            .get("pulse.cache")
+            .and_then(|value| value.as_str().map(str::to_owned));
+        let cache = Cache::store(cache_name.as_deref())?;
         let mut cards = serde_json::Map::new();
         for (name, kind) in [
             ("slow_requests", "slow_request"),
@@ -148,10 +154,29 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 }
             };
             let limit = if is_usage { 10 } else { 101 };
-            let rows = pulse
-                .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
-                .await?;
-            let mut rows: Vec<_> = rows.into_iter().map(row).collect();
+            let query = async {
+                pulse
+                    .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
+                    .await
+                    .map(|rows| rows.into_iter().map(row).collect::<Vec<_>>())
+            };
+            let mut rows = if is_usage {
+                query.await?
+            } else {
+                let key = format!("openrust:pulse:card:{name}:{order}:{period}");
+                let cached = cache
+                    .remember(&key, Some(Ttl::Seconds(5)), async {
+                        let rows = query.await.map_err(|source| CacheError::Backend {
+                            source: Box::new(source),
+                        })?;
+                        Ok(CacheValue::Json(Value::Array(rows)))
+                    })
+                    .await?;
+                let CacheValue::Json(Value::Array(rows)) = cached else {
+                    return Err(CacheError::InvalidValue.into());
+                };
+                rows
+            };
             if is_usage {
                 let keys: Vec<_> = rows
                     .iter()
@@ -180,7 +205,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let totals = pulse
             .aggregate_total(&cache_types, "count", interval)
             .await?;
-        let sample_rate = Config::get_facade_root()?
+        let sample_rate = config
             .get("pulse.recorders.CacheInteractions.sample_rate")
             .and_then(|value| value.as_f64())
             .unwrap_or(1.0);

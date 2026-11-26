@@ -727,6 +727,101 @@ async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
 }
 
 #[tokio::test]
+async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
+    use openrust::contracts::cache::Repository as _;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"]["SlowRequests"] = false.into();
+                if let Ok(url) = std::env::var("PULSE_TEST_CARD_REDIS_URL") {
+                    let prefix = root.file_name().unwrap().to_string_lossy();
+                    values.get_mut("database").unwrap()["redis"] = json!({
+                        "options":{"prefix":format!("{prefix}:")},
+                        "default":{"url":url},
+                    });
+                    values.get_mut("cache").unwrap()["stores"]["cards"] =
+                        json!({"driver":"redis","connection":"default"});
+                    values.get_mut("pulse").unwrap()["cache"] = json!("cards");
+                }
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let kinds = [
+        ("slow_requests", "slow_request"),
+        ("slow_queries", "slow_query"),
+        ("slow_jobs", "slow_job"),
+        ("slow_outgoing_requests", "slow_outgoing_request"),
+        ("exceptions", "exception"),
+    ];
+    let entries = |name, value| {
+        kinds.map(|(_, kind)| {
+            openrust_pulse::Entry::new(timestamp, kind, name, Some(value))
+                .count()
+                .max()
+                .into()
+        })
+    };
+    storage.store(&entries("before", 100)).await.unwrap();
+    let first = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    first.assert_ok();
+    let first = first.json::<serde_json::Value>().unwrap();
+    if std::env::var_os("PULSE_TEST_CARD_REDIS_URL").is_some() {
+        let manager = app
+            .app()
+            .make::<openrust::cache::CacheManager>()
+            .await
+            .unwrap();
+        let cache = manager.store(Some("cards")).unwrap();
+        assert!(
+            cache
+                .get("openrust:pulse:card:slow_requests:max:1h")
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+    storage.store(&entries("after", 200)).await.unwrap();
+
+    let order = "slow-requests=count&slow-queries=count&slow-jobs=count&slow-outgoing-requests=count&exceptions=latest";
+    for (query, expected) in [
+        ("period=1h".to_owned(), 1),
+        (format!("period=1h&{order}"), 2),
+        ("period=6h".to_owned(), 2),
+    ] {
+        let response = app
+            .get(&format!("/pulse/api/metrics?{query}"))
+            .await
+            .unwrap();
+        response.assert_ok();
+        let response = response.json::<serde_json::Value>().unwrap();
+        for (card, _) in kinds {
+            let rows = response[card].as_array().unwrap();
+            assert_eq!(rows.len(), expected, "{query}, {card}");
+            if expected == 1 {
+                assert_eq!(response[card], first[card]);
+            }
+        }
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(5200)).await;
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let response = response.json::<serde_json::Value>().unwrap();
+    for (card, _) in kinds {
+        assert_eq!(response[card].as_array().unwrap().len(), 2, "{card}");
+    }
+}
+
+#[tokio::test]
 async fn dashboard_cards_follow_fixed_orderings_and_usage_limits() {
     let mut app = TestApp::create(|builder| {
         builder

@@ -40,6 +40,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢操作卡片預設按最慢耗時排列，可切換為按次數排序。例外預設按次數排列，可切換為按最近發生時間排序。用量顯示請求、慢請求或工作的前十名使用者。面板選擇儲存在頁面 URL。指標入口接受 `slow-requests=count`、`slow-queries=count`、`slow-jobs=count`、`slow-outgoing-requests=count`、`exceptions=latest` 和 `usage=requests|slow_requests|jobs`。
 
+慢操作和例外卡片會將彙總結果在 `pulse.cache` 中快取五秒。每張卡片、排序方式和時間範圍使用獨立快取項目。
+
 快取卡片顯示所選時段的命中、未命中和命中率，彙總包括 100 列明細以外的鍵。啟用取樣時，面板用 `~` 標記估算次數。JSON 指標的 `cache_totals` 傳回原始總量和取樣率。
 
 伺服器卡片同時顯示最近一次快照和所選時段內的 CPU、記憶體平均歷史。距回報不足 30 秒時標為最近回報。可為 `pulse.dashboard.servers.ignore_after` 設定秒數或 `15 seconds`、`1 minute and 15 seconds` 等相對時長來隱藏過期快照，預設 `null` 會保留。預設按主機名稱升冪。`sort_direction` 可設為 `asc` 或 `desc`。`sort_by` 支援 `name`、`cpu_current`、`memory_current`、`memory_total`、`updated_at`、`recently_reported`、`cpu`、`memory` 和 `storage`。用 `storage.0.used` 等巢狀路徑可選擇特定讀數。數值主機名稱依數值排序。

@@ -40,6 +40,8 @@ The dashboard uses native HTML, JavaScript and JSON. Publish its template with `
 
 Slow activity cards default to the slowest operation and can sort by count. Exceptions default to count and can sort by latest occurrence. Application usage shows the top ten users for requests, slow requests or jobs. Dashboard selections are kept in the page URL. The metrics endpoint accepts `slow-requests=count`, `slow-queries=count`, `slow-jobs=count`, `slow-outgoing-requests=count`, `exceptions=latest` and `usage=requests|slow_requests|jobs`.
 
+Slow activity and exception cards cache aggregate results for five seconds in `pulse.cache`. Each card, sort and period uses its own cache entry.
+
 Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
 
 The Servers card shows average CPU and memory history for the selected period alongside the latest snapshot. A server is marked as recently reported if it reported less than 30 seconds ago. Configure `pulse.dashboard.servers.ignore_after` with seconds or a relative duration such as `15 seconds` or `1 minute and 15 seconds` to hide older snapshots. The default `null` keeps them visible. The default sort is by name in ascending order. Set `sort_direction` to `asc` or `desc`. The `sort_by` field can be `name`, `cpu_current`, `memory_current`, `memory_total`, `updated_at`, `recently_reported`, `cpu`, `memory` or `storage`. Nested paths such as `storage.0.used` select a specific reading. Numeric host names sort by numeric value.
