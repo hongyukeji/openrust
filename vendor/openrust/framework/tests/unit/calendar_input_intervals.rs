@@ -2,6 +2,35 @@ use super::*;
 use serde_json::json;
 
 #[test]
+fn relative_date_strings_follow_carbon_default_cascade() {
+    for (text, expected) in [
+        ("1 minute, 15 seconds", 75_000_000),
+        ("1 minute and 15 seconds", 75_000_000),
+        ("1 minute -15 seconds", 45_000_000),
+        ("1 week", 604_800_000_000),
+        ("1 month", 2_419_200_000_000),
+        ("1 year", 29_030_400_000_000),
+        ("-15 seconds", -15_000_000),
+        ("2 hours ago", -7_200_000_000),
+        ("tomorrow", 86_400_000_000),
+        ("next Monday", 0),
+        ("100 milliseconds", 100_000),
+        ("100 microseconds", 100),
+    ] {
+        assert_eq!(
+            InputInterval::from_date_string(text)
+                .unwrap()
+                .total_microseconds(),
+            expected,
+            "{text}"
+        );
+    }
+    for text in ["1.5 seconds", "90s", "PT15S", "", "1 MINUTE AND 15 SECONDS"] {
+        assert!(InputInterval::from_date_string(text).is_err(), "{text}");
+    }
+}
+
+#[test]
 fn parsed_intervals_do_not_invent_total_days_from_day_components() {
     for text in ["P1Y2M3D", "3 days", "1 week ago"] {
         let interval = InputInterval::parse(Some(&serde_json::json!(text)), None)

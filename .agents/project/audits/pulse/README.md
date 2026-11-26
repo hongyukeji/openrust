@@ -142,7 +142,11 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 固定历史曲线以最近的采样点显示本地时间和数值。原生 SVG 为每个实际采样点提供覆盖最近区域的提示，显示本地日期、时间、时区和 CPU 百分比或内存 MiB。Chrome 在两个视口检查命中区域、时间和数值。触屏点选与键盘读取仍待验收。证据为 `target/tmp/observability-parity/pulse-dashboard-server-tooltip-verified.log`。 [固定 Servers 视图](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire/servers.blade.php)
 
-接续核对集合字段排序、Carbon 复合时间表达式和磁盘用量格式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+固定 PHP 8.5.12 的 Carbon 相对时间探针验证逗号和 `and` 连接、正负分量、`ago`、周／月／年、相对日期、毫秒和微秒，也复验 `addSeconds` 的实际时间偏移。Rust 通过框架相对区间解析器处理 `ignore_after`，单位换算沿用 Carbon 默认规则，期限比较保留微秒。既有 `Request::interval` 的 ISO／紧凑语法和 Pulse 保留期限配置沿用各自入口。固定上游探针为 `target/tmp/observability-parity/pulse-dashboard-server-interval-upstream.log`。
+
+框架区间 12 项通过，包含既有固定 PHP 样本及本批复合区间回归。实际指标 HTTP 在 SQLite、PostgreSQL 和 MySQL 验证复合时限、月单位、负时限及隐藏主机的历史清理。Pulse 与 Telescope Provider 共 37 项通过，独立 Redis 用例按环境跳过。桌面和移动浏览器、三语站点构建及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-server-interval-{verified,docs}.log`。
+
+接续核对集合字段排序、PHP 相对时间语法其余边界和磁盘用量格式。磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
 
 ## SlowJobs 任务尝试计时
 

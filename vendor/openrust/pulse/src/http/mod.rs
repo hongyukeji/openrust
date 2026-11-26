@@ -221,14 +221,7 @@ async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Val
     let options = config.get("pulse.dashboard.servers").unwrap_or_default();
     let ignore_after = match &options["ignore_after"] {
         Value::Null => None,
-        value => Some(
-            value
-                .as_f64()
-                .or_else(|| value.as_str()?.trim().parse().ok())
-                .filter(|seconds| seconds.is_finite())
-                .map(|seconds| seconds as i64)
-                .map_or_else(|| crate::provider::duration(value), Ok)?,
-        ),
+        value => Some(server_max_age(value)?),
     };
     let sort_by = options["sort_by"].as_str().unwrap_or("name");
     let descending = options["sort_direction"] == "desc";
@@ -237,13 +230,12 @@ async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Val
     for system in pulse.values("system", None).await? {
         let mut system = row(system);
         let timestamp = system["timestamp"].as_i64().unwrap_or_default();
-        if let Some(seconds) = ignore_after {
-            let expires = timestamp.saturating_add(seconds);
-            if expires < now.as_second()
-                || (expires == now.as_second() && now.subsec_nanosecond() > 0)
-            {
-                continue;
-            }
+        if let Some(microseconds) = ignore_after
+            && i128::from(timestamp) * 1_000_000 + microseconds
+                < i128::from(now.as_second()) * 1_000_000
+                    + i128::from(now.subsec_nanosecond() / 1_000)
+        {
+            continue;
         }
         system["recently_reported"] = (timestamp > now.as_second() - 30).into();
         let snapshot = system["value"]
@@ -286,6 +278,28 @@ async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Val
         visible_systems.push(system);
     }
     Ok((visible_systems, Value::Object(visible_graphs)))
+}
+
+fn server_max_age(value: &Value) -> crate::Result<i128> {
+    use openrust::support::InputInterval;
+
+    if let Some(seconds) = value
+        .as_i64()
+        .or_else(|| value.as_str()?.trim().parse().ok())
+    {
+        return Ok(i128::from(seconds) * 1_000_000);
+    }
+    if let Some(seconds) = value
+        .as_f64()
+        .or_else(|| value.as_str()?.trim().parse().ok())
+        .filter(|seconds| seconds.is_finite())
+    {
+        return Ok(i128::from(seconds as i64) * 1_000_000);
+    }
+    let invalid = || crate::Error::InvalidConfiguration("服务器快照时限无效".into());
+    let text = value.as_str().ok_or_else(invalid)?;
+    let duration = InputInterval::from_date_string(text).map_err(|_| invalid())?;
+    Ok(duration.total_microseconds())
 }
 
 fn row(row: openrust::database::Row) -> serde_json::Value {

@@ -2050,14 +2050,26 @@ async fn dashboard_server_history_returns_average_series_and_heartbeat_state() {
         "node-z"
     );
 
-    for limit in [json!(15), json!("15"), json!("15 seconds")] {
+    for (limit, expected) in [
+        (json!(15), 1),
+        (json!("15"), 1),
+        (json!("15 seconds"), 1),
+        (json!("1 minute, 5 seconds"), 2),
+        (json!("1 minute and 5 seconds"), 2),
+        (json!("1 month"), 2),
+        (json!("2 hours ago"), 0),
+    ] {
         config
             .set("pulse.dashboard.servers.ignore_after", limit)
             .unwrap();
         let response = app.get("/pulse/api/metrics").await.unwrap();
         response.assert_ok();
         let data = response.json::<serde_json::Value>().unwrap();
-        assert_eq!(data["servers"].as_array().unwrap().len(), 1);
-        assert_eq!(data["servers"][0]["key"], "node-z");
+        assert_eq!(data["servers"].as_array().unwrap().len(), expected);
+        if expected == 0 {
+            assert!(data["server_graphs"].as_object().unwrap().is_empty());
+        } else {
+            assert_eq!(data["servers"][0]["key"], "node-z");
+        }
     }
 }

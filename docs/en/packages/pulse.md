@@ -42,7 +42,7 @@ Slow activity cards default to the slowest operation and can sort by count. Exce
 
 Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
 
-The Servers card shows average CPU and memory history for the selected period alongside the latest snapshot. A server is marked as recently reported if it reported less than 30 seconds ago. Configure `pulse.dashboard.servers.ignore_after` with seconds or a duration such as `15 seconds` to hide older snapshots. The default `null` keeps them visible. The default sort is by name in ascending order. Set `sort_by` to `name`, `cpu_current`, `memory_current`, `memory_total`, `updated_at` or `recently_reported` and `sort_direction` to `asc` or `desc`.
+The Servers card shows average CPU and memory history for the selected period alongside the latest snapshot. A server is marked as recently reported if it reported less than 30 seconds ago. Configure `pulse.dashboard.servers.ignore_after` with seconds or a relative duration such as `15 seconds` or `1 minute and 15 seconds` to hide older snapshots. The default `null` keeps them visible. The default sort is by name in ascending order. Set `sort_by` to `name`, `cpu_current`, `memory_current`, `memory_total`, `updated_at` or `recently_reported` and `sort_direction` to `asc` or `desc`.
 
 ## Recorders {#recorders}
 

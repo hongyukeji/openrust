@@ -127,6 +127,31 @@ impl InputInterval {
         Self::relative(text)
     }
 
+    /// 按 Carbon createFromDateString 的相对语法解析区间。
+    pub fn from_date_string(text: &str) -> Result<Self, IntervalError> {
+        if text.len() > super::MAX_CALENDAR_BYTES {
+            return Err(IntervalError::Limit);
+        }
+        if text.trim_matches(human_space).is_empty() || text.contains('.') {
+            return Err(IntervalError::InvalidSyntax);
+        }
+        let text = text
+            .replace(',', " ")
+            .replace(" and ", " ")
+            .to_ascii_lowercase();
+        Self::parse_relative(&text, false, TermBudget::default()).map(Option::unwrap_or_default)
+    }
+
+    /// 按 Carbon 默认进位规则将分量换算为微秒。一个月为四周，一年为十二个月。
+    pub fn total_microseconds(&self) -> i128 {
+        let days =
+            (i128::from(self.years) * 12 + i128::from(self.months)) * 28 + i128::from(self.days);
+        let minutes = (days * 24 + i128::from(self.hours)) * 60 + i128::from(self.minutes);
+        let total =
+            (minutes * 60 + i128::from(self.seconds)) * 1_000_000 + i128::from(self.microseconds);
+        if self.invert { -total } else { total }
+    }
+
     #[allow(
         clippy::cast_precision_loss,
         reason = "固定 PHP 分数计算先把整数转回 double 再相减"
@@ -341,6 +366,14 @@ impl InputInterval {
         // Carbon 的非紧凑表达式委托 timelib；这些标记只影响相对状态，不产生分量。
         let mut budget = TermBudget::default();
         let (from_string, normalized) = relative_source(text, &mut budget)?;
+        Self::parse_relative(&normalized, from_string, budget)
+    }
+
+    fn parse_relative(
+        normalized: &str,
+        from_string: bool,
+        mut budget: TermBudget,
+    ) -> Result<Option<Self>, IntervalError> {
         let mut rest = normalized.trim_matches(human_space);
         let mut result = Self::default();
         let mut matched = false;
