@@ -7,5 +7,38 @@
     "input_model": "Model kimliğini girin",
     "confirm_save": ":provider için modeli :variable değişkenine kaydetmek istiyor musunuz?",
     "saved_cached": "Model kaydedildi. Kullanmadan önce uygulama yapılandırmasının önbelleğini yeniden oluşturun."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Bir yapay zekâ bağlantısında kullanılabilen modelleri listele"
+    },
+    "ai:prompt": {
+      "description": "Bir yapay zekâ modeline istem gönder"
+    },
+    "ai:select-model": {
+      "description": "Yapay zekâ bağlantısı ve modeli seç"
+    },
+    "make:agent": {
+      "description": "Bir ajan türü oluştur"
+    },
+    "make:tool": {
+      "description": "Bir ajan aracı türü oluştur"
+    },
+    "make:agent-middleware": {
+      "description": "Ajan ara katman yazılımı oluştur"
+    }
+  },
+  "arguments": {
+    "provider": "Yapay zekâ bağlantısının adı",
+    "json": "Sonuçları JSON olarak göster",
+    "prompt": "İstem metni",
+    "model": "Model kimliği",
+    "messages": "JSON biçiminde mesaj geçmişi",
+    "schema": "JSON nesne şeması",
+    "save": "Modeli uygulamanın ortam dosyasına kaydet",
+    "default": "Seçilen bağlantıyı varsayılan olarak da kullan",
+    "name": "Tür adı",
+    "force": "Var olan dosyanın üzerine yaz",
+    "structured": "Yapılandırılmış çıktı şablonunu kullan"
   }
 }

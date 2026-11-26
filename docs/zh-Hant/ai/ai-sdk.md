@@ -31,6 +31,8 @@ let answer = response.text;
 
 執行 `./artisan ai:select-model --save --default` 選擇模型，並將該連線設為應用程式預設。Artisan 使用目前的預設連線，或在只有一家設定了憑證時直接提示該連線的模型。也可以指定連線名稱。手填模型使用 `--model=your-model-id`，自動化情境可加上 `--no-interaction`。儲存會寫入應用程式實際載入的環境檔。使用設定快取時，儲存後重新產生快取。
 
+AI 命令說明使用應用程式目前的語言。執行 `./artisan help ai:select-model` 或 `./artisan ai:prompt --help` 可查看本地化說明。可在 `lang/vendor/ai/<locale>/console.json` 中透過 `commands.<命令>.description` 覆寫命令說明，透過 `commands.<命令>.arguments.<參數>` 覆寫個別命令的參數說明。
+
 互動式連線與模型選擇使用應用程式目前的語言。各語言共用相同的數字選項和最終輸出的模型 ID。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆寫互動提示。
 
 透過 `agent(instructions).with_messages(history)` 帶入歷史對話。依序使用 `Message::user(text)` 和 `Message::assistant(text)` 建立歷史訊息，`prompt` 和 `stream` 會先傳送歷史，再傳送本次提示詞。Artisan 的 `--messages` 接受由 `role` 和 `content` 組成的 JSON 訊息陣列。

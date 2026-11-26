@@ -53,7 +53,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
     ] {
         Artisan::add(Box::new(Make {
             kind,
-            definition: CommandDefinition::from_signature(signature)?,
+            definition: CommandDefinition::from_signature(signature)?.with_help_namespace("ai"),
         }))?;
     }
     Ok(())

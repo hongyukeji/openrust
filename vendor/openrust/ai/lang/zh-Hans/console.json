@@ -7,5 +7,38 @@
     "input_model": "输入模型 ID",
     "confirm_save": "将 :provider 的模型保存到 :variable？",
     "saved_cached": "已保存模型。请重新生成应用配置缓存后使用。"
+  },
+  "commands": {
+    "ai:models": {
+      "description": "列出 AI 连接中可用的模型"
+    },
+    "ai:prompt": {
+      "description": "向 AI 模型发送提示词"
+    },
+    "ai:select-model": {
+      "description": "选择 AI 连接和模型"
+    },
+    "make:agent": {
+      "description": "创建 Agent 类型"
+    },
+    "make:tool": {
+      "description": "创建 Agent 工具类型"
+    },
+    "make:agent-middleware": {
+      "description": "创建 Agent 中间件"
+    }
+  },
+  "arguments": {
+    "provider": "AI 连接名称",
+    "json": "输出 JSON",
+    "prompt": "提示词",
+    "model": "模型 ID",
+    "messages": "JSON 格式的历史消息",
+    "schema": "JSON 对象 Schema",
+    "save": "将模型保存到应用环境文件",
+    "default": "同时设为默认 AI 连接",
+    "name": "类型名称",
+    "force": "覆盖已有文件",
+    "structured": "使用结构化输出模板"
   }
 }

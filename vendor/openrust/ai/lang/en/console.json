@@ -7,5 +7,38 @@
     "input_model": "Enter the model ID",
     "confirm_save": "Save the model for :provider in :variable?",
     "saved_cached": "The model was saved. Rebuild the application configuration cache before using it."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "List the models available through an AI connection"
+    },
+    "ai:prompt": {
+      "description": "Send a prompt to an AI model"
+    },
+    "ai:select-model": {
+      "description": "Select an AI connection and model"
+    },
+    "make:agent": {
+      "description": "Create an Agent type"
+    },
+    "make:tool": {
+      "description": "Create an Agent tool type"
+    },
+    "make:agent-middleware": {
+      "description": "Create Agent middleware"
+    }
+  },
+  "arguments": {
+    "provider": "Named AI connection",
+    "json": "Return results as JSON",
+    "prompt": "Prompt text",
+    "model": "Model ID",
+    "messages": "Message history as JSON",
+    "schema": "JSON object schema",
+    "save": "Save the model to the application environment file",
+    "default": "Also use the selected connection as the default",
+    "name": "Type name",
+    "force": "Overwrite an existing file",
+    "structured": "Use the structured output template"
   }
 }

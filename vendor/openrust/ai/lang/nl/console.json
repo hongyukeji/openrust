@@ -7,5 +7,38 @@
     "input_model": "Voer de model-ID in",
     "confirm_save": "Het model voor :provider opslaan in :variable?",
     "saved_cached": "Het model is opgeslagen. Genereer de configuratiecache van de applicatie opnieuw voordat je het model gebruikt."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Toon de modellen die beschikbaar zijn via een AI-verbinding"
+    },
+    "ai:prompt": {
+      "description": "Stuur een prompt naar een AI-model"
+    },
+    "ai:select-model": {
+      "description": "Selecteer een AI-verbinding en model"
+    },
+    "make:agent": {
+      "description": "Maak een agenttype"
+    },
+    "make:tool": {
+      "description": "Maak een gereedschapstype voor agents"
+    },
+    "make:agent-middleware": {
+      "description": "Maak middleware voor agents"
+    }
+  },
+  "arguments": {
+    "provider": "Naam van de AI-verbinding",
+    "json": "Geef resultaten weer als JSON",
+    "prompt": "Tekst van de prompt",
+    "model": "Model-ID",
+    "messages": "Berichtgeschiedenis als JSON",
+    "schema": "JSON-objectschema",
+    "save": "Sla het model op in het omgevingsbestand van de applicatie",
+    "default": "Gebruik de geselecteerde verbinding ook als standaard",
+    "name": "Typenaam",
+    "force": "Overschrijf het bestaande bestand",
+    "structured": "Gebruik de sjabloon voor gestructureerde uitvoer"
   }
 }

@@ -7,5 +7,38 @@
     "input_model": "Inserisci l’ID del modello",
     "confirm_save": "Salvare il modello per :provider in :variable?",
     "saved_cached": "Il modello è stato salvato. Rigenera la cache di configurazione dell’applicazione prima di utilizzarlo."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Elenca i modelli disponibili tramite una connessione AI"
+    },
+    "ai:prompt": {
+      "description": "Invia una richiesta a un modello AI"
+    },
+    "ai:select-model": {
+      "description": "Seleziona una connessione e un modello AI"
+    },
+    "make:agent": {
+      "description": "Crea un tipo di agente"
+    },
+    "make:tool": {
+      "description": "Crea un tipo di strumento per agenti"
+    },
+    "make:agent-middleware": {
+      "description": "Crea un middleware per agenti"
+    }
+  },
+  "arguments": {
+    "provider": "Nome della connessione AI",
+    "json": "Mostra i risultati in JSON",
+    "prompt": "Testo della richiesta",
+    "model": "ID del modello",
+    "messages": "Cronologia dei messaggi in JSON",
+    "schema": "Schema dell’oggetto JSON",
+    "save": "Salva il modello nel file di ambiente dell’applicazione",
+    "default": "Usa anche la connessione selezionata come predefinita",
+    "name": "Nome del tipo",
+    "force": "Sovrascrivi il file esistente",
+    "structured": "Usa il modello per l’output strutturato"
   }
 }

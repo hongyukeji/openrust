@@ -19,7 +19,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
     Artisan::add(Box::new(SelectModel {
         definition: CommandDefinition::from_signature(
             "ai:select-model {provider? : AI 连接名称} {--model= : 手填模型 ID} {--save : 将模型保存到当前应用环境文件} {--default : 同时设为应用默认 AI 连接}",
-        )?,
+        )?.with_help_namespace("ai"),
     }))
 }
 

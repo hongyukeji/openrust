@@ -7,5 +7,38 @@
     "input_model": "मॉडल आईडी दर्ज करें",
     "confirm_save": "क्या :provider के मॉडल को :variable में सहेजना है?",
     "saved_cached": "मॉडल सहेज लिया गया है। उपयोग से पहले ऐप की कॉन्फ़िगरेशन कैश फिर से बनाएँ।"
+  },
+  "commands": {
+    "ai:models": {
+      "description": "AI कनेक्शन पर उपलब्ध मॉडल दिखाएँ"
+    },
+    "ai:prompt": {
+      "description": "AI मॉडल को प्रॉम्प्ट भेजें"
+    },
+    "ai:select-model": {
+      "description": "AI कनेक्शन और मॉडल चुनें"
+    },
+    "make:agent": {
+      "description": "एजेंट का प्रकार बनाएँ"
+    },
+    "make:tool": {
+      "description": "एजेंट टूल का प्रकार बनाएँ"
+    },
+    "make:agent-middleware": {
+      "description": "एजेंट मिडलवेयर बनाएँ"
+    }
+  },
+  "arguments": {
+    "provider": "AI कनेक्शन का नाम",
+    "json": "परिणाम JSON में दिखाएँ",
+    "prompt": "प्रॉम्प्ट का टेक्स्ट",
+    "model": "मॉडल आईडी",
+    "messages": "JSON में संदेश इतिहास",
+    "schema": "JSON ऑब्जेक्ट का स्कीमा",
+    "save": "मॉडल को ऐप की एनवायरनमेंट फ़ाइल में सहेजें",
+    "default": "चुने गए कनेक्शन को डिफ़ॉल्ट भी बनाएँ",
+    "name": "प्रकार का नाम",
+    "force": "मौजूदा फ़ाइल को बदलें",
+    "structured": "संरचित आउटपुट टेम्पलेट इस्तेमाल करें"
   }
 }

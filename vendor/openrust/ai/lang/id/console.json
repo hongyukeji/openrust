@@ -7,5 +7,38 @@
     "input_model": "Masukkan ID model",
     "confirm_save": "Simpan model untuk :provider di :variable?",
     "saved_cached": "Model telah disimpan. Buat ulang cache konfigurasi aplikasi sebelum memakainya."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Tampilkan model yang tersedia melalui koneksi AI"
+    },
+    "ai:prompt": {
+      "description": "Kirim prompt ke model AI"
+    },
+    "ai:select-model": {
+      "description": "Pilih koneksi dan model AI"
+    },
+    "make:agent": {
+      "description": "Buat tipe agen"
+    },
+    "make:tool": {
+      "description": "Buat tipe alat untuk agen"
+    },
+    "make:agent-middleware": {
+      "description": "Buat middleware agen"
+    }
+  },
+  "arguments": {
+    "provider": "Nama koneksi AI",
+    "json": "Tampilkan hasil sebagai JSON",
+    "prompt": "Teks prompt",
+    "model": "ID model",
+    "messages": "Riwayat pesan dalam JSON",
+    "schema": "Skema objek JSON",
+    "save": "Simpan model ke berkas lingkungan aplikasi",
+    "default": "Gunakan juga koneksi yang dipilih sebagai bawaan",
+    "name": "Nama tipe",
+    "force": "Timpa berkas yang ada",
+    "structured": "Gunakan templat keluaran terstruktur"
   }
 }

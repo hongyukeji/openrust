@@ -7,5 +7,38 @@
     "input_model": "モデル ID を入力",
     "confirm_save": "接続 :provider のモデルを :variable に保存しますか？",
     "saved_cached": "モデルを保存しました。利用する前にアプリケーションの設定キャッシュを再生成してください。"
+  },
+  "commands": {
+    "ai:models": {
+      "description": "AI 接続で利用できるモデルを一覧表示"
+    },
+    "ai:prompt": {
+      "description": "AI モデルにプロンプトを送信"
+    },
+    "ai:select-model": {
+      "description": "AI 接続とモデルを選択"
+    },
+    "make:agent": {
+      "description": "エージェント型を作成"
+    },
+    "make:tool": {
+      "description": "エージェントツールの型を作成"
+    },
+    "make:agent-middleware": {
+      "description": "エージェントのミドルウェアを作成"
+    }
+  },
+  "arguments": {
+    "provider": "AI 接続名",
+    "json": "JSON で出力",
+    "prompt": "プロンプトのテキスト",
+    "model": "モデル ID",
+    "messages": "JSON 形式のメッセージ履歴",
+    "schema": "JSON オブジェクトのスキーマ",
+    "save": "モデルをアプリケーションの環境ファイルに保存",
+    "default": "選択した接続を既定にも設定",
+    "name": "型名",
+    "force": "既存ファイルを上書き",
+    "structured": "構造化出力テンプレートを使用"
   }
 }

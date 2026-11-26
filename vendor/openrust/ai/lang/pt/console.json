@@ -7,5 +7,38 @@
     "input_model": "Introduza o ID do modelo",
     "confirm_save": "Guardar o modelo de :provider em :variable?",
     "saved_cached": "O modelo foi guardado. Volte a gerar a cache de configuração da aplicação antes de o utilizar."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Listar os modelos disponíveis numa ligação de IA"
+    },
+    "ai:prompt": {
+      "description": "Enviar uma instrução a um modelo de IA"
+    },
+    "ai:select-model": {
+      "description": "Selecionar uma ligação e um modelo de IA"
+    },
+    "make:agent": {
+      "description": "Criar um tipo de agente"
+    },
+    "make:tool": {
+      "description": "Criar um tipo de ferramenta para agentes"
+    },
+    "make:agent-middleware": {
+      "description": "Criar middleware para agentes"
+    }
+  },
+  "arguments": {
+    "provider": "Nome da ligação de IA",
+    "json": "Mostrar resultados em JSON",
+    "prompt": "Texto da instrução",
+    "model": "ID do modelo",
+    "messages": "Histórico de mensagens em JSON",
+    "schema": "Esquema de objeto JSON",
+    "save": "Guardar o modelo no ficheiro de ambiente da aplicação",
+    "default": "Usar também a ligação selecionada como predefinida",
+    "name": "Nome do tipo",
+    "force": "Substituir o ficheiro existente",
+    "structured": "Usar o modelo de saída estruturada"
   }
 }

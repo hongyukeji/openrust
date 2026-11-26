@@ -31,6 +31,8 @@ let answer = response.text;
 
 运行 `./artisan ai:select-model --save --default` 选择模型，并将该连接设为应用默认。Artisan 使用当前默认连接，或在只有一家配置了凭证时直接提示该连接的模型。也可指定连接名。手填模型用 `--model=your-model-id`，自动化场景可加 `--no-interaction`。保存写入应用实际加载的环境文件。使用配置缓存时，保存后重新生成缓存。
 
+AI 命令帮助使用应用当前语言。运行 `./artisan help ai:select-model` 或 `./artisan ai:prompt --help` 可查看本地化说明。可在 `lang/vendor/ai/<locale>/console.json` 中通过 `commands.<命令>.description` 覆写命令说明，通过 `commands.<命令>.arguments.<参数>` 覆写单个命令的参数说明。
+
 交互式连接和模型选择使用应用当前语言。数字选项和最终输出的模型 ID 在各语言下保持一致。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆写交互提示。
 
 通过 `agent(instructions).with_messages(history)` 带上历史对话。按顺序使用 `Message::user(text)` 和 `Message::assistant(text)` 构建历史消息，`prompt` 和 `stream` 会先发送历史，再发送本次提示词。Artisan 的 `--messages` 接受由 `role` 和 `content` 组成的 JSON 消息数组。

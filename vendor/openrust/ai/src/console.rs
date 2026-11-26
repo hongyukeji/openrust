@@ -17,12 +17,13 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     Artisan::add(Box::new(Models {
         definition: CommandDefinition::from_signature(
             "ai:models {provider? : AI 连接名称} {--json : 输出 JSON}",
-        )?,
+        )?
+        .with_help_namespace("ai"),
     }))?;
     Artisan::add(Box::new(Prompt {
         definition: CommandDefinition::from_signature(
             "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息} {--schema= : JSON 对象模式}",
-        )?,
+        )?.with_help_namespace("ai"),
     }))?;
     make::register()?;
     select_model::register()

@@ -7,5 +7,38 @@
     "input_model": "Modell-ID eingeben",
     "confirm_save": "Das Modell für :provider in :variable speichern?",
     "saved_cached": "Das Modell wurde gespeichert. Erstellen Sie den Anwendungskonfigurationscache vor der Verwendung neu."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Verfügbare Modelle einer KI-Verbindung auflisten"
+    },
+    "ai:prompt": {
+      "description": "Eine Eingabe an ein KI-Modell senden"
+    },
+    "ai:select-model": {
+      "description": "Eine KI-Verbindung und ein Modell auswählen"
+    },
+    "make:agent": {
+      "description": "Einen Agententyp erstellen"
+    },
+    "make:tool": {
+      "description": "Einen Werkzeugtyp für Agenten erstellen"
+    },
+    "make:agent-middleware": {
+      "description": "Eine Agenten-Middleware erstellen"
+    }
+  },
+  "arguments": {
+    "provider": "Name der KI-Verbindung",
+    "json": "Ergebnisse als JSON ausgeben",
+    "prompt": "Eingabetext",
+    "model": "Modell-ID",
+    "messages": "Nachrichtenverlauf als JSON",
+    "schema": "JSON-Objektschema",
+    "save": "Das Modell in der Umgebungsdatei der Anwendung speichern",
+    "default": "Die ausgewählte Verbindung auch als Standard nutzen",
+    "name": "Name des Typs",
+    "force": "Eine vorhandene Datei überschreiben",
+    "structured": "Die Vorlage für strukturierte Ausgaben verwenden"
   }
 }

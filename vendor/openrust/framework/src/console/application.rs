@@ -367,7 +367,7 @@ impl Application {
             .subcommands(
                 self.commands
                     .values()
-                    .map(|entry| entry.definition().syntax.as_ref().clone()),
+                    .map(|entry| entry.definition().presentation()),
             )
     }
 

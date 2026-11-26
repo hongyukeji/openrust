@@ -7,5 +7,38 @@
     "input_model": "輸入模型 ID",
     "confirm_save": "將 :provider 的模型儲存至 :variable？",
     "saved_cached": "已儲存模型。使用前請重新產生應用程式設定快取。"
+  },
+  "commands": {
+    "ai:models": {
+      "description": "列出 AI 連線中可用的模型"
+    },
+    "ai:prompt": {
+      "description": "向 AI 模型傳送提示詞"
+    },
+    "ai:select-model": {
+      "description": "選擇 AI 連線與模型"
+    },
+    "make:agent": {
+      "description": "建立 Agent 型別"
+    },
+    "make:tool": {
+      "description": "建立 Agent 工具型別"
+    },
+    "make:agent-middleware": {
+      "description": "建立 Agent 中介軟體"
+    }
+  },
+  "arguments": {
+    "provider": "AI 連線名稱",
+    "json": "輸出 JSON",
+    "prompt": "提示詞",
+    "model": "模型 ID",
+    "messages": "JSON 格式的歷史訊息",
+    "schema": "JSON 物件 Schema",
+    "save": "將模型儲存至應用程式環境檔",
+    "default": "同時設為預設 AI 連線",
+    "name": "型別名稱",
+    "force": "覆寫現有檔案",
+    "structured": "使用結構化輸出範本"
   }
 }

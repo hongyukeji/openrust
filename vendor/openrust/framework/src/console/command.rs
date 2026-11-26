@@ -11,6 +11,7 @@ pub(super) type Prompt =
 #[derive(Clone)]
 pub struct CommandDefinition {
     pub(super) syntax: Arc<clap::Command>,
+    help_namespace: Option<&'static str>,
     pub(super) isolated: bool,
     pub(super) missing_argument: Option<(&'static str, Arc<Prompt>)>,
 }
@@ -19,6 +20,7 @@ impl CommandDefinition {
     pub fn new(syntax: clap::Command) -> Self {
         Self {
             syntax: Arc::new(syntax),
+            help_namespace: None,
             isolated: false,
             missing_argument: None,
         }
@@ -58,6 +60,51 @@ impl CommandDefinition {
         let syntax = Arc::make_mut(&mut self.syntax);
         *syntax = std::mem::take(syntax).about(description);
         self
+    }
+
+    /// 按当前语言读取包的 Console 命令说明和参数说明。
+    pub fn with_help_namespace(mut self, namespace: &'static str) -> Self {
+        self.help_namespace = Some(namespace);
+        self
+    }
+
+    pub(super) fn presentation(&self) -> clap::Command {
+        let mut syntax = self.syntax.as_ref().clone();
+        if let Some(namespace) = self.help_namespace {
+            use crate::support::facades::Lang;
+            let group = format!("{namespace}::console");
+            let command = format!("{group}.commands.{}", self.name());
+            let translate = |key: &str| {
+                Lang::get(key, &Default::default(), None)
+                    .ok()
+                    .filter(|line| line.as_str() != key)
+            };
+            if let Some(description) = translate(&format!("{command}.description")) {
+                syntax = syntax.about(description);
+            }
+            syntax = syntax.mut_args(|argument| {
+                let id = argument.get_id();
+                let specific = format!("{command}.arguments.{id}");
+                let common = format!("{group}.arguments.{id}");
+                // 当前语言的通用说明优先于回退语言的专用说明。
+                let keys = [&specific, &common];
+                let description = keys
+                    .iter()
+                    .find(|key| Lang::has_for_locale(key, None).unwrap_or(false))
+                    .and_then(|key| translate(key))
+                    .or_else(|| {
+                        keys.into_iter()
+                            .find(|key| Lang::has(key, None, true).unwrap_or(false))
+                            .and_then(|key| translate(key))
+                    });
+                if let Some(description) = description {
+                    argument.help(description)
+                } else {
+                    argument
+                }
+            });
+        }
+        syntax
     }
 
     pub fn name(&self) -> &str {

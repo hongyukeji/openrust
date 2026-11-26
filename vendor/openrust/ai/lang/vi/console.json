@@ -7,5 +7,38 @@
     "input_model": "Nhập mã mô hình",
     "confirm_save": "Lưu mô hình của :provider vào :variable?",
     "saved_cached": "Đã lưu mô hình. Hãy tạo lại bộ nhớ đệm cấu hình của ứng dụng trước khi sử dụng."
+  },
+  "commands": {
+    "ai:models": {
+      "description": "Liệt kê các mô hình có sẵn qua kết nối AI"
+    },
+    "ai:prompt": {
+      "description": "Gửi lời nhắc đến một mô hình AI"
+    },
+    "ai:select-model": {
+      "description": "Chọn kết nối và mô hình AI"
+    },
+    "make:agent": {
+      "description": "Tạo kiểu tác nhân"
+    },
+    "make:tool": {
+      "description": "Tạo kiểu công cụ cho tác nhân"
+    },
+    "make:agent-middleware": {
+      "description": "Tạo phần mềm trung gian cho tác nhân"
+    }
+  },
+  "arguments": {
+    "provider": "Tên kết nối AI",
+    "json": "Xuất kết quả dưới dạng JSON",
+    "prompt": "Văn bản lời nhắc",
+    "model": "Mã mô hình",
+    "messages": "Lịch sử tin nhắn dưới dạng JSON",
+    "schema": "Lược đồ đối tượng JSON",
+    "save": "Lưu mô hình vào tệp môi trường của ứng dụng",
+    "default": "Đồng thời đặt kết nối đã chọn làm mặc định",
+    "name": "Tên kiểu",
+    "force": "Ghi đè tệp hiện có",
+    "structured": "Dùng mẫu đầu ra có cấu trúc"
   }
 }
