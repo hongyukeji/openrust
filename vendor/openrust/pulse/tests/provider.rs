@@ -461,6 +461,78 @@ fn recorder_database_config(
 }
 
 #[tokio::test]
+async fn dashboard_and_partial_metrics_recheck_application_middleware() {
+    use openrust::{
+        contracts::http::Middleware,
+        http::{Body, Next, StatusCode},
+    };
+
+    struct PulseAccess(&'static str);
+
+    impl Middleware for PulseAccess {
+        fn handle<'a>(
+            &'a self,
+            request: &'a mut Request,
+            next: Next<'a>,
+        ) -> HttpFuture<'a, Result<Response, HttpError>> {
+            Box::pin(async move {
+                if request
+                    .headers()
+                    .get("x-fixture-access")
+                    .and_then(|value| value.to_str().ok())
+                    != Some(self.0)
+                {
+                    return Err(HttpError::AuthorizationDenied("没有看板访问权限".into()));
+                }
+                Ok(next.run(request).await)
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["middleware"] = json!([
+                    "web",
+                    "openrust_pulse::http::middleware::Authorize",
+                    "fixture.pulse-access:pulse-view"
+                ]);
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_middleware(|middleware| {
+                middleware.alias(
+                    "fixture.pulse-access:pulse-view",
+                    Arc::new(PulseAccess("pulse-view")),
+                );
+            })
+            .with_routing(Routing::default().api(routes))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+
+    let card = "/pulse/api/metrics?cards=cache";
+    for (path, access, expected) in [
+        ("/pulse", "denied", StatusCode::FORBIDDEN),
+        ("/pulse", "pulse-view", StatusCode::OK),
+        (card, "pulse-view", StatusCode::OK),
+        (card, "denied", StatusCode::FORBIDDEN),
+        (card, "pulse-view", StatusCode::OK),
+    ] {
+        let request = http::Request::builder()
+            .method("GET")
+            .uri(path)
+            .header("x-fixture-access", access)
+            .body(Body::empty())
+            .unwrap();
+        app.call(request).await.unwrap().assert_status(expected);
+    }
+}
+
+#[tokio::test]
 async fn queued_artisan_recorders_filter_by_display_name() {
     use openrust::{
         contracts::queue::JobHandler,

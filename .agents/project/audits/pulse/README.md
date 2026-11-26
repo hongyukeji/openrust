@@ -140,7 +140,9 @@ Chrome 前态的首个全量指标请求挂起时卡片容器为空，返回 500
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13、具名 Redis 8.10.3 的授权 HTTP 验证卡片选择、无效值、未选查询的隔离和完整 JSON。真实 SQLite 看板及 Chrome 桌面、手机验证独立加载、延迟与错误隔离、恢复、周期、手动和定时刷新、焦点与触控，未授权的部分响应返回 403。首轮浏览器检查发现卡片节点替换时滚动目标失效，保留卡片容器后复验通过。Pulse Provider 27 项、Telescope Provider 30 项、快照格式、Pulse 严格 Clippy、三语文档与六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-card-lazy-{browser-baseline-retry,macos,macos-browser-retry,docs}.log`。
 
-在固定 Pulse、Laravel Framework 13.40.0 及 PHP 8.5.12 的隔离 SQLite 应用中，分别运行支持 Laravel 13 的 Livewire 3.8.12 和 4.4.10。Chrome 通过实际 Pulse 页面验证九个初始占位框、滚动进入视口后独立的 Cache 请求、回显真实缓存键、五秒合并轮询，以及点击六小时后保留原页面路径并重新加载卡片。Livewire 3 的轮询更新携带空命令，Livewire 4 发送 `$refresh`，两者的加载、合并请求和界面结果一致。原生对应行为已有上述公开 HTTP 与浏览器证据。登录态变化和更新期间的其他持久中间件仍需核对。证据为 `target/tmp/observability-parity/pulse-livewire-{3.8.12,4.4.10}/browser-retry.log`。 [Livewire 3.8.12](https://github.com/livewire/livewire/tree/v3.8.12) [Livewire 4.4.10](https://github.com/livewire/livewire/tree/v4.4.10)
+在固定 Pulse、Laravel Framework 13.40.0 及 PHP 8.5.12 的隔离 SQLite 应用中，分别运行支持 Laravel 13 的 Livewire 3.8.12 和 4.4.10。Chrome 通过实际 Pulse 页面验证九个初始占位框、滚动进入视口后独立的 Cache 请求、回显真实缓存键、五秒合并轮询，以及点击六小时后保留原页面路径并重新加载卡片。Livewire 3 的轮询更新携带空命令，Livewire 4 发送 `$refresh`，两者的加载、合并请求和界面结果一致。原生对应行为已有上述公开 HTTP 与浏览器证据。证据为 `target/tmp/observability-parity/pulse-livewire-{3.8.12,4.4.10}/browser-retry.log`。 [Livewire 3.8.12](https://github.com/livewire/livewire/tree/v3.8.12) [Livewire 4.4.10](https://github.com/livewire/livewire/tree/v4.4.10)
+
+固定 PHP 使用带参数的应用中间件，Chrome 在两个实际 Livewire 版本确认授权后的下一次更新仍执行该中间件，撤回权限时返回 403。原生组在页面及部分指标请求应用同一条绑定的类型化中间件。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的公开入口按拒绝、授权、局部授权、撤回、恢复的顺序通过。Pulse Provider 31 项、Telescope Provider 35 项、快照格式和严格 Clippy 通过。登录会话的变化继续单独验收。证据为 `target/tmp/observability-parity/pulse-livewire-{3.8.12,4.4.10}/middleware-browser.log` 和 `target/tmp/observability-parity/pulse-persistent-middleware-macos.log`。 [固定 Pulse 持久中间件注册](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/PulseServiceProvider.php)
 
 ### 后台、离线和页面移除的轮询
 
