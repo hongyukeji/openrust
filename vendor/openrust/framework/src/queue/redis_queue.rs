@@ -69,6 +69,17 @@ redis.call('ZADD', KEYS[2], now + tonumber(ARGV[2]), ARGV[1])
 return redis.call('ZREM', KEYS[1], ARGV[1])
 ";
 
+// 精确匹配尚未过期的保留项。未运行的任务回到队头并恢复领取前的尝试次数。
+const RESTORE_UNSTARTED: &str = r"
+local expires = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if not expires or tonumber(expires) <= now then return 0 end
+local job = cjson.decode(ARGV[1])
+job.attempts = job.attempts - 1
+redis.call('RPUSH', KEYS[3], 1)
+redis.call('LPUSH', KEYS[2], cjson.encode(job))
+return redis.call('ZREM', KEYS[1], ARGV[1])
+";
+
 const CHAIN_ENQUEUE: &str = r"
 local available = tonumber(ARGV[3])
 if ARGV[4] == 'relative' then available = now + available end
@@ -251,6 +262,18 @@ impl RedisQueue {
         else {
             return Ok(None);
         };
+        // 领取请求与所有权检查可走不同连接。只在复核通过后把保留交给 Worker。
+        let allowed = may_resume_reservation().await;
+        if !matches!(allowed, Ok(true)) {
+            let mut restore = script(RESTORE_UNSTARTED, &[&reserved, &ready, &notify]);
+            restore.arg(&raw);
+            self.connection
+                .query::<u32>(&restore)
+                .await
+                .map_err(backend)?;
+            allowed?;
+            return Ok(None);
+        }
         let job: RedisJob = serde_json::from_str(&raw).map_err(|_| QueueError::InvalidPayload)?;
         let payload = Payload::decode(&job.payload)?;
         let storage = RedisReservation {

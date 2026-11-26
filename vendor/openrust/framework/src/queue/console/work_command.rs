@@ -54,7 +54,7 @@ impl WorkCommand {
         ), None)
     }
 
-    /// 配置领取任务前执行的异步检查。Redis 的阻塞等待结束后会再次检查。
+    /// 配置领取任务前执行的异步检查。Redis 在阻塞等待结束后及领取成功后会再次检查。
     pub fn with_reservation_guard(
         mut self,
         guard: impl Fn() -> QueueFuture<'static, QueueResult<bool>> + Send + Sync + 'static,

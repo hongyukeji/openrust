@@ -527,3 +527,65 @@ async fn redis_queue_over_http_and_blocking_reservation() {
         .unwrap();
     server.abort();
 }
+
+#[tokio::test]
+async fn redis_worker_returns_a_reservation_if_the_second_check_denies_it() {
+    use openrust::{queue::console::WorkCommand, testing::TestApp};
+    let port = std::env::var("OPENRUST_TEST_REDIS_PORT").ok();
+    assert!(port.is_some() || std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none());
+    let Some(port) = port else { return };
+    let mut app = TestApp::create(|builder| {
+        builder.with_commands(|artisan| {
+            artisan.add_command(Box::new(WorkCommand::new().with_reservation_guard(|| {
+                Box::pin(async {
+                    let queue = Queue::connection(Some("redis"))?;
+                    // 实际 Redis 保留写入后才拒绝执行。
+                    Ok(queue.reserved_size(None).await? == Some(0))
+                })
+            })))
+        })
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let config = app.app().config().unwrap();
+    config
+        .set(
+            "database.redis",
+            json!({
+                "options":{"prefix":format!("guarded-pop-{:x}:", fastrand::u64(..))},
+                "default":{"url":format!("redis://127.0.0.1:{port}/")}
+            }),
+        )
+        .unwrap();
+    config
+        .set(
+            "queue.connections",
+            json!({
+                "redis":{"driver":"redis","retry_after":30},
+                "blocking":{"driver":"redis","retry_after":30,"block_for":2},
+            }),
+        )
+        .unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let handler = Arc::new(Handler::default());
+    manager.register(JOB, handler.clone()).unwrap();
+
+    for driver in ["redis", "blocking"] {
+        let queue = manager.connection(Some(driver)).unwrap();
+        let id = queue.push(&payload(), None).await.unwrap().unwrap();
+        let mut args = vec!["queue:work", driver, "--memory=0"];
+        if driver == "blocking" {
+            args.extend(["--max-time=1", "--sleep=0"]);
+        } else {
+            args.push("--once");
+        }
+        app.artisan(args).await.assert_successful();
+        assert!(handler.0.lock().unwrap().is_empty());
+        assert_eq!(queue.pending_size(None).await.unwrap(), Some(1));
+        assert_eq!(queue.reserved_size(None).await.unwrap(), Some(0));
+        let mut job = queue.pop_now(None).await.unwrap().unwrap();
+        assert_eq!(job.get_job_id(), id);
+        assert_eq!(job.attempts(), 1);
+        job.delete().await.unwrap();
+    }
+}

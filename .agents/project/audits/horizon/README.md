@@ -50,9 +50,17 @@ Horizon 通过框架 `WorkCommand::with_reservation_guard` 在实际领取任务
 
 macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor 和 Worker。先确认旧 Worker 能处理任务，再暂停两个父进程模拟接管。旧 Worker 保留新任务并退出，旧 Supervisor 的退出清理保留接管方心跳和未处理命令。持新令牌的 `horizon:work --once` 处理同一任务，普通 `queue:work --once` 即使带有旧进程环境也能处理后续任务。macOS 完整进程及 Worker 回归、Horizon 和框架所涉严格 Clippy、同名 Master 与 102 条心跳回归通过。Linux 双 PID 1 Master 组合通过。Windows ARM64 的原生 `--once` 拒绝陈旧令牌，普通 Worker 正常执行，原生 Master 控制通过。带实际子树的后续排空实测见 [Windows 原生进程树](#windows-原生进程树)。证据为 `target/tmp/observability-parity/horizon-child-ownership-{macos,macos-takeover-verified,linux,linux-takeover-native,windows,rust-targets,preflight}.log`。
 
-固定 Laravel `RedisQueue` 先用 `BLPOP` 等待通知，再单独发送领取请求。修复前，旧 Worker 在 Redis 已阻塞时失去所有权，仍会处理接管后入队的任务。现在通知返回或等待到期后，受管 Worker 会先重新检查所有权及暂停状态，再次确认可领取才向 Redis 发出请求。队列的 `block_for` 与空闲等待上限沿用原有配置。已经发出的领取请求和 Redis 主从切换仍需单独验收，所有权检查与跨连接或实例的领取命令独立执行。 [固定 Laravel RedisQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L589-L607)
+固定 Laravel `RedisQueue` 先用 `BLPOP` 等待通知，再单独发送领取请求。修复前，旧 Worker 在 Redis 已阻塞时失去所有权，仍会处理接管后入队的任务。现在通知返回或等待到期后，受管 Worker 会先重新检查所有权及暂停状态，再次确认可领取才向 Redis 发出请求。队列的 `block_for` 与空闲等待上限沿用原有配置。对于已发出的领取请求，Redis 回复到达后还会在交给 Worker 前复核一次。 [固定 Laravel RedisQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L589-L607)
 
 阻塞接管用例确认 Redis 中的 Worker 处于 `BLPOP` 后，在同一条脚本内写入继任令牌、追加真实派发的任务并唤醒旧 Worker。旧 Worker 消费通知后退出，任务留在待处理列表，尝试次数仍为 0、保留集合为空。持新令牌的 `horizon:work --once` 处理同一任务。macOS 与 Linux ARM64 在 Redis 8.10.3 上通过阻塞与非阻塞回归，macOS 的普通 Redis 队列 HTTP 与阻塞领取回归、Horizon Worker 回归、所涉严格 Clippy 和格式检查通过。证据为 `target/tmp/observability-parity/horizon-blocking-ownership-{before,macos,linux,plain-queue,format}.log`。
+
+### Redis 领取回复途中的接管
+
+Redis 已写入保留后，TCP 夹具扣住领取回复，写入继任令牌再释放回复。修复前的 Linux amd64 Release 在模拟运行中，普通 `horizon:work --once` 和确实经历过 `BLPOP` 的受管 Worker 均执行了任务。Rust 在发布领取事件和把任务交给 Worker 前复核所有权。未能通过时，脚本精确匹配未过期的保留项，将该任务放回队首、恢复原尝试次数并唤醒等待者。已过期或已迁移的保留项由正常租约恢复路径处理。
+
+macOS 与 Redis 8.10.3 真正复验普通领取、收到阻塞通知后领取及保留已过期三种情形。旧 Worker 均未启动任务，新 Worker 各执行一次，未过期的两例在新 Worker 开始前尝试次数为零。真实 `queue:work` 新增无等待和允许等待的回归。隔离快照格式、Horizon Redis 20 项、框架 Redis 队列 2 项、相关目标严格 Clippy、三语站点构建和六组桌面／移动浏览器检查通过。本批 Linux ARM64 默认优化及 Windows 复验另行跟踪。验收日志为 `target/tmp/observability-parity/horizon-in-flight-{transit-amd64-baseline-final,transit-macos,macos,docs}.log`。
+
+Redis 元数据与队列连接可配置为不同实例。复核只覆盖交给 Worker 前的最后一次检查，已通过检查之后发生的切换仍按任务执行和队列租约规则处理。领取回复丢失或归还无法写入时，仍依赖保留过期和正常恢复。下节记录了主从切换的独立夹具及发布验证边界。
 
 ### Redis 短时断连与主从切换
 
@@ -78,7 +86,7 @@ Linux ARM64 的同一低优化框架 Release 另做了写入未复制的切换�
 
 固定提交 `42e89b6f7` 的干净归档以 Rust 1.94.0 和默认优化构建 ARM64 Release。生成的程序在 Linux 7.0.14 ARM64 原生执行，使用 Redis 8.10.3 通过完整进程与 HTTP 矩阵及四组主从切换。证据为 `target/tmp/observability-parity/horizon-metadata-arm64-standard-{source-commit,build.log,runtime.log}`。
 
-物理 x86_64 主机继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
+物理 x86_64 主机继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时无法收到领取回复或无法归还的场景、部署拓扑的写入耐久性和应用重放策略仍需验收。
 
 ### Master 命令队列与动态部署
 

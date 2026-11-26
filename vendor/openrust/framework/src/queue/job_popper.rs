@@ -20,7 +20,7 @@ tokio::task_local! {
     static RESERVATION_GUARD: WorkerReservationGuard;
 }
 
-/// 队列传输结束等待后，在发出新的领取请求前重新检查。
+/// Redis 等待结束及领取成功后，重新核对当前 Worker 能否领取任务。
 pub(super) async fn may_resume_reservation() -> QueueResult<bool> {
     match RESERVATION_GUARD.try_with(|guard| guard()) {
         Ok(check) => check.await,
@@ -71,6 +71,11 @@ impl<'a> JobPopper<'a> {
 
     /// Checks a queue for an available job without waiting.
     pub async fn pop_now(&self, queue: Option<&str>) -> QueueResult<Option<Box<dyn Job>>> {
-        self.connection.pop_now(queue).await
+        let pop = self.connection.pop_now(queue);
+        if let Some(guard) = self.reservation_guard {
+            RESERVATION_GUARD.scope(Arc::clone(guard), pop).await
+        } else {
+            pop.await
+        }
     }
 }

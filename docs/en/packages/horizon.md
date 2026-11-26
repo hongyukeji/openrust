@@ -19,7 +19,7 @@ Use existing standalone Redis connections from `database.redis` and Redis queue 
 
 For an existing deployment using the former `horizon:` metadata prefix, set `HORIZON_PREFIX=horizon:` while keeping its workers on that prefix. Change prefixes only after draining the old master; a new prefix has separate control state and history.
 
-Running monitors retry short Redis metadata interruptions. Managed workers wait while ownership cannot be checked. After Redis reconnects, Horizon verifies the existing ownership token before resuming. A missing or changed token causes the old process tree to shut down. The configured Redis endpoint is responsible for primary selection during failover.
+Running monitors retry short Redis metadata interruptions. Managed workers wait while ownership cannot be checked. After Redis reconnects, Horizon verifies the existing ownership token before resuming. A missing or changed token causes the old process tree to shut down. Managed workers also check ownership after Redis reserves a job. If the check fails, they return the job to the front of the queue while the reservation is still valid and restore its previous attempt count. The configured Redis endpoint is responsible for primary selection during failover.
 
 `horizon.defaults` maps supervisor names to options. `horizon.environments` selects the first pattern matching `app.env`, including `*`. An unmatched environment starts no supervisors; `max_processes: 0` disables a supervisor. Environment options merge recursively with defaults, replacing array entries by index. The default template uses a budget of 10 processes in `production` and 3 in `local`.
 

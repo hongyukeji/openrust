@@ -125,7 +125,7 @@ macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写
 
 固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。默认命名及自定义前缀已接通同机多组与双容器的 Artisan 控制，剩余名称输入边界见[命名审计](horizon/README.md#master-名称与解析器)。同名启动、接管与 Master 排空续期通过真实 Redis 验收。受管 Supervisor 元数据及 Worker 领取入口已加入所有权校验，并通过接管回归。 [所有权审计](horizon/README.md#supervisor-与-worker-接管) Pulse 已在原生 SQLite Worker 上修复并验收。两包正式部署组合继续核对。
 
-Redis 中已阻塞的 Horizon Worker 会在被唤醒后、再次请求领取前复核所有权。真实 Worker 接管回归确认任务留在待处理列表，尝试次数保持为零，并由新持有者通过 Artisan 执行。Redis 主从切换和可能已经发出的领取命令仍待验收。 [阻塞接管证据](horizon/README.md#supervisor-与-worker-接管)
+Redis 中已阻塞的 Horizon Worker 会在被唤醒后、再次请求领取前复核所有权。真实 Worker 接管回归确认任务留在待处理列表，尝试次数保持为零，并由新持有者通过 Artisan 执行。已发出的领取请求在把任务交给 Worker 前再次复核，拒绝时归还仍有效的保留项并恢复尝试次数。macOS 真实 Redis 验证普通领取、实际阻塞唤醒后领取及保留过期恢复。Redis 主从切换已通过隔离夹具，生产端点仍需实测。 [阻塞接管证据](horizon/README.md#supervisor-与-worker-接管) [领取回复途中的接管证据](horizon/README.md#redis-领取回复途中的接管)
 
 Horizon 的 Master 名称验证已接通空前缀、Unicode、冒号及超过原限制的长名称，使用完整父名称聚合子进程心跳。Windows ARM64 的受管子树现已通过真实 Redis 的启动、暂停续跑、排空、快速终止和父进程丢失回归。Windows x86_64、优化构建及正式服务管理器组合仍待验。固定 PHP 包依赖 `ext-pcntl` 和 `ext-posix`。 [Windows 进程树证据](horizon/README.md#windows-原生进程树) [固定 Horizon Composer 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json)
 

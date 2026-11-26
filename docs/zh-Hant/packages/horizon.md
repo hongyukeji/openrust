@@ -17,7 +17,7 @@
 
 重用 `database.redis` 中的單機 Redis 連線和 `queue.connections` 中的 Redis 佇列連線。`horizon.use` 選擇元資料連線，預設 `default`；`horizon.prefix` 讀取 `HORIZON_PREFIX`，預設將 `APP_NAME` 轉為底線 slug 後附加 `_horizon:`；共用 Redis 的不同環境應使用獨立前綴。不支援 Redis Cluster。原生[佇列](../digging-deeper/queues.md)仍按自身契約支援其他傳輸。
 
-執行中的監控程序會重試短時 Redis 中繼資料中斷。無法核對所有權時，受管 Worker 等候領取。重新連線後 Horizon 驗證既有所有權權杖，驗證通過才恢復。權杖缺失或變更時，舊程序樹會關閉。主從切換期間由設定的 Redis 端點負責選定主節點。
+執行中的監控程序會重試短時 Redis 中繼資料中斷。無法核對所有權時，受管 Worker 等候領取。重新連線後 Horizon 驗證既有所有權權杖，驗證通過才恢復。權杖缺失或變更時，舊程序樹會關閉。受管 Worker 在 Redis 保留工作後再次核對所有權。未能通過核對時，只要保留仍有效，就把工作放回佇列首位並恢復先前的嘗試次數。主從切換期間由設定的 Redis 端點負責選定主節點。
 
 既有部署若使用先前的 `horizon:` 中繼資料前綴，應明確設定 `HORIZON_PREFIX=horizon:`，讓相關 Worker 繼續使用相同前綴。排空舊 Master 後再切換前綴；新前綴具有獨立的控制狀態與歷史紀錄。
 
