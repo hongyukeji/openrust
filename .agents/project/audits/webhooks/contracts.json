@@ -169,16 +169,17 @@
       "public_methods": [
         "isValid"
       ],
-      "status": "foundation_verified",
+      "status": "native_signature_validator_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "固定默认验签使用配置头、原始正文 HMAC-SHA256 和固定时间比较。缺签名返回 false，单一非空且非字符串 0 的签名存在时，配置缺密钥返回类型化错误。Rust 另外有正文预算、重复头拒绝、十六进制形态校验与配置内密钥轮换。固定字节向量与真实 HTTP 覆盖。",
       "rust_source": "vendor/openrust/webhook-client/src/signature_validator.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -189,17 +190,18 @@
       "public_methods": [
         "isValid"
       ],
-      "status": "foundation_verified",
+      "status": "native_signature_validator_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "布尔验签入口保留；可选 verified_event_id 仅在验签与筛选通过后调用，适配 Standard 及自定义已签正文事件身份。显式配置的无签名提示使用独立表和 Worker，空签名与协议字段不全按既有拒绝路径处理。已提供三类判定的可选分钟审计与范围清理。历史凭据库、真实查单及跨主机门禁仍开放。",
+      "notes": "公开验签 trait 返回接受／拒绝或类型化错误。真实具名工厂消费当前原始请求；可选 verified_event_id 从已验签信息导出身份。无签名提示、证据留存和外部查单另按各自门禁验收。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
         "tests/webhooks_acceptance.py",
         "tests/webhooks_worker_acceptance.py",
-        "tests/webhooks_routes_acceptance.py"
+        "tests/webhooks_routes_acceptance.py",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -386,16 +388,17 @@
       "public_methods": [
         "waitInSecondsAfterAttempt"
       ],
-      "status": "foundation_verified",
+      "status": "native_backoff_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "公开 trait 接收非负尝试编号并返回延迟秒数，应用可具名注册独立实现。固定策略、具名选择和实际发送 Worker 消费见契约、Builder 与投递测试。",
       "rust_source": "vendor/openrust/webhook-server/src/backoff_strategy.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/contracts.rs",
         "vendor/openrust/webhook-server/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        "tests/webhooks_send_acceptance.py"
       ]
     },
     {
@@ -406,16 +409,17 @@
       "public_methods": [
         "waitInSecondsAfterAttempt"
       ],
-      "status": "foundation_verified",
+      "status": "native_backoff_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "编号零至四返回 10 的编号次幂，编号大于四返回 100000 秒。Rust 类型限定非负编号，首次实际投递编号为一。现有测试覆盖零、四／五过渡和 u32 上界。",
       "rust_source": "vendor/openrust/webhook-server/src/backoff_strategy.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/contracts.rs",
         "vendor/openrust/webhook-server/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        "tests/webhooks_send_acceptance.py"
       ]
     },
     {
@@ -692,16 +696,17 @@
         "calculateSignature",
         "signatureHeaderName"
       ],
-      "status": "foundation_verified",
+      "status": "native_signer_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "默认头名 Signature，可通过构造指定合法 HTTP 头名。默认只对原始正文字节做小写十六进制 HMAC-SHA256。既有固定向量明确核对签名头、自定义头和 URL、事件标识、时间变更下的结果。",
       "rust_source": "vendor/openrust/webhook-server/src/signer.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/contracts.rs",
         "vendor/openrust/webhook-server/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        "tests/webhooks_send_acceptance.py"
       ]
     },
     {
@@ -713,16 +718,17 @@
         "signatureHeaderName",
         "calculateSignature"
       ],
-      "status": "foundation_verified",
+      "status": "native_signer_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "公开 trait 给出签名头名与计算结果。Rust 接收不可变签名上下文，通过类型化错误表达失败，公开工厂可组装具名签名器，实际 Artisan 签名消费者核对自定义头；发送验收另核对 Worker 发出的请求。",
       "rust_source": "vendor/openrust/webhook-server/src/signer.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/contracts.rs",
         "vendor/openrust/webhook-server/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        "tests/webhooks_send_acceptance.py"
       ]
     },
     {

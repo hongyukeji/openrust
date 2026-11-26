@@ -53,3 +53,11 @@
 继续WH-00构造／字段／继承逐项裁决。[错误契约与持久序列化](errors.md)与[模型清理](retention.md#model-prune)已核对；其余类型仍按逐类型清单跟踪。[原生初始化](installation.md)和[迁移发布](migration-publication.md)已覆盖单包、双包、重复安装、稳定账本及同名应用迁移；注意默认签名不保护Webhook-Id、Timestamp或URL，不能直接把这些未签字段当可信事件身份；无ID摘要策略须覆盖真实业务输入并有窗口，不能误合并GET／query的不同请求。手动Processor、原文接收记录与模型委托storage已在[后续批次](receiver.md)验收，[公开控制器／路由及注册工厂](routes.md)已有实际验收，继续核对WH-02事件／异常契约，附件本地清理已验，远端及跨主机仍待验。随后WH-03补齐领域幂等消费者和双拓扑，再进入WH-04首次安全发送、WH-05持久发送、WH-06运维及WH-07全门禁。全新安装、重复安装和两种签名协议的正式应用往返均已有实测。正式制品许可收集和持久凭据修订仍按各自门禁跟踪。
 
 WH-V01至WH-V27仍按计划逐项完成；本批只有部分基础证据。真实远程多主机、Linux／Windows、生产TLS／代理／mTLS及供应商／平台未验。同主机双节点验收及其剩余故障矩阵见[拓扑记录](topology.md)，共享主写库和 Redis 已补[断连与恢复](backend-interruption.md)，[共享 S3 附件](shared-object-storage.md)已验 ACL、跨节点读取及补偿，[双节点调度与授权故障](cluster-ownership.md)已补 Scheduler 退出、旧领取回归及端点和凭据失效。已补[两个实际版本的滚动升级](rolling-upgrade.md)。不推送／不发布／不操作正式环境，目标保持进行中。
+
+## 签名、验签及退避的逐类型复核
+
+- 固定默认签名使用配置头和原始正文的 HMAC-SHA256。Rust 原生签名上下文提供 URL、消息 ID、时间和正文，默认实现仅绑定正文。固定字节向量核对默认及自定义头、二进制正文和 URL 等额外输入变化。具名签名器的独立扩展已有实际 Artisan 消费。 [固定默认 Signer](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/Signer/DefaultSigner.php)
+- 固定默认验签先读取配置头，再处理密钥及签名比较。Rust 实测向量覆盖缺签名、空密钥、字符串 0、正文修改和签名大小写。重复头拒绝、正文上限和同配置密钥轮换为原生边界。现有路由验收验证具名验签器可消费当前原始请求。 [固定默认 Validator](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/src/SignatureValidator/DefaultSignatureValidator.php)
+- 固定指数退避对零至四取 10 的编号次幂，后续固定 100000 秒。Rust 使用非负尝试编号，实际首次领取为一。已有契约测试覆盖两侧边界及最大编号，发送验收另核对已登记的具名退避和 Worker 行为。 [固定指数退避](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/BackoffStrategy/ExponentialBackoffStrategy.php)
+
+本次复核更新这三组接口及默认实现的判定，证据为固定源码、当前实现和既有实际消费者验收。接收处理及出站投递的终态、进程恢复、完整模型继承和外部拓扑仍按各自门禁跟踪。
