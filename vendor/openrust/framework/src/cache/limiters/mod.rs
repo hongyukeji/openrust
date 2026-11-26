@@ -2,4 +2,4 @@
 
 mod concurrency_limiter_builder;
 
-pub use concurrency_limiter_builder::ConcurrencyLimiterBuilder;
+pub use concurrency_limiter_builder::{ConcurrencyLease, ConcurrencyLimiterBuilder};

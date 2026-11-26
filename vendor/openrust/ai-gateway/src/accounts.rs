@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use http::{HeaderMap, header};
 use openrust::{
-    cache::{Cache, CacheError, CacheResult, Ttl, Value},
+    cache::{Cache, CacheError, CacheResult, Ttl, Value, limiters::ConcurrencyLease},
     contracts::cache::Repository as _,
     http::client::RetryAfter,
 };
@@ -11,6 +11,44 @@ use sha2::{Digest, Sha256};
 pub(crate) const MAX_SECONDS: i64 = 86_400;
 const MILLIS_PER_SECOND: i64 = 1_000;
 
+pub(crate) struct Account {
+    pub(crate) cooldown: Option<AccountCooldown>,
+    concurrency: Option<(String, usize)>,
+}
+
+pub(crate) enum Admission {
+    Allowed(Option<ConcurrencyLease>),
+    Busy,
+}
+
+impl Account {
+    pub(crate) fn new(name: &str, cooldown: Option<i64>, concurrency: Option<usize>) -> Self {
+        let digest = format!("{:x}", Sha256::digest(name));
+        Self {
+            cooldown: cooldown.map(|seconds| AccountCooldown::new(&digest, seconds)),
+            concurrency: concurrency
+                .map(|maximum| (format!("ai-gateway:account:concurrency:{digest}:"), maximum)),
+        }
+    }
+
+    pub(crate) async fn acquire(&self, store: Option<&str>) -> CacheResult<Admission> {
+        let Some((name, maximum)) = &self.concurrency else {
+            return Ok(Admission::Allowed(None));
+        };
+        let lease = Cache::store(store)?
+            .funnel(name)?
+            .limit(*maximum)
+            .release_after(120)
+            .block(0)
+            .acquire()
+            .await?;
+        Ok(match lease {
+            Some(lease) => Admission::Allowed(Some(lease)),
+            None => Admission::Busy,
+        })
+    }
+}
+
 pub(crate) struct AccountCooldown {
     key: String,
     lock_key: String,
@@ -18,8 +56,8 @@ pub(crate) struct AccountCooldown {
 }
 
 impl AccountCooldown {
-    pub(crate) fn new(account: &str, seconds: i64) -> Self {
-        let key = format!("ai-gateway:account:cooldown:{:x}", Sha256::digest(account));
+    fn new(account_digest: &str, seconds: i64) -> Self {
+        let key = format!("ai-gateway:account:cooldown:{account_digest}");
         Self {
             lock_key: format!("{key}:lock"),
             key,

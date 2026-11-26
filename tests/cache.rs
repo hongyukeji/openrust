@@ -2348,6 +2348,32 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
     resume.send(()).unwrap();
     assert_eq!(task.await.unwrap().unwrap(), 42);
 
+    // 直接持有槽位，使流式调用可以跨回调保留相同所有权。
+    let lease = first
+        .funnel("direct-slots")
+        .unwrap()
+        .limit(1)
+        .release_after(10)
+        .block(0)
+        .acquire()
+        .await
+        .unwrap()
+        .unwrap();
+    let direct = second.funnel("direct-slots").unwrap().limit(1).block(0);
+    assert!(direct.acquire().await.unwrap().is_none());
+    lease.release().await.unwrap();
+    let lease = direct.acquire().await.unwrap().unwrap();
+    drop(lease);
+    second
+        .funnel("direct-slots")
+        .unwrap()
+        .limit(1)
+        .block(2)
+        .sleep(5)
+        .then(|| async { Ok(()) })
+        .await
+        .unwrap();
+
     let (started, running) = oneshot::channel();
     let limiter = first.funnel("reports").unwrap().limit(1).release_after(10);
     let task = tokio::spawn(limiter.then(|| async move {

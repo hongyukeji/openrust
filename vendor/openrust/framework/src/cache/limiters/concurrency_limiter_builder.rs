@@ -9,6 +9,15 @@ use crate::cache::{
     lock::{DEFAULT_RETRY_INTERVAL, ScopedLock, acquire_scoped, lock_owner, run_locked},
 };
 
+/// 持有一个限流槽位，释放或丢弃后其他进程可以获取。
+pub struct ConcurrencyLease(ScopedLock);
+
+impl ConcurrencyLease {
+    pub async fn release(self) -> CacheResult<()> {
+        self.0.release().await
+    }
+}
+
 /// Bounds concurrent callbacks across callers using the same lock store and name.
 #[must_use]
 pub struct ConcurrencyLimiterBuilder {
@@ -62,7 +71,7 @@ impl ConcurrencyLimiterBuilder {
         F: Future<Output = CacheResult<T>>,
     {
         let lock = self.acquire().await?.ok_or(CacheError::LimiterTimeout)?;
-        run_locked(lock, callback).await
+        run_locked(lock.0, callback).await
     }
 
     /// Runs the fallback when the wait for a slot expires.
@@ -81,7 +90,8 @@ impl ConcurrencyLimiterBuilder {
         }
     }
 
-    async fn acquire(&self) -> CacheResult<Option<ScopedLock>> {
+    /// 在配置的等待时间内获取一个槽位。
+    pub async fn acquire(&self) -> CacheResult<Option<ConcurrencyLease>> {
         let provider = self
             .store
             .lock_provider()
@@ -95,7 +105,7 @@ impl ConcurrencyLimiterBuilder {
                 let key = format!("{}{slot}", self.name);
                 let lock = provider.lock(&key, Some(self.lease), Some(&owner))?;
                 if let Some(lock) = acquire_scoped(lock, None).await? {
-                    return Ok(Some(lock));
+                    return Ok(Some(ConcurrencyLease(lock)));
                 }
             }
             let remaining = deadline.saturating_duration_since(Instant::now());

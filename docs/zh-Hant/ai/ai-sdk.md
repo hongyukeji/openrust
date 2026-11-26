@@ -72,6 +72,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 可在 `config/ai_gateway.rs` 中設定 `accounts.deepseek.cooldown_seconds = 30`，讓具名上游連線在回傳 HTTP 429、503 或 529 後進入冷卻。上游有效的 `Retry-After` 優先，最長 24 小時。使用同一連線的所有公開模型共用冷卻狀態。可用連線都在冷卻時，閘道回傳 HTTP 503 及 `Retry-After`。多程序部署可將 `account_cache_store` 指向共用快取，例如 `redis`。
 
+設定 `accounts.deepseek.max_concurrent_requests` 可限制該連線的並行請求數。使用同一快取的閘道程序共用槽位。串流請求會佔用槽位，直到結束或用戶端中斷連線。首選連線已滿時，閘道會在送出請求前檢查下一個可用連線。若所有可用連線的槽位都已滿，回傳 HTTP 503 和 `upstream_busy`。
+
 ## Agent 工具 {#agent-tools}
 
 實作 `Tool` 的名稱、描述、JSON Schema 和非同步 `handle`。用 `ToolRequest::validate` 執行框架驗證規則，或透過 `decode` 讀取 Rust 型別的參數。工具可以讀取上游呼叫 ID 和本次執行的獨立 ID。

@@ -4,14 +4,17 @@ use std::{
     sync::Arc,
 };
 
-use openrust::{config::Environment, container::ServiceKey, log::Logger, support::facades::Facade};
+use openrust::{
+    cache::limiters::ConcurrencyLease, config::Environment, container::ServiceKey, log::Logger,
+    support::facades::Facade,
+};
 use openrust_ai::{AiManager, TextEndpoint, TextProvider};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-use crate::account_cooldown::{AccountCooldown, MAX_SECONDS};
+use crate::accounts::{Account, MAX_SECONDS};
 
 #[derive(Default, Deserialize)]
 struct Configuration {
@@ -43,7 +46,8 @@ struct TargetConfiguration {
 
 #[derive(Deserialize)]
 struct AccountConfiguration {
-    cooldown_seconds: i64,
+    cooldown_seconds: Option<i64>,
+    max_concurrent_requests: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -74,7 +78,7 @@ const ENDPOINTS: [TextEndpoint; 8] = [
 pub(crate) struct Target {
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
-    pub(crate) cooldown: Option<Arc<AccountCooldown>>,
+    pub(crate) account: Option<Arc<Account>>,
 }
 
 pub(crate) struct Model {
@@ -149,14 +153,21 @@ impl Gateway {
         }
         let mut accounts = BTreeMap::new();
         for (name, policy) in config.accounts {
-            if !(1..=MAX_SECONDS).contains(&policy.cooldown_seconds)
+            if policy
+                .cooldown_seconds
+                .is_some_and(|seconds| !(1..=MAX_SECONDS).contains(&seconds))
+                || policy.max_concurrent_requests == Some(0)
                 || ai.get_instance_config(&name).is_err()
             {
                 return Err(invalid(format!("上游账号 {name} 的连接或冷却配置无效")));
             }
             accounts.insert(
                 name.clone(),
-                Arc::new(AccountCooldown::new(&name, policy.cooldown_seconds)),
+                Arc::new(Account::new(
+                    &name,
+                    policy.cooldown_seconds,
+                    policy.max_concurrent_requests,
+                )),
             );
         }
         let models = config
@@ -181,7 +192,7 @@ impl Gateway {
                     targets.push(Target {
                         provider,
                         upstream_model: target.model,
-                        cooldown: accounts.get(&target.provider).cloned(),
+                        account: accounts.get(&target.provider).cloned(),
                     });
                 }
                 let endpoints: Vec<_> = ENDPOINTS
@@ -265,6 +276,7 @@ impl Gateway {
         target: &Target,
         endpoints: (TextEndpoint, TextEndpoint),
         request_id: &str,
+        lease: Option<ConcurrencyLease>,
     ) -> Call {
         let (endpoint, upstream_endpoint) = endpoints;
         Call {
@@ -283,6 +295,7 @@ impl Gateway {
             .into_iter()
             .collect(),
             outcome: "cancelled",
+            lease,
         }
     }
 }
@@ -291,9 +304,18 @@ pub(crate) struct Call {
     logger: Arc<Logger>,
     context: openrust::log::LogContext,
     outcome: &'static str,
+    lease: Option<ConcurrencyLease>,
 }
 
 impl Call {
+    pub(crate) async fn release(&mut self) {
+        if let Some(lease) = self.lease.take()
+            && lease.release().await.is_err()
+        {
+            eprintln!("AI 网关账号槽位释放失败");
+        }
+    }
+
     pub(crate) fn outcome(&mut self, outcome: &'static str) {
         self.outcome = outcome;
     }

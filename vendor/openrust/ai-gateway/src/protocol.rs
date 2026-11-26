@@ -15,6 +15,7 @@ use openrust_ai::{AiError, TextEndpoint};
 use serde_json::{Value, json};
 
 use crate::{
+    accounts::Admission,
     compatibility::Bridge,
     gateway::{Call, Gateway, Key, Target},
 };
@@ -424,6 +425,7 @@ async fn relay(
     let mut failure = None;
     let mut conversion_error = None;
     let mut cooling = None::<u64>;
+    let mut busy = false;
     let cache_store = gateway.account_cache_store.as_deref();
     let mut targets = model.targets_for(endpoint).peekable();
     while let Some((target, upstream_endpoint)) = targets.next() {
@@ -445,8 +447,12 @@ async fn relay(
         } else {
             Value::Object(payload)
         };
-        if let Some(account) = &target.cooldown {
-            match account.remaining(cache_store).await {
+        if let Some(cooldown) = target
+            .account
+            .as_ref()
+            .and_then(|account| account.cooldown.as_ref())
+        {
+            match cooldown.remaining(cache_store).await {
                 Ok(Some(seconds)) => {
                     cooling = Some(cooling.map_or(seconds, |current| current.min(seconds)));
                     continue;
@@ -455,6 +461,18 @@ async fn relay(
                 Err(_) => return account_state_unavailable(protocol),
             }
         }
+        let lease = if let Some(account) = &target.account {
+            match account.acquire(cache_store).await {
+                Ok(Admission::Allowed(lease)) => lease,
+                Ok(Admission::Busy) => {
+                    busy = true;
+                    continue;
+                }
+                Err(_) => return account_state_unavailable(protocol),
+            }
+        } else {
+            None
+        };
         if !admitted {
             if let Some(response) = admit(key, protocol).await? {
                 return Ok(response);
@@ -467,17 +485,23 @@ async fn relay(
             target,
             (endpoint, upstream_endpoint),
             &request_id,
+            lease,
         );
         match request_upstream(target, upstream_endpoint, payload, protocol, &mut call).await {
             Ok(upstream) => {
-                return respond(upstream, name, endpoint, streaming, protocol, bridge, call);
+                return respond(upstream, name, endpoint, streaming, protocol, bridge, call).await;
             }
             Err(rejected) => {
-                if let (Some(account), Some(until)) = (&target.cooldown, rejected.pause_until)
-                    && account.pause(cache_store, until).await.is_err()
+                let cooldown = target
+                    .account
+                    .as_ref()
+                    .and_then(|account| account.cooldown.as_ref());
+                if let (Some(cooldown), Some(until)) = (cooldown, rejected.pause_until)
+                    && cooldown.pause(cache_store, until).await.is_err()
                 {
                     return account_state_unavailable(protocol);
                 }
+                call.release().await;
                 if !rejected.retryable || !may_replay {
                     return rejected.response;
                 }
@@ -487,6 +511,13 @@ async fn relay(
     }
     if let Some(failure) = failure {
         return failure;
+    }
+    if busy {
+        return protocol.error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "upstream_busy",
+            "上游连接并发槽位已满",
+        );
     }
     if let Some(seconds) = cooling {
         return protocol
@@ -603,8 +634,9 @@ async fn request_upstream(
         .map(|response| response.with_headers(headers));
     let pause_until = match status.as_u16() {
         429 | 503 | 529 => target
-            .cooldown
+            .account
             .as_ref()
+            .and_then(|account| account.cooldown.as_ref())
             .and_then(|policy| policy.deadline(upstream.headers())),
         _ => None,
     };
@@ -615,7 +647,7 @@ async fn request_upstream(
     })
 }
 
-fn respond(
+async fn respond(
     upstream: client::Response,
     name: String,
     endpoint: TextEndpoint,
@@ -629,6 +661,7 @@ fn respond(
     if streaming {
         return stream(upstream, headers, name, call, protocol, bridge);
     }
+    call.release().await;
     let Ok(mut data) = upstream.json::<Value>() else {
         call.outcome("invalid_upstream_response");
         return protocol.error(
