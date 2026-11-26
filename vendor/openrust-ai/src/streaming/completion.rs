@@ -6,7 +6,9 @@ use openrust::{
     support::facades::{App, Facade},
 };
 
-use crate::{AgentResponse, FinishReason, PendingToolApprovals, Step, Usage};
+use crate::{
+    AgentResponse, AiError, FinishReason, PendingToolApprovals, Step, Usage, events::StreamAttempt,
+};
 
 use super::{AgentEventStream, StreamEvent, StreamEventData, UrlCitation};
 
@@ -32,10 +34,13 @@ impl StreamedAgentResponse {
         collect_reasoning(&self.events)
     }
 
-    pub(super) fn from_events(events: Vec<StreamEvent>) -> Option<Self> {
+    pub(super) fn from_events(
+        events: Vec<StreamEvent>,
+        conversation_id: Option<String>,
+    ) -> Option<Self> {
         let invocation_id = events.first()?.invocation_id.clone();
         let (conversation_id, pending_approvals) = match &events.last()?.data {
-            StreamEventData::StreamEnd { .. } => (None, None),
+            StreamEventData::StreamEnd { .. } => (conversation_id, None),
             StreamEventData::ToolApprovalRequest {
                 conversation_id,
                 approval_id,
@@ -178,25 +183,50 @@ type Callback = Box<dyn FnOnce(&StreamedAgentResponse) + Send>;
 pub(super) struct CompletionCallbacks {
     app: Option<Arc<Application>>,
     callbacks: Vec<Callback>,
+    completed: Option<StreamAttempt>,
+    failed: Option<StreamAttempt>,
 }
 
 impl CompletionCallbacks {
     pub(super) fn push(&mut self, callback: impl FnOnce(&StreamedAgentResponse) + Send + 'static) {
-        if self.callbacks.is_empty() {
+        if self.app.is_none() {
             self.app = App::get_facade_root().ok();
         }
         self.callbacks.push(Box::new(callback));
     }
 
-    pub(super) fn is_empty(&self) -> bool {
-        self.callbacks.is_empty()
+    pub(super) fn observe(
+        &mut self,
+        attempt: StreamAttempt,
+        app: Arc<Application>,
+        completed: bool,
+        failed: bool,
+    ) {
+        self.app = Some(app);
+        self.completed = completed.then(|| attempt.clone());
+        self.failed = failed.then_some(attempt);
     }
 
-    pub(super) async fn notify(self, events: Vec<StreamEvent>) {
-        let Some(response) = StreamedAgentResponse::from_events(events) else {
+    fn retains_events(&self) -> bool {
+        !self.callbacks.is_empty() || self.completed.is_some()
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        !self.retains_events() && self.failed.is_none()
+    }
+
+    pub(super) async fn notify(self, events: Vec<StreamEvent>, conversation_id: Option<String>) {
+        if !self.retains_events() {
+            return;
+        }
+        let Some(response) = StreamedAgentResponse::from_events(events, conversation_id) else {
             return;
         };
         let notify = async move {
+            let response = Arc::new(response);
+            if let Some(attempt) = self.completed {
+                attempt.complete(response.clone()).await;
+            }
             for callback in self.callbacks {
                 callback(&response);
             }
@@ -208,32 +238,43 @@ impl CompletionCallbacks {
         }
     }
 
-    pub(super) fn stream(self, mut source: AgentEventStream) -> AgentEventStream {
+    pub(super) async fn fail(self, error: &AiError) {
+        if let (Some(attempt), Some(app)) = (self.failed, self.app) {
+            app.scope(attempt.fail(error)).await;
+        }
+    }
+
+    pub(super) fn stream(
+        self,
+        mut source: AgentEventStream,
+        conversation_id: Option<String>,
+    ) -> AgentEventStream {
         Box::pin(async_stream::stream! {
             let mut completion = Some(self);
             let mut events = Vec::new();
             while let Some(result) = source.next().await {
-                if completion.is_some() {
-                    match &result {
-                        Ok(event) => {
-                            events.push(event.clone());
-                            // UI 适配器将审批请求当成终帧，发送后结束正文。
-                            if matches!(event.data, StreamEventData::ToolApprovalRequest { .. })
-                                && let Some(callbacks) = completion.take()
-                            {
-                                callbacks.notify(std::mem::take(&mut events)).await;
-                            }
+                match &result {
+                    Ok(event) if completion.as_ref().is_some_and(Self::retains_events) => {
+                        events.push(event.clone());
+                        // UI 适配器将审批请求当成终帧，发送后结束正文。
+                        if matches!(event.data, StreamEventData::ToolApprovalRequest { .. })
+                            && let Some(callbacks) = completion.take()
+                        {
+                            callbacks.notify(std::mem::take(&mut events), conversation_id.clone()).await;
                         }
-                        Err(_) => {
-                            completion = None;
+                    },
+                    Err(error) => {
+                        if let Some(callbacks) = completion.take() {
                             events.clear();
+                            callbacks.fail(error).await;
                         }
-                    }
+                    },
+                    _ => {}
                 }
                 yield result;
             }
             if let Some(callbacks) = completion {
-                callbacks.notify(events).await;
+                callbacks.notify(events, conversation_id).await;
             }
         })
     }

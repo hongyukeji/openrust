@@ -305,10 +305,12 @@ impl<A: Agent> PendingConversation<'_, A> {
             .await?;
         let conversation_id = turn.id.clone();
         let prompt = prompt.to_owned();
-        let response =
-            conversation_stream::remember(response, schema.is_some(), move |response| async move {
-                turn.persist(&prompt, &response).await
-            });
+        let response = conversation_stream::remember(
+            response,
+            conversation_id.clone(),
+            schema.is_some(),
+            move |response| async move { turn.persist(&prompt, &response).await },
+        );
         Ok(ConversationResponse {
             conversation_id,
             response,

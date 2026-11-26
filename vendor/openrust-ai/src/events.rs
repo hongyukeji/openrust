@@ -6,8 +6,8 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, ConversationParticipant, PendingApproval, ToolResult,
-    error::ProviderAttemptError, messages::OwnedPrompt,
+    AgentPrompt, AgentResponse, AiError, ConversationParticipant, PendingApproval,
+    StreamedAgentResponse, ToolResult, error::ProviderAttemptError, messages::OwnedPrompt,
 };
 
 /// 事件监听器可读取本次尝试的 Agent、连接和提示参数。
@@ -67,6 +67,105 @@ impl AgentFailed {
 impl Event for AgentFailed {
     fn name(&self) -> &str {
         Self::NAME
+    }
+}
+
+pub struct StreamingAgent {
+    pub invocation_id: String,
+    pub prompt: Arc<AgentPromptSnapshot>,
+}
+
+impl StreamingAgent {
+    pub const NAME: &str = "openrust_ai::events::StreamingAgent";
+}
+
+impl Event for StreamingAgent {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+pub struct AgentStreamed {
+    pub invocation_id: String,
+    pub prompt: Arc<AgentPromptSnapshot>,
+    pub response: Arc<StreamedAgentResponse>,
+}
+
+impl AgentStreamed {
+    pub const NAME: &str = "openrust_ai::events::AgentStreamed";
+}
+
+impl Event for AgentStreamed {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct StreamAttempt {
+    invocation_id: String,
+    prompt: Arc<AgentPromptSnapshot>,
+}
+
+impl StreamAttempt {
+    pub(crate) async fn complete(self, response: Arc<StreamedAgentResponse>) {
+        dispatch_prompt_event(AgentStreamed {
+            invocation_id: self.invocation_id,
+            prompt: self.prompt,
+            response,
+        })
+        .await;
+    }
+
+    pub(crate) async fn fail(self, error: &AiError) {
+        dispatch_prompt_event(AgentFailed {
+            invocation_id: self.invocation_id,
+            prompt: self.prompt,
+            error: error.clone(),
+        })
+        .await;
+    }
+}
+
+pub(crate) async fn observe_stream_start<'a, T, Fut>(
+    agent: &'static str,
+    provider: &str,
+    request: AgentPrompt<'a>,
+    send: impl FnOnce(AgentPrompt<'a>) -> Fut,
+) -> Result<(T, Option<StreamAttempt>), ProviderAttemptError>
+where
+    Fut: Future<Output = Result<T, ProviderAttemptError>>,
+{
+    if !Events::dispatcher().is_ok_and(|dispatcher| {
+        [StreamingAgent::NAME, AgentStreamed::NAME, AgentFailed::NAME]
+            .into_iter()
+            .any(|name| dispatcher.observes(name))
+    }) {
+        return send(request).await.map(|response| (response, None));
+    }
+    let Some(invocation_id) = crate::request_context::invocation_id() else {
+        return send(request).await.map(|response| (response, None));
+    };
+    let prompt = Arc::new(AgentPromptSnapshot {
+        agent,
+        provider: provider.into(),
+        prompt: OwnedPrompt::from(&request),
+    });
+    let attempt = StreamAttempt {
+        invocation_id,
+        prompt,
+    };
+    dispatch_prompt_event(StreamingAgent {
+        invocation_id: attempt.invocation_id.clone(),
+        prompt: attempt.prompt.clone(),
+    })
+    .await;
+    match send(request).await {
+        Ok(response) => Ok((response, Some(attempt))),
+        Err(error) => {
+            attempt.fail(error.error()).await;
+            Err(error)
+        }
     }
 }
 

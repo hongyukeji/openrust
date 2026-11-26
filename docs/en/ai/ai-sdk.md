@@ -97,6 +97,8 @@ Anthropic Messages can retry or fail over on HTTP 529 and fail over on credit er
 
 Buffered prompts dispatch `PromptingAgent` before each provider attempt, followed by `AgentPrompted` with the response or `AgentFailed` with the typed error. Listen through the framework’s Event facade using each event’s `NAME`. Every attempt and any `AgentFailedOver` event share the invocation ID. `event.prompt.as_prompt()` exposes the request resolved for that connection before step middleware.
 
+The SDK dispatches `StreamingAgent` before starting each provider attempt for a stream. A fully consumed stream dispatches `AgentStreamed` with the result, and startup or read errors dispatch `AgentFailed`. Approval pauses carry the saved approval batch. A remembered conversation is saved before the success event, and the event includes its conversation ID. Register listeners before starting the request. A client that stops consuming a stream can leave it without a success event.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

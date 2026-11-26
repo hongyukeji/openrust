@@ -3,13 +3,14 @@ use std::future::Future;
 use futures_util::StreamExt;
 
 use crate::{
-    AgentResponse, AiError, AiResult, StreamEventData, StreamableAgentResponse,
+    AgentEventStream, AgentResponse, AiError, AiResult, StreamEventData, StreamableAgentResponse,
     StructuredAgentResponse, Usage,
 };
 
 /// 在确认上游完整结束并写入会话之后，才交付最后一个结束事件。
 pub(crate) fn remember<F, Fut>(
     source: StreamableAgentResponse,
+    conversation_id: String,
     structured: bool,
     persist: F,
 ) -> StreamableAgentResponse
@@ -17,7 +18,20 @@ where
     F: FnOnce(AgentResponse) -> Fut + Send + 'static,
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
-    let mut source = source.into_stream();
+    source.within_conversation(conversation_id, |events| {
+        persisted_events(events, structured, persist)
+    })
+}
+
+fn persisted_events<F, Fut>(
+    mut source: AgentEventStream,
+    structured: bool,
+    persist: F,
+) -> AgentEventStream
+where
+    F: FnOnce(AgentResponse) -> Fut + Send + 'static,
+    Fut: Future<Output = AiResult<()>> + Send + 'static,
+{
     let events = async_stream::try_stream! {
         let mut final_event = None;
         let mut response = None;
@@ -67,5 +81,5 @@ where
         persist(response).await?;
         yield end;
     };
-    StreamableAgentResponse::from_events(Box::pin(events))
+    Box::pin(events)
 }

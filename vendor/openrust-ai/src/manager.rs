@@ -832,33 +832,41 @@ impl AiManager {
             attachments,
             structured_output,
         };
+        let agent_type = std::any::type_name::<A>();
         if tools.is_empty() {
-            self.with_text_failover(
-                agent,
-                options,
-                request,
-                None,
-                |provider, request, _, probe| {
-                    Box::pin(async move {
-                        let response = provider
-                            .stream(request)
-                            .await
-                            .map_err(ProviderAttemptError::BeforeCommit)?;
-                        if probe {
-                            response
-                                .probe()
-                                .await
-                                .map_err(ProviderAttemptError::BeforeCommit)
-                        } else {
-                            Ok(response)
-                        }
-                    })
-                },
-            )
-            .await
+            let (response, attempt) = self
+                .with_text_failover(
+                    agent,
+                    options,
+                    request,
+                    None,
+                    |provider, request, _, probe| {
+                        Box::pin(crate::events::observe_stream_start(
+                            agent_type,
+                            provider.name(),
+                            request,
+                            move |request| async move {
+                                let response = provider
+                                    .stream(request)
+                                    .await
+                                    .map_err(ProviderAttemptError::BeforeCommit)?;
+                                if probe {
+                                    response
+                                        .probe()
+                                        .await
+                                        .map_err(ProviderAttemptError::BeforeCommit)
+                                } else {
+                                    Ok(response)
+                                }
+                            },
+                        ))
+                    },
+                )
+                .await?;
+            Ok(response.observe_attempt(attempt))
         } else {
             let max_steps = agent.max_steps();
-            let prepared = self
+            let (prepared, attempt) = self
                 .with_text_failover(
                     agent,
                     options,
@@ -866,21 +874,26 @@ impl AiManager {
                     None,
                     |provider, request, _, probe| {
                         let tools = tools.clone();
-                        Box::pin(async move {
-                            crate::tool_stream::prepare(
-                                provider.clone(),
-                                request,
-                                tools,
-                                max_steps,
-                                probe,
-                            )
-                            .await
-                            .map_err(ProviderAttemptError::BeforeCommit)
-                        })
+                        Box::pin(crate::events::observe_stream_start(
+                            agent_type,
+                            provider.name(),
+                            request,
+                            move |request| async move {
+                                crate::tool_stream::prepare(
+                                    provider.clone(),
+                                    request,
+                                    tools,
+                                    max_steps,
+                                    probe,
+                                )
+                                .await
+                                .map_err(ProviderAttemptError::BeforeCommit)
+                            },
+                        ))
                     },
                 )
                 .await?;
-            Ok(crate::tool_stream::response(prepared, approvals))
+            Ok(crate::tool_stream::response(prepared, approvals).observe_attempt(attempt))
         }
     }
 

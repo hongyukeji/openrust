@@ -241,7 +241,8 @@ impl Dispatcher {
         Contract::has_listeners(self, event)
     }
 
-    pub(crate) fn observes(&self, name: &str) -> bool {
+    /// Checks whether the current listeners or event fake can receive the named event.
+    pub fn observes(&self, name: &str) -> bool {
         let fake_matches = self
             .active_fake(&self.read())
             .is_some_and(|fake| fake.may_match_name(name));

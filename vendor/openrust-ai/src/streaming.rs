@@ -96,7 +96,16 @@ pub struct StreamableAgentResponse {
     inspected: Vec<StreamEvent>,
     inspection_complete: bool,
     completion: CompletionCallbacks,
+    conversation_id: Option<String>,
     protocol: Option<Box<dyn StreamProtocol>>,
+}
+
+fn replay_events(inspected: Vec<StreamEvent>, events: AgentEventStream) -> AgentEventStream {
+    if inspected.is_empty() {
+        events
+    } else {
+        Box::pin(futures_util::stream::iter(inspected.into_iter().map(Ok)).chain(events))
+    }
 }
 
 impl StreamableAgentResponse {
@@ -106,6 +115,7 @@ impl StreamableAgentResponse {
             inspected: Vec::new(),
             inspection_complete: false,
             completion: CompletionCallbacks::default(),
+            conversation_id: None,
             protocol: None,
         }
     }
@@ -115,6 +125,38 @@ impl StreamableAgentResponse {
             self.inspected.push(event?);
         }
         Ok(self)
+    }
+
+    pub(crate) fn observe_attempt(mut self, attempt: Option<crate::events::StreamAttempt>) -> Self {
+        use crate::events::{AgentFailed, AgentStreamed};
+        use openrust::support::facades::Event;
+
+        let Some(attempt) = attempt else {
+            return self;
+        };
+        let (Ok(app), Ok(dispatcher)) = (App::get_facade_root(), Event::dispatcher()) else {
+            return self;
+        };
+        self.completion.observe(
+            attempt,
+            app,
+            dispatcher.observes(AgentStreamed::NAME),
+            dispatcher.observes(AgentFailed::NAME),
+        );
+        self
+    }
+
+    pub(crate) fn within_conversation(
+        mut self,
+        conversation_id: String,
+        wrap: impl FnOnce(AgentEventStream) -> AgentEventStream,
+    ) -> Self {
+        self.conversation_id = Some(conversation_id);
+        self.events = wrap(replay_events(
+            std::mem::take(&mut self.inspected),
+            self.events,
+        ));
+        self
     }
 
     pub(crate) fn broadcasting(mut self, broadcast: StreamBroadcast) -> AiResult<Self> {
@@ -132,17 +174,11 @@ impl StreamableAgentResponse {
     }
 
     pub fn into_stream(self) -> AgentEventStream {
-        let events: AgentEventStream = if self.inspected.is_empty() {
-            self.events
-        } else {
-            Box::pin(
-                futures_util::stream::iter(self.inspected.into_iter().map(Ok)).chain(self.events),
-            )
-        };
+        let events = replay_events(self.inspected, self.events);
         if self.completion.is_empty() {
             events
         } else {
-            self.completion.stream(events)
+            self.completion.stream(events, self.conversation_id)
         }
     }
 
@@ -154,7 +190,13 @@ impl StreamableAgentResponse {
             }
         }
         while let Some(event) = self.events.next().await {
-            let event = event?;
+            let event = match event {
+                Ok(event) => event,
+                Err(error) => {
+                    std::mem::take(&mut self.completion).fail(&error).await;
+                    return Err(error);
+                }
+            };
             let keep_reading = callback(&event);
             self.inspected.push(event);
             if !keep_reading {
@@ -165,7 +207,7 @@ impl StreamableAgentResponse {
         self.inspection_complete = true;
         if !self.completion.is_empty() {
             std::mem::take(&mut self.completion)
-                .notify(self.inspected.clone())
+                .notify(self.inspected.clone(), self.conversation_id.clone())
                 .await;
         }
         Ok(self)
@@ -174,7 +216,10 @@ impl StreamableAgentResponse {
     /// Registers a callback for a stream's terminal result.
     pub fn then(mut self, callback: impl FnOnce(&StreamedAgentResponse) + Send + 'static) -> Self {
         if self.inspection_complete {
-            if let Some(response) = StreamedAgentResponse::from_events(self.inspected.clone()) {
+            if let Some(response) = StreamedAgentResponse::from_events(
+                self.inspected.clone(),
+                self.conversation_id.clone(),
+            ) {
                 callback(&response);
             }
         } else {
