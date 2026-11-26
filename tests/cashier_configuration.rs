@@ -97,7 +97,7 @@ async fn native_artisan_registers_billing_migration_without_api_keys_and_preserv
         false,
     );
     let published = path.join("config/cashier.rs");
-    let template = include_str!("../vendor/openrust/cashier/config/cashier.rs");
+    let template = include_str!("../vendor/openrust-cashier/config/cashier.rs");
     assert_eq!(std::fs::read_to_string(&published).unwrap(), template);
     std::fs::write(
         &published,

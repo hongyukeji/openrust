@@ -5,7 +5,7 @@
 ## 契约与来源
 
 - 固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 `src/Illuminate/Bus/DatabaseBatchRepository.php`：批次状态、失败 ID、options 保存在单一批次表，计数更新使用事务与行锁。应用基线 `06d016a364a37430eec9cbc52209adce3d7667ce` 的默认队列迁移为 jobs、failed_jobs、job_batches。
-- 实现前核对本地 v0.x 的 `vendor/openrust/framework/src/queue.rs`、`queue/redis.rs`。旧版将组任务封装为内部任务，使用不同的 SeaORM/执行接口；未直接复用其公开接口或组调度器，保留当前 Laravel 批次仓库和队列驱动结构。
+- 实现前核对本地 v0.x 的 `vendor/openrust-framework/src/queue.rs`、`queue/redis.rs`。旧版将组任务封装为内部任务，使用不同的 SeaORM/执行接口；未直接复用其公开接口或组调度器，保留当前 Laravel 批次仓库和队列驱动结构。
 
 ## 实现与边界
 

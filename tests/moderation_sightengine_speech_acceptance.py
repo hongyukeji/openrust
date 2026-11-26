@@ -479,10 +479,10 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=F
             else "2026_11_26_000014_add_moderation_video_duration.rs"
         )
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/" + migration,
+                "--path=vendor/openrust-content-moderation/database/migrations/" + migration,
                 successful=False)
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "--path=vendor/openrust-content-moderation/database/migrations/"
                 "2026_11_26_000019_add_moderation_video_audio_track_count.rs", successful=False)
     finally:
         supplier.shutdown()

@@ -4,7 +4,7 @@
 
 本批实现明确选择加入的 `TwoFactorAuthenticatable` Eloquent trait、RecoveryCode、四个账户动作，以及加密与恢复码生成器的应用级覆盖。**尚未接通正式双因素 HTTP 管理／挑战路由、动态模型装配和 QR SVG；API-F01 继续开发。** `two_factor_model` 中的 `/api/factors` 是测试夹具，不能作为已交付产品路由的证据。Provider 仍在启动时拒绝开启未完整接通的双因素功能。
 
-基线为 `b725bf3ee`，隔离目录 `/private/tmp/openrust-fortify-model-20261120/`。此前 Session 批次见 [登录与密码确认](session-authentication.md)。本批核对 `v0.x:vendor/openrust/framework/src/auth/fortify/actions.rs` 的密钥／恢复码与加密处理；旧 authority／交易令牌机制没有替代固定 Fortify 1.43.0 的模型 forceFill→save→事件顺序。
+基线为 `b725bf3ee`，隔离目录 `/private/tmp/openrust-fortify-model-20261120/`。此前 Session 批次见 [登录与密码确认](session-authentication.md)。本批核对 `v0.x:vendor/openrust-framework/src/auth/fortify/actions.rs` 的密钥／恢复码与加密处理；旧 authority／交易令牌机制没有替代固定 Fortify 1.43.0 的模型 forceFill→save→事件顺序。
 
 ## 行为与语言适配
 

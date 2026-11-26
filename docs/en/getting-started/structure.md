@@ -4,7 +4,7 @@
 
 The root `main.rs` connects Tokio and `bootstrap::create_application`. `Cargo.toml` and `Cargo.lock` define the application, workspace and locked dependencies. Application code is in `app/`, compiled configuration loaders in `config/`, and Web and console declarations in `routes/`.
 
-The framework lives in `vendor/openrust/framework/`. Views are in `resources/views/`, website files in `public/`, and the public storage disk in `storage/app/public/`. Tests belong in the root application's or the owning crate's `tests/` directory.
+The framework lives in `vendor/openrust-framework/`. Views are in `resources/views/`, website files in `public/`, and the public storage disk in `storage/app/public/`. Tests belong in the root application's or the owning crate's `tests/` directory.
 
 ## Models, persistence and services
 

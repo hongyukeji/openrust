@@ -147,4 +147,4 @@
 
 用户已确认名单、运行时18语和开发者文档三语的边界。首批资源检查已被完整实施与后续实际消费者验收替代；当前结果统一见[18语实施验收](../audits/03-07/localization-18-locales-2026-11-23.md)。不再等待名单确认，不将母语审校和外部邮件供应商验收计为通过。
 
-2026-11-23 用户追加确认将默认译文迁入框架：正式资源维护源改为 vendor/openrust/framework/src/translation/lang，按需编入产物；应用lang保留en／zh-Hans／zh-Hant三份可编辑欢迎页，其他词典仅放覆盖键。发布器与默认Loader共用同一内置集合，不再维护发布副本。固定社区SHA、源文件摘要与变量适配已按追加要求并入既有验收localization-18-source.json的standard_source字段；专有文案来源、机器辅助范围与输出摘要见主题验收资料。维护时更新唯一默认源并运行tests/localization_standard_resources.py，核对编译清单及资源契约。支持supported_locales="*"启用全部可用来源，显式数组和空数组保留原语义。
+2026-11-23 用户追加确认将默认译文迁入框架：正式资源维护源改为 vendor/openrust-framework/src/translation/lang，按需编入产物；应用lang保留en／zh-Hans／zh-Hant三份可编辑欢迎页，其他词典仅放覆盖键。发布器与默认Loader共用同一内置集合，不再维护发布副本。固定社区SHA、源文件摘要与变量适配已按追加要求并入既有验收localization-18-source.json的standard_source字段；专有文案来源、机器辅助范围与输出摘要见主题验收资料。维护时更新唯一默认源并运行tests/localization_standard_resources.py，核对编译清单及资源契约。支持supported_locales="*"启用全部可用来源，显式数组和空数组保留原语义。

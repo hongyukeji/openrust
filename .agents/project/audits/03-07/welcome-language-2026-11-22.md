@@ -48,7 +48,7 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 
 - 固定 Laravel Framework v13.40.0／1449bf241017087fbd38c118ecaabef3f6797fdc：读取 Foundation/Application.php 的 setLocale、Foundation/helpers.php 的 __／trans／trans_choice、View/Compilers/Concerns/CompilesTranslations.php、View/Concerns/ManagesTranslations.php 及 tests/View/Blade/BladeLangTest.php。带参数 @lang／@choice 按上游原样输出，双花括号走现有 HTML 转义；翻译在渲染时执行，不把结果编进缓存。
 - 已核对固定文档 localization.md、Symfony HttpFoundation v7.3.0 Request.php 语言优先级，以及 mcamara/laravel-localization v2.3.0 的请求中间件／支持语言配置思路。仅采用请求选语言和共享 Translator 的职责划分，不引入 URL 前缀、会话、Cookie 或额外依赖；浏览器协商是本应用策略，不宣称是 Laravel 默认自带行为或完整 Symfony 协商移植。
-- 旧版 openrust-v0.x/vendor/openrust/framework/src/translation.rs 的 select_from_catalog 与 with_locale 已核对。其 MessageCatalog／AppConfig 属于旧架构，不搬入现主线；复用当前 canonical_locale、Lang::withLocale、现有 Facade／容器快照和 Blade 表达式树机制。
+- 旧版 openrust-v0.x/vendor/openrust-framework/src/translation.rs 的 select_from_catalog 与 with_locale 已核对。其 MessageCatalog／AppConfig 属于旧架构，不搬入现主线；复用当前 canonical_locale、Lang::withLocale、现有 Facade／容器快照和 Blade 表达式树机制。
 - 本应用新增 app/http/middleware/set_locale.rs，由 bootstrap/app.rs 注册；config/app.rs 的 supported_locales 默认三语，合法标识规范化，非法或空列表显式失败。未匹配时优先使用受支持的 APP_LOCALE，否则列表首项。既有浏览器权重与中文文字体系优先规则保留，其他语言支持完整标识／基础语言匹配。
 - 阻塞模板渲染原先只传 Facade／容器快照，不会继承 Tokio 的临时语言变量。新增内部 LocaleSnapshot，以 sync_scope 在既有渲染线程恢复本次语言，不修改共享默认语言。控制器主动 setLocale、子模板、匿名组件和缓存模板均通过实际消费者验证。
 - 模板翻译助手按现有字符串翻译契约返回文本，替换值支持标量／null；复数支持数字和数组计数。分组／列表仍通过 Rust Lang::array 读取。无参翻译器访问、@lang 翻译块、PHP 任意函数／命名参数未实现，三语正文明确边界，没有计为完成。

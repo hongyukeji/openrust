@@ -56,7 +56,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 后续状态：用户已继续授权[Pay 通知流程与内部存储整理](pay-notifications-2026-11-24.md)，实施与实际验收结果见该记录；以下保留静态复核时的裁决和事务要求。
 
-唯一按用户决定暂时保留的组合实现是 [pay/src/notifications.rs](../../../../vendor/openrust/pay/src/notifications.rs) 的 `DatabaseNotifications::process`。它是事务型通知服务与数据库存储的组合，位于独立 vendor 包中，不是应用模型中的业务流程；本次不将其记作已经拆分，也不新增 Pay 验收结论。
+唯一按用户决定暂时保留的组合实现是 [pay/src/notifications.rs](../../../../vendor/openrust-pay/src/notifications.rs) 的 `DatabaseNotifications::process`。它是事务型通知服务与数据库存储的组合，位于独立 vendor 包中，不是应用模型中的业务流程；本次不将其记作已经拆分，也不新增 Pay 验收结论。
 
 - 已验签通知与可信订单的匹配校验在开启事务前执行。
 - 去重记录占用、指纹检查、行锁、完成状态检查、应用 SQL 回调和 `done` 标记维持同一事务；指纹冲突或已完成的重复通知不调用业务回调。
@@ -66,6 +66,6 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ### 源码归属与本轮检查
 
-Cashier、Activitylog、Fortify、Passkeys、Passport、Scout 等实现属于各自 `vendor/openrust/<package>/` crate。当前 Sanctum 源码实际位于 `vendor/openrust/framework/src/sanctum/` 可选模块；其安装器发布到根应用的配置、迁移和 User 接入才是消费者产物，不能与包源码混同。当前 User、应用 Provider 及路由接入中未发现本轮应清理的扩展安装残留；基础 API 配置与空路由入口不作为残留处理。
+Cashier、Activitylog、Fortify、Passkeys、Passport、Scout 等实现属于各自 `vendor/openrust/<package>/` crate。当前 Sanctum 源码实际位于 `vendor/openrust-framework/src/sanctum/` 可选模块；其安装器发布到根应用的配置、迁移和 User 接入才是消费者产物，不能与包源码混同。当前 User、应用 Provider 及路由接入中未发现本轮应清理的扩展安装残留；基础 API 配置与空路由入口不作为残留处理。
 
 本次只做静态源码复核及记录更新，没有修改业务代码，也没有重新执行 Rust、HTTP、Artisan 或数据库测试。上文69项等测试数仍属于各次实施时的验收，不计作本轮新增结果。本轮检查记录的相对链接、复核章节锚点与 `git diff --check`；只本地提交记录，不推送，其他协作者改动保留。

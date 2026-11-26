@@ -4,7 +4,7 @@
 
 ## 职责与示例
 
-沿固定Socialite5.33.0的职责：驱动返回远端用户，应用决定本地账户与Session登录。包不自动建用户表、注册产品路由或按邮箱创建／合并账户。新增编译并执行的应用动作范例 `vendor/openrust/socialite/tests/support/local_login.rs`，三语正文逐字使用该源码。动作只按可信provider namespace和远端subject查询已有绑定，再通过原生`Auth::sessionGuard(...).loginUsingId`读取Eloquent用户并登录，轮换Session标识和CSRF token；未知绑定返回false，存储错误正常传播。
+沿固定Socialite5.33.0的职责：驱动返回远端用户，应用决定本地账户与Session登录。包不自动建用户表、注册产品路由或按邮箱创建／合并账户。新增编译并执行的应用动作范例 `vendor/openrust-socialite/tests/support/local_login.rs`，三语正文逐字使用该源码。动作只按可信provider namespace和远端subject查询已有绑定，再通过原生`Auth::sessionGuard(...).loginUsingId`读取Eloquent用户并登录，轮换Session标识和CSRF token；未知绑定返回false，存储错误正常传播。
 
 配置表使用`VARBINARY`唯一键`(provider,provider_user_id)`，使大小写／前导零／字节语义独立于MySQL默认collation；原生`whereExactText`负责精确查询。外键指向本地users.id，示例采用默认BIGINT UNSIGNED，删除本地用户时级联移除绑定。远端标识只接受非空字符串或整数，字符串保留原样；不存在的ID、数组／布尔／空ID拒绝。邮箱不参与归属，远端凭据不存入Session。绑定／注册由应用另行通过认证与验证流程完成，本批不提供自动绑定端点。
 

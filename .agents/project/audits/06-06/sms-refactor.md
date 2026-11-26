@@ -9,7 +9,7 @@
 - [Laravel Manager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Manager.php)：采用具名驱动懒创建和复用、`extend`、`getDefaultDriver` 与 `forgetDrivers`；注册替换工厂不自动替换已解析实例，清缓存也不改变调用者已持有的实例。同期核对 ChannelManager／SendQueuedNotifications。
 - [EasySms](https://github.com/overtrue/easy-sms/tree/35783de549aa57048ed939ad4b86ad36e9254921)：MIT，核对消息／网关接口、EasySms、Messenger、OrderStrategy 与测试，采用消息、网关和管理器分工及网关复用。其异常后继续尝试其他网关的策略不适合本项目受理结果未知时停止补发的要求，未引入自动 failover、策略框架或新依赖。
 - [Laravel Vonage v3.3.4](https://github.com/laravel/vonage-notification-channel/tree/48c5b3805aff38e289c1bd8a567c243f1a80d2ed)、[Laravel Twilio channel](https://github.com/laravel-notification-channels/twilio/tree/31abf845e315dda8cd039bc433550d34df8df674)：核对渠道、消息、装配和依赖；保留消息交给供应商驱动发送的边界，以及现有 Vonage 独立通知渠道。
-- 旧版 `v0.x` 提交 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 `vendor/openrust/framework/src/sms.rs`：提取独立短信职责、文本／模板、Twilio 字段、校验与脱敏经验，未搬回旧容器、配置或 feature 体系。
+- 旧版 `v0.x` 提交 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 `vendor/openrust-framework/src/sms.rs`：提取独立短信职责、文本／模板、Twilio 字段、校验与脱敏经验，未搬回旧容器、配置或 feature 体系。
 - [历史短信验收](sms-providers.md)已证明需要持久化受理记录解决 Worker 在厂商受理后被终止的重复发送窗口。本次保留 `sms_deliveries` 与原有崩溃恢复，不因 Laravel 通用 Manager 没有这张表而移除。
 
 ## 实现

@@ -12,7 +12,7 @@ HTTP 請求內產生 URL 時，包括使用 `Url::for_request(request)`，優先
 
 ## 框架版本與應用版本 {#framework-version}
 
-`Application::VERSION` 和 `application.version()` 傳回框架套件版本，編譯時取自 `vendor/openrust/framework/Cargo.toml`。應用程式作用域內可用 `App::version()?` 解析目前的 Application 並取得相同版本；作用域外傳回容器綁定錯誤。常數和實例方法無需先引導設定。
+`Application::VERSION` 和 `application.version()` 傳回框架套件版本，編譯時取自 `vendor/openrust-framework/Cargo.toml`。應用程式作用域內可用 `App::version()?` 解析目前的 Application 並取得相同版本；作用域外傳回容器綁定錯誤。常數和實例方法無需先引導設定。
 
 ```rust
 use openrust::{foundation::Application, support::facades::App};

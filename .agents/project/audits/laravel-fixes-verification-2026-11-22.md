@@ -53,8 +53,8 @@
 
 | 编号 / 优先级 | 位置 | 反例与实际行为 | 固定 Laravel 行为 | 关闭条件 |
 |---|---|---|---|---|
-| R1 / L02 / P2 | `vendor/openrust/framework/src/validation/rule.rs:231`，浮点分支 242–244 | JSON 浮点值 `100000000000000.0`（`1e14`）通过 `integer`；实现只检查无小数部分及 i64 范围 | 上游 `validateInteger` 第 1629 行调用 `FILTER_VALIDATE_INT`。默认 PHP precision=14 将该浮点转换为 `1.0E+14`，过滤失败；同值的整数输入应通过 | 复用既有 PHP 标量转换机制，对齐默认浮点过滤语义；通过公开 Factory/Validator 验证 `1.0`、`1e13`、`1e14`、负数及整数同值对照，保持 strict、溢出规则 |
-| R2 / L07 / P2 | `vendor/openrust/framework/src/validation/validator.rs:450`，调用 `standard_rules.rs:85` 的 `text` | `true` 配 `regex:/^1$/`、`false` 或未声明 nullable 的 `null` 配 `regex:/^$/` 均通过；通用 text 将其转换为 `1` 或空串 | 上游 `validateRegex` 第 2135 行先拒绝既非字符串也非数值的类型，bool/null 均失败 | 在 regex 入口保持上游类型约束，不全局修改供其他规则使用的 text；补公开 Validator 的 bool/null/数字/字符串正反例，另验 `nullable|regex` 对 null 正常跳过 |
+| R1 / L02 / P2 | `vendor/openrust-framework/src/validation/rule.rs:231`，浮点分支 242–244 | JSON 浮点值 `100000000000000.0`（`1e14`）通过 `integer`；实现只检查无小数部分及 i64 范围 | 上游 `validateInteger` 第 1629 行调用 `FILTER_VALIDATE_INT`。默认 PHP precision=14 将该浮点转换为 `1.0E+14`，过滤失败；同值的整数输入应通过 | 复用既有 PHP 标量转换机制，对齐默认浮点过滤语义；通过公开 Factory/Validator 验证 `1.0`、`1e13`、`1e14`、负数及整数同值对照，保持 strict、溢出规则 |
+| R2 / L07 / P2 | `vendor/openrust-framework/src/validation/validator.rs:450`，调用 `standard_rules.rs:85` 的 `text` | `true` 配 `regex:/^1$/`、`false` 或未声明 nullable 的 `null` 配 `regex:/^$/` 均通过；通用 text 将其转换为 `1` 或空串 | 上游 `validateRegex` 第 2135 行先拒绝既非字符串也非数值的类型，bool/null 均失败 | 在 regex 入口保持上游类型约束，不全局修改供其他规则使用的 text；补公开 Validator 的 bool/null/数字/字符串正反例，另验 `nullable|regex` 对 null 正常跳过 |
 
 ### 实际复现与证据边界
 

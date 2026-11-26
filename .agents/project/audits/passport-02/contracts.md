@@ -12,13 +12,13 @@ Scope::toJson 默认保持 id→description 顺序、Unicode／斜杠转义。�
 
 ## 固定 PHP 运行时对照
 
-[生成器](../../../../vendor/openrust/passport/tests/reference/client_contracts.php)校验三个源码 SHA，再 require 原始 Client、Scope 和 ResolvesInheritedScopes。使用固定 `php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9`（实际 PHP 8.5.12），无网络、只读源挂载。
+[生成器](../../../../vendor/openrust-passport/tests/reference/client_contracts.php)校验三个源码 SHA，再 require 原始 Client、Scope 和 ResolvesInheritedScopes。使用固定 `php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9`（实际 PHP 8.5.12），无网络、只读源挂载。
 
 - **538 条 secret**：固定 bit 输入覆盖 512 个确定性浮点及正负零、指数布局、最大值／次正规值、INF／NAN，另含 null／bool／整数／字符串／数组。加载真实 PHP setter 闭包，测试壳只提供 Attribute 容器和可控的哈希失败边界，观察 plainSecret、是否进入哈希和异常状态；没有复制 setter 算法。
 - **1729 条 Scope JSON**：真实 Scope 方法运行 19 种选项／组合，覆盖 Unicode、代理对、控制符、斜杠、HTML 字符、行分隔符、整数边界／溢出、负零、指数及数字字符串。对照完整 JSON 字节，不只比较解析后的对象。
 - **432 条数组**：真实 PHP in_array 和 JSON 载体，覆盖异质标量、嵌套、关联顺序、数字键、整数溢出、空白和 Unicode。Rust 使用已有 PhpArray 和唯一核心比较桥。
 
-[固化结果](../../../../vendor/openrust/passport/tests/fixtures/client_contracts.json)共 2699 条，不将重复或组合视作不同测试函数。独立重复生成字节一致；修改 Scope 源码 SHA 的负样本被拒绝。PHP 8.5 对 NAN→string 的一条 warning 单独保留在 fixture，Rust 对照其字符串和状态，不声称复现 PHP warning 通道。该运行时夹具不加载完整 PHP Eloquent、数据库或密码学哈希实现；不能替代完整 PHP ORM／跨语言数据库 oracle。
+[固化结果](../../../../vendor/openrust-passport/tests/fixtures/client_contracts.json)共 2699 条，不将重复或组合视作不同测试函数。独立重复生成字节一致；修改 Scope 源码 SHA 的负样本被拒绝。PHP 8.5 对 NAN→string 的一条 warning 单独保留在 fixture，Rust 对照其字符串和状态，不声称复现 PHP warning 通道。该运行时夹具不加载完整 PHP Eloquent、数据库或密码学哈希实现；不能替代完整 PHP ORM／跨语言数据库 oracle。
 
 ## 实际入口验收
 

@@ -4,7 +4,7 @@
 
 - Laravel [Job Chaining](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#job-chaining)、[PendingChain](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bus/PendingChain.php)、[CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) 和 [JobChainingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php)。
 - Goravel 固定版的 [queue.Job](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/job.go) 参考编译型任务契约。
-- `v0.x:vendor/openrust/framework/src/queue.rs` 的 `dispatch_chain` 和 TaskGroup 持久化实现用于核对失败与恢复。旧版把整条链作为父任务执行，本次沿用当前分步 Worker、载荷、预约和失败仓库，以 Laravel 的每任务重试和推进语义实现。参考旧版 `tests/server/queue/worker.rs` 的顺序与终态停止回归，以及 `tests/queue/redis_driver.rs` 对旧 Redis 驱动能力边界的测试。
+- `v0.x:vendor/openrust-framework/src/queue.rs` 的 `dispatch_chain` 和 TaskGroup 持久化实现用于核对失败与恢复。旧版把整条链作为父任务执行，本次沿用当前分步 Worker、载荷、预约和失败仓库，以 Laravel 的每任务重试和推进语义实现。参考旧版 `tests/server/queue/worker.rs` 的顺序与终态停止回归，以及 `tests/queue/redis_driver.rs` 对旧 Redis 驱动能力边界的测试。
 
 ## 实现与边界
 

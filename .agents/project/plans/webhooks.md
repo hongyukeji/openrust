@@ -17,7 +17,7 @@
 
 ### 本次建议决策
 
-- 拆为两个可选包：`openrust-webhook-client`／`vendor/openrust/webhook-client/`负责接收；`openrust-webhook-server`／`vendor/openrust/webhook-server/`负责发送。client／server沿用Spatie语义，并非反向命名错误。应用可以只安装其中一个。
+- 拆为两个可选包：`openrust-webhook-client`／`vendor/openrust-webhook-client/`负责接收；`openrust-webhook-server`／`vendor/openrust-webhook-server/`负责发送。client／server沿用Spatie语义，并非反向命名错误。应用可以只安装其中一个。
 - 以固定Spatie两个包的**全部公开类型、配置和用法入口**为直接对照；Rust标识符使用snake_case／UpperCamelCase。保留方法机制与可观察行为，语言适配逐项说明，不机械移植PHP继承／对象序列化。
 - 完整交付不止“验签后dispatch一次”或“HTTP POST加重试”：必须包含可靠接收／投递记录、去重冲突、配置／秘钥版本、补偿、重放、端点／订阅接缝、并发／限流、监控、清理和独立消费者验收。
 - 直接HTTP是内置发送实现，沿用现有HTTP Client、Queue／Bus、Scheduler、Cache锁／RateLimiter、Database、Storage、容器与包发现；不新造队列、数据库、规则引擎、通用插件框架或工作流平台。
@@ -50,11 +50,11 @@
 
 | 本地机制 | 复用入口与约束 |
 |---|---|
-| Pay | [DatabaseNotifications](../../../vendor/openrust/pay/src/notifications.rs)保持验签后的身份校验、去重／行锁、业务SQL回调和完成标记在同一事务；通用异步接收不得拆散 |
-| Cashier | [VerifiedEvent／webhook](../../../vendor/openrust/cashier/src/webhook.rs)已有供应商签名及受控可信事件；通用Validator不能伪造该领域可信类型 |
-| HTTP Client | [PendingRequest](../../../vendor/openrust/framework/src/http/client/pending_request.rs)和既有传输；有重定向开关不代表已有完整SSRF防护，须跟到连接实际地址 |
-| Queue／Bus | [middleware](../../../vendor/openrust/framework/src/queue/middleware.rs)、[限流](../../../vendor/openrust/framework/src/queue/middleware/rate_limited.rs)、[Batch](../../../vendor/openrust/framework/src/bus/batch.rs)，复用调度、限流、防重叠，领域状态不能只用batch finished判断 |
-| 配置／驱动 | 容器与包发现，参考[SmsManager](../../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)；配置保存名／版本／凭据引用，工厂和业务handler按进程注册 |
+| Pay | [DatabaseNotifications](../../../vendor/openrust-pay/src/notifications.rs)保持验签后的身份校验、去重／行锁、业务SQL回调和完成标记在同一事务；通用异步接收不得拆散 |
+| Cashier | [VerifiedEvent／webhook](../../../vendor/openrust-cashier/src/webhook.rs)已有供应商签名及受控可信事件；通用Validator不能伪造该领域可信类型 |
+| HTTP Client | [PendingRequest](../../../vendor/openrust-framework/src/http/client/pending_request.rs)和既有传输；有重定向开关不代表已有完整SSRF防护，须跟到连接实际地址 |
+| Queue／Bus | [middleware](../../../vendor/openrust-framework/src/queue/middleware.rs)、[限流](../../../vendor/openrust-framework/src/queue/middleware/rate_limited.rs)、[Batch](../../../vendor/openrust-framework/src/bus/batch.rs)，复用调度、限流、防重叠，领域状态不能只用batch finished判断 |
+| 配置／驱动 | 容器与包发现，参考[SmsManager](../../../vendor/openrust-framework/src/notifications/sms/sms_manager.rs)；配置保存名／版本／凭据引用，工厂和业务handler按进程注册 |
 | 分层 | 各包models只描述持久数据与既有模型入口，storage负责SQL／事务，services／Processor协调，不将协议／业务流程塞进Model |
 
 建议接收包模块包括config／contracts、signature_validator、webhook_profile、webhook_response、processor、jobs、models、storage、services、provider与tests；发送包包括webhook_call、signer、backoff_strategy、jobs、delivery／attempt、storage、services、provider与tests。遵循已有独立包布局，不为形式强建空目录，也不预先增加第三个共享crate。两包出现真实且稳定的共同代码时才评估复用位置；不得循环依赖。
@@ -261,7 +261,7 @@
 | 固定依据 | 已核对行为 | 本计划采用／不采用 |
 |---|---|---|
 | [Spatie SignatureValidator](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/src/SignatureValidator/SignatureValidator.php)及[Processor](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/src/WebhookProcessor.php) | 验签契约返回bool，流程区分验证、Profile、存储、处理及Response | 保留兼容契约和职责；可信／非可信提示的分类是下面明确的Rust扩展，不假称Spatie原生提供三态或待关联状态 |
-| [固定Laravel队列文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md)及[本地Worker](../../../vendor/openrust/framework/src/queue/worker.rs) | release／限流／防重叠重新执行仍计Queue attempts；timeout须短于retry_after，避免旧Worker尚未停止就重新领取 | 复用release／延迟派发与既有调度；领域Deferred预算与Queue尝试分离，不改全框架attempts契约，不靠无限tries掩盖等待关联 |
+| [固定Laravel队列文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md)及[本地Worker](../../../vendor/openrust-framework/src/queue/worker.rs) | release／限流／防重叠重新执行仍计Queue attempts；timeout须短于retry_after，避免旧Worker尚未停止就重新领取 | 复用release／延迟派发与既有调度；领域Deferred预算与Queue尝试分离，不改全框架attempts契约，不靠无限tries掩盖等待关联 |
 | [Svix重试说明](https://docs.svix.com/retries)及[固定Worker](https://github.com/svix/svix-webhooks/blob/931467b95a1bbcc520c47bcb96f4e436782abcd2/server/svix-server/src/worker.rs) | 文档明确禁用／删除端点停止投递；源码区分Manual／Scheduled，人工重试失败路径与普通计划重试不同 | 借鉴当前端点控制优先、人工／自动执行分离。具体租约／预算／重放代次是本计划决定，不声称可直接复制整套实现；源码仍有重发可能产生重复队列任务的相关TODO，成熟参考不替代本项目竞争测试 |
 | [Svix幂等说明](https://docs.svix.com/idempotency)及[固定消息入口](https://github.com/svix/svix-webhooks/blob/931467b95a1bbcc520c47bcb96f4e436782abcd2/server/svix-server/src/v1/endpoints/message.rs) | 区分API提交幂等、event ID与接收端去重；源码可见消息／正文事务写入 | 采用身份与事务职责分离。单事务生成完整投递集合是本项目有界扇出的决策，不将该局部源码证据外推为Svix与本项目扇出原子性等价 |
 

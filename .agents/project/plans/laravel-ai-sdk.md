@@ -35,7 +35,7 @@
 | [OpenCode Provider 配置](https://opencode.ai/docs/providers) · [LiteLLM 路由名称](https://docs.litellm.ai/docs/router/learn/names) · [LiteLLM 模型权限](https://docs.litellm.ai/docs/routing) | OpenCode 将地址和凭证归 Provider，模型 ID 和能力归模型。LiteLLM 分开公开名、部署目标和访问权限。采用命名连接与可列出、可调用范围一致的发布规则。配置沿用 Laravel 键名。 |
 | [TensorZero 配置指南](https://www.tensorzero.com/docs/gateway/configure-models-and-providers) · [Rust 源码 `62eb8f63e8ec62018d70420dbf1a8c5d1c026315`](https://github.com/tensorzero/tensorzero/tree/62eb8f63e8ec62018d70420dbf1a8c5d1c026315) | 参考模型名映射具体 Provider 和有序路由。GW-02 先用精确模型名映射一个目标，GW-03 再按兼容需求补规则和回退。继续使用 OpenRust 的传输、配置和路由装配。 |
 
-现有代码优先复用包发现、应用容器及生命周期、HTTP 客户端、事件、Cache、Storage、Queue、Broadcast／Reverb、数据库与 Artisan。旧版 `openrust-v0.x`（`6d1a81924`）的 `.agents/project/plans/ai-capabilities.md` 保留了 AI SDK 后续交付意图与自建模型服务边界。当前计划承接其通用 SDK 范围。可复用回归场景见旧版 `vendor/seaql/sea-orm/tests/embedding_tests.rs`。自建服务通过 HTTP 接入，旧计划中的千问（Qwen）可在各自接口验收后作为兼容配置案例；DeepSeek 和 Anthropic 继续按官方驱动验收。数据库查询侧 `EmbeddingProvider`、`HttpEmbeddingProvider`、缓存查询及向量结果校验见[当前实现](../../../vendor/openrust/framework/src/database/query/embeddings.rs)。通过适配器接入 SDK，保留旧查询入口、缓存和 SQL 行为。复核应用现有的向量实现后再定适配位置。
+现有代码优先复用包发现、应用容器及生命周期、HTTP 客户端、事件、Cache、Storage、Queue、Broadcast／Reverb、数据库与 Artisan。旧版 `openrust-v0.x`（`6d1a81924`）的 `.agents/project/plans/ai-capabilities.md` 保留了 AI SDK 后续交付意图与自建模型服务边界。当前计划承接其通用 SDK 范围。可复用回归场景见旧版 `vendor/seaql/sea-orm/tests/embedding_tests.rs`。自建服务通过 HTTP 接入，旧计划中的千问（Qwen）可在各自接口验收后作为兼容配置案例；DeepSeek 和 Anthropic 继续按官方驱动验收。数据库查询侧 `EmbeddingProvider`、`HttpEmbeddingProvider`、缓存查询及向量结果校验见[当前实现](../../../vendor/openrust-framework/src/database/query/embeddings.rs)。通过适配器接入 SDK，保留旧查询入口、缓存和 SQL 行为。复核应用现有的向量实现后再定适配位置。
 
 ### 协议类型试编
 
@@ -43,7 +43,7 @@
 
 ## 包和契约
 
-- 框架通过可选 Cargo feature `ai` 装配 `vendor/openrust/ai`。包发现注册 `AiServiceProvider`，由当前应用容器持有 `AiManager`。`Ai` 门面转发 Manager，`openrust_ai::agent(...)` 对应 Laravel 的独立 `agent()` helper。应用可实现 `Agent` trait 并通过 Rust async／Builder 表达提示词、覆盖选项与能力组合。
+- 框架通过可选 Cargo feature `ai` 装配 `vendor/openrust-ai`。包发现注册 `AiServiceProvider`，由当前应用容器持有 `AiManager`。`Ai` 门面转发 Manager，`openrust_ai::agent(...)` 对应 Laravel 的独立 `agent()` helper。应用可实现 `Agent` trait 并通过 Rust async／Builder 表达提示词、覆盖选项与能力组合。
 - `AiManager` 分开解析 Provider 实例名及 `driver`，保留命名自定义实例、按能力默认、显式覆盖、按需实例、驱动扩展和作用域清理。每类能力是独立 Provider／Gateway 契约。协议适配保留在包内，第三方类型可在内部使用。
 - 发布 `config/ai.rs`。保留 Laravel 的 `ai.default`、各 `default_for_*`、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。应用显式配置默认连接，调用时也可显式选择连接和模型。无可用凭证或默认连接时仍可启动，调用中未能解析连接、凭证或模型时报告配置错误。预设只包含公开连接信息与凭证引用，模型从上游发现或手填。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从运行时解析凭证。
 - `openai` 和 `openai-compatible` 分开验收。固定版的 `OpenAiGateway` 发 `responses`，`OpenAiCompatibleGateway` 发 `chat/completions`。兼容驱动以 `models.text.default` 或显式模型为准，其余模型默认及覆盖同样按各自 Provider 源码核对。
@@ -80,7 +80,7 @@
 | 默认装配与扩展 | `AiServiceProvider`、`AiManager`、`Ai` 及实际消费者列入 AI-00。保留 `AiManager` 的实例解析、注册扩展、按需构建和清理。与 Laravel 的默认行为差异为应用显式选择默认连接与模型。AI-01 验收无凭证启动、全部预设 URL 的环境变量覆盖、显式/默认选择、未知驱动以及缓存配置。 |
 | Provider 入口和序列化 | `Provider` 有 `name`、`driver`、`providerCredentials`、`additionalConfiguration`、`withHeaders` 及序列化行为。`AiManager` 有各能力和 Fake 入口。AI-00 按所属类型登记，AI-01/04 验证应用、请求、作业之间隔离。对于 Laravel 凭证可访问与 PHP 序列化行为，明确 Rust API、作业凭证引用和缺少凭证时的结果；作业在运行时解析凭证，协议内容及密钥按框架脱敏能力处理。 |
 | Prompt、响应与测试 | `Promptable::make`、`withMessages`、`withTools`、`assertPromptedTimes`、`assertNeverPrompted` 等公开入口随所属能力核对。AI-02 覆盖 `StreamableAgentResponse` 的 `each`、`catch`、`then`、`usingProtocol`、`usingVercelDataProtocol`、`usingAgentUserInteractionProtocol`，并逐项核对 `AgentUserInteraction` 和 Vercel 的输入、状态与事件。Fake、模拟协议服务和供应商实机提供三种独立证据。 |
-| 真实流式传输 | 当前框架 [HTTP 客户端响应转换](../../../vendor/openrust/framework/src/http/client/response.rs) 会将网络块读完才返回，现有 [HTTP 响应流](../../../vendor/openrust/framework/src/http/response.rs) 用于向下游发送。AI-02 先补最小通用出站流入口，SDK 和网关共同使用，并复用 HTTP 工厂、目标校验、TLS、代理、重定向策略和脱敏。以慢速上游验证首块在完成前到达、取消时释放连接、限额和下游背压。 |
+| 真实流式传输 | 当前框架 [HTTP 客户端响应转换](../../../vendor/openrust-framework/src/http/client/response.rs) 会将网络块读完才返回，现有 [HTTP 响应流](../../../vendor/openrust-framework/src/http/response.rs) 用于向下游发送。AI-02 先补最小通用出站流入口，SDK 和网关共同使用，并复用 HTTP 工厂、目标校验、TLS、代理、重定向策略和脱敏。以慢速上游验证首块在完成前到达、取消时释放连接、限额和下游背压。 |
 | 会话、审批与远程资源 | AI-03 按 `PendingApproval`、`Decision`、`Decisions`、`ConversationStore`、审批恢复路径及会话迁移核对状态绑定和授权。AI-05 对比 SDK Embeddings 缓存配置和旧查询缓存策略。AI-06 补 `Store::add/remove/refresh/delete`、成员文件 ID 与上游文件 ID、文件删除选项及各 Fake 断言。文件、仓库和响应 ID 后续调用按发出它们的 Provider 及权限处理。 |
 | Artisan 和对外响应 | Laravel 的 `make:agent`、`make:tool`、`make:agent-middleware` 和 `vendor:publish` 依照固定命令实现。模型连接查询、选择和试调用复用现有 Artisan 的 choice、confirm 和 secret 能力，其命令名称由 AI-00 确认。GW-02 对协议路由逐项验证正常结果和鉴权、限流、解析失败等异常，保留 HTTP 状态、响应头、协议错误体、SSE、multipart／二进制行为，避免业务 API envelope 改写协议。 |
 
@@ -101,7 +101,7 @@
 
 ### AI 模块国际化
 
-从 AI-03 的 [`AgentTool`](../../../vendor/openrust/ai/src/agent_tool.rs) 开始，将默认委托描述和 `task` 参数说明纳入 AI 包语言资源。工具定义生成时按当前应用语言解析译文，用命名占位符传入子 Agent 名称。应用提供的工具说明、提示词和审批理由由应用控制。复用 `Lang`、ServiceProvider 的包语言资源注册、应用覆写及既有回退机制。框架内置译文覆盖[项目规定的 18 种运行时语言](localization-18-locales.md#目标与边界)，沿用 BCP 47。开发者文档维持简体中文、繁體中文和英文。
+从 AI-03 的 [`AgentTool`](../../../vendor/openrust-ai/src/agent_tool.rs) 开始，将默认委托描述和 `task` 参数说明纳入 AI 包语言资源。工具定义生成时按当前应用语言解析译文，用命名占位符传入子 Agent 名称。应用提供的工具说明、提示词和审批理由由应用控制。复用 `Lang`、ServiceProvider 的包语言资源注册、应用覆写及既有回退机制。框架内置译文覆盖[项目规定的 18 种运行时语言](localization-18-locales.md#目标与边界)，沿用 BCP 47。开发者文档维持简体中文、繁體中文和英文。
 
 | 范围 | 验收 |
 |---|---|
@@ -179,8 +179,8 @@ Sub2API 仅作为实现和联调参考。可借鉴账号池、路由、回退和
 
 网关按 **下游 Key 鉴权与授权 → 公开模型路由 → 上游账号选择 → 协议调用 → 用量记录** 执行。GW-02 每步先提供一个可用选项。GW-03 增加按端点和模型的规则，GW-04 在已授权路由内增加账号池与限额，每次回退重新核对目标权限。保持配置的 `providers`、`driver`、`models` 和项目既有 ServiceProvider／中间件用法；网关账号或路由管理随相关批次接入现有管理入口。
 
-- **下游 Key。** 复用框架现有凭证机制时核对主体、撤销和过期契约，以兼容协议要求的 Bearer 或 `x-api-key` 收取 Key。参考 Laravel Sanctum 的明文只在签发时输出和摘要持久化做法。上游凭证通过运行时引用读取。验收泄露防护、Key 撤销、目录与调用权限一致，以及同一上游账号被多个下游 Key 使用时的归属隔离。 [Laravel Sanctum](https://laravel.com/framework/docs/sanctum) · [OpenRust 凭证实现](../../../vendor/openrust/framework/src/sanctum/personal_access_token.rs)
-- **限额与用量。** 请求次数优先复用现有 `RateLimiter::reserve` 和支持对应原子语义的 Cache Store。Token 或金额硬限额单独验收并发扣减、取消、中途断流和结算失败的行为。记录外部请求与各次上游尝试的关联、实际 Provider、账号标识和上游报告用量，无法核实的用量标记为未知；核对重试与回退对配额、审计和总时限的影响。 [OpenRust RateLimiter](../../../vendor/openrust/framework/src/cache/rate_limiter.rs)
+- **下游 Key。** 复用框架现有凭证机制时核对主体、撤销和过期契约，以兼容协议要求的 Bearer 或 `x-api-key` 收取 Key。参考 Laravel Sanctum 的明文只在签发时输出和摘要持久化做法。上游凭证通过运行时引用读取。验收泄露防护、Key 撤销、目录与调用权限一致，以及同一上游账号被多个下游 Key 使用时的归属隔离。 [Laravel Sanctum](https://laravel.com/framework/docs/sanctum) · [OpenRust 凭证实现](../../../vendor/openrust-framework/src/sanctum/personal_access_token.rs)
+- **限额与用量。** 请求次数优先复用现有 `RateLimiter::reserve` 和支持对应原子语义的 Cache Store。Token 或金额硬限额单独验收并发扣减、取消、中途断流和结算失败的行为。记录外部请求与各次上游尝试的关联、实际 Provider、账号标识和上游报告用量，无法核实的用量标记为未知；核对重试与回退对配额、审计和总时限的影响。 [OpenRust RateLimiter](../../../vendor/openrust-framework/src/cache/rate_limiter.rs)
 
 | 使用方式 | 装配与行为 |
 |---|---|

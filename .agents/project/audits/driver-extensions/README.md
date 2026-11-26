@@ -17,7 +17,7 @@
 - `FilesystemManager::extend`、`Storage::extend`、两者的 `build_from_config`；外部通过 `FilesystemAdapter::custom(Arc<dyn Cloud>, throw, report, url)` 进入既有适配器。`Filesystem` 新增的文件／目录存在性和 MIME 方法提供默认“不支持”，不要求既有实现补齐才能编译。
 - 保留路径校验、分隔符归一化、throw／report、读取／下载、写入、目录、可见性、元数据、复制／移动、流式校验和与临时 URL 回调。无能力时返回明确错误；自定义后端不自动得到本地签名路由或 S3 SDK 专属 Builder。后端自身负责原子发布、权限及所连接服务的并发契约。
 - `custom_filesystem` 将公开分块契约接回 AsyncRead，不整文件缓冲。上传块64 KiB、队列容量1；无后台任务。后端提前结束时取消尚在等待源数据的读取，避免只关闭接收端而仍等待源读取；失败／取消的发布保证仍由后端契约负责，本地测试后端已复验原文件保留。
-- 独立消费 crate 的测试实现位于 `tests/support/driver_extensions/storage.rs`：只使用公开契约，以本地服务代替真实供应商，不依赖修改内部 Driver 枚举。单元入口 `vendor/openrust/framework/tests/filesystem_custom.rs`；独立应用入口 `tests/support/driver_extensions/app.rs`。
+- 独立消费 crate 的测试实现位于 `tests/support/driver_extensions/storage.rs`：只使用公开契约，以本地服务代替真实供应商，不依赖修改内部 Driver 枚举。单元入口 `vendor/openrust-framework/tests/filesystem_custom.rs`；独立应用入口 `tests/support/driver_extensions/app.rs`。
 - 短信复用已有 SmsManager／SmsDriver，不重复实现 Manager 或另加发送通道。三语新增完整 Provider、HTTP 驱动和具名调用示例，明确纯文本范围、凭据配置、Worker 自行注册、快照与 `forget_drivers`。
 - `tests/driver_extensions_docs.py` 提取三语正文的12段 Rust 示例，生成隔离快照中的6个编译消费者；不把只编译示例说成运行了供应商调用。实际调用由 HTTP／Artisan 与既有独立 Worker 夹具验证。
 

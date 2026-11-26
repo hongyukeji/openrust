@@ -2,7 +2,7 @@
 
 ## Requirements
 
-Install Rust 1.95.0 or newer with Cargo. OpenRust uses the Rust 2024 edition. The application and the framework crate under `vendor/openrust/framework/` are built together. The first build downloads the dependencies recorded in `Cargo.lock`.
+Install Rust 1.95.0 or newer with Cargo. OpenRust uses the Rust 2024 edition. The application and the framework crate under `vendor/openrust-framework/` are built together. The first build downloads the dependencies recorded in `Cargo.lock`.
 
 ## Full initialization {#complete-initialization}
 

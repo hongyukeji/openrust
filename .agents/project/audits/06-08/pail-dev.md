@@ -34,7 +34,7 @@ Ubuntu 原生 amd64，Rust 1.94.0 Debug，从 `0439a189d` 导出隔离快照，�
 ## 最小提交范围
 
 ```text
-vendor/openrust/framework/src/
+vendor/openrust-framework/src/
 ├── foundation/{application,dev_commands,provider_repository}.rs
 └── support/service_provider.rs
 tests/

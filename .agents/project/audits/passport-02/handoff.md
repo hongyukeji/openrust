@@ -14,7 +14,7 @@
 
 | 范围 | 接续边界 |
 | --- | --- |
-| `vendor/openrust/passport/` | 扩展接续，固定 Passport 13.10.0；未完成列表见下节 |
+| `vendor/openrust-passport/` | 扩展接续，固定 Passport 13.10.0；未完成列表见下节 |
 | `docs/{en,zh_CN,zh_TW}/packages/passport.md` | 与扩展同批同步，保持本批已过范围及未过声明 |
 | 核心 Eloquent／Support 必要配套 | 本批只有 getCreatedAtColumn 和隐藏的比较桥；后续若需要改共享核心，先明确文件／接口和归属，再动手，不能和核心任务同时写同一文件 |
 | `current.md`、`progress.md`、`core-closure-ledger.md` | 共享文件，逐段维护自己的记录，不整文件覆盖；扩展继续维护 V06–V09，核心主要跟踪 V02–V05 等既有缺口 |

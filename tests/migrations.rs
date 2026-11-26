@@ -30,7 +30,7 @@ impl Root {
             fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             fs::copy(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-                    "vendor/openrust/framework/src/localization/lang/{locale}/schema.json"
+                    "vendor/openrust-framework/src/localization/lang/{locale}/schema.json"
                 )),
                 path.join(format!("lang/{locale}/schema.json")),
             )

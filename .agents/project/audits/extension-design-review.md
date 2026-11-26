@@ -60,7 +60,7 @@
 
 ### R1 — P2：Horizon 未保持配置入口及路由装配习惯
 
-位置：`vendor/openrust/horizon/config/horizon.rs:11`、`src/provider.rs:48`、`src/dashboard.rs:116`。
+位置：`vendor/openrust-horizon/config/horizon.rs:11`、`src/provider.rs:48`、`src/dashboard.rs:116`。
 
 - 配置加载器完全不使用 Environment，Redis 前缀固定 `horizon:`。固定官方配置读取 `HORIZON_PREFIX`，缺省由 APP_NAME 的 slug 派生。应用按 Laravel 习惯配置该环境变量时，当前包仍使用固定前缀。
 - 核心 `config/database.rs:140` 已有按应用名生成的 Redis 总前缀，所以不能断言默认不同应用必然串数据。但当应用显式共享 REDIS_PREFIX／同一 Redis 数据库并期望 HORIZON_PREFIX 单独隔离 Horizon 时，环境变量不生效会共享 Horizon 键空间，影响指标、监督器记录及按该仓储执行的控制操作。
@@ -70,7 +70,7 @@
 
 ### R2 — P2：Cashier 的统一 API 偏离上游，不能仅归因于 Rust
 
-位置：`vendor/openrust/cashier/src/billing.rs:11`、`:47`、`:71`、`:752`；`src/client.rs`、`config/cashier.rs`。
+位置：`vendor/openrust-cashier/src/billing.rs:11`、`:47`、`:71`、`:752`；`src/client.rs`、`config/cashier.rs`。
 
 固定 Stripe 上游保留 `createAsStripeCustomer`、`createOrGetStripeCustomer`、`updateStripeCustomer`、`asStripeCustomer`、`billingPortalUrl`、`redirectToBillingPortal` 等入口，Stripe 与 Paddle 本身是独立包。当前合为一个具名驱动 Manager，用 `createOrGetCustomer`、`updateCustomer`、`billingPortal` 及 `SubscriptionHandle`／数据 Subscription 分离设计，许多方法返回通用 JSON。现有文档承认没有逐方法兼容层，但“有声明”不等于符合优先保留原名的约束。
 
@@ -80,7 +80,7 @@ Billable 从 PHP trait 变成 Rust struct 可以有类型和借用理由；以�
 
 ### R3 — P3：Activitylog Support 公开路径缺口
 
-位置：`vendor/openrust/activitylog/src/lib.rs:26`、`src/support.rs`。
+位置：`vendor/openrust-activitylog/src/lib.rs:26`、`src/support.rs`。
 
 固定上游 `Support\ActivityLogger`、`Support\PendingActivityLog`、`Support\ChangeDetector`，Rust 当前主要从 crate 根导出这些类型，support 模块没有相应重导出。命名相同但公开命名空间不全，熟悉该版本 Spatie 的使用者无法按目录直接对应。
 
@@ -137,7 +137,7 @@ OIDC／Cashier 当前有成熟密码学或 SDK 源码参考，但未见对现成
 
 - `cargo +1.94.0 test --locked -p openrust-horizon -p openrust-cashier -p openrust-activitylog -p openrust-scout`：65 通过；默认忽略 10 项，其中 Horizon 的 9 项以专属 Redis 入口另行全部通过，Cashier 的外部官方 SDK 参考入口本轮未重跑，不计通过。SQLite 为实际驱动。
 - `tests/{postgres,mysql}_acceptance.py -- ... sql_matrix.py {pgsql,mysql}`：各 17 通过，覆盖 Cashier protocol／persistence／callback_http 和 Scout integration。服务由 REQUIRE 变量与批次专属容器门禁验证为 PG18／MySQL8.4；不使用开发数据库。最终源码补充断言后再次通过，日志 postgres-final／mysql-final。
-- `vendor/openrust/horizon/tests/redis_acceptance.py -- cargo ... -p openrust-horizon -- --ignored`：9 通过，实际 Redis 8.10.3；新案例在同一 Redis/global prefix 下通过两个 .env 中的 HORIZON_PREFIX 验证 pause 状态双向隔离。未改共享缓存实现，因此不把此项冒充三种缓存驱动复验。
+- `vendor/openrust-horizon/tests/redis_acceptance.py -- cargo ... -p openrust-horizon -- --ignored`：9 通过，实际 Redis 8.10.3；新案例在同一 Redis/global prefix 下通过两个 .env 中的 HORIZON_PREFIX 验证 pause 状态双向隔离。未改共享缓存实现，因此不把此项冒充三种缓存驱动复验。
 - 根 `cargo ... test -p openrust --all-features --test horizon_configuration --test cashier_configuration --test application_skeleton`：4 通过；检查包发现、配置发布及保留定制、缓存与默认骨架。Horizon config:show 在环境漂移后仍保持缓存中的 prefix/path。
 - `cargo +1.94.0 clippy --workspace --all-targets --all-features --locked -- -D warnings` 与 `cargo +1.94.0 fmt --all --check` 通过。编译器对工作区外 patched rav1e/imgalifier 依赖的既有 warning 保留，未扩大修改范围。
 - `tests/extension_reference_acceptance.py --upstream ... --framework ...`：PHP 8.5.12 镜像，七入口复现并逐文件拒绝篡改。AutoScaler 浮点值允许 1e-13 的同平台数学库尾差，索引／目标／排序等其他值严格比较；现有约 4.848098118036503 与 4.8480981180365035 的尾差如实保留，未改 fixture 掩盖差异。没有声称全套 PHPUnit。

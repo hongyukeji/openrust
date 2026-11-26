@@ -33,7 +33,7 @@ with tarfile.open(fileobj=archive.stdout, mode='r|') as handle:
     handle.extractall(src, filter='data')
 assert archive.wait() == 0
 prefix = str(src.relative_to(root))
-framework = src / 'vendor/openrust/framework'
+framework = src / 'vendor/openrust-framework'
 app_file = framework / 'src/foundation/application.rs'
 stub_file = framework / 'src/console/generator_command.rs'
 providers = app_file.read_text().split('let base_providers:')[1].split('\n        ];')[0].count('Box::new(')
@@ -43,12 +43,12 @@ assert providers > 0 and stubs > 0
 def git(*command):
     return subprocess.check_output(['git', *command])
 
-initial = git('diff', INITIAL + '^', INITIAL, '--', 'vendor/openrust/framework/src').decode()
+initial = git('diff', INITIAL + '^', INITIAL, '--', 'vendor/openrust-framework/src').decode()
 initial = ''.join('diff --git ' + part for part in initial.split('diff --git ')[1:]
-                  if not part.startswith('a/vendor/openrust/framework/src/foundation/application.rs '))
+                  if not part.startswith('a/vendor/openrust-framework/src/foundation/application.rs '))
 initial = initial.replace('-    pub(crate) const ALL: [Self; 38] = [',
                           f'-    pub(crate) const ALL: [Self; {stubs}] = [')
-patches = [initial.encode(), git('diff', FOLLOWUP + '^', FOLLOWUP, '--', 'vendor/openrust/framework/src')]
+patches = [initial.encode(), git('diff', FOLLOWUP + '^', FOLLOWUP, '--', 'vendor/openrust-framework/src')]
 patch_paths = []
 for index, data in enumerate(patches):
     path = out / f'{index}.patch'
@@ -75,8 +75,8 @@ guard = [sys.executable, '-B', 'tests/build_guard.py', '--workflow', 'array-rele
          '--target-dir', str(out / 'cargo-target'), '--tmp-dir', str(out / 'tmp'), '--']
 build = ['cargo', '+1.94.0', 'build', '--locked', '--release', '--manifest-path', str(src / 'Cargo.toml'),
          '-p', 'openrust-framework', '--example', 'list_perf_time', '--example', 'list_perf_alloc']
-core_files = sorted(set((git('diff', '--name-only', INITIAL + '^', INITIAL, '--', 'vendor/openrust/framework/src') +
-                             git('diff', '--name-only', FOLLOWUP + '^', FOLLOWUP, '--', 'vendor/openrust/framework/src')).decode().splitlines()))
+core_files = sorted(set((git('diff', '--name-only', INITIAL + '^', INITIAL, '--', 'vendor/openrust-framework/src') +
+                             git('diff', '--name-only', FOLLOWUP + '^', FOLLOWUP, '--', 'vendor/openrust-framework/src')).decode().splitlines()))
 input_hashes = {}
 for version in ['before', 'after']:
     if version == 'after':

@@ -16,7 +16,7 @@
 
 ## 实现与保留
 
-生产变更限定在 `vendor/openrust/framework/src/routing/route_pattern.rs`：
+生产变更限定在 `vendor/openrust-framework/src/routing/route_pattern.rs`：
 
 - 增加持有`Box<str>`的字面匹配器。无参数且不超过1024字节的有效路径，以完整字符串比较替代正则；仍使用原有字面字符验证。
 - 正则匹配器私有字段更名为`matcher`，反映其新增实现。没有新增公开入口、配置或全局缓存。
@@ -52,7 +52,7 @@ GET的alloc减少92.50%，累计请求字节减少93.58%。字面路径编译本
 
 ## 消费者和检查
 
-新增 `vendor/openrust/framework/tests/routing_literal_patterns.rs`：通过实际TCP HTTP及实际`route:cache`覆盖字面正则符号、大小写、Unicode、空格、百分号解码、静态默认值、动态／静态先后、同URI覆盖、静态与动态域名、数字约束、HEAD、405及Allow；另验证非法URI登记原子性、1024／1025边界和超长模板的旧引擎限制。
+新增 `vendor/openrust-framework/tests/routing_literal_patterns.rs`：通过实际TCP HTTP及实际`route:cache`覆盖字面正则符号、大小写、Unicode、空格、百分号解码、静态默认值、动态／静态先后、同URI覆盖、静态与动态域名、数字约束、HEAD、405及Allow；另验证非法URI登记原子性、1024／1025边界和超长模板的旧引擎限制。
 
 最终实际执行79项Rust测试（框架HTTP／路由42、根应用startup／console／resource_generator37），0失败、0忽略；workspace格式及根应用／框架all-targets严格Clippy通过。真实主二进制另通过19项CLI、6项HTTP检查：134个命令无重名，首页／HEAD、健康、JSON／HTML404均正常，SIGINT退出0，直接执行`./artisan inspire`成功。默认HTTP独立验收使用array Session／Cache并关闭其他Runner，未将它计为队列和调度发布验收。
 

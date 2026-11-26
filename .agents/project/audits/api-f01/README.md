@@ -14,7 +14,7 @@ Passkeys 属于独立 API-F02；Fortify 1.43.0 默认启用该项，当前必须
 - pragmarx/google2fa **9.0.0**，提交 `e6bc62dd6ae83acc475f57912e27466019a1f2cf`。
 - paragonie/constant_time_encoding **3.1.5**，提交 `ceed38ba49d98b85808edfc4f04750ff61eb9739`；仅用于 PHP 对照，不作为 Rust 依赖。
 - Laravel Framework／文档沿用 [固定基线](../../plans/laravel-rebuild-baseline.md)，未跟随浮动分支。
-- 旧版复用参考 `v0.x:vendor/openrust/framework/src/auth/fortify/engine.rs` 及 `engine/tests.rs`；复用其 Base32／HMAC、窗口与缓存机制，接入主线契约、AWS-LC、Config 和 Cache Repository。旧版账户 authority／令牌机制未直接移植；须按当前上游、原生 Guard 和模型逐项适配。
+- 旧版复用参考 `v0.x:vendor/openrust-framework/src/auth/fortify/engine.rs` 及 `engine/tests.rs`；复用其 Base32／HMAC、窗口与缓存机制，接入主线契约、AWS-LC、Config 和 Cache Repository。旧版账户 authority／令牌机制未直接移植；须按当前上游、原生 Guard 和模型逐项适配。
 - 三个归档及逐文件 SHA 固定在 [fixtures](fixtures/)。保留 Fortify／Google2FA MIT 许可；HMAC 和随机数采用既有 AWS-LC 依赖。
 
 ## 行为与 Rust 适配

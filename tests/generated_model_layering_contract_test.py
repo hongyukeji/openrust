@@ -26,8 +26,8 @@ class LayeringContract(unittest.TestCase):
     def test_shipped_default_model_stub_and_fortify_publication_paths(self):
         root = Path(__file__).resolve().parents[1]
         assert_model((root / 'app/models/user.rs').read_text(), '默认 User')
-        assert_model((root / 'vendor/openrust/framework/src/foundation/console/stubs/model.rs.stub').read_text(), '内置模型模板')
-        resources = (root / 'vendor/openrust/fortify/src/resources.rs').read_text()
+        assert_model((root / 'vendor/openrust-framework/src/foundation/console/stubs/model.rs.stub').read_text(), '内置模型模板')
+        resources = (root / 'vendor/openrust-fortify/src/resources.rs').read_text()
         self.assertNotIn('"app/models/', resources)
         for name in ['create_new_user', 'reset_user_password', 'update_user_password', 'update_user_profile_information']:
             self.assertIn(f'"app/actions/fortify/{name}.rs"', resources)

@@ -47,7 +47,7 @@
 
 ### 正式布局与职责
 
-- 唯一框架默认集合为vendor/openrust/framework/src/translation/lang/：18语×8分组与18份原句，共162份JSON。Provider将这些静态资源编入产物，默认加载不依赖运行时框架源码或发布命令。默认应用保留lang/en/welcome.json、lang/zh-Hans/welcome.json、lang/zh-Hant/welcome.json供直接定制，其他应用词典按需创建。
+- 唯一框架默认集合为vendor/openrust-framework/src/translation/lang/：18语×8分组与18份原句，共162份JSON。Provider将这些静态资源编入产物，默认加载不依赖运行时框架源码或发布命令。默认应用保留lang/en/welcome.json、lang/zh-Hans/welcome.json、lang/zh-Hant/welcome.json供直接定制，其他应用词典按需创建。
 - 先加载框架默认值，再递归合并应用同语言分组。原句JSON顺序为addJsonPath来源、框架默认值、应用及后续addPath；原句按顶层键替换。这与固定Laravel FileLoader和TranslationServiceProvider的来源顺序一致。应用缺键保留同语言默认值，仍缺失才按既有fallback规则查找；损坏的覆盖JSON报错，不静默忽略。
 - 直接FileLoader::new仍只加载指定文件；默认框架来源由Provider内部装配，不破坏独立加载器或包命名空间的行为。候选发现合并框架集合与应用资源，仍在HTTP引导时执行一次，不逐请求扫描。翻译组沿用既有进程内缓存，覆盖修改后重启常驻进程。
 - config/app.rs使用supported_locales(get(env, "APP_SUPPORTED_LOCALES", "*")?)。默认"*"启用全部可用来源；null／(null)保留自动发现，逗号列表限制候选，空值生成空数组关闭识别。解析函数只接收值，不读环境；直接JSON配置同样支持"*"、数组和null。星号不是数组成员，也不代表无资源的全部BCP47标签都能翻译。

@@ -23,10 +23,10 @@
 
 | 范围 | 可参考的旧版实现与用例 |
 | --- | --- |
-| [T-03 测试数据库](#unit-t-03) | 优先核对 `vendor/openrust/framework/src/testing/database/` 的 `ownership.rs`、`marker.rs`、`lease.rs`、`owned_pool.rs` 和归属回归。可按当前连接层提取归属标记、独占租约、关闭连接池后清理及忙库保护。并行隔离和失败清理走当前夹具重验，`RefreshDatabase` 的事务生命周期按固定 Laravel 契约核对。 |
+| [T-03 测试数据库](#unit-t-03) | 优先核对 `vendor/openrust-framework/src/testing/database/` 的 `ownership.rs`、`marker.rs`、`lease.rs`、`owned_pool.rs` 和归属回归。可按当前连接层提取归属标记、独占租约、关闭连接池后清理及忙库保护。并行隔离和失败清理走当前夹具重验，`RefreshDatabase` 的事务生命周期按固定 Laravel 契约核对。 |
 | [04-05 验证](#unit-04-05) 与 [04-07 限流](#unit-04-07) | 主线已有通配路径、空值边界、上传 MIME、固定窗口及 Redis 并发场景的复用记录。剩余的 FormRequest 注入、数据库规则边界和认证模型属性限流可按当前接口继续。见[验证验收](audits/04-05/README.md)和[限流验收](audits/04-07/README.md)。 |
 | [02 数据库](#02-数据库与通用集合) | 旧版 Schema、SQLite 表重建和迁移锁可提供失败用例。抽查未找到可直接补齐 PostgreSQL 独立直连、向量查询或其他驱动 Schema 快照的完整实现。 |
-| Passport 与 Fortify 扩展 | 旧版 `vendor/openrust/passport/` 的授权码、PKCE、令牌轮换、事务仓储和资源令牌验证，以及 `vendor/openrust/framework/src/auth/fortify/` 的登录和认证挑战，可在对应扩展开工时逐项核对。OIDC 与双应用 SSO 仍按各自范围验收。 |
+| Passport 与 Fortify 扩展 | 旧版 `vendor/openrust-passport/` 的授权码、PKCE、令牌轮换、事务仓储和资源令牌验证，以及 `vendor/openrust-framework/src/auth/fortify/` 的登录和认证挑战，可在对应扩展开工时逐项核对。OIDC 与双应用 SSO 仍按各自范围验收。 |
 
 采用这些线索时，可在该单元的验收记录中补上旧版提交、对应路径、实际提取范围和当前验证结果，方便下一轮接续。
 
@@ -253,7 +253,7 @@ API 基础文件与接线默认预置；`install:api` 按需安装认证，缺�
 
 Passport 固定 [v13.10.0](https://github.com/laravel/passport/tree/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7)，SHA `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7`。已核对该提交 composer.json 的 Illuminate `^13.0` 约束，覆盖当前框架 13.40.0；文档仍以既有固定 13.x 快照的 [passport.md](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/passport.md) 为准。协议参考 League oauth2-server 9.4.1（旧版既有基线），不称它是新安装 Composer 自动解析的锁定结果。
 
-已只读核对同级旧版 `6d1a81924` 的 `vendor/openrust/passport/`：可提取客户端读取、PKCE、scope、授权码／刷新、RSA 签名、事务记录、资源验证及测试；其 README 明确端点自动注册、客户端保存、完整 Guard 和端到端授权未闭合。必须适配当前 Provider、容器、SQLx 数据库和 Request 契约，不能整体复制旧版 SeaORM／Figment 接线后称完成。旧版只有四类 OAuth 迁移，固定 Passport 还包含 `oauth_device_codes`，必须补齐。
+已只读核对同级旧版 `6d1a81924` 的 `vendor/openrust-passport/`：可提取客户端读取、PKCE、scope、授权码／刷新、RSA 签名、事务记录、资源验证及测试；其 README 明确端点自动注册、客户端保存、完整 Guard 和端到端授权未闭合。必须适配当前 Provider、容器、SQLx 数据库和 Request 契约，不能整体复制旧版 SeaORM／Figment 接线后称完成。旧版只有四类 OAuth 迁移，固定 Passport 还包含 `oauth_device_codes`，必须补齐。
 
 固定 [PassportServiceProvider](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/src/PassportServiceProvider.php)、[Passport](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/src/Passport.php) 和 [路由](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/routes/web.php) 显示：授权码、刷新、客户端凭据为默认服务器授权；设备授权开关默认 true，且要求设备路由存在；个人令牌使用专用服务器绑定。Password 和 Implicit 默认 false，只有显式启用才接入。不能因补功能擅自改变这些默认开关。
 
@@ -261,7 +261,7 @@ Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在�
 
 ### Passport／OAuth2
 
-以下单元全部是第一代计划范围。Passport-01 已按[单元记录](audits/passport-01/README.md)完成实现及验收，其余待依次闭合；每行分别闭合源码、真实入口、测试、三语正文与记录后才本地提交。独立包使用 `vendor/openrust/passport/`，公开接口按固定契约核定。
+以下单元全部是第一代计划范围。Passport-01 已按[单元记录](audits/passport-01/README.md)完成实现及验收，其余待依次闭合；每行分别闭合源码、真实入口、测试、三语正文与记录后才本地提交。独立包使用 `vendor/openrust-passport/`，公开接口按固定契约核定。
 
 | 单元 | 前置依赖 | 固定章节与正式交付边界 | 必要实际验收 |
 | --- | --- | --- | --- |

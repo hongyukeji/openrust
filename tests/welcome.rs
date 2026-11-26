@@ -44,27 +44,27 @@ impl Root {
         for (locale, data, language_name) in [
             (
                 "en",
-                include_str!("../vendor/openrust/framework/src/localization/lang/en/welcome.json"),
+                include_str!("../vendor/openrust-framework/src/localization/lang/en/welcome.json"),
                 include_str!(
-                    "../vendor/openrust/framework/src/localization/lang/en/languages.json"
+                    "../vendor/openrust-framework/src/localization/lang/en/languages.json"
                 ),
             ),
             (
                 "zh-Hans",
                 include_str!(
-                    "../vendor/openrust/framework/src/localization/lang/zh-Hans/welcome.json"
+                    "../vendor/openrust-framework/src/localization/lang/zh-Hans/welcome.json"
                 ),
                 include_str!(
-                    "../vendor/openrust/framework/src/localization/lang/zh-Hans/languages.json"
+                    "../vendor/openrust-framework/src/localization/lang/zh-Hans/languages.json"
                 ),
             ),
             (
                 "zh-Hant",
                 include_str!(
-                    "../vendor/openrust/framework/src/localization/lang/zh-Hant/welcome.json"
+                    "../vendor/openrust-framework/src/localization/lang/zh-Hant/welcome.json"
                 ),
                 include_str!(
-                    "../vendor/openrust/framework/src/localization/lang/zh-Hant/languages.json"
+                    "../vendor/openrust-framework/src/localization/lang/zh-Hant/languages.json"
                 ),
             ),
         ] {
@@ -606,7 +606,7 @@ async fn custom_welcome_translation_uses_english_documentation_links() {
         assert!(html.contains("Bienvenue"));
         assert_links(&html, "fr");
         let defaults: serde_json::Value = serde_json::from_str(include_str!(
-            "../vendor/openrust/framework/src/localization/lang/fr/welcome.json"
+            "../vendor/openrust-framework/src/localization/lang/fr/welcome.json"
         ))
         .unwrap();
         assert!(html.contains(defaults["documentation"].as_str().unwrap()));
@@ -631,7 +631,7 @@ async fn partial_translations_do_not_guess_the_page_language_from_the_heading() 
     assert_eq!(headers["content-language"], "fr");
     assert!(html.contains("<html lang=\"fr\">"));
     let defaults: serde_json::Value = serde_json::from_str(include_str!(
-        "../vendor/openrust/framework/src/localization/lang/fr/welcome.json"
+        "../vendor/openrust-framework/src/localization/lang/fr/welcome.json"
     ))
     .unwrap();
     assert!(html.contains(defaults["heading"].as_str().unwrap()));
@@ -669,7 +669,7 @@ async fn missing_display_text_does_not_prevent_link_rendering() {
     assert_eq!(headers["content-language"], "fr");
     assert!(!html.contains("welcome.heading"));
     let defaults: serde_json::Value = serde_json::from_str(include_str!(
-        "../vendor/openrust/framework/src/localization/lang/fr/welcome.json"
+        "../vendor/openrust-framework/src/localization/lang/fr/welcome.json"
     ))
     .unwrap();
     assert!(html.contains(defaults["heading"].as_str().unwrap()));
@@ -1993,7 +1993,7 @@ async fn welcome_documentation_links_follow_application_language_resources() {
 #[tokio::test]
 async fn welcome_description_uses_configured_application_name_in_every_bundled_language() {
     let catalogs = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("vendor/openrust/framework/src/localization/lang");
+        .join("vendor/openrust-framework/src/localization/lang");
     for locale in [
         "en", "zh-Hans", "zh-Hant", "ar", "de", "es", "fr", "hi", "id", "it", "ja", "ko", "nl",
         "pt", "ru", "th", "tr", "vi",

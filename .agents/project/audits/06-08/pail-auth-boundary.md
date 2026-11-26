@@ -8,7 +8,7 @@ V04 已按[显式请求日志入口](pail-auth-timing.md)完成 Rust 适配并�
 
 固定 Pail `fdb73f5eacf03db576c710d5a00101ba185f2254` 的 Handler 在同步 `MessageLogged` 监听中调用 `Auth::id()` 和 `Auth::user()`，可以当场驱动 PHP guard 完成认证。当前 Rust 的 `Log::listen` 返回同步 `LogResult<()>`；`AuthManager::user`／`Guard::user` 返回异步 future，并独占借用 `&mut Request`。自定义 RequestGuard 可包含任意异步 I/O，不能假定它能在一次 poll 内完成。来源对象只持有只读属性快照，不持有可重新借用的请求。 [固定 Handler](https://github.com/laravel/pail/blob/fdb73f5eacf03db576c710d5a00101ba185f2254/src/Handler.php)
 
-具体入口：`vendor/openrust/framework/src/log/facade.rs`、`log/events/mod.rs`、`auth/auth_manager.rs`、`auth/request_guard.rs`、`contracts/auth.rs` 和 `log/context/origin.rs`。根 `main.rs` 使用 Tokio current_thread，同步监听不能以阻塞等待方式安全驱动同一个请求的异步认证。
+具体入口：`vendor/openrust-framework/src/log/facade.rs`、`log/events/mod.rs`、`auth/auth_manager.rs`、`auth/request_guard.rs`、`contracts/auth.rs` 和 `log/context/origin.rs`。根 `main.rs` 使用 Tokio current_thread，同步监听不能以阻塞等待方式安全驱动同一个请求的异步认证。
 
 ## 未采用的替代行为
 

@@ -8,7 +8,7 @@
 
 对照 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Container.extend/resolve/forgetExtenders](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 和 [ContainerTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContainerTest.php)。文档对应固定 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md#extending-bindings`。沿用固定 Goravel v1.18.0 的编译型启动，不改应用装配或运行入口。
 
-编码前核对旧版 `6d1a8192:vendor/openrust/framework/src/container/extensions.rs`，检查 directory_tests_v2.rs 的别名装饰/清理/循环，binding_state_tests.rs 的原作用域工厂与持久装饰链恢复，descriptor_race_tests.rs 的构造期间追加装饰一次，以及旧 callback_disposal/selection 相关回归位置。提取缓存槽及等待图复用、注册与执行分离、锁外执行、失败重试和退役捕获先释放的机制；不移植旧异步 Resolver、资源关闭队列或未纳入当前契约的全套目录实现。
+编码前核对旧版 `6d1a8192:vendor/openrust-framework/src/container/extensions.rs`，检查 directory_tests_v2.rs 的别名装饰/清理/循环，binding_state_tests.rs 的原作用域工厂与持久装饰链恢复，descriptor_race_tests.rs 的构造期间追加装饰一次，以及旧 callback_disposal/selection 相关回归位置。提取缓存槽及等待图复用、注册与执行分离、锁外执行、失败重试和退役捕获先释放的机制；不移植旧异步 Resolver、资源关闭队列或未纳入当前契约的全套目录实现。
 
 ## 实现与 Rust 适配
 

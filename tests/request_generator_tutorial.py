@@ -22,7 +22,7 @@ evidence = args.evidence_dir.resolve()
 if not evidence.is_relative_to(root / 'target/tmp'):
     parser.error('验收记录目录必须位于项目 target/tmp/ 内')
 evidence.mkdir(parents=True, exist_ok=True)
-fixture = source / 'vendor/openrust/framework/tests/fixtures/request_generated'
+fixture = source / 'vendor/openrust-framework/tests/fixtures/request_generated'
 fixture.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(dir=evidence, prefix='request-consumer-') as temp:
     app = Path(temp)
@@ -70,7 +70,7 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='request-consumer-') as te
     shutil.copy2(app / 'app/http/requests/approved_request.rs', fixture / 'approved.rs')
     (evidence / 'request-generator-commands.json').write_text(json.dumps({'commands': commands, 'sha256': {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in fixture.glob('*.rs')}}, ensure_ascii=False, indent=2))
 
-support = (source / 'vendor/openrust/framework/tests/request_signature_tutorial.rs').read_text()
+support = (source / 'vendor/openrust-framework/tests/request_signature_tutorial.rs').read_text()
 transport = support[support.index('async fn transport('):support.index('async fn start(')]
 send = support[support.index('async fn send('):support.index('#[tokio::test]')]
 modules = ''.join(f'#[path="fixtures/request_generated/collision_{name.lower()}.rs"]mod collision_{name.lower()};\n' for name in ('Request', 'FormRequest', 'Box', 'Option', 'Vec', 'Result'))
@@ -96,7 +96,7 @@ async fn generated_request_types_authorize_and_validate_real_http_before_dispatc
  let (status,data,_)=send(address,"POST","/approve",r#"{"title":"Hello","admin":true}"#,"").await;assert_eq!(status,201);assert_eq!(data,json!({"title":"Hello"}));server.abort();let _=server.await;
 }
 '''
-target = source / 'vendor/openrust/framework/tests/request_generated_tutorial.rs'
+target = source / 'vendor/openrust-framework/tests/request_generated_tutorial.rs'
 target.write_text(code)
 subprocess.run(['rustfmt', '+1.95.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
 for name, expected in json.loads((evidence / 'request-generator-commands.json').read_text())['sha256'].items():

@@ -39,7 +39,7 @@
 
 - `tests/cache.rs`：两个锁服务器的夹具使用随机 CACHE_PREFIX，验证旧 owner 无权释放新锁，并主动释放有效 owner 的锁。初次失败遗留无 TTL 的固定名称锁，不能把再次 get 失败当作新的生产缺陷。完整缓存 37 项通过，另单独重复锁场景通过；跨进程 file 锁 helper 的 ignored 标记由父测试实际调用，未作为独立跳过计入服务通过。
 - `tests/schema_comments.rs`：MySQL 的 `getTables(None)` 按固定 Laravel 默认列举所有可见 schema，不应改生产目录查询范围。夹具显式传当前数据库名，仍严格要求 17 张表及逐列本地化注释；三库共 3 项通过。固定源码为 Schema/Builder.php 与 Grammars/MySqlGrammar.php 的 compileSchemaWhereClause。
-- `vendor/openrust/telescope/tests/watchers.rs`：每个 TestApp 使用随机短表前缀及标准 `prefix_indexes=true`，保留请求数量 4 的准确断言，避免两个用例在共享隔离库累加成 7。SQLite、PG、MySQL 各 2 项通过，最终 SQLite 配置再验日志为 `final-sqlite-prefix-indexes-watchers.log`。未改生产 watcher。
+- `vendor/openrust-telescope/tests/watchers.rs`：每个 TestApp 使用随机短表前缀及标准 `prefix_indexes=true`，保留请求数量 4 的准确断言，避免两个用例在共享隔离库累加成 7。SQLite、PG、MySQL 各 2 项通过，最终 SQLite 配置再验日志为 `final-sqlite-prefix-indexes-watchers.log`。未改生产 watcher。
 - 原始验收入口中的无根 lib、重复 --no-fail-fast、错误 SMTP 包名、未配置 Node、未配置 Horizon wrapper 环境和清理后 deps 目录不存在均属于本批临时编排错误，已使用正确入口实际补验，不算产品缺陷，也不以旧退出码改写为成功。
 
 

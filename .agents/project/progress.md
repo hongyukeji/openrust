@@ -42,9 +42,9 @@ macOS ARM64 上 Rust 1.94.0 的工作区 21 项测试、格式和严格 Clippy �
 
 Rust 1.94.0 的 21 项工作区测试、严格 Clippy 和格式检查通过。隔离副本的真实 HTTP 探针验证了 API 前缀、`api` 组中的显式绑定和缺失 404。中间件探针验证了应用配置入口能影响真实响应。命令行探针验证了两处注册入口，以及可执行命令替换同名占位。三语文档构建及 12 项浏览器检查通过。
 
-Artisan 入口按 Laravel 的职责定稿。根应用在 `bootstrap/app.rs` 装配命令，框架 `Application::handle_command` 执行 Console Kernel 并调用终止钩子。启动分发沿用 Goravel 的 Boot → Start。参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust/framework/src/lib.rs` 的框架执行和收尾流程，接入当前 Console Kernel。Rust 1.94.0 下 21 项工作区测试通过，并实测 HTTP 启停、Artisan 列表、帮助和参数错误退出码。三语文档构建及 12 项浏览器检查通过。
+Artisan 入口按 Laravel 的职责定稿。根应用在 `bootstrap/app.rs` 装配命令，框架 `Application::handle_command` 执行 Console Kernel 并调用终止钩子。启动分发沿用 Goravel 的 Boot → Start。参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust-framework/src/lib.rs` 的框架执行和收尾流程，接入当前 Console Kernel。Rust 1.94.0 下 21 项工作区测试通过，并实测 HTTP 启停、Artisan 列表、帮助和参数错误退出码。三语文档构建及 12 项浏览器检查通过。
 
-按 Goravel 的启动分工调整骨架。应用侧 `bootstrap::boot` 通过 Builder 装配并返回框架 `Application`，框架 `Application::start` 建立运行时并分发 HTTP 和 Artisan。Provider 的异步引导进入对应 Kernel，HTTP 监听与信号关停由框架 `foundation/http/server.rs` 管理。命令执行和终止沿用 Laravel 对应的 `Application::handle_command`。参考 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust/framework/src/lib.rs` 与 `src/http/serve.rs`，沿用框架持有运行时和服务生命周期的分工。
+按 Goravel 的启动分工调整骨架。应用侧 `bootstrap::boot` 通过 Builder 装配并返回框架 `Application`，框架 `Application::start` 建立运行时并分发 HTTP 和 Artisan。Provider 的异步引导进入对应 Kernel，HTTP 监听与信号关停由框架 `foundation/http/server.rs` 管理。命令执行和终止沿用 Laravel 对应的 `Application::handle_command`。参考 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust-framework/src/lib.rs` 与 `src/http/serve.rs`，沿用框架持有运行时和服务生命周期的分工。
 
 macOS ARM64 上 Rust 1.94.0 工作区 21 项测试、格式及严格 Clippy 通过。实测 HTTP 正常启停、端口占用失败、Artisan 在该端口占用时独立运行、非法参数和未知启动方式的退出码。三语文档构建和 12 项浏览器检查通过。
 
@@ -56,7 +56,7 @@ macOS ARM64 上 Rust 1.94.0 工作区 21 项测试、格式及严格 Clippy 通�
 | HTTP 运行 | `Application::start`、HTTP Kernel | Start 要求装配完成，运行 HTTP 监听并处理关停信号 | 实际 GET、HEAD、OPTIONS、404、405、端口占用失败及 SIGTERM 正常退出 |
 | Artisan 入口 | `Application::handle_command`、Console Kernel | 入口在 Boot 成功后直接调用 `handle_command`，由框架注册命令、执行和调用终止钩子 | 实际命令行验证端口占用时 `list` 和 `help list` 可执行，非法参数与占位命令退出码为 1。隔离副本确认命令注册发生在路由装配后 |
 
-复核 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust/framework/src/foundation/lifecycle.rs`、`vendor/openrust/framework/src/http/serve.rs`、`tests/server/bootstrap.rs` 和 `vendor/openrust/framework/tests/unit/foundation/application_startup_callbacks.rs`。沿用异步引导与服务运行分离的结构，以及装配顺序和无效路由在装配时失败的验收思路。核对了 `6f4c3ecd` 的启动回调与 `22d9b0ba` 的同进程启动记录。本批沿用现有 HTTP Kernel 和 Artisan，服务运行范围为 HTTP。
+复核 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust-framework/src/foundation/lifecycle.rs`、`vendor/openrust-framework/src/http/serve.rs`、`tests/server/bootstrap.rs` 和 `vendor/openrust-framework/tests/unit/foundation/application_startup_callbacks.rs`。沿用异步引导与服务运行分离的结构，以及装配顺序和无效路由在装配时失败的验收思路。核对了 `6f4c3ecd` 的启动回调与 `22d9b0ba` 的同进程启动记录。本批沿用现有 HTTP Kernel 和 Artisan，服务运行范围为 HTTP。
 
 macOS ARM64 上 Rust 1.94.0 工作区 22 项测试、锁定构建、格式和严格 Clippy 通过。三语文档构建通过，两个部署路径下 12 项浏览器检查通过。
 
@@ -66,7 +66,7 @@ macOS ARM64 上 Rust 1.94.0 工作区 22 项测试、锁定构建、格式和严
 |---|---|---|
 | `openrust::foundation::run_application` | `main.rs` 持有 Tokio 并传入 Boot 结果。框架处理 Boot 错误、进程参数、用法提示和退出码。HTTP 走 `Application::start`，Artisan 走 `Application::handle_command` | 实际 HTTP 请求覆盖 GET、HEAD、OPTIONS、404、405。SIGTERM 正常退出，端口占用时第二个 HTTP 进程退出 `1`，Artisan 默认列表、显式列表和帮助退出 `0`，非法选项退出 `1`。未知首参退出 `2`，配置同时无效时优先报告 Boot 错误并退出 `1` |
 
-参考 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust/framework/src/lib.rs`，沿用框架接管进程入口的分工。参考 `559664c8` 的 `vendor/openrust/framework/tests/unit/application_entry.rs` 验证 Artisan 标记的参数边界，按当前首参契约编写进程回归测试。
+参考 `v0.x` 提交 `6d1a8192` 的 `vendor/openrust-framework/src/lib.rs`，沿用框架接管进程入口的分工。参考 `559664c8` 的 `vendor/openrust-framework/tests/unit/application_entry.rs` 验证 Artisan 标记的参数边界，按当前首参契约编写进程回归测试。
 
 macOS ARM64 上使用 Rust 1.94.0 运行 `cargo fmt --all --check`、`cargo test --workspace --locked`、`cargo clippy --workspace --all-targets --locked -- -D warnings` 和 `cargo build --locked`，23 项测试通过。Node.js 24 下 `npm run build` 和 `node tests/check_browser.mjs` 通过，覆盖 `/` 与 `/docs/` 的 12 项浏览器检查。
 
@@ -92,7 +92,7 @@ macOS ARM64 上使用 Rust 1.94.0 运行 `cargo fmt --all --check`、`cargo test
 | HTTP Kernel | 创建时配置 HTTP 中间件，引导后解析路由中间件栈，再打开监听 | `/` 和 `/up` 返回 `200`，HEAD、OPTIONS、404、405 通过。端口占用退出 `1`，SIGTERM 退出 `0` |
 | Console Kernel | 共享引导加载环境、配置、Provider 和路由。引导完成后注册命令，保留 `handle_command` 的执行和终止路径 | HTTP 端口占用期间默认列表、显式列表和帮助均退出 `0`，非法选项退出 `1`。回归测试覆盖共享路由和命令注册顺序，以及 HTTP 中间件配置的隔离 |
 
-核对固定 Laravel v13.40.0 的 HTTP 与 Console Kernel，以及 Builder 的中间件和命令挂接。`v0.x` 的 `6d1a8192` 已在 `vendor/openrust/framework/src/lib.rs` 中先识别参数再引导，本次沿用该分工及 `tests/unit/application_entry.rs` 的参数边界验证思路。单二进制自行监听 HTTP，因此 HTTP Kernel 在绑定端口前完成引导。命令行参数范围沿用当前 OpenRust 契约。 [Laravel HTTP Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Kernel.php#L164-L188) · [Laravel Console Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L507-L524)
+核对固定 Laravel v13.40.0 的 HTTP 与 Console Kernel，以及 Builder 的中间件和命令挂接。`v0.x` 的 `6d1a8192` 已在 `vendor/openrust-framework/src/lib.rs` 中先识别参数再引导，本次沿用该分工及 `tests/unit/application_entry.rs` 的参数边界验证思路。单二进制自行监听 HTTP，因此 HTTP Kernel 在绑定端口前完成引导。命令行参数范围沿用当前 OpenRust 契约。 [Laravel HTTP Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Kernel.php#L164-L188) · [Laravel Console Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L507-L524)
 
 macOS ARM64 上使用 Rust 1.94.0，通过 `cargo fmt --all --check`、`cargo test --workspace --locked` 的 23 项测试及 `cargo clippy --workspace --all-targets --locked -- -D warnings`。按 348 文件清单从全新的 `target/` 运行 `cargo +1.94.0 build --workspace --locked --offline`，核对编译依赖与清单一致，并用该副本执行表中 HTTP 和 Artisan 验收。三语文档构建通过，浏览器检查覆盖 `/` 和 `/docs/` 共 12 项。
 
@@ -105,7 +105,7 @@ macOS ARM64 上使用 Rust 1.94.0，通过 `cargo fmt --all --check`、`cargo te
 | 应用根目录 | `bootstrap/app.rs` 对 Cargo 构建使用 crate 目录，对分发的可执行文件使用自身目录。分开安装时可显式配置绝对根目录 | 从含无效 `.env` 的其他目录运行外置 Cargo target 中的二进制及迁移后的二进制。两者均按各自应用根目录读取环境文件。绝对覆盖通过，相对覆盖明确报错 |
 | Provider 与路由装配 | `bootstrap/providers.rs` 登记默认 `AppServiceProvider`。Web 和 API 路由进入各自的组，`/up` 交给框架存活处理器。`web` 组当前接入路由绑定 | 独立副本的实际请求 `/` 和 `/up` 均返回 `200`，`/up` 保持纯文本 `OK`。端口占用期间 Artisan 列表和帮助成功，非法选项退出 `1`，HTTP 收到 SIGTERM 后退出 `0` |
 
-核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/providers.rs`、`app/providers/app.rs` 和 `vendor/openrust/framework/src/foundation/lifecycle.rs`，沿用显式 Provider 注册，并按 Laravel 的应用位置替换旧版工作目录定位。旧版 `21eaaf6f` 的 `vendor/openrust/framework/src/http/health.rs` 与 `tests/server/bootstrap.rs` 分开处理存活与诊断，本批将存活处理器归框架。健康诊断事件及 Cookie、Session、CSRF 随各自组件接入。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19) · [Laravel 默认 Provider](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/providers.php)
+核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/providers.rs`、`app/providers/app.rs` 和 `vendor/openrust-framework/src/foundation/lifecycle.rs`，沿用显式 Provider 注册，并按 Laravel 的应用位置替换旧版工作目录定位。旧版 `21eaaf6f` 的 `vendor/openrust-framework/src/http/health.rs` 与 `tests/server/bootstrap.rs` 分开处理存活与诊断，本批将存活处理器归框架。健康诊断事件及 Cookie、Session、CSRF 随各自组件接入。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19) · [Laravel 默认 Provider](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/providers.php)
 
 macOS ARM64 上使用 Rust 1.94.0，通过格式检查、24 项工作区测试、严格 Clippy 和锁定构建。仅复制[更新后的 351 个文件](audits/00-01/README.md#文件范围和复现)，使用全新的外置 `CARGO_TARGET_DIR` 通过 `cargo +1.94.0 build --workspace --locked --offline`，并确认编译依赖与清单一致。三语文档构建及 `/`、`/docs/` 的 12 项浏览器检查通过。
 
@@ -113,19 +113,19 @@ macOS ARM64 上使用 Rust 1.94.0，通过格式检查、24 项工作区测试�
 
 定稿范围为 `main.rs`、`bootstrap/app.rs`、`bootstrap/mod.rs`、`bootstrap/providers.rs` 及直接对应文档。`main.rs` 保持运行时接线，`bootstrap/` 保持声明式装配。`Routing::web`、`Routing::api` 和 `Routing::health` 由框架组装路由和默认组，后续扩展健康处理器和中间件成员时沿用这些声明。 `Routing::new` 仍接受自定义注册函数。 [启动架构](architecture.md) · [Laravel 路由装配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php#L152-L233)
 
-根目录由应用在构建时声明，部署在其他目录时通过绝对路径 `APP_BASE_PATH` 覆盖。框架验证并解析路径。核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的手工组装和 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的工作目录定位。本次将组装收进框架并使用显式应用根目录。 [应用根目录接线](../../bootstrap/app.rs)
+根目录由应用在构建时声明，部署在其他目录时通过绝对路径 `APP_BASE_PATH` 覆盖。框架验证并解析路径。核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的手工组装和 `vendor/openrust-framework/src/foundation/lifecycle.rs` 的工作目录定位。本次将组装收进框架并使用显式应用根目录。 [应用根目录接线](../../bootstrap/app.rs)
 
 macOS ARM64 上 Rust 1.94.0 的格式检查、25 项工作区测试、严格 Clippy 和锁定构建通过。回归测试验证了框架为声明的 Web 和 API 路由应用相应的组，健康路由保持独立。只复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)，从全新的外置 Cargo target 完成锁定离线构建，并核对实际编译依赖。将二进制复制到部署目录并移走临时构建源目录后，显式根目录启动成功，`GET /` 和 `GET /up` 返回 `200`，端口占用时 Artisan 列表和帮助正常执行，非法选项退出 `1`，SIGTERM 退出 `0`。缺失构建根目录和相对部署路径均退出 `1`。三语文档构建和两种部署路径的浏览器检查通过。
 
 ## 2026-11-10 HTTP 异常渲染声明
 
-应用通过 `with_exceptions` 声明 `api/*` 或请求期望 JSON 时渲染为 JSON。框架在原有错误转响应的位置应用策略，保留 HTTP 状态和 `Allow`。核对固定 Laravel 应用的 `withExceptions`，并参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/exceptions.rs` 的策略回调和 `vendor/openrust/framework/src/http/request.rs` 的请求头协商。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L7-L19) · [错误处理文档](../../docs/zh-Hans/the-basics/errors.md)
+应用通过 `with_exceptions` 声明 `api/*` 或请求期望 JSON 时渲染为 JSON。框架在原有错误转响应的位置应用策略，保留 HTTP 状态和 `Allow`。核对固定 Laravel 应用的 `withExceptions`，并参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust-framework/src/foundation/exceptions.rs` 的策略回调和 `vendor/openrust-framework/src/http/request.rs` 的请求头协商。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L7-L19) · [错误处理文档](../../docs/zh-Hans/the-basics/errors.md)
 
 macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试、严格 Clippy 和锁定构建通过。仅复制 [352 个启动文件](audits/00-01/README.md#文件范围和复现)，使用全新的 `target/` 完成锁定离线构建。实际 HTTP 请求确认 API 路径即使偏好 HTML 也返回 JSON `404`，普通 Web 路径返回 HTML `404`，Web 请求偏好 JSON 时返回 JSON `404`。同时覆盖 Accept 权重、AJAX 与 PJAX、HEAD 正文抑制和 `405 Allow`。`/up` 返回 `200`，端口占用时 Artisan 列表正常。三语文档构建及 12 项浏览器检查通过。
 
 ## 2026-11-10 Laravel 应用装配接口
 
-按[移植原则](conventions.md#laravel-到-rust-的移植原则)保留 `configure`、`inferBasePath`、`withRouting`、`withMiddleware`、`withExceptions`、`shouldRenderJsonWhen`、`is` 和 `expectsJson` 等上游名称。Rust 用 `Routing` Builder 表达 PHP 的命名参数，默认声明 Web、控制台路由和 `/up`，API 路由按需启用。`withConfig`、`withProviders` 和 `withCommands` 接入编译期注册函数。Console Kernel 引导后先登记命令类型，再加载 `withRouting` 声明的控制台路由。复核 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的静态路由注册和 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的启动边界，按固定 Laravel 骨架调整当前接线。 [Laravel 应用骨架](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19)
+按[移植原则](conventions.md#laravel-到-rust-的移植原则)保留 `configure`、`inferBasePath`、`withRouting`、`withMiddleware`、`withExceptions`、`shouldRenderJsonWhen`、`is` 和 `expectsJson` 等上游名称。Rust 用 `Routing` Builder 表达 PHP 的命名参数，默认声明 Web、控制台路由和 `/up`，API 路由按需启用。`withConfig`、`withProviders` 和 `withCommands` 接入编译期注册函数。Console Kernel 引导后先登记命令类型，再加载 `withRouting` 声明的控制台路由。复核 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的静态路由注册和 `vendor/openrust-framework/src/foundation/lifecycle.rs` 的启动边界，按固定 Laravel 骨架调整当前接线。 [Laravel 应用骨架](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19)
 
 Rust 1.94.0 通过格式检查、26 项工作区测试、严格 Clippy 和锁定构建。核对编译依赖后，仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)完成独立锁定离线构建。实际 HTTP 请求确认 `/`、`/up` 为 `200`，API 及期望 JSON 的 Web `404` 为 JSON，普通 Web `404` 为 HTML。HTTP 端口占用时 Artisan `list` 与 `help inspire` 正常执行。HTTP 收到 SIGTERM 后退出 `0`。三语文档构建和 12 项浏览器检查通过。
 
@@ -137,7 +137,7 @@ macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试和严格 Cli
 
 ## 2026-11-10 开发与发布根目录
 
-沿用 Laravel 显式调用 `Application::configure(base_path)` 的装配边界。`inferBasePath` 优先采用进程环境中的绝对路径 `APP_BASE_PATH`。其余情况由构建约定选择，默认使用源码 crate 目录，启用 `standalone` 时使用解析符号链接后的可执行文件目录。参考固定版 Goravel 的可执行文件定位，以及 `v0.x` 的 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的应用根目录入口。Rust 以显式 Cargo 特性区分部署布局，`cargo run --release` 仍是源码模式。 [Goravel 可执行文件定位](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/support/env/env.go#L126-L144) · [启动架构](architecture.md)
+沿用 Laravel 显式调用 `Application::configure(base_path)` 的装配边界。`inferBasePath` 优先采用进程环境中的绝对路径 `APP_BASE_PATH`。其余情况由构建约定选择，默认使用源码 crate 目录，启用 `standalone` 时使用解析符号链接后的可执行文件目录。参考固定版 Goravel 的可执行文件定位，以及 `v0.x` 的 `6d1a8192` 中 `vendor/openrust-framework/src/foundation/lifecycle.rs` 的应用根目录入口。Rust 以显式 Cargo 特性区分部署布局，`cargo run --release` 仍是源码模式。 [Goravel 可执行文件定位](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/support/env/env.go#L126-L144) · [启动架构](architecture.md)
 
 macOS ARM64 上 Rust 1.94.0 的格式检查、默认及全特性各 26 项工作区测试、全特性严格 Clippy 通过。仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)，从外置 Cargo target 完成两种 release 构建。从其他目录运行 `cargo run --release` 及发布二进制均通过。移走源码和构建产物并整体迁移发布目录后，HTTP `/` 和 `/up` 返回 `200`，Artisan `list` 退出 `0`。用故意损坏的 `.env` 验证实际配置来源及绝对路径覆盖优先级，相对和不存在的根目录均退出 `1`。三语文档构建和 12 项浏览器检查通过。
 
@@ -856,7 +856,7 @@ Rust 1.94.0 全量格式检查、41 项锁定工作区测试和严格 Clippy 通
 
 ## 2026-11-11 · 04-04 Cookie、Session 与 CSRF（进行中）
 
-核对固定 Laravel CookieJar 与 CookieValuePrefix、旧版 Cookie 值对象、请求队列和数据库会话测试。已从旧版 `6d1a8192:vendor/openrust/framework/src/encryption/application.rs` 提取名称绑定前缀，在 `cookie/cookie_value_prefix.rs` 按固定 Laravel 实现 `create`、`remove`、`validate`。Rust 接受字节并以常量时间比较前缀，保留旧密钥轮换。Docker PHP 8.5 CLI 直接执行固定 Laravel 源码生成对照值，Rust 专项、格式和严格 Clippy 通过，覆盖字节载荷、旧密钥、错误名称、截断和篡改。MySQL 8.4.13 测试服务可用，Cookie 工厂与队列、加密中间件、数据库会话、CSRF、默认 Web 顺序及三语正文仍待闭合。
+核对固定 Laravel CookieJar 与 CookieValuePrefix、旧版 Cookie 值对象、请求队列和数据库会话测试。已从旧版 `6d1a8192:vendor/openrust-framework/src/encryption/application.rs` 提取名称绑定前缀，在 `cookie/cookie_value_prefix.rs` 按固定 Laravel 实现 `create`、`remove`、`validate`。Rust 接受字节并以常量时间比较前缀，保留旧密钥轮换。Docker PHP 8.5 CLI 直接执行固定 Laravel 源码生成对照值，Rust 专项、格式和严格 Clippy 通过，覆盖字节载荷、旧密钥、错误名称、截断和篡改。MySQL 8.4.13 测试服务可用，Cookie 工厂与队列、加密中间件、数据库会话、CSRF、默认 Web 顺序及三语正文仍待闭合。
 
 已接通 Cookie 工厂、请求作用域队列、名称绑定加解密和响应附加，真实 HTTP 通过并发隔离、旧密钥、重放、篡改和失效。数据库会话存储已通过 SQLite 和真实 MySQL 8.4.13 的写入、更新、并发、过期及回收。隔离工作区 411 项测试、格式、严格 Clippy、Artisan 和实际应用启动通过。Requests 和 Responses 的 Cookie 小节已完成三语示例及浏览器验收。Session Store、StartSession、CSRF 和默认 Web 组待接通，详见[验收记录](audits/04-04/README.md)。
 
@@ -866,7 +866,7 @@ Rust 1.94.0 全量格式检查、41 项锁定工作区测试和严格 Clippy 通
 
 ## 2026-11-11 · 04-05 Validator、API 422 与 FormRequest（进行中）
 
-对照固定 Laravel ValidationRuleParser 和嵌套数组校验章节，从旧版 `6d1a8192:vendor/openrust/framework/src/validation/path.rs` 提取带预算的点路径和通配展开。输入保持缺失与显式 null 的差异，保留转义点和星号。Rust 1.94.0 隔离格式检查、两项路径专项测试和严格 Clippy 通过。规则执行、本地化、FormRequest 和实际 HTTP 422 仍待接通。
+对照固定 Laravel ValidationRuleParser 和嵌套数组校验章节，从旧版 `6d1a8192:vendor/openrust-framework/src/validation/path.rs` 提取带预算的点路径和通配展开。输入保持缺失与显式 null 的差异，保留转义点和星号。Rust 1.94.0 隔离格式检查、两项路径专项测试和严格 Clippy 通过。规则执行、本地化、FormRequest 和实际 HTTP 422 仍待接通。
 
 04-05 的计划验收已通过。接通 Validator、基础与异步自定义规则、通过字段投影、FormRequest 和本地化 API 422。隔离工作区 421 项测试、格式、严格 Clippy、Artisan、三语共 6 个实际 HTTP 示例及 18 项浏览器检查通过。基础规则和后续边界见[验收记录](audits/04-05/README.md)。下一批 04-06 Web 表单回传，依赖 04-04 与 04-05，已验收。
 
@@ -2491,7 +2491,7 @@ Sanctum-03 API 安装已本地提交 `4d0b8b031aabeb234ea00ea0c728d9e7d68eccf8`�
 
 2026 年 11 月 11 日持续推进。00-01 至 00-03 和 01-01 已完成各自范围验收。01-02 已完成[条件绑定](audits/01-02a/README.md)、[作用域绑定](audits/01-02b/README.md)和[上下文绑定与标签服务](audits/01-02c/README.md)，[解析回调](audits/01-02d/README.md)已验收，[扩展绑定](audits/01-02e/README.md)已验收，[重绑定与配置一致性](audits/01-02f/README.md)已验收，CT-CONFIG-REBIND 已关闭；[按服务键延迟 Provider 装载](audits/01-02g/README.md)已验收，[异步工厂组合](audits/01-02h/README.md)已验收，CT-ASYNC-FACTORY-DEFERRED 已关闭。[工厂参数覆盖](audits/01-02i/README.md)已验收。[静态构造与普通自动注入](audits/01-02j/README.md)已验收，含默认值及可空规则。[变参注入](audits/01-02k/README.md)已验收，含服务数组、标签集合及原始值配置数组。[闭包与方法调用](audits/01-02l/README.md)及[延迟调用闭包](audits/01-02m/README.md)已验收。[绑定目录与清理](audits/01-02n/README.md)已验收。01-02 仍需 SelfBuilding/属性/投影及剩余公开契约；[容器环境解析回调](audits/01-02o/README.md)已验收。[Application 环境检测](audits/01-02p/README.md)已验收，CT-ENV-APPLICATION 已关闭。下一部分核对全局实例与 ArrayAccess 的 Rust 对应。新单元和大型构建前核对额度与空间；阶段验收后自主本地提交，推送另行授权。
 
-2026-11-11 用户确认统一 JSON 响应可复用 `openrust-v0.x`。04-02 先核对旧版 `6d1a8192:vendor/openrust/framework/src/core/error.rs` 的 `ApiResponse`、`PageMeta`、序列化与错误回归，以及 `src/http/response.rs` 的状态与分页适配。统一业务封装作为可选扩展设计；保留 Laravel 默认异常、验证和健康响应契约。旧版全局状态码模式、国际化和请求 ID 依赖分别核对后提取，不能整包搬入。已定位 `tests/unit/core/error_i18n.rs` 的消息翻译、请求隔离及序列化失败脱敏回归，随当前响应入口重新验收；记录复用来源和保留差异。
+2026-11-11 用户确认统一 JSON 响应可复用 `openrust-v0.x`。04-02 先核对旧版 `6d1a8192:vendor/openrust-framework/src/core/error.rs` 的 `ApiResponse`、`PageMeta`、序列化与错误回归，以及 `src/http/response.rs` 的状态与分页适配。统一业务封装作为可选扩展设计；保留 Laravel 默认异常、验证和健康响应契约。旧版全局状态码模式、国际化和请求 ID 依赖分别核对后提取，不能整包搬入。已定位 `tests/unit/core/error_i18n.rs` 的消息翻译、请求隔离及序列化失败脱敏回归，随当前响应入口重新验收；记录复用来源和保留差异。
 
 2026-11-11：01-02 第十二部分完成 Container/Application.call、编译方法声明、bindMethod 及静态重载。方法与构造选参分离；对象/静态类上下文和 Class@method 父上下文按固定 BoundMethod 路径区分。20 项新单元、2 项应用集成与真实 Artisan 验收通过。[19 文件及证据](audits/01-02l/README.md)。下一批核对 wrap 与剩余公开 API，再按依赖补 SelfBuilding/属性/投影；01-02 整体仍未完成。
 

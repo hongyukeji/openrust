@@ -11,7 +11,7 @@ const LOCALES: &[&str] = &[
 ];
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("vendor/openrust/framework/src/localization/lang")
+        .join("vendor/openrust-framework/src/localization/lang")
 }
 fn leaves(value: &serde_json::Value, prefix: &str, out: &mut Vec<String>) {
     for (key, value) in value.as_object().unwrap() {

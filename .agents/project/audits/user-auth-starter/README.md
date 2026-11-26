@@ -18,7 +18,7 @@
 
 沿用固定Fortify 1.43.0的[LoginResponse](https://github.com/laravel/fortify/blob/v1.43.0/src/Http/Responses/LoginResponse.php)与[RegisterResponse](https://github.com/laravel/fortify/blob/v1.43.0/src/Http/Responses/RegisterResponse.php)：HTML依然委托原生响应，业务JSON仅由显式套件Provider替换。未将普通Fortify默认输出全局改写，也不因为存在响应绑定而声称安装预设可用。
 
-旧版复用检查：`openrust-v0.x/vendor/openrust/framework/src/auth/fortify/api_http.rs`以及`tests/server/auth/fortify.rs`。旧JWT登录、挑战和刷新体系不符合本计划的Sanctum PAT／Session分工，未直接搬入；借鉴秘密不入URL与认证响应禁止缓存的边界，复用当前ApiResponse、Fortify响应契约和Auth上下文。
+旧版复用检查：`openrust-v0.x/vendor/openrust-framework/src/auth/fortify/api_http.rs`以及`tests/server/auth/fortify.rs`。旧JWT登录、挑战和刷新体系不符合本计划的Sanctum PAT／Session分工，未直接搬入；借鉴秘密不入URL与认证响应禁止缓存的边界，复用当前ApiResponse、Fortify响应契约和Auth上下文。
 
 默认UserResource只读取id、name、email、email_verified_at，保留字符串主键；不读取整个模型、密码、remember token及因素秘密。自定义资源通过既有响应绑定替换。
 

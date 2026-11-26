@@ -141,7 +141,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     fs::write(
         &api,
         include_str!(
-            "../vendor/openrust/framework/src/foundation/console/stubs/api-base-routes.stub"
+            "../vendor/openrust-framework/src/foundation/console/stubs/api-base-routes.stub"
         )
         .replace('\n', "\r\n"),
     )
@@ -267,7 +267,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
     }
 
     mod installed_api {
-        include!("../vendor/openrust/framework/src/foundation/console/stubs/api-config.stub");
+        include!("../vendor/openrust-framework/src/foundation/console/stubs/api-config.stub");
     }
 
     fn api_config(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
@@ -1060,7 +1060,7 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
     assert!(original.contains("fn register") && original.contains("fn boot"));
     assert_eq!(
         original,
-        include_str!("../vendor/openrust/framework/src/foundation/console/stubs/provider.rs.stub")
+        include_str!("../vendor/openrust-framework/src/foundation/console/stubs/provider.rs.stub")
             .replace("{{class}}", "ReportServiceProvider")
     );
     let registry_text = fs::read_to_string(&registry).unwrap();

@@ -4,8 +4,8 @@
 
 ## 固定参考与复用
 
-- Laravel Framework 13.40.0：`1449bf241017087fbd38c118ecaabef3f6797fdc`；文档 `960eedf0911155ad16326ade49c0ea5d18eda0b8`。实际下载的 Middleware、Request concern、FormRequest、两个 Precognition dispatcher、验证生命周期、Session 和上游路由测试等 SHA 见 `vendor/openrust/framework/tests/fixtures/precognition/source-manifest.json`。
-- 开工先只读核对 `v0.x:vendor/openrust/framework/src/http/precognition.rs` 和对应历史 source-manifest。提取“客户端尝试／服务端确认”及响应协议概念；不复制旧 Axum middleware、共享 AtomicBool 或未经行为验收的旧夹具。新实现接当前原生 Request／Router／Controller／FormRequest 管线。
+- Laravel Framework 13.40.0：`1449bf241017087fbd38c118ecaabef3f6797fdc`；文档 `960eedf0911155ad16326ade49c0ea5d18eda0b8`。实际下载的 Middleware、Request concern、FormRequest、两个 Precognition dispatcher、验证生命周期、Session 和上游路由测试等 SHA 见 `vendor/openrust-framework/tests/fixtures/precognition/source-manifest.json`。
+- 开工先只读核对 `v0.x:vendor/openrust-framework/src/http/precognition.rs` 和对应历史 source-manifest。提取“客户端尝试／服务端确认”及响应协议概念；不复制旧 Axum middleware、共享 AtomicBool 或未经行为验收的旧夹具。新实现接当前原生 Request／Router／Controller／FormRequest 管线。
 - PHP 8.5.12，固定镜像 `php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9`，离线容器执行未修改的 `CanBePrecognitive::shouldValidatePrecognitiveAttribute`。28 个选择头 × 15 个属性共 420 个判断；27 个 HTTP 可表示头的 405 个判断由 Rust Validator 逐项核对。NUL 请求头由 HTTP HeaderValue 拒绝，不当作可接收输入。Unicode、非 UTF-8 头、空字段、空格、重复星号、正则特殊字符及属性末尾换行均覆盖。
 - `prepare_precognition.py` 从固定引用重新下载并逐文件核 SHA；下载后 oracle 与提交夹具逐字节一致，修改源码的负样本明确拒绝。此 oracle 只验证实际 PHP 字段匹配方法，不冒称已执行全套 PHP HTTP 测试。
 - 官方 `laravel-precognition` core 2.0.0，Git `3c7e8892fbd4ab673427d0d0379f761b7484a906`；npm 完整性和固定前端测试锁文件随夹具保留。Chromium 153.0.8010.12／Playwright 1.65.0 实际调用，未把 axios／Vue／React 等其他适配器称为已验收。

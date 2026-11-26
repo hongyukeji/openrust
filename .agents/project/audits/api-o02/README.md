@@ -5,7 +5,7 @@
 ## 固定契约、恢复来源与旧版
 
 - Core 1.0 errata set 2、Discovery 1.0 沿用 API-O01 的固定原文；本批固定 OpenID Connect RP-Initiated Logout 1.0，2022-09-12。官方原文 SHA `246432dafaa5556d896fa9b9ae4284b213ff6921b33478ed3b46bd6bd4aab804`，与 API-O01 已保存的 logout 引用一致，见 [来源](references.json)。
-- 检查旧 `v0.x` 的 `vendor/openrust/framework/src/auth/oidc.rs`，尤其 begin_logout／complete_logout／end_session_endpoint。提取“先本地撤销、固定回调、短期随机 state、单次消费”的职责；旧 SeaORM、AuthFlows、外部关联撤销表及 back-channel 实现不符合当前原生 Session／Cache 装配，未直接复制，也不将旧功能视作当前已交付。
+- 检查旧 `v0.x` 的 `vendor/openrust-framework/src/auth/oidc.rs`，尤其 begin_logout／complete_logout／end_session_endpoint。提取“先本地撤销、固定回调、短期随机 state、单次消费”的职责；旧 SeaORM、AuthFlows、外部关联撤销表及 back-channel 实现不符合当前原生 Session／Cache 装配，未直接复制，也不将旧功能视作当前已交付。
 - 恢复 `/private/tmp/openrust-oidc-sso-20261120/source` 的既有未验收源码（基线 ad58593d2），恢复前该批无活动构建。本批先前草拟的原始字符串 hint API 保存为 superseded-logout.patch，正式代码使用恢复源码中的不透明 LogoutHint，并修正绑定成功前提前保存 hint 的夹具顺序、固定回调 query state 冲突及补充并发／期限／跨租户边界。
 - 正式验收以 `9ea308252` git archive 及本批输入建立于 `/private/tmp/openrust-oidc-sso-final-20261120/source`，独占同批 target；包含已提交 Passkeys 定制，不复用旧基线替代主线整合。21 份输入逐字节核对，见 [SHA](source-sha256.json)。Cargo.lock 未修改，未引入新依赖。
 

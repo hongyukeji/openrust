@@ -19,7 +19,7 @@ def unique(pairs):
 
 
 def read(locale, group):
-    return json.loads((ROOT / 'vendor/openrust/framework/src/localization/lang' / locale / f'{group}.json').read_text(), object_pairs_hook=unique)
+    return json.loads((ROOT / 'vendor/openrust-framework/src/localization/lang' / locale / f'{group}.json').read_text(), object_pairs_hook=unique)
 
 
 def leaves(value, prefix=''):
@@ -63,8 +63,8 @@ class StandardResources(unittest.TestCase):
                         self.assertTrue(value.strip())
                         tokens = lambda text: set(re.findall(r':[A-Za-z_][A-Za-z_0-9]*', text))
                         self.assertEqual(tokens(baseline[key]), tokens(value), key)
-            sentence = json.loads((ROOT / 'vendor/openrust/framework/src/localization/lang' / f'{locale}.json').read_text(), object_pairs_hook=unique)
-            english = json.loads((ROOT / 'vendor/openrust/framework/src/localization/lang/en.json').read_text())
+            sentence = json.loads((ROOT / 'vendor/openrust-framework/src/localization/lang' / f'{locale}.json').read_text(), object_pairs_hook=unique)
+            english = json.loads((ROOT / 'vendor/openrust-framework/src/localization/lang/en.json').read_text())
             self.assertEqual(set(sentence), set(english))
             for key, value in sentence.items():
                 self.assertIsInstance(value, str)
@@ -75,7 +75,7 @@ class StandardResources(unittest.TestCase):
             self.assertEqual(name.get('direction', 'ltr'), 'rtl' if locale == 'ar' else 'ltr')
 
     def test_bundled_catalog_indexes_exactly_the_canonical_resources(self):
-        directory = ROOT / 'vendor/openrust/framework/src/localization/lang'
+        directory = ROOT / 'vendor/openrust-framework/src/localization/lang'
         source = (directory.parent / 'bundled.rs').read_text()
         included = re.findall(r'include_str!\("lang/([^"\n]+)"\)', source)
         expected = {str(p.relative_to(directory)) for p in directory.rglob('*.json') if p.name != 'standard-resources.source.json'}
@@ -83,7 +83,7 @@ class StandardResources(unittest.TestCase):
         self.assertEqual(len(included), len(expected))
 
     def test_preserves_the_upstream_license_and_pinned_source(self):
-        self.assertIn('Permission is hereby granted, free of charge', (ROOT / 'vendor/openrust/framework/src/localization/stubs/NOTICE').read_text())
+        self.assertIn('Permission is hereby granted, free of charge', (ROOT / 'vendor/openrust-framework/src/localization/stubs/NOTICE').read_text())
         metadata = json.loads((ROOT / '.agents/project/audits/03-07/localization-18-source.json').read_text())['standard_source']
         self.assertEqual(metadata['commit'], '3fc62be68ac6d462f6a679944526fbddf5fced09')
         self.assertEqual(set(metadata['locales']), set(LOCALES))

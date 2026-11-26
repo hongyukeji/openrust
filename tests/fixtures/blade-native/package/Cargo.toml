@@ -3,7 +3,7 @@ name = "native-package"
 version = "0.0.0"
 edition = "2024"
 [dependencies]
-openrust = { package = "openrust-framework", path = "../../../../vendor/openrust/framework" }
+openrust = { package = "openrust-framework", path = "../../../../vendor/openrust-framework" }
 [package.metadata.openrust.discovery]
 version = 1
 providers = true

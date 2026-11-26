@@ -7,7 +7,7 @@
 ## 固定参考与旧版复用
 
 - Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 的绑定、生命周期、resolve、扩展和重绑定机制；[Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php) 的延迟服务装载；文档基线的 container、providers、facades 章节。固定 Goravel v1.18.0 继续用于编译型应用装配参考，本批不改入口、bootstrap 或默认配置。
-- 实现前检查旧版 `6d1a8192:vendor/openrust/framework/src/container.rs` 的异步 Factory、Attempt::wait、Construction::publish、关闭作用域，以及 `tests/unit/container/binding_state_tests.rs`。提取先登记通知再查状态、同次失败共享、取消后重试、退役配方不写入新历史和关闭后拒绝解析的回归思路。旧动态 Value、错误格式、资源系统与整个 Resolver 不整包迁入。
+- 实现前检查旧版 `6d1a8192:vendor/openrust-framework/src/container.rs` 的异步 Factory、Attempt::wait、Construction::publish、关闭作用域，以及 `tests/unit/container/binding_state_tests.rs`。提取先登记通知再查状态、同次失败共享、取消后重试、退役配方不写入新历史和关闭后拒绝解析的回归思路。旧动态 Value、错误格式、资源系统与整个 Resolver 不整包迁入。
 
 ## 正式接口及 Rust 适配
 

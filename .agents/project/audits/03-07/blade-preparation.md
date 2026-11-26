@@ -6,7 +6,7 @@
 
 - Laravel Framework 13.40.0，`1449bf241017087fbd38c118ecaabef3f6797fdc`：[BladeCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/BladeCompiler.php) 的 compileString／storeVerbatimBlocks／restoreRawContent，以及 [CompilesComments](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesComments.php)。文档沿用固定 13.x 的 Blade displaying-data／comments。
 - Goravel 1.18 的入口与运行结构本批不改；不借用其模板语法替代 Laravel。
-- `../openrust-v0.x` 的 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`，`vendor/openrust/framework/src/view.rs` 使用 MiniJinja；未发现能直接提取的 Blade 全源预处理器。保留现有已移植求值器和回归，仅增加本批必要词法接线。
+- `../openrust-v0.x` 的 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`，`vendor/openrust-framework/src/view.rs` 使用 MiniJinja；未发现能直接提取的 Blade 全源预处理器。保留现有已移植求值器和回归，仅增加本批必要词法接线。
 
 ## 实现与语言适配
 
@@ -38,7 +38,7 @@ npm --prefix docs run build
 ## 最小提交范围
 
 ```text
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/view/compilers/{blade_compiler,template}.rs
 ├── src/view/compilers/template/preparation.rs
 └── tests/

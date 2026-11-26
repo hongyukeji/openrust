@@ -24,7 +24,7 @@
 ```sh
 docker run --rm \
   -v "$PAIL_REFERENCE:/ref:ro" \
-  -v "$PWD/vendor/openrust/pail/tests/fixtures/pail_options_oracle.php:/oracle.php:ro" \
+  -v "$PWD/vendor/openrust-pail/tests/fixtures/pail_options_oracle.php:/oracle.php:ro" \
   php:8.4-cli-bookworm php /oracle.php
 ```
 
@@ -43,7 +43,7 @@ docker run --rm \
 
 ```text
 Cargo.lock
-vendor/openrust/pail/
+vendor/openrust-pail/
 ├── Cargo.toml
 ├── src/
 │   ├── lib.rs

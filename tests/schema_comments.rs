@@ -34,7 +34,7 @@ impl Languages {
             std::fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             std::fs::copy(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-                    "vendor/openrust/framework/src/localization/lang/{locale}/schema.json"
+                    "vendor/openrust-framework/src/localization/lang/{locale}/schema.json"
                 )),
                 path.join(format!("lang/{locale}/schema.json")),
             )
@@ -77,14 +77,14 @@ impl Drop for Languages {
 
 #[path = "../database/migrations/mod.rs"]
 mod application_migrations;
-#[path = "../vendor/openrust/fortify/database/migrations/2014_10_12_200000_add_two_factor_columns_to_users_table.rs"]
+#[path = "../vendor/openrust-fortify/database/migrations/2014_10_12_200000_add_two_factor_columns_to_users_table.rs"]
 mod fortify;
-#[path = "../vendor/openrust/passkeys/database/migrations/2024_01_01_000000_create_passkeys_table.rs"]
+#[path = "../vendor/openrust-passkeys/database/migrations/2024_01_01_000000_create_passkeys_table.rs"]
 mod passkeys;
-#[path = "../vendor/openrust/passport/src/migrations.rs"]
+#[path = "../vendor/openrust-passport/src/migrations.rs"]
 #[allow(dead_code)]
 mod passport;
-#[path = "../vendor/openrust/framework/src/sanctum/stubs/personal_access_tokens.stub"]
+#[path = "../vendor/openrust-framework/src/sanctum/stubs/personal_access_tokens.stub"]
 mod sanctum;
 mod app {
     pub mod models {

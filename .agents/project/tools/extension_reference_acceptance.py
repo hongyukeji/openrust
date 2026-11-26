@@ -50,7 +50,7 @@ def main():
             return len(left) == len(right) and all(equivalent(a, b) for a, b in zip(left, right))
         return left == right
     for package, name, upstream, fixture in cases:
-        tests = project / 'vendor/openrust' / package / 'tests'
+        tests = project / 'vendor' / f'openrust-{package}' / 'tests'
         script = tests / f'{name}.php'
         root = args.upstream.resolve() / upstream if upstream else args.framework.resolve() / 'src/Illuminate/Queue/Console/WorkCommand.php'
         sources = [root, args.framework.resolve()] if package == 'scout' else [root]

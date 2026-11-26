@@ -3,7 +3,7 @@
 本批验收范围为 `openrust::http::{ApiResponse, PageMeta}` 及路由返回值适配。04-02 的请求、控制器与其他响应类型仍按交付计划推进。
 
 - [Laravel 13.x JSON Responses](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses) 和 [ResponseFactory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResponseFactory.php) 以 HTTP 状态及 JSON 内容类型构造响应。固定版 [Goravel](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/http/response.go) 将 JSON 状态和业务数据交给响应接口。
-- 从 `openrust-v0.x` 的 `6d1a8192:vendor/openrust/framework/src/core/error.rs` 提取业务字段、`PageMeta`、Serde 省略空字段规则和状态构造方法。复用 `tests/unit/core/error_i18n.rs` 的序列化失败脱敏用例，接到当前 HTTP 内核的异常管线。
+- 从 `openrust-v0.x` 的 `6d1a8192:vendor/openrust-framework/src/core/error.rs` 提取业务字段、`PageMeta`、Serde 省略空字段规则和状态构造方法。复用 `tests/unit/core/error_i18n.rs` 的序列化失败脱敏用例，接到当前 HTTP 内核的异常管线。
 - 路由闭包可以直接返回封装。需要自行处理请求的处理器可调用 `into_response()`，用类型化结果把序列化失败传给框架。封装按路由选择并发送真实 HTTP 状态。旧版的全局 HTTP 200 模式、请求 ID、失败时间戳和消息翻译未迁入此类型。Laravel 风格异常由 `withExceptions` 处理。
 
 ## 验收

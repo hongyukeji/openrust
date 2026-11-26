@@ -347,11 +347,11 @@ python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 -- python3
 
 本轮文件范围：
 
-- 实现：`vendor/openrust/framework/src/foundation/console/model_fields_command.rs`。
+- 实现：`vendor/openrust-framework/src/foundation/console/model_fields_command.rs`。
 - 消费者：`tests/model_fields_acceptance.py`。
 - 文档：`docs/en/eloquent/getting-started.md`、`docs/zh-Hans/eloquent/getting-started.md`、`docs/zh-Hant/eloquent/getting-started.md`。
 - 接续记录：本文及`.agents/project/current.md`。
-- 整合复验的协作文件：`app/models/user.rs`、`vendor/openrust/framework/src/console/localization.rs`、`vendor/openrust/framework/src/console/mod.rs`，以及上列文件中的协作生成说明／表描述改动。收尾时检测到并行本地提交`20ac72347`，已保留；本轮没有执行Git暂存或提交。显式核对上述8项技术／正文文件与最终验收快照一致，不依赖当前未提交文件数量推断源码组合。
+- 整合复验的协作文件：`app/models/user.rs`、`vendor/openrust-framework/src/console/localization.rs`、`vendor/openrust-framework/src/console/mod.rs`，以及上列文件中的协作生成说明／表描述改动。收尾时检测到并行本地提交`20ac72347`，已保留；本轮没有执行Git暂存或提交。显式核对上述8项技术／正文文件与最终验收快照一致，不依赖当前未提交文件数量推断源码组合。
 
 ## 生成说明本地化与表注释（2026-11-23）
 

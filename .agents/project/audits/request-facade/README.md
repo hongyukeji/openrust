@@ -5,7 +5,7 @@
 - [固定 Laravel 基线](../../plans/laravel-rebuild-baseline.md)：Framework v13.40.0，提交 `1449bf241017087fbd38c118ecaabef3f6797fdc`。
 - 固定 [Goravel ContextRequest 契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/http/request.go) 用显式 ContextRequest 访问原生请求、输入、Session 与验证；参考其请求所有权边界，不引入进程全局可变 Request。
 - [官方 Request 门面](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Facades/Request.php)、[请求实例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php)、[条件和类型化输入](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php)。Symfony 原生请求接口仅用于核对其被固定框架继承的行为，不替换框架基线。
-- 已检查 `openrust-v0.x/vendor/openrust/framework/src/http/request.rs` 的 `client_ip`／`client_ips` 及对应请求测试。当前框架已具备代理、输入解析、上传、Session、验证和签名实现；本批优先接通这些实际消费者，未复制旧代理架构。
+- 已检查 `openrust-v0.x/vendor/openrust-framework/src/http/request.rs` 的 `client_ip`／`client_ips` 及对应请求测试。当前框架已具备代理、输入解析、上传、Session、验证和签名实现；本批优先接通这些实际消费者，未复制旧代理架构。
 - [192 项声明清单](request-facade-inventory-2026-11-23.json)分别记录入口、实现、原生适配和验收边界。声明数量仅用于防遗漏，不作为行为通过率或整个框架进度。
 
 ## 结果与正式契约
@@ -42,7 +42,7 @@
 
 最终候选基于命名提交 `6c879c658fc5818da377155bd34fd8a175c0eb4f`，临时源码与日志均位于项目 `target/tmp/request-facade-full/`。候选只覆盖本批文件，保留 HEAD 中旧 lint 注解，将其他代理的注解清理留在工作区；不包含用户环境模板、模型记录或既有许可文件暂存删除。源码 SHA 见本目录 [source-sha256.json](source-sha256.json)，临时范围清单为 `target/tmp/request-facade-full/files.json`，不是只用工作树组合冒充独立提交验收。
 
-前置 IP 单元的证据见 [IP 历史记录](request-facade-ip-2026-11-23.md)。完整门面最终验收：macOS arm64、Rust 1.94.0，Docker 独立 MySQL **8.4.13**。在独占缓存窗口触碰候选 first-party Rust 源码（内容 SHA 不变），日志确认实际编译本候选 `source/vendor/openrust/framework`，避免跨源码快照的旧 mtime 产物复用。
+前置 IP 单元的证据见 [IP 历史记录](request-facade-ip-2026-11-23.md)。完整门面最终验收：macOS arm64、Rust 1.94.0，Docker 独立 MySQL **8.4.13**。在独占缓存窗口触碰候选 first-party Rust 源码（内容 SHA 不变），日志确认实际编译本候选 `source/vendor/openrust-framework`，避免跨源码快照的旧 mtime 产物复用。
 
 | 检查 | 实际结果／日志（均在 `target/tmp/request-facade-full/`） |
 | --- | --- |

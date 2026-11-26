@@ -8,7 +8,7 @@
 
 对照 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc:src/Illuminate/Container/Container.php` 的 scoped、scopedIf、forgetScopedInstances、原始键实例操作和作用域名称记录。文档对应 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md#binding-scoped`。沿用前序固定 Goravel 编译型应用及容器接口核对。
 
-先查旧版 `6d1a8192:vendor/openrust/framework/src/container.rs` 的 root_scoped_reset_and_child_scope_isolation、dropped_scope_releases_cache_without_lifetime_tombstones、scoped_value_drop_can_reenter_container_after_cache_release，以及作用域取消相关用例。复用生命周期隔离、清理、锁外析构的实现思路和回归意图。旧异步工厂、资源关闭队列与显式 Resolver 类型未整包带入；本部分工厂继续同步，Future 负责执行生命周期。
+先查旧版 `6d1a8192:vendor/openrust-framework/src/container.rs` 的 root_scoped_reset_and_child_scope_isolation、dropped_scope_releases_cache_without_lifetime_tombstones、scoped_value_drop_can_reenter_container_after_cache_release，以及作用域取消相关用例。复用生命周期隔离、清理、锁外析构的实现思路和回归意图。旧异步工厂、资源关闭队列与显式 Resolver 类型未整包带入；本部分工厂继续同步，Future 负责执行生命周期。
 
 ## 实现与 Rust 适配
 

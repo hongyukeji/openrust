@@ -60,7 +60,7 @@ Laravel 以应用骨架 `06d016a364a37430eec9cbc52209adce3d7667ce`、框架 `144
 
 Rust 用静态模块和配置加载函数表达 PHP 的文件载入，保留 `withMiddleware` 和 `withExceptions` 闭包。源码和独立部署两种根目录规则、内置 HTTP 端口以及 URL 随端口默认生成是已确认的语言和运行方式适配。依赖树中其他模块的类型骨架只计入编译依赖，功能完成状态按各自验收单元记录。
 
-只读核对旧版 `6d1a8192` 的 `config/app.rs` 与 `vendor/openrust/framework/tests/unit/config/application_sources.rs`，沿用应用 URL 复用端口、配置来源优先级的契约和回归思路。当前入口采用新主线的配置仓库与根目录机制。
+只读核对旧版 `6d1a8192` 的 `config/app.rs` 与 `vendor/openrust-framework/tests/unit/config/application_sources.rs`，沿用应用 URL 复用端口、配置来源优先级的契约和回归思路。当前入口采用新主线的配置仓库与根目录机制。
 
 目录清单复核补充：另有 1 个必要删除路径（`deleted-files.txt`），即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 `git-commit.txt` 从不可变提交恢复，源工作区变化不影响复现。
 

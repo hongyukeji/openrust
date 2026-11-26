@@ -27,7 +27,7 @@ def main():
     for manifest in [consumer/'Cargo.toml',consumer/'package/Cargo.toml']:
         text=manifest.read_text()
         for prefix in ['../../../../','../../../']:
-            text=text.replace('"'+prefix+'vendor/openrust/', '"'+str(source/'vendor/openrust')+'/')
+            text=text.replace('"'+prefix+'vendor/openrust-', '"'+str(source/'vendor')+'/openrust-')
         if manifest.parent==consumer:
             patches=source.joinpath('Cargo.toml').read_text().split('[patch.crates-io]\n',1)[1].split('\n[',1)[0]
             patches=patches.replace('path = "vendor/','path = "'+str(source/'vendor')+'/')

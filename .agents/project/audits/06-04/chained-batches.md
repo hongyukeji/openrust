@@ -4,7 +4,7 @@
 
 - Laravel [Chains and Batches](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#chains-and-batches)、[ChainedBatch](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/ChainedBatch.php)、[JobChainingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php)。
 - 固定 Goravel [queue.Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 参考编译型链参数。
-- 检查 `v0.x:vendor/openrust/framework/src/queue.rs` 的 `TaskGroup`、`dispatch_chain`、`dispatch_batch` 及 `tests/server/queue/worker.rs` 的成功、失败和顺序回归。旧版以父任务分别执行两种分组。当前沿用主线逐任务预约、批次账本与发布重试机制，并复用旧版顺序和终态测试思路。
+- 检查 `v0.x:vendor/openrust-framework/src/queue.rs` 的 `TaskGroup`、`dispatch_chain`、`dispatch_batch` 及 `tests/server/queue/worker.rs` 的成功、失败和顺序回归。旧版以父任务分别执行两种分组。当前沿用主线逐任务预约、批次账本与发布重试机制，并复用旧版顺序和终态测试思路。
 
 ## 实现与边界
 

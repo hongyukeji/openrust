@@ -1,4 +1,4 @@
-#[path = "../../../../../vendor/openrust/framework/tests/prototypes/workload.rs"]
+#[path = "../../../../../vendor/openrust-framework/tests/prototypes/workload.rs"]
 mod workload;
 use openrust::routing::Router;
 use std::hint::black_box;

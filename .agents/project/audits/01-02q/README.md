@@ -5,7 +5,7 @@
 - `getInstance` 复用现有应用任务作用域。作用域外惰性创建进程默认实例，`setInstance` 只更新该默认值。PHP 在构造应用时设置全局实例，Rust 的应用作用域避免同进程并行应用相互覆盖。旧实例在锁外释放。
 - 键访问复用既有类型化解析、工厂和共享实例。Rust 用具名方法返回 `Result<Arc<T>>`，并提供异步工厂和读取接口。值赋值采用瞬态工厂持有同一值。删除按原始键处理，同时清理活动作用域的缓存，保留别名和作用域声明。
 - 活动作用域的缓存选择与键删除共用注册表锁。回调前检查缓存是否仍有效，写入解析记录时在锁内复核绑定版本，保留 `forgetInstance` 清缓存时的成功记录。删除前已经开始的调用可以完成自身解析。
-- 旧版 `6d1a8192` 的 `vendor/openrust/framework/src/container/directory.rs` 和 `directory_tests.rs` 提供按原始键清实例及别名回归。`forget_instance_key` 保留定义和历史，`offsetUnset` 需要同时移除二者，因此复用行为用例及当前缓存退休机制。
+- 旧版 `6d1a8192` 的 `vendor/openrust-framework/src/container/directory.rs` 和 `directory_tests.rs` 提供按原始键清实例及别名回归。`forget_instance_key` 保留定义和历史，`offsetUnset` 需要同时移除二者，因此复用行为用例及当前缓存退休机制。
 
 ## 验收
 

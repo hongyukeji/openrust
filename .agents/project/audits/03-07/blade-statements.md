@@ -4,7 +4,7 @@
 
 基线 `30d06b37132fd7fe62b0c37862997374d1553185`。对应固定 Laravel 文档 [Blade Templates](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md) 的指令、原样内容及片段章节。固定 Framework 13.40.0 `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [BladeCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/BladeCompiler.php)、[PhpEngine](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Engines/PhpEngine.php) 和 [View](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php)。
 
-旧版 `../openrust-v0.x` `6d1a81924` 的 vendor/openrust/framework/src/view.rs 使用 MiniJinja，未发现可直接复用的 Blade 词法器。复用现主线 Parser、Factory、HTTP、上一批 PHP 装配与算术回归，不引入旧 MiniJinja 或改变 main、bootstrap、Runner。固定 Goravel 的编译运行职责保持不变。
+旧版 `../openrust-v0.x` `6d1a81924` 的 vendor/openrust-framework/src/view.rs 使用 MiniJinja，未发现可直接复用的 Blade 词法器。复用现主线 Parser、Factory、HTTP、上一批 PHP 装配与算术回归，不引入旧 MiniJinja 或改变 main、bootstrap、Runner。固定 Goravel 的编译运行职责保持不变。
 
 ## 实现与语言适配
 
@@ -60,7 +60,7 @@ npm --prefix docs run build
 ## 最小文件范围
 
 ```text
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/view/compilers/{blade_compiler,template}.rs
 └── tests/
     ├── {blade_arithmetic,blade_statements,view_finder}.rs

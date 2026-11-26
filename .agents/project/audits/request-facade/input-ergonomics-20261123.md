@@ -4,7 +4,7 @@
 
 用户在模型字段侧对话确认采用简洁的 Request 读取方式，并授权实现；本轮没有 Git 操作授权。机制继续按固定 Framework v13.40.0 的 [InteractsWithInput](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Http/Concerns/InteractsWithInput.php) 和 [InteractsWithData](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Support/Traits/InteractsWithData.php) 核对。参考固定 [Goravel 请求契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/http/request.go) 的具名读取与可选默认值，不采用其不同的输入来源优先级。
 
-已检查同级 `openrust-v0.x/vendor/openrust/framework/src/http/request/input.rs` 的 `input(&str)`、query 与 post；复用当前主线已有的解析、缓存及标量转换实现，不复制旧请求体架构。Rust 不支持默认参数和普通方法重载，因此提供普通、`_or` 和 `_strict` 入口；请求体继续异步读取，解析错误通过 Result 传播，不阻塞线程或使用隐藏的默认值吞错。
+已检查同级 `openrust-v0.x/vendor/openrust-framework/src/http/request/input.rs` 的 `input(&str)`、query 与 post；复用当前主线已有的解析、缓存及标量转换实现，不复制旧请求体架构。Rust 不支持默认参数和普通方法重载，因此提供普通、`_or` 和 `_strict` 入口；请求体继续异步读取，解析错误通过 Result 传播，不阻塞线程或使用隐藏的默认值吞错。
 
 ## 正式接口
 
@@ -50,7 +50,7 @@ macOS ARM64、Rust 1.94.0，最终相关源码／文档 18 份指纹见 `target/
 | `npm --prefix docs run build`，通过 `--workflow request-input-docs` 守卫运行；`docs-frozen.log` | 三语内容、导航／链接检查和 VitePress 构建通过；存在原有 bundle 体积提示 |
 | Rustfmt 检查本轮全部 15 份修改／新增 Rust 文件；`fmt.log`，以及限定范围的 `git diff --check` | 通过 |
 
-Fortify 当前阻塞位置为 `vendor/openrust/fortify/src/http/responses/password_reset.rs:76`，宏实例仍调用 `request_password_reset_link_view()`／`reset_password_view()`，而当前对应名称是需要 view 参数的 setter。该文件已有命名迁移在途改动，本轮没有覆盖或调整它；对应两个宏各产生参数缺失及对 unit 调用 `ok_or_else` 的错误。不能据此判定 Fortify 已完成整体运行验收。
+Fortify 当前阻塞位置为 `vendor/openrust-fortify/src/http/responses/password_reset.rs:76`，宏实例仍调用 `request_password_reset_link_view()`／`reset_password_view()`，而当前对应名称是需要 view 参数的 setter。该文件已有命名迁移在途改动，本轮没有覆盖或调整它；对应两个宏各产生参数缺失及对 unit 调用 `ok_or_else` 的错误。不能据此判定 Fortify 已完成整体运行验收。
 
 最终源码定稿后已完整重跑上述 66 项回归；中间 `tests-final.log` 编译期间调整过 query_or 的 null 默认值，形成一次旧编译组合与新断言不匹配，该组合不计通过。以冻结后 `tests-frozen.log` 为准，不以最早测试结果代替最终验收。
 

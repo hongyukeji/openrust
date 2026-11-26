@@ -48,7 +48,7 @@ npm --prefix docs run build
 ## 最小范围
 
 ```text
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/database/eloquent/
 │   ├── model.rs
 │   ├── concerns/guards_attributes.rs

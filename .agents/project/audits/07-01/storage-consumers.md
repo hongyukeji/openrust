@@ -37,7 +37,7 @@
 ```text
 config/{cache,filesystems,logging,session,view}.rs
 tests/storage_paths.rs
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/config/environment.rs
 ├── src/foundation/
 │   ├── application.rs

@@ -4,7 +4,7 @@
 
 ## 契约与复用
 
-协议固定 OpenID Connect Core 1.0 incorporating errata set 2（2023-12-15）、Discovery 1.0；官方原文、URL及SHA保存在references.json和本批证据目录。旧版 `v0.x:vendor/openrust/framework/src/auth/oidc.rs` 已读取并保留 old-oidc.rs，按职责提取非对称算法白名单、唯一kid、JWK用途／算法、issuer／audience／azp／nonce及at_hash校验原则。旧SeaORM、AuthFlows、全局HTTP客户端及公开构造“已验证身份”的接口不符合当前契约，未复制。当前接入原生HTTP Client／应用容器／Session／缓存／Eloquent和Session Guard，VerifiedIdentity仅可由包内验证流程构造。
+协议固定 OpenID Connect Core 1.0 incorporating errata set 2（2023-12-15）、Discovery 1.0；官方原文、URL及SHA保存在references.json和本批证据目录。旧版 `v0.x:vendor/openrust-framework/src/auth/oidc.rs` 已读取并保留 old-oidc.rs，按职责提取非对称算法白名单、唯一kid、JWK用途／算法、issuer／audience／azp／nonce及at_hash校验原则。旧SeaORM、AuthFlows、全局HTTP客户端及公开构造“已验证身份”的接口不符合当前契约，未复制。当前接入原生HTTP Client／应用容器／Session／缓存／Eloquent和Session Guard，VerifiedIdentity仅可由包内验证流程构造。
 
 没有对应的Laravel OIDC RP包基线，不把Socialite的可选exp／宽松NumericDate语义带入本包。公开OidcManager、facades::Oidc::provider返回请求借用Provider，异步redirect／user；应用注册固定Web路由。包发现注册服务，默认不开放登录端点，不把Passport称为OIDC OP。
 

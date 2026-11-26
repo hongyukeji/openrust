@@ -18,7 +18,7 @@ try {
     for (const [reason, mutate, error] of [
         ["missing target", manifest => { delete manifest.target; }, /unsupported build information/],
         ["stale lockfile", manifest => { manifest.cargo_lock_sha256 = "0".repeat(64); }, /Cargo.lock differs/],
-        ["stale library", manifest => { manifest.source_sha256["vendor/openrust/framework/src/lib.rs"] = "0".repeat(64); }, /source differs/],
+        ["stale library", manifest => { manifest.source_sha256["vendor/openrust-framework/src/lib.rs"] = "0".repeat(64); }, /source differs/],
         ["escaping source", manifest => { manifest.source_sha256["../outside"] = "0".repeat(64); }, /source file set differs|source differs/],
         ["missing crate", manifest => { manifest.crates[0].index = "missing/index.html"; }, /missing crate index/],
         ["unsupported features", manifest => { manifest.features = "default"; }, /unsupported build information/],
@@ -38,9 +38,9 @@ try {
     }
     assert.equal(loadApi(temporary, snapshot).manifest.revision, original.revision);
     for (const file of [
-        "vendor/openrust/settings/README.md",
-        "vendor/openrust/fortify/stubs/create_new_user.rs",
-        ...["settings", "pay", "oidc", "reverb", "cashier"].map(name => `vendor/openrust/${name}/config/${name}.rs`),
+        "vendor/openrust-settings/README.md",
+        "vendor/openrust-fortify/stubs/create_new_user.rs",
+        ...["settings", "pay", "oidc", "reverb", "cashier"].map(name => `vendor/openrust-${name}/config/${name}.rs`),
     ]) {
         assert(original.source_sha256[file], `${file}: embedded source missing from fingerprints`);
         const target = path.join(snapshot, file);
@@ -50,7 +50,7 @@ try {
         writeFileSync(target, content);
         console.log(`${file}: stale embedded input rejected PASS`);
     }
-    writeFileSync(path.join(snapshot, "vendor/openrust/framework/src/new_api_input.rs"), "// stale export must not accept a new source file\n");
+    writeFileSync(path.join(snapshot, "vendor/openrust-framework/src/new_api_input.rs"), "// stale export must not accept a new source file\n");
     assert.throws(() => loadApi(temporary, snapshot), /source file set differs/);
     console.log("New source file: rejected PASS");
 } finally { rmSync(temporary, { recursive: true }); }

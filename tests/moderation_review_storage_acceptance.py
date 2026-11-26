@@ -136,7 +136,7 @@ def exercise(binary, driver, database_url, root):
     assert sql("SELECT COUNT(*) FROM moderation_reviews WHERE state = 'Pending' AND version = 1") == "3"
     assert sql("SELECT COUNT(*) FROM moderation_checks WHERE kind = 'video' AND submission = 'Ready'") == "3"
     artisan(env, "migrate:reset", "--force",
-            "--path=vendor/openrust/content-moderation/database/migrations/"
+            "--path=vendor/openrust-content-moderation/database/migrations/"
             "2026_11_26_000006_add_moderation_callback_reference.rs", successful=False)
     assert sql("SELECT COUNT(*) FROM moderation_reviews") == sql("SELECT COUNT(*) FROM moderation_checks") == "3"
 

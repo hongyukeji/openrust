@@ -5,7 +5,7 @@
 ## 固定来源与复用
 
 - 固定 Fortify 1.43.0，`3db382a3d5d6a0d537de32a190ce3b945e621713`。逐项核对 Actions/RedirectIfTwoFactorAuthenticatable、TwoFactorLoginRequest、五个管理控制器、TwoFactorAuthenticatedSessionController、响应和 routes/routes.php。
-- 本地旧版 `v0.x`（`6d1a81924451e15f595f68c8dfb520ad6d6c44cf`）的 `vendor/openrust/framework/src/auth/fortify/qr.rs` 直接复用矩阵／SVG 渲染；阅读 login.rs 与 credential_challenge 测试，按固定上游保留 Session 消费顺序，没有引入旧版 authority／CAS 存储协议。
+- 本地旧版 `v0.x`（`6d1a81924451e15f595f68c8dfb520ad6d6c44cf`）的 `vendor/openrust-framework/src/auth/fortify/qr.rs` 直接复用矩阵／SVG 渲染；阅读 login.rs 与 credential_challenge 测试，按固定上游保留 Session 消费顺序，没有引入旧版 authority／CAS 存储协议。
 - QR 使用固定 `qrcode = 0.14.1`，关闭默认 features，无新增运行时依赖树；许可 MIT OR Apache-2.0，依赖声明最低 Rust 1.67.1，本项目仍用 Rust 1.94.0 验收。
 - Bacon/BaconQrCode v3.0.1 `src/Writer.php` SHA256 `b3f968284dafcb6b010287028eacca7f4e39a7c0d2e7852309596fa9121fbeb0`，确认省略参数时使用纠错级别 L。原 Fortify 指定 192px、零外边距、白底及 RGB(45,55,72)。Rust 保留这些可观察参数；二维码库的分段、mask 和 SVG 路径字节可不同，以独立解码验证同一完整 URI，不声称输出逐字节相同。
 

@@ -10,7 +10,7 @@
 - 固定 Laravel skeleton `06d016a364a37430eec9cbc52209adce3d7667ce` 的 `routes/web.php`，首页保留命名视图意图。Rust 通过 `register()` 完成静态装配，通过 `Result` 传播失败。
 - 固定文档 `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 `routing#the-default-route-files`、`routing#view-routes`、`filesystem#the-public-disk`、`errors#rendering-exceptions-as-json`。
 - Goravel 沿用 00-01 的编译型入口与应用装配核对，本批没有改变启动职责。
-- 旧版 `6d1a8192:vendor/openrust/framework/src/http/health.rs` 的 `diagnose`，以及 `tests/server/bootstrap.rs` 的 `application_health_reports_failure_and_delegates_debug_rendering`。提取健康成功分支的 HTML/JSON 协商、应用名称转义和私有缓存头；诊断失败用例登记为事件依赖，未声称迁移完成。
+- 旧版 `6d1a8192:vendor/openrust-framework/src/http/health.rs` 的 `diagnose`，以及 `tests/server/bootstrap.rs` 的 `application_health_reports_failure_and_delegates_debug_rendering`。提取健康成功分支的 HTML/JSON 协商、应用名称转义和私有缓存头；诊断失败用例登记为事件依赖，未声称迁移完成。
 
 ## 已交付的范围
 

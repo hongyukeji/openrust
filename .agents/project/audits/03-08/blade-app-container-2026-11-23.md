@@ -6,7 +6,7 @@
 
 - Laravel Framework v13.40.0，提交 `1449bf241017087fbd38c118ecaabef3f6797fdc`：`src/Illuminate/Foundation/helpers.php` 的 `app($abstract = null, array $parameters = [])` 在 abstract 为 null 时返回当前容器，否则调用 `make`。`Foundation/Application.php` 核对语言、版本、环境、路径及容器解析；`tests/Container/ContainerTest.php` 核对参数覆盖、别名和服务生命周期。已联网读取固定原文，未升级基线。
 - MiniJinja 2.12.0 的 [Object](https://github.com/mitsuhiko/minijinja/blob/2.12.0/minijinja/src/value/object.rs) 展示 Rust 模板对象显式方法分派；采用其对象边界思想，复用本项目表达式、ViewValue、类型投影和请求桥接，不引入其依赖或另一套模板／容器。
-- 旧 `v0.x:vendor/openrust/framework/src/view.rs`、`src/view/README.md` 采用另一套视图结构，本次沿用当前可缓存 AST 和应用作用域，不迁入旧机制。
+- 旧 `v0.x:vendor/openrust-framework/src/view.rs`、`src/view/README.md` 采用另一套视图结构，本次沿用当前可缓存 AST 和应用作用域，不迁入旧机制。
 - Rust 的 `Any` 不提供 PHP 方法反射，不能由运行时字符串自动调用任意未声明 Rust 方法。通过 `ViewObject` 显式公开调用，再使用原有 `ClassProjection` 或 `dyn ViewObject` 容器绑定；无需逐服务修改编译器。此为具体静态语言适配，不将框架 Application 所有接口或任意 PHP 执行计为已对齐。
 
 ## 实际修改

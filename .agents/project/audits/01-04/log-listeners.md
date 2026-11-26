@@ -33,7 +33,7 @@ docs/
 ├── en/the-basics/logging.md
 ├── zh_CN/the-basics/logging.md
 └── zh_TW/the-basics/logging.md
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/log/
 │   ├── events/message_logged.rs
 │   ├── events/mod.rs

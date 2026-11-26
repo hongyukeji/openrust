@@ -258,7 +258,7 @@ def run():
             routes.write_text(routes.read_text().replace('    Route::get("/fortify-acceptance-state",', '    #[cfg(feature="fortify")]\n    Route::group(openrust::routing::RouteGroup::new(), |router| { router.r#match(&[openrust::http::Method::POST], "/passkeys-acceptance-cascade", passkeys_acceptance_cascade)?; Ok(()) })?;\n    #[cfg(feature="fortify")]\n    Route::get("/passkeys-acceptance-list", passkeys_acceptance_list)?;\n    Route::get("/passkeys-acceptance-policy/{mode}", passkeys_acceptance_policy)?;\n    Route::get("/fortify-acceptance-state",') + PASSKEY_ROUTES)
         if custom_passkey:
             model = generated / "app/models/custom_passkey.rs"
-            shutil.copy2(source / "vendor/openrust/passkeys/tests/fixtures/custom_passkey.rs", model)
+            shutil.copy2(source / "vendor/openrust-passkeys/tests/fixtures/custom_passkey.rs", model)
             modules = generated / "app/models/mod.rs"
             modules.write_text(modules.read_text() + '\n#[cfg(feature="fortify")]\npub(crate) mod custom_passkey;\n')
             provider = generated / "app/providers/fortify_service_provider.rs"

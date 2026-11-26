@@ -3,7 +3,7 @@
 ## 固定基线与旧版
 
 - 对照 Laravel [PendingChain::dispatchIf 和 dispatchUnless](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bus/PendingChain.php#L203)、[JobChainingTest 的四种真假组合](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php#L627) 和[任务链章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#job-chaining)。
-- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型入口。旧版 `v0.x:vendor/openrust/framework/src/queue.rs` 提供直接派发和事务内派发，未发现条件派发入口。旧版 Worker 的链顺序用例用于核对条件满足后的执行行为。
+- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型入口。旧版 `v0.x:vendor/openrust-framework/src/queue.rs` 提供直接派发和事务内派发，未发现条件派发入口。旧版 Worker 的链顺序用例用于核对条件满足后的执行行为。
 
 ## 实现
 

@@ -2,7 +2,7 @@
 
 ## 契约与实现
 
-- 对照固定 Laravel Handler 的 invalid/invalidJson、ValidationException、FormRequest、RedirectResponse 和旧输入章节。复用旧版 `6d1a8192:vendor/openrust/framework/src/foundation/exceptions.rs` 与 `session/error_bag.rs` 的敏感字段排除、旧输入与错误包回归。 [Laravel 验证](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#named-error-bags) · [Laravel 旧输入](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#old-input) · [Laravel Handler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Exceptions/Handler.php)
+- 对照固定 Laravel Handler 的 invalid/invalidJson、ValidationException、FormRequest、RedirectResponse 和旧输入章节。复用旧版 `6d1a8192:vendor/openrust-framework/src/foundation/exceptions.rs` 与 `session/error_bag.rs` 的敏感字段排除、旧输入与错误包回归。 [Laravel 验证](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#named-error-bags) · [Laravel 旧输入](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#old-input) · [Laravel Handler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Exceptions/Handler.php)
 - 已装配 Session 的 Web 请求默认返回 302，在同一 Session 保存命名错误包和过滤后的旧输入。默认包名为 default，支持 `FormRequest::errorBag`、`Validator::validateWithBag` 和 Laravel 的 `_error_bag` 请求覆盖。Blade 按请求共享错误包。自定义异常渲染优先，JSON 422 继续返回字段错误。
 - Rust 仅输出站内 Location。显式站内目标、同源 Referer、会话记录的上一页、根路径依次回退，外站 Referer 不会成为跳转目标。旧输入递归移除默认密码字段，`dontFlash` 支持点路径和通配。会话中保存的是 JSON 命名包，Blade 使用属性路径读取。
 - 保留差异：Session 保存完整上一页 URL，重定向时核对同源并输出站内路径。代理来源信任仍按应用配置处理。未装配 Session 时验证失败沿用现有错误响应。错误包内容可在 Blade 中遍历，PHP 对象式 ViewErrorBag 方法未移植。

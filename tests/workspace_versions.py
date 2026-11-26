@@ -41,7 +41,7 @@ def metadata(name, expected, business=None):
     data = json.loads(run(name, ['cargo', 'metadata', '--offline', '--format-version', '1']))
     members = set(data['workspace_members'])
     packages = [p for p in data['packages'] if p['id'] in members]
-    expected_count = len(list((source / 'vendor/openrust').glob('*/Cargo.toml'))) + 1
+    expected_count = len(list((source / 'vendor').glob('openrust-*/Cargo.toml'))) + 1
     assert len(packages) == expected_count
     for package in packages:
         value = business if business and Path(package['manifest_path']) == manifest else expected

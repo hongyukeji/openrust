@@ -2,7 +2,7 @@
 
 ## 环境要求
 
-安装 Rust 1.95.0 或更高版本及 Cargo。OpenRust 使用 Rust 2024 edition，根应用和 `vendor/openrust/framework/` 中的框架 crate 一起构建。首次构建会下载 `Cargo.lock` 中记录的依赖。
+安装 Rust 1.95.0 或更高版本及 Cargo。OpenRust 使用 Rust 2024 edition，根应用和 `vendor/openrust-framework/` 中的框架 crate 一起构建。首次构建会下载 `Cargo.lock` 中记录的依赖。
 
 ## 完整初始化 {#complete-initialization}
 

@@ -19,7 +19,7 @@ Rust 语言适配：公开数据使用枚举／有序映射和 `Result`，不承
 
 ## 固定 PHP 对照
 
-参考脚本：`vendor/openrust/framework/tests/reference/blade_native_values.php`；Composer 依赖沿用同目录 `blade_arithmetic.composer.json` 的固定 13.40.0 集合。前批保留的实际锁文件位于 `/private/tmp/openrust-view-data-20261119/composer.lock`，哈希见[源码核对](view-data-sha256.json)。没有把重新解析最新依赖当作固定基线。
+参考脚本：`vendor/openrust-framework/tests/reference/blade_native_values.php`；Composer 依赖沿用同目录 `blade_arithmetic.composer.json` 的固定 13.40.0 集合。前批保留的实际锁文件位于 `/private/tmp/openrust-view-data-20261119/composer.lock`，哈希见[源码核对](view-data-sha256.json)。没有把重新解析最新依赖当作固定基线。
 
 在已有远程夹具上使用固定 Composer 镜像、`--network none` 和 PHP 8.4.14 执行，脚本核对每个 Illuminate 包版本为 v13.40.0。最终 108 例连续两次输出逐字节相同：96 成功、12 JSON 非有限数错误。包括数组／对象嵌套、include、each、layout、props 默认值与 aware、指令参数、truth／比较、负零、缺失值回退，以及 @js 和 Js::from。Rust 对照验证输出或实际 RenderFailed 的错误源，不把任意解析错误当作预期编码错误。自定义 Rust 类组件另有原生回归。
 

@@ -10,7 +10,7 @@ readme = "README.md"
 publish = false
 
 [workspace]
-members = ["vendor/openrust/*"]
+members = ["vendor/openrust-*"]
 exclude = ["vendor/reqwest", "vendor/pcre2", "vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sqlx-sqlite", "vendor/rav1e", "vendor/imgalifier-avif"]
 default-members = ["."]
 resolver = "3"
@@ -73,36 +73,36 @@ telescope = ["dep:openrust-telescope", "openrust-pulse?/telescope"]
 [dependencies]
 jiff = { version = "=0.2.46", features = ["serde"] }
 clap = "4.6.1"
-openrust = { package = "openrust-framework", path = "vendor/openrust/framework" }
-openrust-reverb = { path = "vendor/openrust/reverb", optional = true }
-openrust-pail = { path = "vendor/openrust/pail", optional = true }
-openrust-passport = { path = "vendor/openrust/passport", optional = true }
-openrust-fortify = { path = "vendor/openrust/fortify", optional = true }
-openrust-socialite = { path = "vendor/openrust/socialite", optional = true }
-openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
-openrust-settings = { path = "vendor/openrust/settings", optional = true }
-openrust-localization-database = { path = "vendor/openrust/localization-database", optional = true }
-openrust-translate = { path = "vendor/openrust/translate", optional = true }
-openrust-ai = { path = "vendor/openrust/ai", optional = true }
-openrust-ai-gateway = { path = "vendor/openrust/ai-gateway", optional = true }
-openrust-content-moderation = { path = "vendor/openrust/content-moderation", optional = true }
-openrust-pay = { path = "vendor/openrust/pay", optional = true }
-openrust-new-relic = { path = "vendor/openrust/new-relic", optional = true }
-openrust-webhook-client = { path = "vendor/openrust/webhook-client", optional = true }
-openrust-webhook-server = { path = "vendor/openrust/webhook-server", optional = true }
-openrust-cashier = { path = "vendor/openrust/cashier", optional = true }
-openrust-activitylog = { path = "vendor/openrust/activitylog", optional = true }
-openrust-horizon = { path = "vendor/openrust/horizon", optional = true }
-openrust-pennant = { path = "vendor/openrust/pennant", optional = true }
-openrust-pulse = { path = "vendor/openrust/pulse", optional = true }
-openrust-scout = { path = "vendor/openrust/scout", optional = true }
-openrust-telescope = { path = "vendor/openrust/telescope", optional = true }
+openrust = { package = "openrust-framework", path = "vendor/openrust-framework" }
+openrust-reverb = { path = "vendor/openrust-reverb", optional = true }
+openrust-pail = { path = "vendor/openrust-pail", optional = true }
+openrust-passport = { path = "vendor/openrust-passport", optional = true }
+openrust-fortify = { path = "vendor/openrust-fortify", optional = true }
+openrust-socialite = { path = "vendor/openrust-socialite", optional = true }
+openrust-oidc = { path = "vendor/openrust-oidc", optional = true }
+openrust-settings = { path = "vendor/openrust-settings", optional = true }
+openrust-localization-database = { path = "vendor/openrust-localization-database", optional = true }
+openrust-translate = { path = "vendor/openrust-translate", optional = true }
+openrust-ai = { path = "vendor/openrust-ai", optional = true }
+openrust-ai-gateway = { path = "vendor/openrust-ai-gateway", optional = true }
+openrust-content-moderation = { path = "vendor/openrust-content-moderation", optional = true }
+openrust-pay = { path = "vendor/openrust-pay", optional = true }
+openrust-new-relic = { path = "vendor/openrust-new-relic", optional = true }
+openrust-webhook-client = { path = "vendor/openrust-webhook-client", optional = true }
+openrust-webhook-server = { path = "vendor/openrust-webhook-server", optional = true }
+openrust-cashier = { path = "vendor/openrust-cashier", optional = true }
+openrust-activitylog = { path = "vendor/openrust-activitylog", optional = true }
+openrust-horizon = { path = "vendor/openrust-horizon", optional = true }
+openrust-pennant = { path = "vendor/openrust-pennant", optional = true }
+openrust-pulse = { path = "vendor/openrust-pulse", optional = true }
+openrust-scout = { path = "vendor/openrust-scout", optional = true }
+openrust-telescope = { path = "vendor/openrust-telescope", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }
 
 [build-dependencies]
-openrust-package-discovery = { path = "vendor/openrust/package-discovery" }
+openrust-package-discovery = { path = "vendor/openrust-package-discovery" }
 syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
 
 [dev-dependencies]

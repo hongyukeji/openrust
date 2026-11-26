@@ -12,7 +12,7 @@
 - [LoadConfiguration](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/LoadConfiguration.php) 先绑定新配置仓储，再加载配置文件。[Application 的核心别名](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php#L1543-L1556) 以 config 为规范名。
 - [Facade.swap](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Facades/Facade.php#L171-L177) 先更新门面缓存，再向容器提供实例。固定文档对应 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md#rebinding` 和 configuration 章节。Goravel 继续沿用固定 v1.18.0 的编译型启动参考，本批不改 main.rs 或 bootstrap/。
 
-编码前查阅旧版 `6d1a8192:vendor/openrust/framework/src/container/extensions.rs` 的 Rebound::capture/dispatch、rebinding_key、erase_rebinding；核对 binding_event_tests.rs 的 global_extend_after_explicit_only_read_does_not_invent_history，以及已解析服务、别名、快照通知相关回归。提取提交值与有序回调快照、先登记后解析、错误不回滚、显式实例读取不制造历史的机制。旧异步 Resolver、目录版本系统和资源关闭队列未整包迁入。
+编码前查阅旧版 `6d1a8192:vendor/openrust-framework/src/container/extensions.rs` 的 Rebound::capture/dispatch、rebinding_key、erase_rebinding；核对 binding_event_tests.rs 的 global_extend_after_explicit_only_read_does_not_invent_history，以及已解析服务、别名、快照通知相关回归。提取提交值与有序回调快照、先登记后解析、错误不回滚、显式实例读取不制造历史的机制。旧异步 Resolver、目录版本系统和资源关闭队列未整包迁入。
 
 ## 正式接口与语言适配
 
@@ -68,4 +68,4 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 
 ## 后续响应复用输入
 
-用户本次确认统一 JSON 响应可以复用 openrust-v0.x。已核对旧版 `6d1a8192:vendor/openrust/framework/src/core/error.rs` 的 ApiResponse/PageMeta 及 `tests/unit/core/error_i18n.rs` 的消息、请求隔离和序列化脱敏测试；在 plan.md 的 04-02 复用输入中记录。此处仅记录来源，尚未迁入当前响应模块。
+用户本次确认统一 JSON 响应可以复用 openrust-v0.x。已核对旧版 `6d1a8192:vendor/openrust-framework/src/core/error.rs` 的 ApiResponse/PageMeta 及 `tests/unit/core/error_i18n.rs` 的消息、请求隔离和序列化脱敏测试；在 plan.md 的 04-02 复用输入中记录。此处仅记录来源，尚未迁入当前响应模块。

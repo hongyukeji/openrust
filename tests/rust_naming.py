@@ -21,8 +21,11 @@ def main():
         data = tomllib.loads(path.read_text())
         assert data.get("lints") == {"workspace": True}, f"未继承统一命名检查：{path}"
     paths = list(ROOT.glob("*.rs"))
-    for folder in ("app", "bootstrap", "config", "routes", "database", "tests", "vendor/openrust"):
+    for folder in ("app", "bootstrap", "config", "routes", "database", "tests"):
         paths.extend((ROOT / folder).rglob("*.rs"))
+    for manifest_path in manifests:
+        if manifest_path.parent != ROOT:
+            paths.extend(manifest_path.parent.rglob("*.rs"))
     attribute = re.compile(r"#\s*!?\[\s*(?:allow|expect)\s*\(([^\]]*)\)\s*\]", re.S)
     for path in paths:
         for match in attribute.finditer(path.read_text()):

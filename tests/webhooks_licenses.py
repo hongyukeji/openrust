@@ -21,7 +21,7 @@ def verify_image(image, packages, rust_copyright):
     if rust_copyright:
         expected["COPYRIGHT-library.html"] = rust_copyright.read_bytes()
     for package in packages:
-        package_root = ROOT / "vendor/openrust" / package
+        package_root = ROOT / "vendor" / f"openrust-{package}"
         files = [package_root / "THIRD_PARTY_NOTICES.md", *(package_root / "LICENSES").glob("*.txt")]
         for path in files:
             expected[f"licenses/{package}/{path.relative_to(package_root)}"] = path.read_bytes()
@@ -56,7 +56,7 @@ for pin in pins:
     actual=next(p for p in lock if p["name"]==pin["crate"] and p["version"]==pin["version"])
     assert actual["checksum"]==pin["checksum"],pin["crate"]
     for kind in ("client","server"):
-        root=ROOT/f"vendor/openrust/webhook-{kind}"
+        root=ROOT/f"vendor/openrust-webhook-{kind}"
         data=(root/"LICENSES"/pin["license_file"]).read_bytes()
         assert hashlib.sha256(data).hexdigest()==pin["license_sha256"],(kind,pin["crate"])
         assert b"Copyright" in data

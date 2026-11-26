@@ -12,7 +12,7 @@ Set `APP_VERSION` to override the application version stored in `app.version`. W
 
 ## Framework and Application Versions {#framework-version}
 
-`Application::VERSION` and `application.version()` return the framework package version, embedded from `vendor/openrust/framework/Cargo.toml` at compile time. Within an application scope, `App::version()?` resolves the current Application and returns the same value; outside that scope it returns a container binding error. The constant and instance method do not require booting configuration.
+`Application::VERSION` and `application.version()` return the framework package version, embedded from `vendor/openrust-framework/Cargo.toml` at compile time. Within an application scope, `App::version()?` resolves the current Application and returns the same value; outside that scope it returns a container binding error. The constant and instance method do not require booting configuration.
 
 ```rust
 use openrust::{foundation::Application, support::facades::App};

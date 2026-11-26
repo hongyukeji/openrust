@@ -37,7 +37,7 @@ try:
         with urllib.request.urlopen(request, timeout=10) as response:
             html = response.read().decode()
             assert response.headers['Content-Language'] == locale
-            assert json.loads((root / f'vendor/openrust/framework/src/localization/lang/{locale}/welcome.json').read_text())['heading'] in html
+            assert json.loads((root / f'vendor/openrust-framework/src/localization/lang/{locale}/welcome.json').read_text())['heading'] in html
             docs = locale if locale in ['en', 'zh-Hans', 'zh-Hant'] else 'en'
             assert f'/docs/{docs}/README.md' in html
         print(locale, 'Linux runtime resource delivery PASS', flush=True)
@@ -48,7 +48,7 @@ try:
     archive = subprocess.check_output(['docker', 'exec', container, 'tar', '-cf', '-', '-C', '/app/storage/language-publish/lang', '.'])
     with tarfile.open(fileobj=io.BytesIO(archive)) as files:
         for name in published:
-            expected = root / 'vendor/openrust/framework/src/translation' / ('stubs/NOTICE' if name == 'NOTICE' else 'lang/' + name)
+            expected = root / 'vendor/openrust-framework/src/translation' / ('stubs/NOTICE' if name == 'NOTICE' else 'lang/' + name)
             assert files.extractfile('./' + name).read() == expected.read_bytes(), name
     print('Linux compiled publisher: 162 JSON catalogs and license recreated exactly PASS', flush=True)
     result = {name: subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', image], text=True).strip() for name, image in [('base_image', base), ('resource_image', tag)]}

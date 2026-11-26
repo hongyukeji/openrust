@@ -12,7 +12,7 @@ Socialite `v5.33.0` 固定提交 `8032bb1fa9d74aae54438f216e4d45db90d27ea9`，SH
 
 ## 实现及 Rust 映射
 
-`vendor/openrust/socialite` 提供 SocialiteManager、SocialiteServiceProvider、facades::Socialite、contracts::Factory／Provider／User、two::AbstractProvider／GithubProvider／User／Token。可选根 socialite feature、自动包发现与 services.github 三环境变量接线；不自动添加业务路由、本地用户表或本地登录。
+`vendor/openrust-socialite` 提供 SocialiteManager、SocialiteServiceProvider、facades::Socialite、contracts::Factory／Provider／User、two::AbstractProvider／GithubProvider／User／Token。可选根 socialite feature、自动包发现与 services.github 三环境变量接线；不自动添加业务路由、本地用户表或本地登录。
 
 manager 属于应用；driver(name, &mut request)／with 返回借用该请求的 provider。请求体不是 Sync，因此异步 provider 方法借用 &mut self，维持真实 Send HTTP Future。用户缓存只活在该 provider 借用内，避免跨请求及应用共享 PHP 风格持久对象。配置／注册仍应用内隔离，扩展通过 ProviderDefinition 与 manager.extend；自定义配置逐次读取。相对 redirect 拼到合法 HTTP(S) app.url，与固定 Manager 对齐。
 

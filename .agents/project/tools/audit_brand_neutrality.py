@@ -18,7 +18,7 @@ def classify(path, text):
         return '既有契约', '导入、事件、配置、缓存或其他既有标识；更名先核对消费者与迁移。'
     if any(term in text for term in ('listening on', 'OpenRust Foundation', 'OpenRust Horizon')):
         return '可观察输出与默认值', '已有消费者或默认展示值，本轮保留；迁移须另行确认。'
-    if re.search(r'github\.com|gitee\.com|vendor/openrust|openrust[-_]|\[package.metadata|name\s*=|APP_NAME|DB_DATABASE', text):
+    if re.search(r'github\.com|gitee\.com|vendor/openrust-|openrust[-_]|\[package.metadata|name\s*=|APP_NAME|DB_DATABASE', text):
         return '项目与依赖身份', '保留实际坐标、导入、路径、仓库及默认配置。'
     if path.startswith(('tests/', 'docker/')) or '/tests/' in path:
         return '验收与部署标识', '保留测试隔离、数据语义及部署默认值，不为去品牌重写样例数据。'

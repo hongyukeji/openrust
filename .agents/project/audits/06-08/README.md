@@ -99,7 +99,7 @@ docs/
 ├── zh_CN/digging-deeper/queues.md
 └── zh_TW/digging-deeper/queues.md
 tests/queue_hard_timeout.rs
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/queue/worker.rs
 └── tests/
     ├── filesystem_local.rs

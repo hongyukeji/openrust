@@ -130,7 +130,7 @@ pub fn register(_: &openrust::foundation::Application)->Result<openrust::routing
 }
 '''
     code+='#[tokio::test]\nasync fn tutorial_'+name+'(){verify_database('+name+'::register).await;}\n'
-target = source / 'vendor/openrust/framework/tests/request_docs_generated.rs'
+target = source / 'vendor/openrust-framework/tests/request_docs_generated.rs'
 if not target.resolve().is_relative_to(source):
     parser.error('生成路径不能通过符号链接逃逸源码快照')
 target.write_text(code)

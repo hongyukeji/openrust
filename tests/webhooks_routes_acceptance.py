@@ -883,7 +883,7 @@ def check_retention(binary, env, root, port, driver, sql):
             model_env.pop("FIXTURE_SPATIE_SECRET")
             model_env.pop("FIXTURE_STANDARD_SECRET")
             assert "没有找到可清理模型" in command(binary, model_env, "model:prune", "--pretend")
-            model_path = "vendor/openrust/webhook-client/src"
+            model_path = "vendor/openrust-webhook-client/src"
             assert "没有找到可清理模型" in command(binary, model_env, "model:prune",
                                                        "--path=" + model_path, "--except=" + model)
             invalid = subprocess.run([str(binary), "artisan", "model:prune",
@@ -1198,7 +1198,7 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
 
     def expect_guarded_rollback():
-        result = subprocess.run([str(binary), "artisan", "migrate:rollback", "--path=vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--force"],
+        result = subprocess.run([str(binary), "artisan", "migrate:rollback", "--path=vendor/openrust-webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--force"],
                                 env=current, capture_output=True, text=True, timeout=20)
         assert result.returncode != 0, result.stdout + result.stderr
 
@@ -1303,7 +1303,7 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
 
             expect_guarded_rollback()
-            preview = command(binary, current, "migrate:rollback", "--path=vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--pretend", "--force")
+            preview = command(binary, current, "migrate:rollback", "--path=vendor/openrust-webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--pretend", "--force")
             assert "webhook_attachment_staging" in preview
             record = json.loads(command(binary, current, "webhooks:record", receipt, scope))
             assert bytes(record["body"]) == body
@@ -1449,7 +1449,7 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "0"
 
     def verify_rollback_guard(file, reason):
-        migration = "--path=vendor/openrust/webhook-client/database/migrations/" + file
+        migration = "--path=vendor/openrust-webhook-client/database/migrations/" + file
         rollback = subprocess.run([str(binary), "artisan", "migrate:rollback", migration, "--force"],
                                   env=current, capture_output=True, text=True, timeout=20)
         assert rollback.returncode != 0 and reason in rollback.stdout + rollback.stderr, rollback
@@ -2036,7 +2036,7 @@ def main():
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None
   created_at = int(sql(f"SELECT created_at FROM webhook_calls WHERE id='{legacy_id}'"))
   update_time = "2026_11_25_000001_extend_webhook_calls_for_update_time"
-  migration = f"--path=vendor/openrust/webhook-client/database/migrations/{update_time}.rs"
+  migration = f"--path=vendor/openrust-webhook-client/database/migrations/{update_time}.rs"
   assert update_time in command(binary,env,"migrate:rollback",migration,"--step=1000","--force")
   assert update_time in command(binary,env,"migrate",migration,"--force")
   assert sql(f"SELECT CASE WHEN updated_at IS NULL THEN 1 ELSE 0 END FROM webhook_calls WHERE id='{legacy_id}'") == "1"

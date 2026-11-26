@@ -6,7 +6,7 @@
 
 - [Passport 13.10.0](https://github.com/laravel/passport/tree/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7)：Client、ClientRepository、Scope、ResolvesInheritedScopes 及 ClientRepositoryTest。方法顺序、grant 种类、默认值、秘密 setter、UUID 查询门禁、once、所有权和 personalAccessClient 筛选逐项核对。
 - [Laravel 13.40.0](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc)：Eloquent Model／HasAttributes，文档固定 SHA `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 passport.md `managing-clients`。Goravel 1.18 沿用既定编译装配参考，本批不改应用入口或 Runner。
-- 旧版工作树 HEAD `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`，查阅 `vendor/openrust/passport/src/{client,client_tests,php_array,repository,repository_cache,scopes}.rs` 和 framework support/number.rs。提取数组形状、标量比较、实际模型共享、错误不缓存和请求作用域缓存规则。旧仓储只有读取子范围且未接完整 Eloquent 保存，未照搬成完整仓储。
+- 旧版工作树 HEAD `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`，查阅 `vendor/openrust-passport/src/{client,client_tests,php_array,repository,repository_cache,scopes}.rs` 和 framework support/number.rs。提取数组形状、标量比较、实际模型共享、错误不缓存和请求作用域缓存规则。旧仓储只有读取子范围且未接完整 Eloquent 保存，未照搬成完整仓储。
 
 ## 本批实现与语言适配
 
@@ -65,10 +65,10 @@ npm --prefix docs run build
 
 ```text
 Cargo.lock
-vendor/openrust/framework/src/
+vendor/openrust-framework/src/
 ├── database/eloquent/model.rs
 └── support/{mod,value_comparison}.rs
-vendor/openrust/passport/
+vendor/openrust-passport/
 ├── Cargo.toml
 ├── src/{lib,passport,client,client_record,client_repository,php_array,scope}.rs
 └── tests/

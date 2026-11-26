@@ -7,7 +7,7 @@
 ## 固定参考及旧版提取
 
 - 固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc`：[Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 的 makeWith、resolve、build(Closure)、getLastParameterOverride 和 needsContextualBuild；[上游测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContainerTest.php) 的别名实参数组和共享实例。对应固定文档 container 的 resolving 小节及容器事件。
-- 检查旧版 `6d1a8192:vendor/openrust/framework/src/container/parameters.rs`、`class_descriptor_tests.rs`、`selection_tests.rs` 和 `binding_state_tests.rs`。提取精确名称/整数键、异构值/null、顺序覆盖、共享值与快照隔离、参数帧关闭及普通历史隔离的机制和回归思路。旧动态 Value、PHP 标量 Oracle、整个 ClassDirectory/Resolver、资源系统未整包迁入；构造器部分留待同一参数基础上接入。
+- 检查旧版 `6d1a8192:vendor/openrust-framework/src/container/parameters.rs`、`class_descriptor_tests.rs`、`selection_tests.rs` 和 `binding_state_tests.rs`。提取精确名称/整数键、异构值/null、顺序覆盖、共享值与快照隔离、参数帧关闭及普通历史隔离的机制和回归思路。旧动态 Value、PHP 标量 Oracle、整个 ClassDirectory/Resolver、资源系统未整包迁入；构造器部分留待同一参数基础上接入。
 - 固定 Goravel v1.18.0 的编译型应用装配继续保留。本批不改 main.rs、bootstrap/、默认配置、路由或部署方式。
 
 ## 接口与可观察行为

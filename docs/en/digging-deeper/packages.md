@@ -41,7 +41,7 @@ In the provider's `boot` hook, register resources with the application.
 | `load_migrations_from` | A static slice of compiled `MigrationEntry` values. Artisan applies and rolls back those entries using the application's migration ledger. |
 | `commands` | A compiled function that registers commands with `Artisan` when the console kernel boots. |
 
-Register package HTTP routes from an eager provider so they are available during route assembly. Ship the view and translation files with the application and pass their deployed directories to the provider. For a runnable host and provider, see the [independent crate fixture](https://github.com/hongyukeji/openrust/tree/master/vendor/openrust/framework/tests/fixtures/package).
+Register package HTTP routes from an eager provider so they are available during route assembly. Ship the view and translation files with the application and pass their deployed directories to the provider. For a runnable host and provider, see the [independent crate fixture](https://github.com/hongyukeji/openrust/tree/master/vendor/openrust-framework/tests/fixtures/package).
 
 ## Publishing assets
 

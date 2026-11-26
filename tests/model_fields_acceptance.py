@@ -676,7 +676,7 @@ async fn main() {
         old_model = stub_model.read_bytes() if stub_model.exists() else None
         stub_model.unlink(missing_ok=True)
         try:
-            template = (source / 'vendor/openrust/framework/src/foundation/console/stubs/model.rs.stub').read_text()
+            template = (source / 'vendor/openrust-framework/src/foundation/console/stubs/model.rs.stub').read_text()
             custom_stub.write_text(template.replace('{{connection}}', ''))
             artisan('old-custom-stub', 'make:model', 'StubProbe', '--fields',
                     f'--table={table}', f'--database={environment["DB_CONNECTION"]}', success=False)

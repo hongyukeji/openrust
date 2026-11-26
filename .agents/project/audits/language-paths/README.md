@@ -6,7 +6,7 @@
 
 对照固定 Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php)、[Contract](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Foundation/Application.php)、[路径助手](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/helpers.php)及 [join_paths](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/functions.php)。上游在应用初始化时选择既有 resources/lang，否则根 lang，不强制迁移旧应用。langPath 返回路径，useLangPath 更新应用路径及 path.lang 绑定；已经解析的 Loader 不因后来修改路径而重新构造。
 
-检查旧 `openrust-v0.x/vendor/openrust/framework/src/translation/file_loader.rs`：旧 Loader 已有初始化时一次选择新旧目录的规则，未发现对应公开 Application 路径覆盖入口。本批复用现行 private language_path 选择器、Shared Paths、容器和 Loader，没有引入另一套语言管理器、环境变量或复制旧 Loader。
+检查旧 `openrust-v0.x/vendor/openrust-framework/src/translation/file_loader.rs`：旧 Loader 已有初始化时一次选择新旧目录的规则，未发现对应公开 Application 路径覆盖入口。本批复用现行 private language_path 选择器、Shared Paths、容器和 Loader，没有引入另一套语言管理器、环境变量或复制旧 Loader。
 
 | 上游入口或消费者 | OpenRust 入口与结果 |
 | --- | --- |

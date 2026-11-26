@@ -7,7 +7,7 @@
 ## 固定参考及旧版复用
 
 - 固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc`：[Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 的 resolveDependencies、resolvePrimitive、resolveClass、resolveVariadicClass；[ContextualBindingBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/ContextualBindingBuilder.php) 的 give(array)、giveTagged；[ContextualBindingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContextualBindingTest.php)。对应固定文档 container#binding-typed-variadics、container#variadic-tag-dependencies 和上下文绑定小节。
-- 编码前检查旧版 `6d1a8192:vendor/openrust/framework/src/container/class_descriptor_tests.rs` 的单项/多项/空列表/槽形状/非法签名，descriptor_resolve.rs 的 Services 与 Tagged 消费者上下文、错误分类和部分资源释放，以及 container.rs 的 is_unresolvable_dependency。提取选择和回归机制，未整包搬入旧资源所有权系统或 PHP 标量转换。
+- 编码前检查旧版 `6d1a8192:vendor/openrust-framework/src/container/class_descriptor_tests.rs` 的单项/多项/空列表/槽形状/非法签名，descriptor_resolve.rs 的 Services 与 Tagged 消费者上下文、错误分类和部分资源释放，以及 container.rs 的 is_unresolvable_dependency。提取选择和回归机制，未整包搬入旧资源所有权系统或 PHP 标量转换。
 - 固定 Goravel v1.18.0 的编译型装配保持不变，本批不改 main.rs、bootstrap/、默认路由或配置文件。
 
 ## 正式接口与行为

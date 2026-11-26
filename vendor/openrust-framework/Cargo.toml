@@ -1,0 +1,143 @@
+[package]
+name = "openrust-framework"
+version.workspace = true
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/hongyukeji/openrust"
+description = "Core framework for OpenRust"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "openrust"
+
+[features]
+sanctum = []
+
+[dependencies]
+mago-database = "=1.23.0"
+mago-syntax = "=1.23.0"
+mago-syntax-core = "=1.23.0"
+adotenv = { version = "=1.5.4", default-features = false }
+openrust-blade-compiler = { path = "../openrust-blade-compiler" }
+inventory = "=0.3.25"
+glob = "=0.3.4"
+hostname = "=0.4.2"
+pathdiff = "=0.2.3"
+parking_lot = "=0.12.5"
+memory-stats = { version = "1.2.0", features = ["always_use_statm"] }
+argon2 = "0.6.0"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+aws-config = { version = "=1.13.4", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
+aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
+aws-sdk-dynamodb = { version = "=1.141.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-s3 = { version = "=1.162.0", default-features = false, features = ["rt-tokio", "default-https-client", "http-1x"] }
+aws-sdk-ses = { version = "=1.127.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sesv2 = { version = "=1.150.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sqs = { version = "=1.123.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+base64 = "0.22.1"
+bcrypt = "0.19.3"
+cap-std = "4.0.3"
+crc32fast = "1.5.5"
+jiff = { version = "=0.2.46", features = ["serde"] }
+css-inline = { version = "=0.20.0", default-features = false }
+clap = "4.6.1"
+console = "0.16.6"
+toml_edit = "0.25.18"
+deunicode = "1.6.2"
+dotenvy = "0.15.7"
+dyn-clone = "=1.0.20"
+encoding_rs = "0.8.44"
+fastrand = "2.4.1"
+fake = { version = "=5.1.0", default-features = false }
+flate2 = "=1.1.11"
+async-stream = "0.3.6"
+futures-util = { version = "0.3", default-features = false }
+gif = "=0.14.2"
+hickory-resolver = { version = "=0.25.2", default-features = false, features = ["tokio", "system-config"] }
+http = "1.0"
+http-body = "1.0"
+httpdate = "1.0.3"
+xxhash-rust = { version = "=0.8.19", features = ["xxh3"] }
+digest_auth = "=0.3.1"
+fixed_decimal = { version = "=0.7.3", features = ["ryu"] }
+idna = "1.1.0"
+icu_decimal = { version = "=2.4.0", features = ["alloc"] }
+icu_experimental = "=0.7.0"
+icu_locale = "=2.4.0"
+icu_plurals = "=2.4.0"
+icu_normalizer = "=2.4.0"
+unicode-segmentation = "=1.13.3"
+icu_properties = "=2.4.0"
+icu_provider = "=2.4.0"
+intl = { version = "=0.6.5", default-features = false, features = ["currency", "number", "confusables", "idna"] }
+icu_locale_core = { version = "2.4", features = ["alloc"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "query", "form", "multipart", "stream", "socks"] }
+image = { version = "=0.25.10", default-features = false, features = ["avif", "bmp", "gif", "jpeg", "png", "webp"] }
+imgalifier-avif = "=0.1.0"
+indexmap = { version = "=2.14.2", features = ["serde"] }
+iri-string = "=0.7.14"
+infer = { version = "0.19.0", default-features = false }
+jixel = { version = "=0.5.10", default-features = false }
+jxl-oxide = { version = "=0.12.6", default-features = false, features = ["image"] }
+lettre = { version = "=0.11.24", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls", "rustls-native-certs"] }
+md-5 = { version = "=0.11.0", default-features = false }
+mime_guess = "2.0.5"
+multer = "3.1.0"
+oxideav-jpegxl = { git = "https://github.com/OxideAV/oxideav-jpegxl.git", rev = "1c2f5a86a052752b0e8181f842a9d4e3460ec0e5", default-features = false }
+oxideav-heif = { version = "=0.0.13", default-features = false, features = ["registry"] }
+oxideav-webp = { version = "=0.3.1", default-features = false }
+percent-encoding = "2.3"
+html5ever = "=0.38.0"
+quick-xml = { version = "0.42", default-features = false }
+pluralizer = "=0.5.0"
+proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
+png = "=0.18.1"
+pulldown-cmark = { version = "=0.13.6", default-features = false, features = ["html"] }
+regex = "1.12"
+pcre2 = "=0.2.11"
+regex-syntax = "0.8"
+syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing", "extra-traits"] }
+ravif = { version = "=0.13.0", default-features = false }
+redis = { version = "=1.8.0", default-features = false, features = ["cluster-async", "connection-manager", "tokio-rustls-comp"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde-save = "=0.1.1"
+serde_json = { version = "1.0", features = ["preserve_order"] }
+shlex = "2.0.1"
+sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "postgres", "sqlite-bundled", "tls-rustls-ring", "time", "json", "bigdecimal"] }
+sqlx-core = { version = "=0.9.0", default-features = false }
+subtle = "2.6.1"
+tempfile = "3.27.0"
+url = "2.5.8"
+tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tiberius = { version = "=0.13.0", default-features = false, features = ["tds73", "time", "rustls"] }
+tokio-util = { version = "0.7.20", features = ["compat", "io", "rt"] }
+
+tonic = { version = "~0.14.6", default-features = false, features = ["channel", "codegen", "router", "server", "tls-ring"] }
+
+bigdecimal = "=0.4.11"
+time = { version = "0.3", features = ["formatting", "parsing", "large-dates", "macros"] }
+croner = { version = "=4.0.3", default-features = false, features = ["jiff"] }
+ulid = { version = "=1.2.1", default-features = false, features = ["std"] }
+uuid = { version = "=1.29.2", default-features = false, features = ["std", "v7"] }
+web_atoms = "=0.2.6"
+zeroize = "1.9.0"
+crossterm = { version = "=0.29.0", default-features = false, features = ["events", "windows"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+rustix = { version = "1.1.6", features = ["fs", "process", "termios", "stdio"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_EventLog", "Win32_System_JobObjects", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Threading"] }
+
+[[test]]
+name = "concurrency_defer"
+path = "tests/concurrency_defer.rs"
+harness = false
+
+[lints]
+workspace = true

@@ -2,7 +2,7 @@
 
 Notices for reference code and assets retained under `vendor/openrust/`. This file travels with the runtime distribution together with the OpenRust LICENSE. Cargo dependency metadata and licenses remain with their respective packages.
 
-## vendor/openrust/activitylog/LICENSE-activitylog.md
+## vendor/openrust-activitylog/LICENSE-activitylog.md
 
 The MIT License (MIT)
 
@@ -27,7 +27,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/cashier/LICENSE-cashier-paddle.md
+## vendor/openrust-cashier/LICENSE-cashier-paddle.md
 
 The MIT License (MIT)
 
@@ -52,7 +52,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/cashier/LICENSE-cashier-stripe.md
+## vendor/openrust-cashier/LICENSE-cashier-stripe.md
 
 The MIT License (MIT)
 
@@ -77,7 +77,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/fortify/LICENSE.google2fa.md
+## vendor/openrust-fortify/LICENSE.google2fa.md
 
 Copyright 2014-2018 Phil, Antonio Carlos Ribeiro and All Contributors
 
@@ -88,7 +88,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-## vendor/openrust/fortify/LICENSE.md
+## vendor/openrust-fortify/LICENSE.md
 
 The MIT License (MIT)
 
@@ -113,7 +113,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/resources/calendar/LICENSE.iana
+## vendor/openrust-framework/resources/calendar/LICENSE.iana
 
 Unless specified below, all files in the tz code and data (including
 this LICENSE file) are in the public domain.
@@ -122,7 +122,7 @@ If the files date.c, newstrftime.3, and strftime.c are present, they
 contain material derived from BSD and use the BSD 3-clause license.
 
 
-## vendor/openrust/framework/src/database/eloquent/factories/faker_text_corpora/NOTICE.txt
+## vendor/openrust-framework/src/database/eloquent/factories/faker_text_corpora/NOTICE.txt
 
 FakerPHP v1.24.1 Text corpora
 
@@ -4054,7 +4054,7 @@ You comply with all other terms of this agreement for free
     subscribe to our email newsletter to hear about new eBooks.
 
 
-## vendor/openrust/framework/src/http/request/LICENSE.symfony
+## vendor/openrust-framework/src/http/request/LICENSE.symfony
 
 Copyright (c) 2004-present Fabien Potencier
 
@@ -4078,7 +4078,7 @@ THE SOFTWARE.
 
 HTTP language negotiation names, component matching, and regression cases reference Symfony HttpFoundation v7.4.0 / v8.0.0. BCP 47 validation and strict header handling use the existing OpenRust mechanisms; this does not bundle a PHP runtime.
 
-## vendor/openrust/framework/src/support/calendar/LICENSE.carbon
+## vendor/openrust-framework/src/support/calendar/LICENSE.carbon
 
 Copyright (C) Brian Nesbitt
 
@@ -4101,7 +4101,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/support/calendar/LICENSE
+## vendor/openrust-framework/src/support/calendar/LICENSE
 
 --------------------------------------------------------------------
                   The PHP License, version 3.01
@@ -4173,7 +4173,7 @@ PHP includes the Zend Engine, freely available at
 <http://www.zend.com>.
 
 
-## vendor/openrust/framework/src/support/calendar/LICENSE.timelib
+## vendor/openrust-framework/src/support/calendar/LICENSE.timelib
 
 The MIT License (MIT)
 
@@ -4199,7 +4199,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/support/number/spellout/LICENSE-ICU
+## vendor/openrust-framework/src/support/number/spellout/LICENSE-ICU
 
 UNICODE LICENSE V3
 
@@ -4745,7 +4745,7 @@ suitability of this software for any purpose.  It is provided "as is"
 without express or implied warranty.
 
 
-## vendor/openrust/framework/src/support/number/spellout/LICENSE-MIT
+## vendor/openrust-framework/src/support/number/spellout/LICENSE-MIT
 
 MIT License
 
@@ -4770,7 +4770,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-## vendor/openrust/framework/src/support/number/spellout/LICENSE-Unicode
+## vendor/openrust-framework/src/support/number/spellout/LICENSE-Unicode
 
 UNICODE LICENSE V3
 
@@ -4815,7 +4815,7 @@ authorization of the copyright holder.
 SPDX-License-Identifier: Unicode-3.0
 
 
-## vendor/openrust/framework/src/support/strings/LICENSE.doctrine-inflector.txt
+## vendor/openrust-framework/src/support/strings/LICENSE.doctrine-inflector.txt
 
 Copyright (c) 2006-2015 Doctrine Project
 
@@ -4838,7 +4838,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-## vendor/openrust/framework/src/support/strings/LICENSE.portable-ascii.txt
+## vendor/openrust-framework/src/support/strings/LICENSE.portable-ascii.txt
 
 Copyright (C) 2019 Lars Moelleken
 
@@ -4861,7 +4861,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/localization/LICENSE-Unicode.txt
+## vendor/openrust-framework/src/localization/LICENSE-Unicode.txt
 
 UNICODE LICENSE V3
 
@@ -4904,7 +4904,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 
-## vendor/openrust/framework/src/localization/LICENSE-Zend.txt
+## vendor/openrust-framework/src/localization/LICENSE-Zend.txt
 
 Zend Framework rules used by the Laravel MessageSelector, as attributed by Laravel:
 Copyright (c) 2005-2010 - Zend Technologies USA Inc.
@@ -4940,7 +4940,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-## vendor/openrust/framework/src/localization/stubs/NOTICE
+## vendor/openrust-framework/src/localization/stubs/NOTICE
 
 The MIT License (MIT)
 
@@ -4965,7 +4965,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/validation/rules/email/LICENSE.egulias
+## vendor/openrust-framework/src/validation/rules/email/LICENSE.egulias
 
 Copyright (c) 2013-2023 Eduardo Gulias Davis
 
@@ -4988,7 +4988,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/horizon/LICENSE-UPSTREAM
+## vendor/openrust-horizon/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5013,7 +5013,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pail/LICENSE.md
+## vendor/openrust-pail/LICENSE.md
 
 The MIT License (MIT)
 
@@ -5038,7 +5038,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/passkeys/LICENSE.md
+## vendor/openrust-passkeys/LICENSE.md
 
 The MIT License (MIT)
 
@@ -5063,7 +5063,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/passport/LICENSE
+## vendor/openrust-passport/LICENSE
 
 The MIT License (MIT)
 
@@ -5088,7 +5088,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pennant/LICENSE
+## vendor/openrust-pennant/LICENSE
 
 The MIT License (MIT)
 
@@ -5113,7 +5113,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pennant/LICENSE-UPSTREAM
+## vendor/openrust-pennant/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5138,7 +5138,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pulse/LICENSE
+## vendor/openrust-pulse/LICENSE
 
 The MIT License (MIT)
 
@@ -5163,7 +5163,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pulse/LICENSE-UPSTREAM
+## vendor/openrust-pulse/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5188,7 +5188,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/reverb/LICENSE-reverb.md
+## vendor/openrust-reverb/LICENSE-reverb.md
 
 The MIT License (MIT)
 
@@ -5213,7 +5213,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/scout/LICENSE.md
+## vendor/openrust-scout/LICENSE.md
 
 The MIT License (MIT)
 
@@ -5238,7 +5238,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/settings/LICENSE-settings.md
+## vendor/openrust-settings/LICENSE-settings.md
 
 The MIT License (MIT)
 
@@ -5263,7 +5263,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/socialite/LICENSE-easywechat.md
+## vendor/openrust-socialite/LICENSE-easywechat.md
 
 The MIT License (MIT)
 
@@ -5289,7 +5289,7 @@ SOFTWARE.
 
 
 
-## vendor/openrust/socialite/LICENSE-socialite.md
+## vendor/openrust-socialite/LICENSE-socialite.md
 
 The MIT License (MIT)
 
@@ -5314,7 +5314,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/telescope/LICENSE.md
+## vendor/openrust-telescope/LICENSE.md
 
 The MIT License (MIT)
 
@@ -5339,7 +5339,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/localization-database/LICENSE.spatie.md
+## vendor/openrust-localization-database/LICENSE.spatie.md
 
 The MIT License (MIT)
 
@@ -5367,7 +5367,7 @@ THE SOFTWARE.
 ## Framework source adaptations
 
 The JSON Schema implementation and selected console, support, validation, manager and process contracts in
-`vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0
+`vendor/openrust-framework/` are adapted from Laravel Framework v13.40.0
 (commit `1449bf241017087fbd38c118ecaabef3f6797fdc`).
 
 The MIT License (MIT)
@@ -5400,7 +5400,7 @@ Hickory Resolver and Proto 0.25.2 are used under MIT OR Apache-2.0; their
 upstream notices are available in the dependency distribution.
 
 The tag-removal state machine in
-`vendor/openrust/framework/src/support/strings/tags.rs` is adapted from PHP 8.5.0
+`vendor/openrust-framework/src/support/strings/tags.rs` is adapted from PHP 8.5.0
 `ext/standard/string.c` (`php_strip_tags_ex` and `php_tag_find`), under the PHP
 License 3.01 reproduced above. The HTML401 entity-name set is generated from
 PHP's standard translation table; named character values reuse web_atoms.
@@ -5432,9 +5432,9 @@ Copyright (c) 2013-2026 Laravel Lang Team
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 > THE SOFTWARE.
 
-## vendor/openrust/framework/licenses/email-native-filter.txt
+## vendor/openrust-framework/licenses/email-native-filter.txt
 
-The expression in `vendor/openrust/framework/src/validation/rules/email/native.rs` is adapted from PHP 8.5.12 `ext/filter/logical_filters.c`. Copyright and redistribution terms are retained in `vendor/openrust/framework/licenses/email-native-filter.txt`. Include that notice with source and runtime distributions.
+The expression in `vendor/openrust-framework/src/validation/rules/email/native.rs` is adapted from PHP 8.5.12 `ext/filter/logical_filters.c`. Copyright and redistribution terms are retained in `vendor/openrust-framework/licenses/email-native-filter.txt`. Include that notice with source and runtime distributions.
 
 --------------------------------------------------------------------
                   The PHP License, version 3.01
@@ -5510,7 +5510,7 @@ Copyright © Michael Rushton 2009-10
 http://squiloople.com/
 Feel free to use and redistribute this code. But please keep this copyright notice.
 
-## vendor/openrust/framework/licenses/log-formatting.txt
+## vendor/openrust-framework/licenses/log-formatting.txt
 
 Monolog 3.10.0 compatible log formatting
 Source: https://github.com/Seldaek/monolog/tree/3.10.0
@@ -5535,7 +5535,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-## vendor/openrust/framework/src/console/LICENSE.symfony
+## vendor/openrust-framework/src/console/LICENSE.symfony
 
 Copyright (c) 2004-present Fabien Potencier
 
@@ -7485,7 +7485,7 @@ express Statement of Purpose.
 
 ## Console Unicode grapheme segmentation
 
-The console uses unicode-segmentation 1.13.3 (MIT OR Apache-2.0). The distribution retains the MIT terms below, and the source tree preserves both licenses and the original notice in `vendor/openrust/framework/src/console/LICENSE.segmentation`.
+The console uses unicode-segmentation 1.13.3 (MIT OR Apache-2.0). The distribution retains the MIT terms below, and the source tree preserves both licenses and the original notice in `vendor/openrust-framework/src/console/LICENSE.segmentation`.
 
 Copyright (c) 2015 The Rust Project Developers
 

@@ -37,8 +37,8 @@ Ubuntu 原生 amd64，Rust 1.94.0 Debug，隔离快照从 `48da4f3e6` 导出并�
 
 ```text
 Cargo.lock
-vendor/openrust/framework/src/console/{application,mod}.rs
-vendor/openrust/pail/
+vendor/openrust-framework/src/console/{application,mod}.rs
+vendor/openrust-pail/
 ├── Cargo.toml
 ├── src/lib.rs
 ├── src/process_factory.rs

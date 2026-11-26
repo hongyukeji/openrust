@@ -26,11 +26,11 @@
 ## 最小文件范围
 
 ```text
-vendor/openrust/framework/src/
+vendor/openrust-framework/src/
 ├── contracts/foundation.rs
 ├── foundation/{application,mod,paths}.rs
 └── support/{helpers,mod}.rs
-vendor/openrust/pail/
+vendor/openrust-pail/
 ├── src/lib.rs
 └── tests/{capture,provider}.rs
 docs/{en,zh_CN,zh_TW}/

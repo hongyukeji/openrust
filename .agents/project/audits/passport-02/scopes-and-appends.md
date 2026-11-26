@@ -12,9 +12,9 @@ Eloquent 追加访问器通过实例 mutateAttributeForArray 执行。默认实�
 
 ## 固定 PHP 对照
 
-[生成器](../../../../vendor/openrust/passport/tests/reference/inherited_scopes.php)实际 require 固定 Passport.php 与 ResolvesInheritedScopes.php；加载前校验两份 SHA，错误源码立即拒绝。ScopeProbe 只暴露真实 trait 的 protected 方法，不重新实现该算法。固定镜像 `php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9` 实际为 PHP 8.5.12，容器禁用网络，只读挂载源码和脚本。
+[生成器](../../../../vendor/openrust-passport/tests/reference/inherited_scopes.php)实际 require 固定 Passport.php 与 ResolvesInheritedScopes.php；加载前校验两份 SHA，错误源码立即拒绝。ScopeProbe 只暴露真实 trait 的 protected 方法，不重新实现该算法。固定镜像 `php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9` 实际为 PHP 8.5.12，容器禁用网络，只读挂载源码和脚本。
 
-[312 行结果](../../../../vendor/openrust/passport/tests/fixtures/inherited_scopes.json)覆盖继承开关、父子 scope、连续／首尾冒号、空字符串、Unicode、数字／布尔／null 成员、关联键和嵌套数组。Rust 双应用真实 TCP HTTP 逐行对照，每应用重复请求，验证本应用开关保持。最终带源码 SHA 校验的生成器再次逐字重现相同 fixture，改动 Passport.php 后的负例被拒绝。
+[312 行结果](../../../../vendor/openrust-passport/tests/fixtures/inherited_scopes.json)覆盖继承开关、父子 scope、连续／首尾冒号、空字符串、Unicode、数字／布尔／null 成员、关联键和嵌套数组。Rust 双应用真实 TCP HTTP 逐行对照，每应用重复请求，验证本应用开关保持。最终带源码 SHA 校验的生成器再次逐字重现相同 fixture，改动 Passport.php 后的负例被拒绝。
 
 这些是 scope trait 的 PHP 实际观测，未冒充完整 Client／数据库 PHP 执行；Scope JSON 编码选项、setter 失败顺序、数组其他边界和浮点字符串转换继续保留后续项。PHP 只用于测试对照，生产实现和 Artisan 均为 Rust。
 

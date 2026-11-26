@@ -7,7 +7,7 @@
 ## 固定参考与旧版提取
 
 - Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc`：[BoundMethod](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/BoundMethod.php)、[Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 的 call/getClassForCallable/bindMethod/hasMethodBinding/callMethodBinding、[ContainerCallTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContainerCallTest.php)。对应固定文档 container#method-invocation-and-injection，及参数、上下文与变参小节。
-- 编码前检查旧版 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 vendor/openrust/framework/src/container/{call.rs,method_call.rs,method_call_tests.rs}。提取命名/类型键、剩余实参、接收者先构造、绑定跳过注入、替换中回调快照、参数与对象保活、嵌套上下文及取消清理回归。未搬入旧生命周期资源系统；旧测试中无真实声明的对象绑定建立类上下文与固定 PHP is_callable 判断不符，已按上游修正。
+- 编码前检查旧版 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 vendor/openrust-framework/src/container/{call.rs,method_call.rs,method_call_tests.rs}。提取命名/类型键、剩余实参、接收者先构造、绑定跳过注入、替换中回调快照、参数与对象保活、嵌套上下文及取消清理回归。未搬入旧生命周期资源系统；旧测试中无真实声明的对象绑定建立类上下文与固定 PHP is_callable 判断不符，已按上游修正。
 - 固定 Goravel v1.18.0 的编译装配保持不变。本批不改 main.rs、bootstrap/、默认路由和配置。
 
 ## 正式接口与行为

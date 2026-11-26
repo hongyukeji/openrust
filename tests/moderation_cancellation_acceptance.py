@@ -22,7 +22,7 @@ SUBMISSION = runpy.run_path(str(ROOT / "tests/moderation_submission_acceptance.p
 VIDEO, HTTP, DATABASE, COMMAND = (SUBMISSION[key] for key in ("VIDEO", "HTTP", "DATABASE", "COMMAND"))
 
 
-LEASE_MIGRATION = ("--path=vendor/openrust/content-moderation/database/migrations/"
+LEASE_MIGRATION = ("--path=vendor/openrust-content-moderation/database/migrations/"
                    "2026_11_26_000013_create_moderation_remote_leases_table.rs")
 LEASES = "moderation_remote_leases"
 
@@ -391,11 +391,11 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=
             finally:
                 HTTP["stop"](server)
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "--path=vendor/openrust-content-moderation/database/migrations/"
                 "2026_11_26_000009_add_moderation_cancellation.rs", successful=False)
         assert sql("SELECT COUNT(*) FROM moderation_checks WHERE provider_cancellation IS NOT NULL") == "8"
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "--path=vendor/openrust-content-moderation/database/migrations/"
                 "2026_11_26_000015_create_moderation_late_notices_table.rs", successful=False)
         assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "2"
     finally:

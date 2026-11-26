@@ -8,7 +8,7 @@
 
 - Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc`：[ContextualBindingBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/ContextualBindingBuilder.php)、[Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php) 的 when、addContextualBinding、resolve、getContextualConcrete、tag/tagged、原键别名索引，以及 [ContextualBindingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContextualBindingTest.php)。文档对应固定 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md` 的 contextual-binding、binding-primitives、binding-typed-variadics、tagging。
 - Goravel 继续参考固定 v1.18.0 的编译型应用装配；公开行为以 Laravel 为准，本批不改应用入口或运行方式。
-- 编码前核对旧版 `6d1a8192:vendor/openrust/framework/src/container/contextual.rs`、descriptor_source.rs；检查 attribute_resolution_tests.rs 的显式输入以及 call_tests.rs 中 StaticOwner/StaticChild 的独立上下文回归。复用消费者到依赖的类型化查表、构造前类型检查、配置反序列化与原键有序标签思路；旧异步 Resolver、构造属性反射和目录系统未整包迁入。
+- 编码前核对旧版 `6d1a8192:vendor/openrust-framework/src/container/contextual.rs`、descriptor_source.rs；检查 attribute_resolution_tests.rs 的显式输入以及 call_tests.rs 中 StaticOwner/StaticChild 的独立上下文回归。复用消费者到依赖的类型化查表、构造前类型检查、配置反序列化与原键有序标签思路；旧异步 Resolver、构造属性反射和目录系统未整包迁入。
 
 ## 实现与语言适配
 

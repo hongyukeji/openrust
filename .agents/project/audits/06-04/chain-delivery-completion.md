@@ -3,7 +3,7 @@
 ## 固定基线与旧版
 
 - 对照 Laravel [Chain Connection and Queue](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#chain-connection-queue)、[CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) 与 [SyncQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SyncQueue.php)，核对同步执行、忽略延迟及失败停止。
-- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型入口。旧版 `v0.x:vendor/openrust/framework/src/queue.rs` 的持久任务组在单一队列上执行，未提供跨连接的同步后继及投递凭据。参考旧版 Worker 对链顺序和失败停止的断言。
+- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型入口。旧版 `v0.x:vendor/openrust-framework/src/queue.rs` 的持久任务组在单一队列上执行，未提供跨连接的同步后继及投递凭据。参考旧版 Worker 对链顺序和失败停止的断言。
 
 ## 实现与差异
 

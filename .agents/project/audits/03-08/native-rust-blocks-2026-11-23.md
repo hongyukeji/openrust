@@ -28,13 +28,13 @@ Rust 局部变量及 use 不跨函数导出。写回影响当前指令块的后�
 | [Maud](https://github.com/lambda-fairy/maud/tree/b95c8494760c3bb640d2a973c4f69d29671e11db) | `b95c8494760c3bb640d2a973c4f69d29671e11db`，MIT OR Apache-2.0 | 核对宏生成及转义边界；不引入另一套 HTML DSL。 |
 | [syn](https://github.com/dtolnay/syn/tree/2.0.119) | **实际依赖固定 =2.0.119**，MSRV 1.71，MIT OR Apache-2.0 | 仅 build feature 启用 full／parsing，无直接 quote 依赖；Rust 1.94.0 实际编译。保留原正文到生成文件，由 rustc 检查语义。 |
 
-重新核对 `v0.x:vendor/openrust/framework/src/view.rs`、框架 Cargo.toml：旧版使用 MiniJinja 的环境与 namespace 管理，没有可复用的原生 Blade 代码生成管线。复用当前构建发现、PackageManifest、Factory、Finder、RenderContext 与 ViewValue，新增共同扫描器避免构建／渲染边界漂移。维护成本集中在扫描边界与生成文件；由同一实际消费者覆盖，避免引入整套可选模板引擎。
+重新核对 `v0.x:vendor/openrust-framework/src/view.rs`、框架 Cargo.toml：旧版使用 MiniJinja 的环境与 namespace 管理，没有可复用的原生 Blade 代码生成管线。复用当前构建发现、PackageManifest、Factory、Finder、RenderContext 与 ViewValue，新增共同扫描器避免构建／渲染边界漂移。维护成本集中在扫描边界与生成文件；由同一实际消费者覆盖，避免引入整套可选模板引擎。
 
 ## 实现完成
 
-- `vendor/openrust/blade-compiler/`：共同扫描器、构建生成器及词法反例。
-- `vendor/openrust/package-discovery/`：normal 图及模板根发现、已有 packages.rs 装配。
-- `vendor/openrust/framework/src/view/native.rs`：类型转换、当前作用域写回及原生错误来源。
+- `vendor/openrust-blade-compiler/`：共同扫描器、构建生成器及词法反例。
+- `vendor/openrust-package-discovery/`：normal 图及模板根发现、已有 packages.rs 装配。
+- `vendor/openrust-framework/src/view/native.rs`：类型转换、当前作用域写回及原生错误来源。
 - `view/compilers/{blade_compiler,template}.rs`：缓存前一致性校验、原生节点、局部写回；`view/console.rs` 保留重建错误提示。
 - `foundation/package_manifest.rs`／`view_service_provider.rs`：应用级不可变构建产物装配。
 - `tests/fixtures/blade-native/`／`tests/blade_native_acceptance.py`：真实应用、依赖包、模板及独立部署消费者。

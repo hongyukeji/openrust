@@ -4,7 +4,7 @@
 
 - 对照 Laravel [Chains and Batches](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#chains-and-batches)、[Batch::add 和 prepareBatchedChain](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/Batch.php)、[CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) 及 [JobChainingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php)。
 - 参考 Goravel 固定版 [queue.Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型链参数和 [queue.Job](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/job.go) 的任务契约。
-- 检查 `v0.x:vendor/openrust/framework/src/queue.rs` 的 `dispatch_chain`、`dispatch_batch`、`TaskGroup`，以及 `tests/server/queue/worker.rs` 的顺序、并发和终态断言。旧版组执行通过单一父任务编排。当前复用顺序、并发和终态验证思路，并沿用主线的批次账本、逐任务预约、原子任务链交接和 Redis 待发布记录。
+- 检查 `v0.x:vendor/openrust-framework/src/queue.rs` 的 `dispatch_chain`、`dispatch_batch`、`TaskGroup`，以及 `tests/server/queue/worker.rs` 的顺序、并发和终态断言。旧版组执行通过单一父任务编排。当前复用顺序、并发和终态验证思路，并沿用主线的批次账本、逐任务预约、原子任务链交接和 Redis 待发布记录。
 
 ## 实现
 

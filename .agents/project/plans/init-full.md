@@ -26,7 +26,7 @@ Windows 使用 `artisan.bat init:full`。把 `init:full` 注册为可在 `artisa
 3. **迁移并运行自检。** 在已核实的目标 MySQL 库运行正常迁移流程，使用 Redis 锁避免并发迁移，并区分锁竞争和执行完成。保留现有生产迁移授权要求。配置标为生产且需要显式授权时，非交互命令不得绕过保护或等待输入。只在安装与迁移全部完成并验证成功后报告就绪。自检经实际构建产物运行临时 HTTP、独立 Artisan 和 Redis Worker，退出后回收本次自检资源，不常驻托管进程。
 4. **重跑与报告。** 从实际文件、Cargo 配置和迁移账本判定完成状态，不另建安装状态库。已完成项复用，缺项补齐。并发安装通过现有源码锁处理。失败按阶段报告并返回非零，保留已有配置、凭据、业务文件、数据库数据及迁移账本。不清数据库或 Redis、不重放已执行迁移、不自动回滚旧批次。输出就绪、待配置、失败和冲突项目，给出当前应用的正常启动入口。
 
-源码接续位置为[现有初始化命令](../../../vendor/openrust/framework/src/foundation/console/init_command.rs)、[共享安装器](../../../vendor/openrust/framework/src/foundation/console/installation.rs)和[应用迁移锁](../../../docs/zh-Hans/database/migrations.md#isolating-migration-execution)。已有历史边界见[初始化验收](../audits/00-03/init.md)和[认证扩展安装验收](../audits/00-03/init-auth.md)。
+源码接续位置为[现有初始化命令](../../../vendor/openrust-framework/src/foundation/console/init_command.rs)、[共享安装器](../../../vendor/openrust-framework/src/foundation/console/installation.rs)和[应用迁移锁](../../../docs/zh-Hans/database/migrations.md#isolating-migration-execution)。已有历史边界见[初始化验收](../audits/00-03/init.md)和[认证扩展安装验收](../audits/00-03/init-auth.md)。
 
 ## 单机和多副本
 

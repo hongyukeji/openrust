@@ -212,7 +212,7 @@ macOS、Linux ARM64、Windows 11 ARM64 复验自定义退出码和实际重部�
 
 标准 Windows ARM64 MSVC 的首轮调试产物在真实任务前以 `0xC00000FD` 退出。对相同 PE 的隔离副本测得 1 MiB 栈预留，将预留提高到 16 MiB 可继续执行任务。Windows 验收夹具通过实际 SQLite 接口创建 `failed_jobs` 表。根应用可执行文件与 Horizon 验收示例现在由 Cargo 为 Windows MSVC 链接 16 MiB 栈预留。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{native-schema,stack-trace,stack-schema,linked}.log`。
 
-Windows 11 ARM64 用正常 Cargo 构建及真实 Redis 8.10.3 运行 [进程树验收](../../../../vendor/openrust/horizon/tests/windows_process_acceptance.ps1)。确认实际父子 PID、非空部署、带 Unicode 的 Master 和 Supervisor、暂停期间保留任务、继续后执行。空闲终止、`--wait` 等待 12 秒任务、快速终止先退出 Master、强制结束 Master 后子树仍完成正在执行的任务均通过。父进程丢失后，后续任务留在队列，由普通 `queue:work --once` 成功处理。直接检查 Cargo 生成的根应用与验收程序 PE，均预留 16 MiB。优化构建、Windows x86_64 与正式服务管理器组合仍待验收。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{linked,retention}.log`。
+Windows 11 ARM64 用正常 Cargo 构建及真实 Redis 8.10.3 运行 [进程树验收](../../../../vendor/openrust-horizon/tests/windows_process_acceptance.ps1)。确认实际父子 PID、非空部署、带 Unicode 的 Master 和 Supervisor、暂停期间保留任务、继续后执行。空闲终止、`--wait` 等待 12 秒任务、快速终止先退出 Master、强制结束 Master 后子树仍完成正在执行的任务均通过。父进程丢失后，后续任务留在队列，由普通 `queue:work --once` 成功处理。直接检查 Cargo 生成的根应用与验收程序 PE，均预留 16 MiB。优化构建、Windows x86_64 与正式服务管理器组合仍待验收。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{linked,retention}.log`。
 
 Windows ARM64 的 Horizon 库与验收示例严格 Clippy 通过。macOS 的框架进程测试 15 项、Horizon 完整进程回归、Horizon 全目标与框架库严格 Clippy 通过。Linux ARM64 复验通过阻塞和非阻塞接管及真实孤儿清理。三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{retention,core-regression,macos-final,linux-final}.log`。
 

@@ -243,7 +243,7 @@ def verify_migration_publication(binary, database, port):
     published = {}
     for package in ("webhook-client", "webhook-server"):
         command(binary, "vendor:publish", f"--tag={package}-migrations")
-        vendor_dir = source / "vendor/openrust" / package / "database/migrations"
+        vendor_dir = source / "vendor" / f"openrust-{package}" / "database/migrations"
         originals = sorted(vendor_dir.glob("*.rs"))
         assert originals, package
         for original in originals:
@@ -253,7 +253,7 @@ def verify_migration_publication(binary, database, port):
             assert destination.read_bytes() == data, destination.name
             published[destination] = data
         if package == "webhook-client":
-            server_dir = source / "vendor/openrust/webhook-server/database/migrations"
+            server_dir = source / "vendor/openrust-webhook-server/database/migrations"
             assert all(not (application_dir / original.name).exists() for original in server_dir.glob("*.rs"))
     timestamp = application_dir / "2026_11_25_000001_extend_webhook_calls_for_update_time.rs"
     assert timestamp in published
@@ -290,7 +290,7 @@ def verify_migration_publication(binary, database, port):
     assert ledger() == before and "fixture_override" not in columns()
 
     for package in ("webhook-server", "webhook-client"):
-        command(binary, "migrate:rollback", f"--path=vendor/openrust/{package}/database/migrations", "--force")
+        command(binary, "migrate:rollback", f"--path=vendor/openrust-{package}/database/migrations", "--force")
     assert not package_tables(database)
     assert not ({path.stem for path in published} & set(ledger()))
     command(binary, "migrate", "--path=database/migrations", "--force")
@@ -370,7 +370,7 @@ for selected in (profiles[args.profile],) if args.profile else profiles.values()
         if enabled:
             command(binary, "vendor:publish", f"--tag=webhook-{kind}-config")
             config = configs[kind]
-            reference = source / "vendor/openrust" / f"webhook-{kind}" / "config" / config.name
+            reference = source / "vendor" / f"openrust-webhook-{kind}" / "config" / config.name
             assert config.read_bytes() == reference.read_bytes()
             customized[config] = reference.read_bytes() + b"\n// existing application configuration\n"
             config.write_bytes(customized[config])

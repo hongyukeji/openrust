@@ -24,7 +24,7 @@
 
 ### 已确认的架构与范围
 
-- 首版采用**独立可选内容审核包＋具名可扩展驱动＋四家云审核适配＋现有队列／存储**。采用 `openrust-content-moderation`、`vendor/openrust/content-moderation/`、`config/moderation.rs` 作为实施命名基准；工程接线如需调整按项目规范记录原因，不重开已确认范围。
+- 首版采用**独立可选内容审核包＋具名可扩展驱动＋四家云审核适配＋现有队列／存储**。采用 `openrust-content-moderation`、`vendor/openrust-content-moderation/`、`config/moderation.rs` 作为实施命名基准；工程接线如需调整按项目规范记录原因，不重开已确认范围。
 - 提供和短信／存储相近的调用体验：默认配置、具名配置、同服务商多配置、应用 Provider 注册自定义驱动。四家均核对文本／图片／异步视频；音轨／OCR及资源上限按各家实际协议落实，不支持或待外部开通项须显式记录，不能伪装完整通过。
 - 文本与图片提供即时检测能力；视频通过异步任务、结果查询与可选回调完成，业务服务决定是否发布。
 - 文件恶意代码扫描、PII、重复违规内容哈希、自托管模型、额外供应商作为条件性后续，不进入首版默认依赖；AWS／Azure仍为专项候选，不计入本次四家替代交付。
@@ -55,11 +55,11 @@ Webhook计划第14节已按用户要求将客户端／服务端的同一实现�
 
 | 现有基础 | 已核对入口及建议复用方式 | 实施前仍需核对 |
 |---|---|---|
-| 自定义驱动注册 | [SmsManager](../../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)：`extend`、具名解析、实例缓存、`forget_drivers` | 外部消费者如何解析包 Manager；工厂替换、失败重试、旧句柄和多应用隔离 |
-| 文件存储 | [FilesystemManager](../../../vendor/openrust/framework/src/filesystem/filesystem_manager.rs)：使用既有 local／S3 存储操作、私有文件与临时授权访问 | 所选供应商接受的对象／URL／上传协议，不能假设 Storage 已支持任意外部驱动 |
-| 队列 | [Job 契约](../../../vendor/openrust/framework/src/contracts/queue/job.rs)、[UniqueJob](../../../vendor/openrust/framework/src/queue/unique_job.rs) | 独立 Worker 注册、提交时机、重试／超时／关停、共享存储；唯一锁不等于业务幂等或外部恰好一次执行 |
+| 自定义驱动注册 | [SmsManager](../../../vendor/openrust-framework/src/notifications/sms/sms_manager.rs)：`extend`、具名解析、实例缓存、`forget_drivers` | 外部消费者如何解析包 Manager；工厂替换、失败重试、旧句柄和多应用隔离 |
+| 文件存储 | [FilesystemManager](../../../vendor/openrust-framework/src/filesystem/filesystem_manager.rs)：使用既有 local／S3 存储操作、私有文件与临时授权访问 | 所选供应商接受的对象／URL／上传协议，不能假设 Storage 已支持任意外部驱动 |
+| 队列 | [Job 契约](../../../vendor/openrust-framework/src/contracts/queue/job.rs)、[UniqueJob](../../../vendor/openrust-framework/src/queue/unique_job.rs) | 独立 Worker 注册、提交时机、重试／超时／关停、共享存储；唯一锁不等于业务幂等或外部恰好一次执行 |
 | HTTP Client | 复用现有连接、TLS、请求发送、重试及错误机制 | 固定供应商签名、请求体及错误语义；提交任务重试可能重复创建和计费 |
-| 图像能力 | [image 模块](../../../vendor/openrust/framework/src/image/mod.rs) | 安全解析、格式／动画覆盖和资源上限；已有编解码能力不等于已有审核模型 |
+| 图像能力 | [image 模块](../../../vendor/openrust-framework/src/image/mod.rs) | 安全解析、格式／动画覆盖和资源上限；已有编解码能力不等于已有审核模型 |
 | 容器／配置／调度 | 按既有 Provider、包发现、配置缓存和 Scheduler 装配 | HTTP、独立 Artisan、常驻 Worker 中均可用，不能依赖父进程注册闭包 |
 
 旧版 `openrust-v0.x` 的本轮初筛未确认可复用的审核模块；实施前依规范复查相关源码及测试，不复制旧业务示例或把名称命中当成能力。
@@ -135,7 +135,7 @@ Webhook计划第14节已按用户要求将客户端／服务端的同一实现�
 ### 4.1 组织与职责
 
 ```text
-vendor/openrust/content-moderation/    可选包，按已确认命名基准
+vendor/openrust-content-moderation/    可选包，按已确认命名基准
   src/
     contracts/                       文本、图片、异步媒体能力
     drivers/                         各供应商 HTTP／鉴权／结果映射
@@ -267,7 +267,7 @@ vendor/openrust/content-moderation/    可选包，按已确认命名基准
 | [Spatie laravel-webhook-client `ff886d1bae33d35ad98b6c91403f280df158129d`](https://github.com/spatie/laravel-webhook-client/tree/ff886d1bae33d35ad98b6c91403f280df158129d)，约1.2k Star，MIT，最近提交2026-11-05，未归档 | `WebhookProcessor`按验签、Profile筛选、保存WebhookCall、派发ProcessWebhookJob、返回响应组织；默认验签使用原始请求体与常量时间比较；测试覆盖无效载荷、替换Validator／Profile、存储Header与响应 | **采用职责划分**：专用验证器、可靠保存、队列消费、响应分离。复用现有Rust容器／队列／数据库，不引入PHP包或移植完整Webhook平台。源码的“保存后派发”不等于自动解决事务提交后丢失派发、重复通知、提前回调；这些由独立Webhook接收包的持久记录／恢复扫描及下面的领域关联补齐 |
 | [Spatie laravel-webhook-server `6da6be3a721190bcdedcdef32d31d5980b77eb0e`](https://github.com/spatie/laravel-webhook-server/tree/6da6be3a721190bcdedcdef32d31d5980b77eb0e)，约1.1k，MIT，最近提交2026-11-05，未归档 | 独立BackoffStrategy、指数等待实现；仓库含重试策略和Webhook Job测试 | 借鉴有界策略与错误／事件分离；不原样照搬其等待数值或自创供应商签名，发送扩展已另列Webhook计划，内容审核不依赖其完成，也不在审核包实现通用发送模块 |
 | [固定Laravel v13.40.0 Bus Batch](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/Batch.php)及[固定队列文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md) | 源码区别pending归零、then、finally及allowFailures；文档覆盖提交后派发、RateLimited、WithoutOverlapping和超时／尝试数 | 复用这些调度机制。Batch finished／finally或“提交视频的Queue Job成功”都不等于远端审核已完成、所有必检模态通过；以领域子任务记录裁决，不重写Bus或新建工作流引擎 |
-| [本地RateLimited](../../../vendor/openrust/framework/src/queue/middleware/rate_limited.rs)、[WithoutOverlapping／SkipIfBatchCancelled](../../../vendor/openrust/framework/src/queue/middleware.rs)、[本地Batch](../../../vendor/openrust/framework/src/bus/batch.rs) | 代码已存在具名限流、防重叠与批次状态；RateLimited找不到具名策略时直接执行下游 | 优先复用并实际注册包限流策略；配置缺失或注册遗漏不能默认为无限制。多在途任务上限使用现有共享锁／数据库租约，单个WithoutOverlapping不是N路并发计数器，不重新造缓存／队列后端 |
+| [本地RateLimited](../../../vendor/openrust-framework/src/queue/middleware/rate_limited.rs)、[WithoutOverlapping／SkipIfBatchCancelled](../../../vendor/openrust-framework/src/queue/middleware.rs)、[本地Batch](../../../vendor/openrust-framework/src/bus/batch.rs) | 代码已存在具名限流、防重叠与批次状态；RateLimited找不到具名策略时直接执行下游 | 优先复用并实际注册包限流策略；配置缺失或注册遗漏不能默认为无限制。多在途任务上限使用现有共享锁／数据库租约，单个WithoutOverlapping不是N路并发计数器，不重新造缓存／队列后端 |
 | [Sightengine签名](https://sightengine.com/docs/callback-signature)、[回调状态](https://sightengine.com/docs/receive-video-moderation-callbacks)、[查询任务](https://www.sightengine.com/docs/interact-with-video-moderation-jobs) | 账号级回调签名与逐请求callback_url不同；区分ongoing／finished／stopped／failure，轮询受限 | 默认账号级已签名回调。逐请求URL不因存在字段就视为有签名；无签名仅触发查单。中间事件是增量证据，不等于终态；查询必须确认其返回的完整性，无法补全则不通过 |
 | [腾讯云视频回调](https://cloud.tencent.com/document/product/1265/104001) | 文档指定可用Seed生成X-Signature，按原始body校验；FINISH只给前30个图片／音频违规片段，完整结果需拼接或查详情 | 使用所选版本真实协议，不拿HTTP API的TC3请求签名代替回调验签。完成回调仍按覆盖和分页查询补全；“最多30条”不解释成视频只存在30条证据 |
 | [阿里云增强2.0视频API](https://www.alibabacloud.com/help/en/content-moderation/latest/video-moderation-enhanced-api)、[Hive Task API](https://docs.thehive.ai/reference/submitting-via-task-api) | 阿里云使用VideoModeration／VideoModerationResult，表单回调与所选代际有关；Hive区分任务／project和sync／async | 冻结每家实际产品与版本后分别接线，不能混用旧green、IMM、新增强服务或Hive Dashboard／模型API。缺官方材料的字段明列待核实，不编造通用签名／重放保证 |
@@ -350,7 +350,7 @@ D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，
 
 ### 8.6 D-05：凭据引用与实际配置边界
 
-本地[ConfigurationShowCommand](../../../vendor/openrust/framework/src/foundation/console/configuration_command.rs)按值输出，[ConfigurationCache](../../../vendor/openrust/framework/src/config/cache.rs)保存配置值，[配置指南](../../../docs/zh-Hans/getting-started/configuration.md#configuration-caching)也提示输出可能含凭据；因此不继续假设框架已有全局秘钥自动脱敏。
+本地[ConfigurationShowCommand](../../../vendor/openrust-framework/src/foundation/console/configuration_command.rs)按值输出，[ConfigurationCache](../../../vendor/openrust-framework/src/config/cache.rs)保存配置值，[配置指南](../../../docs/zh-Hans/getting-started/configuration.md#configuration-caching)也提示输出可能含凭据；因此不继续假设框架已有全局秘钥自动脱敏。
 
 - **首版决定：moderation可序列化配置只保存凭据引用／修订，默认从部署提供的受控只读挂载文件在Provider／驱动解析时读取**。文件不发布到public、不进入Git、不嵌入配置缓存，按受控路径／实际文件／权限及大小限制读取；路径由应用配置提供，不从HTTP输入取值。跨HTTP／Artisan／Worker必须有相同授权挂载，缺失明确失败。
 - 凭据提供器为小型包内公开接缝，外部可接已有秘钥服务；不新建全框架Vault。不通过运行时读取项目.env来绕过config:cache语义，也不假设命中缓存后.env仍加载。进程环境等替代注入仅在明确配置并验证缓存／进程边界后提供，不在首版强制增加第二种默认方案。

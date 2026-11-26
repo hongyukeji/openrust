@@ -35,7 +35,7 @@
 
 ## CSRF 与默认中间件组
 
-- 对照固定 Laravel 的 PreventRequestForgery、Handler、默认中间件组和回归用例。复用旧版 `6d1a8192:vendor/openrust/framework/src/http/forgery.rs` 的来源判断、PHP 真值回退和空令牌拒绝边界。请求复用已经缓存的正文与解析结果，保留旧版 `csrf_replay.rs` 的下游可继续读取语义。 [Laravel CSRF](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/csrf.md) · [Laravel PreventRequestForgery 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/Middleware/PreventRequestForgeryTest.php)
+- 对照固定 Laravel 的 PreventRequestForgery、Handler、默认中间件组和回归用例。复用旧版 `6d1a8192:vendor/openrust-framework/src/http/forgery.rs` 的来源判断、PHP 真值回退和空令牌拒绝边界。请求复用已经缓存的正文与解析结果，保留旧版 `csrf_replay.rs` 的下游可继续读取语义。 [Laravel CSRF](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/csrf.md) · [Laravel PreventRequestForgery 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/Middleware/PreventRequestForgeryTest.php)
 - 会话已配置时默认 `web` 依次装配 Cookie 加密、队列、会话、错误共享、CSRF、绑定。API 组保留无状态绑定。错误袋通过请求作用域传给 Blade 的阻塞渲染线程。应用级配置支持路径排除、同站允许和仅来源模式。Rust 拒绝重复来源头及配置为明文的 Session/XSRF Cookie。没有配置 Session 的嵌入式应用沿用仅绑定的 Web 组。真实 HTTP 测试不会按环境名跳过 CSRF。
 - HTTP 测试验证来源与令牌分支、伪造失败 419、仅来源失败 403、绑定前拒绝、请求正文复用、加密 XSRF Cookie、API 无会话 Cookie、应用间和请求间错误袋隔离。实际主程序在 MySQL 8.4.13 上连续两次 `GET /` 共用同一会话记录，`GET /up` 返回 200 且无 Cookie。 `./artisan migrate --force` 与 `./artisan inspire` 正常退出。
 - Rust 1.94.0 隔离工作区格式、测试和严格 Clippy 通过，417 项测试通过。三语配置示例通过编译和真实 HTTP 验收，VitePress 构建、12 项通用浏览器检查和 18 项 CSRF、Middleware、Session 正文检查通过。

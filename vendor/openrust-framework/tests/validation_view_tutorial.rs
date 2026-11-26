@@ -1,0 +1,365 @@
+use openrust::{
+    contracts::http::Kernel as _,
+    foundation::{Application, configuration::Routing, http::Kernel},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Route,
+    validation::RuleSet,
+    view::view,
+};
+use std::sync::Arc;
+use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+fn web() -> Result<(), openrust::routing::RoutingError> {
+    Route::get("/form", || view("form").with("message", "outside"))?;
+    Route::get("/read-bags", || view("read-bags"))?;
+    Route::get("/seed-bags", seed)?;
+    Route::get("/errors", || view("errors"))?;
+    Route::get("/old", || view("old"))?;
+    Route::post("/save/{bag}", save)?;
+    Ok(())
+}
+fn seed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::support::MessageBag;
+        request.session_mut()?.flash_errors(
+            "default",
+            &MessageBag::new([
+                ("email", ["bad-email<script>"]),
+                ("files.0", ["bad-zero"]),
+                ("files.1", ["bad-one"]),
+            ]),
+        )?;
+        request
+            .session_mut()?
+            .flash_errors("login", &MessageBag::new([("title", ["bad-login"])]))?;
+        request
+            .session_mut()?
+            .flash_input(serde_json::json!({"subtitle":null}))?;
+        Ok(Response::empty(StatusCode::FOUND).header(
+            http::header::LOCATION,
+            http::HeaderValue::from_static("/read-bags"),
+        ))
+    })
+}
+fn save(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|min:3"), ("body", "required")])?;
+        if request.route("bag") == Some("login") {
+            request.validate_with_bag("login", rules).await?;
+        } else {
+            request.validate(rules).await?;
+        }
+        Ok(Response::empty(StatusCode::CREATED))
+    })
+}
+async fn transport(
+    axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    kernel.handle_transport(request).await
+}
+async fn send(
+    address: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+    body: &str,
+    cookie: Option<&str>,
+) -> String {
+    tokio::time::timeout(std::time::Duration::from_secs(10),async{let mut socket=tokio::net::TcpStream::connect(address).await.unwrap();let cookie=cookie.map(|cookie|format!("Cookie: {cookie}\r\n")).unwrap_or_default();let request=format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nSec-Fetch-Site: same-origin\r\nContent-Type: application/json\r\nReferer: http://{address}/form\r\n{cookie}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());socket.write_all(request.as_bytes()).await.unwrap();let mut response=String::new();socket.read_to_string(&mut response).await.unwrap();response}).await.unwrap()
+}
+fn cookie(response: &str) -> String {
+    response
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("set-cookie: ")
+                .filter(|cookie| cookie.starts_with("view_session="))
+                .map(|cookie| cookie.split(';').next().unwrap().to_owned())
+        })
+        .unwrap()
+}
+#[tokio::test]
+async fn validation_quickstart_errors_and_old_helpers_render_in_real_web_requests() {
+    use axum::handler::Handler as _;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("resources/views")).unwrap();
+    std::fs::write(root.path().join("resources/views/errors.blade.html"),"@if($errors->any())<ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>@else<p>clean</p>@endif").unwrap();
+    std::fs::write(root.path().join("resources/views/old.blade.html"),"<input value=\"{{ old('title', 'fallback') }}\"><b>{{ request()->old('title', 'fallback') }}</b>").unwrap();
+    std::fs::write(root.path().join("resources/views/form.blade.html"),"@if($errors->any())<ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>@else<p>clean</p>@endif @error('title')<p class=\"default\">{{ $message }}</p>@enderror @error('title', 'login')<p class=\"login\">{{ $message }}</p>@enderror <input value=\"{{ old('title', 'fallback') }}\"> <b>{{ $errors->login->first('title') }}</b> @foreach($errors->login->title ?? [] as $error)<i>{{ $error }}</i>@endforeach").unwrap();
+    std::fs::write(root.path().join("resources/views/read-bags.blade.html"),r#"<b>{{ $errors->first('email') }}</b> @if($errors->has('email'))<mark>has-email</mark>@endif @foreach($errors->get('files.*') as $messages)@foreach($messages as $message)<p>{{ $message }}</p>@endforeach
+@endforeach @error('files.*')<strong>{{ $message }}</strong>@enderror <i>{{ $errors->getBag('login')->first('title') }}</i> <em>{{ old('subtitle', 'fallback') }}</em> <script id="errors" type="application/json">{{ Js::from($errors) }}</script>"#).unwrap();
+    let mut kernel=Kernel::new(Application::configure(root.path().into()).with_config(|_,_|Ok(std::collections::BTreeMap::from([("app".into(),serde_json::json!({"key":"a".repeat(32)})),("session".into(),serde_json::json!({"driver":"array","cookie":"view_session","lottery":[0,100]}))]))).with_exceptions(|exceptions|{exceptions.report::<openrust::view::ViewError>(|error|{eprintln!("View tutorial error: {error:?}");openrust::foundation::configuration::ReportDecision::Stop});}).with_routing(Routing::default().web(web)).create().unwrap());
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport.with_state(Arc::new(kernel)).into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    for path in ["/errors", "/old", "/form"] {
+        let response = send(address, "GET", path, "", None).await;
+        assert!(response.starts_with("HTTP/1.1 200"), "{path}: {response}");
+        if path == "/errors" {
+            assert!(response.contains("<p>clean</p>"));
+        }
+        if path == "/old" {
+            assert!(response.contains("value=\"fallback\""));
+        }
+    }
+    for bag in ["default", "login"] {
+        let initial = send(address, "GET", "/form", "", None).await;
+        let session = cookie(&initial);
+        let response = send(
+            address,
+            "POST",
+            &format!("/save/{bag}"),
+            r#"{"title":"<script>"}"#,
+            Some(&session),
+        )
+        .await;
+        assert!(response.starts_with("HTTP/1.1 302"), "{response}");
+        let session = cookie(&response);
+        let form = send(address, "GET", "/form", "", Some(&session)).await;
+        assert!(form.starts_with("HTTP/1.1 200"), "{form}");
+        assert!(form.contains("value=\"&lt;script&gt;\""), "{form}");
+        if bag == "default" {
+            assert!(
+                form.contains("<li>The body field is required.</li>"),
+                "{form}"
+            );
+        } else {
+            assert!(form.contains("<p>clean</p>"), "{form}");
+        }
+        let clean = send(address, "GET", "/form", "", Some(&session)).await;
+        assert!(clean.contains("<p>clean</p>"), "{clean}");
+        assert!(clean.contains("value=\"fallback\""), "{clean}");
+    }
+
+    for bag in ["default", "login"] {
+        let initial = send(address, "GET", "/form", "", None).await;
+        let session = cookie(&initial);
+        let response = send(
+            address,
+            "POST",
+            &format!("/save/{bag}"),
+            r#"{"title":"ab","body":"provided","subtitle":null}"#,
+            Some(&session),
+        )
+        .await;
+        assert!(response.starts_with("HTTP/1.1 302"), "{response}");
+        let session = cookie(&response);
+        let form = send(address, "GET", "/form", "", Some(&session)).await;
+        assert!(form.starts_with("HTTP/1.1 200"), "{form}");
+        assert!(
+            form.contains(&format!(
+                "<p class=\"{bag}\">The title field must be at least 3 characters.</p>"
+            )),
+            "{form}"
+        );
+        assert!(form.contains("value=\"ab\""), "{form}");
+        if bag == "login" {
+            assert!(
+                form.contains("<b>The title field must be at least 3 characters.</b>"),
+                "{form}"
+            );
+            assert!(
+                form.contains("<i>The title field must be at least 3 characters.</i>"),
+                "{form}"
+            );
+        }
+    }
+    let response = send(address, "GET", "/seed-bags", "", None).await;
+    assert!(response.starts_with("HTTP/1.1 302"), "{response}");
+    let session = cookie(&response);
+    let response = send(address, "GET", "/read-bags", "", Some(&session)).await;
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    for expected in [
+        "<b>bad-email&lt;script&gt;</b>",
+        "<mark>has-email</mark>",
+        "<p>bad-zero</p>",
+        "<p>bad-one</p>",
+        "<strong>bad-zero</strong>",
+        "<i>bad-login</i>",
+        "<em></em>",
+    ] {
+        assert!(response.contains(expected), "{expected}: {response}");
+    }
+    let serialized = response
+        .split_once("type=\"application/json\">")
+        .unwrap()
+        .1
+        .split_once("</script>")
+        .unwrap()
+        .0;
+    let payload = serialized
+        .strip_prefix("JSON.parse('")
+        .unwrap()
+        .strip_suffix("')")
+        .unwrap();
+    assert!(!payload.contains("<script>"));
+    let encoded: String = serde_json::from_str(&format!("\"{payload}\"")).unwrap();
+    let actual: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(
+        actual,
+        serde_json::json!({"default":{"email":["bad-email<script>"],"files.0":["bad-zero"],"files.1":["bad-one"]},"login":{"title":["bad-login"]}})
+    );
+    server.abort();
+    let _ = server.await;
+}
+#[test]
+fn error_view_objects_preserve_json_while_opaque_services_remain_nonserializable() {
+    use openrust::{
+        support::{MessageBag, ViewErrorBag},
+        view::{ViewObject, ViewResult, ViewValue},
+    };
+    let mut bag = MessageBag::new([("title", ["Bad <title>"]), ("files.0", ["Bad file"])]);
+    bag.set_format("<b>:message</b>");
+    let raw = serde_json::to_value(&bag).unwrap();
+    let value: ViewValue = bag.clone().into();
+    assert_eq!(value.to_json().unwrap(), raw);
+    let mut bags = ViewErrorBag::new();
+    bags.put("login", bag);
+    let raw = serde_json::to_value(&bags).unwrap();
+    let value: ViewValue = bags.into();
+    assert_eq!(value.to_json().unwrap(), raw);
+    struct Opaque;
+    impl ViewObject for Opaque {
+        fn call(&self, _: &str, _: &[ViewValue]) -> ViewResult<ViewValue> {
+            Ok(ViewValue::Null)
+        }
+    }
+    assert!(ViewValue::from_object(Arc::new(Opaque)).to_json().is_err());
+}
+#[test]
+fn projection_serialization_errors_and_repeated_aliases_restore_the_guard_stack() {
+    use openrust::{support::MessageBag, view::ViewValue};
+    let value: ViewValue = MessageBag::new([("title", ["bad"])]).into();
+    for _ in 0..128 {
+        let repeated = ViewValue::Array(vec![value.clone(), value.clone()]);
+        assert!(repeated.to_json().is_ok());
+    }
+}
+#[test]
+fn object_projection_depth_errors_restore_other_objects_and_do_not_reject_sibling_aliases() {
+    use openrust::view::{ViewData, ViewObject, ViewResult, ViewValue};
+    struct Projected(ViewData);
+    impl ViewObject for Projected {
+        fn properties(&self) -> Option<&ViewData> {
+            Some(&self.0)
+        }
+        fn call(&self, _: &str, _: &[ViewValue]) -> ViewResult<ViewValue> {
+            Ok(ViewValue::Null)
+        }
+    }
+    let good: ViewValue = openrust::support::MessageBag::new([("title", ["bad"])]).into();
+    let invalid = ViewValue::from_object(Arc::new(Projected(
+        [("number".into(), ViewValue::from(f64::NAN))].into(),
+    )));
+    for _ in 0..128 {
+        assert!(invalid.to_json().is_err());
+        assert!(good.to_json().is_ok());
+    }
+    let mut depth = ViewValue::Null;
+    for _ in 0..64 {
+        depth = ViewValue::from_object(Arc::new(Projected([("inner".into(), depth)].into())));
+    }
+    assert!(depth.to_json().is_ok());
+    let too_deep = ViewValue::from_object(Arc::new(Projected([("inner".into(), depth)].into())));
+    assert!(too_deep.to_json().is_err());
+    assert!(good.to_json().is_ok());
+}
+fn doc(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Response::view(
+            StatusCode::OK,
+            view(format!("doc-{}", request.route("language").unwrap())),
+            Default::default(),
+            request,
+        )
+        .await
+    })
+}
+#[tokio::test]
+async fn three_language_validation_pages_use_the_actual_blade_examples() {
+    use axum::handler::Handler as _;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("resources/views")).unwrap();
+    for (lang, text) in [
+        (
+            "en",
+            include_str!("../../../docs/en/the-basics/validation.md"),
+        ),
+        (
+            "zh-Hans",
+            include_str!("../../../docs/zh-Hans/the-basics/validation.md"),
+        ),
+        (
+            "zh-Hant",
+            include_str!("../../../docs/zh-Hant/the-basics/validation.md"),
+        ),
+    ] {
+        let snippet = text
+            .split("{#displaying-errors-and-old-input}")
+            .nth(1)
+            .unwrap()
+            .split("```blade\n")
+            .nth(1)
+            .unwrap()
+            .split("```")
+            .next()
+            .unwrap();
+        std::fs::write(
+            root.path()
+                .join("resources/views")
+                .join(format!("doc-{lang}.blade.html")),
+            snippet,
+        )
+        .unwrap();
+    }
+    let mut kernel=Kernel::new(Application::configure(root.path().into()).with_config(|_,_|Ok(std::collections::BTreeMap::from([("app".into(),serde_json::json!({"key":"a".repeat(32)})),("session".into(),serde_json::json!({"driver":"array","cookie":"view_session","lottery":[0,100]}))]))).with_routing(Routing::default().web(||{Route::get("/docs/{language}",doc)?;Route::post("/save/{bag}",save)?;Ok(())})).create().unwrap());
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport.with_state(Arc::new(kernel)).into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    for lang in ["en", "zh-Hans", "zh-Hant"] {
+        for bag in ["default", "login"] {
+            let path = format!("/docs/{lang}");
+            let initial = send(address, "GET", &path, "", None).await;
+            assert!(initial.starts_with("HTTP/1.1 200"), "{initial}");
+            assert!(initial.contains("value=\"Untitled\""));
+            let session = cookie(&initial);
+            let submitted = send(
+                address,
+                "POST",
+                &format!("/save/{bag}"),
+                r#"{"title":"ab","body":"provided"}"#,
+                Some(&session),
+            )
+            .await;
+            assert!(submitted.starts_with("HTTP/1.1 302"));
+            let session = cookie(&submitted);
+            let html = send(address, "GET", &path, "", Some(&session)).await;
+            assert!(html.starts_with("HTTP/1.1 200"), "{html}");
+            assert!(html.contains("value=\"ab\""));
+            assert!(
+                html.contains("<p>The title field must be at least 3 characters.</p>"),
+                "{html}"
+            );
+            assert_eq!(html.contains("<ul>"), bag == "default");
+            let clean = send(address, "GET", &path, "", Some(&session)).await;
+            assert!(clean.contains("value=\"Untitled\""));
+            assert!(!clean.contains("<ul>"));
+        }
+    }
+    server.abort();
+    let _ = server.await;
+}

@@ -250,7 +250,7 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
         id_digest, scope = sql("SELECT id, scope_key FROM moderation_video_tombstones").split()
         assert len(id_digest) == len(scope) == 64 and task not in id_digest
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "--path=vendor/openrust-content-moderation/database/migrations/"
                 "2026_11_26_000018_create_moderation_video_tombstones_table.rs", successful=False)
 
         consume("moderation-recovery")

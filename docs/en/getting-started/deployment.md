@@ -160,7 +160,7 @@ $app = Join-Path $PWD 'release/main.exe'
 & $app
 ```
 
-When the build includes `webhook-client` or `webhook-server`, copy each included package's `THIRD_PARTY_NOTICES.md` and `LICENSES/` from `vendor/openrust/<package>/` into `release/licenses/<package>/`.
+When the build includes `webhook-client` or `webhook-server`, copy each included package's `THIRD_PARTY_NOTICES.md` and `LICENSES/` from `vendor/openrust-<package>/` into `release/licenses/<package>/`.
 
 For subsequent releases, preserve the application key, database, and writable storage. A service manager can run `main.exe` from another working directory. `APP_BASE_PATH` can select an absolute application root.
 

@@ -573,7 +573,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert replacement["message_id"] != fanout["message_id"]
         assert replacement["delivery_ids"][0] != fanout["delivery_ids"][0]
         finish(replacement["delivery_ids"][0])
-        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                      "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs")
         command("migrate:rollback", migration, "--step=1000", "--force", success=False)
         print(f"{driver}: 幂等期限、旧键回退、业务保留、并发及旧 Worker 隔离通过")
@@ -622,7 +622,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert renewed == publish("new-message")
         assert renewed["delivery_ids"] != legacy[1]["delivery_ids"]
         assert all(read(identifier) for identifier in renewed["delivery_ids"])
-        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                      "2026_11_25_000000_create_webhook_idempotency_keys_table.rs")
         command("migrate:rollback", migration, "--step=1000", "--force", success=False)
         print(f"{driver}: 旧版升级、幂等映射、并发首写、原事务回滚和稳定 HTTP 收据通过")
@@ -702,7 +702,7 @@ def exercise(binary, env, log, receiver, driver, sql):
                     process.kill()
                     process.wait(timeout=5)
         assert hold(loser, "--release")
-        hold_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        hold_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                           "2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs")
         command("migrate:rollback", hold_migration, "--step=1000", "--force", success=False)
         assert hold(winner, "--release") and not hold(winner, "--release")
@@ -713,9 +713,9 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert prune("--days=36501", success=False) is None
         assert prune("--days=0", "--limit=501", success=False) is None
 
-        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                      "2026_11_25_000000_extend_webhook_deliveries_for_retention.rs")
-        expiry_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        expiry_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                             "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs")
         command("migrate:rollback", migration, "--step=1000", "--force", success=False)
         command("migrate:rollback", expiry_migration, "--step=1000", "--force")
@@ -772,9 +772,9 @@ def exercise(binary, env, log, receiver, driver, sql):
         published = publish("retention-fanout")
         message_id = published["message_id"]
         fanout = published["delivery_ids"][0]
-        message_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        message_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                              "2026_11_25_000000_extend_webhook_messages_for_retention.rs")
-        expiry_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        expiry_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                             "2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs")
         command("migrate:rollback", message_migration, "--step=1000", "--force", success=False)
         command("migrate:rollback", expiry_migration, "--step=1000", "--force")
@@ -795,7 +795,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert first["pruned"] == second["pruned"] == 0
         assert first["candidates"] + second["candidates"] == 1
         assert hold(empty["message_id"], "--message")
-        message_hold_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        message_hold_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                                   "2026_11_25_000000_mark_webhook_messages_retention_hold.rs")
         command("migrate:rollback", message_hold_migration, "--step=1000", "--force", success=False)
         assert prune("--days=0", "--messages")["pruned"] == 0
@@ -1143,7 +1143,7 @@ def exercise(binary, env, log, receiver, driver, sql):
             assert '"succeeded"' in send(isolated, scope="webhook-outbound-limit-alternate", current=peer)
             captured("slot-other-scope")
             assert charged() == "2"
-            migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+            migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                          "2026_11_25_000001_extend_webhook_attempts_for_concurrency.rs")
             command("migrate:rollback", migration, "--step=1000", "--force", success=False)
 
@@ -1471,7 +1471,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         endpoint("delete", "replay")
         command(*replay, success=False)
 
-        command("migrate:rollback", "--path=vendor/openrust/webhook-server/database/migrations/"
+        command("migrate:rollback", "--path=vendor/openrust-webhook-server/database/migrations/"
                 "2026_11_25_000000_create_webhook_endpoints_table.rs", "--force", success=False)
         print(f"{driver}: 端点暂停恢复、版本变化、跨范围、删除竞态及重放当前许可通过", flush=True)
         return
@@ -1566,7 +1566,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         replay(missing, success=False)
         captured("replay-failed-cleared")
 
-        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                      "2026_11_25_000000_extend_webhook_deliveries_for_replay.rs")
         command("migrate:rollback", migration, "--force", success=False)
         assert sql("SELECT COUNT(*) FROM webhook_delivery_replays") == "6"
@@ -1763,7 +1763,7 @@ def exercise(binary, env, log, receiver, driver, sql):
                 process.kill()
                 process.wait(timeout=10)
 
-        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+        migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                      "2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs")
         assert "extend_webhook_deliveries_for_recovery" in command("migrate:rollback", migration, "--force")
         assert attempts(crash) == "1\tunknown\t0\n2\tsucceeded\t204"
@@ -1772,7 +1772,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         print(f"{driver}/{worker[1]}: 并发 Scheduler、丢失任务、到期退避、崩溃补派、范围隔离及迁移通过", flush=True)
         return
 
-    transport_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+    transport_migration = ("--path=vendor/openrust-webhook-server/database/migrations/"
                            "2026_11_25_000001_add_transport_to_webhook_delivery_attempts.rs")
     assert "add_transport_to_webhook_delivery_attempts" in command(
         "migrate:rollback", transport_migration, "--step=1000", "--force"

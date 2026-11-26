@@ -24,7 +24,7 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
         std::fs::create_dir_all(path.join(format!("lang/{lang}"))).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-                "vendor/openrust/framework/src/localization/lang/{lang}/schema.json"
+                "vendor/openrust-framework/src/localization/lang/{lang}/schema.json"
             )),
             path.join(format!("lang/{lang}/schema.json")),
         )
@@ -118,7 +118,7 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
         false,
     );
     let published = path.join("config/activitylog.rs");
-    let template = include_str!("../vendor/openrust/activitylog/config/activitylog.rs");
+    let template = include_str!("../vendor/openrust-activitylog/config/activitylog.rs");
     assert_eq!(std::fs::read_to_string(&published).unwrap(), template);
     std::fs::write(
         &published,

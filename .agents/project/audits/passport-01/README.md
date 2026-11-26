@@ -6,7 +6,7 @@
 
 - [Passport 13.10.0](https://github.com/laravel/passport/tree/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7)，SHA `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7`：PassportServiceProvider、Passport、Console/KeysCommand、config/passport.php 和五份迁移；保留上游 MIT 许可证。
 - [Laravel 13.40.0](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc)，文档固定 SHA `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 passport.md。参考固定 Goravel 1.18 的编译装配，入口／Runner 本批不变。
-- 旧版 `../openrust-v0.x` HEAD `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`：检查 `vendor/openrust/passport/src/{provider,migrations,migrations_tests,migrations_mysql_tests,test_keys}.rs` 与 `tests/unit/provider.rs`。提取 load_key／configured_file_path／literal_file_uri_path／read_key_file／key_mode_allowed 的本地路径、换行与权限规则，以及迁移字段和隔离回归；不搬旧 SeaORM／Figment 容器、不保留旧强制公私钥配对要求，不复制旧 Windows 未实现分支。旧版四表扩为固定上游五表，并重新逐字段验证。
+- 旧版 `../openrust-v0.x` HEAD `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`：检查 `vendor/openrust-passport/src/{provider,migrations,migrations_tests,migrations_mysql_tests,test_keys}.rs` 与 `tests/unit/provider.rs`。提取 load_key／configured_file_path／literal_file_uri_path／read_key_file／key_mode_allowed 的本地路径、换行与权限规则，以及迁移字段和隔离回归；不搬旧 SeaORM／Figment 容器、不保留旧强制公私钥配对要求，不复制旧 Windows 未实现分支。旧版四表扩为固定上游五表，并重新逐字段验证。
 
 ## 实现与 Rust 适配
 
@@ -62,13 +62,13 @@ OAuth 客户端、授权码＋PKCE、令牌／Guard、设备流程、scopes、in
 
 ```text
 Cargo.{toml,lock}
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/console/mod.rs
 ├── src/database/database_manager.rs
 ├── src/database/migrations/{migration,migrator}.rs
 ├── src/database/schema/foreign_id_column_definition.rs
 └── tests/database_migrations.rs
-vendor/openrust/passport/
+vendor/openrust-passport/
 ├── Cargo.toml
 ├── LICENSE
 ├── config/passport.rs

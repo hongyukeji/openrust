@@ -2,7 +2,7 @@
 
 ## 契约
 
-以固定 Laravel v13.40.0 的通知 `ChannelManager::extend` 和通用 `Manager::driver` 为依据。OpenRust 通过应用容器注册类型化的 `SmsDriver` 工厂，并以 `Option<&str>` 表达默认或显式选择。`SmsChannel` 通过现有自定义通知渠道注册，应用的派发端和 Worker 共用同一服务提供者。旧版 `v0.x` 的 `vendor/openrust/framework/src/sms.rs` 提供了驱动抽象与国际号码校验的参考。主线复用现有 Vonage 传输，保留 `vonage` 渠道及其既有负载。 [固定通知管理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/ChannelManager.php) · [固定通用管理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Manager.php)
+以固定 Laravel v13.40.0 的通知 `ChannelManager::extend` 和通用 `Manager::driver` 为依据。OpenRust 通过应用容器注册类型化的 `SmsDriver` 工厂，并以 `Option<&str>` 表达默认或显式选择。`SmsChannel` 通过现有自定义通知渠道注册，应用的派发端和 Worker 共用同一服务提供者。旧版 `v0.x` 的 `vendor/openrust-framework/src/sms.rs` 提供了驱动抽象与国际号码校验的参考。主线复用现有 Vonage 传输，保留 `vonage` 渠道及其既有负载。 [固定通知管理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/ChannelManager.php) · [固定通用管理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Manager.php)
 
 ## 实际结果
 

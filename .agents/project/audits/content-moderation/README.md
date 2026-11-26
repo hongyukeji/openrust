@@ -285,7 +285,7 @@ HTTP 发布入口是隔离应用消费者。生产应用持有内容、删除状
 
 ## CM-03W 跨进程共享点播账户速率 {#account-rates}
 
-沿用 [固定 Laravel RateLimited](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Middleware/RateLimited.php) 的限额与延迟职责，以及 [Webhook 出站数据库额度](../../../vendor/openrust/webhook-server/src/limits.rs) 的短事务和固定窗口。审核必须覆盖直接服务调用和队列入口，速率额度放在同一数据库领取事务。以应用、驱动、账号和操作区分计数，租户及配置修订共享账号额度。当前窗口耗尽时持久化下一次可领取时间，保留原截止时间和查单次数。竞争输掉领取或同一事务失败时撤销本次扣额，数据库不可用和非法限额明确报错。
+沿用 [固定 Laravel RateLimited](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Middleware/RateLimited.php) 的限额与延迟职责，以及 [Webhook 出站数据库额度](../../../../vendor/openrust-webhook-server/src/limits.rs) 的短事务和固定窗口。审核必须覆盖直接服务调用和队列入口，速率额度放在同一数据库领取事务。以应用、驱动、账号和操作区分计数，租户及配置修订共享账号额度。当前窗口耗尽时持久化下一次可领取时间，保留原截止时间和查单次数。竞争输掉领取或同一事务失败时撤销本次扣额，数据库不可用和非法限额明确报错。
 
 在 `d31032e98` 隔离快照叠加已验收实现及本批改动。SQLite、PostgreSQL 18.7、MySQL 8.4.13 分别实测 HTTP、Artisan、独立 Worker 与隔离供应商 HTTP。8 并发请求只为同一检查占一次额度；两个租户、两配置修订竞争共享提交和查询窗口。隔离应用及独立账号仍获各自额度。验证窗口重开、限额查询不消耗任务查询次数、缺共享表禁止发送、非法配置、注入第二次数据库写入失败撤销全部变化。每库实际 6 次供应商提交、2 次查询。SQLite 的既有存储、取消、复合裁决、Retry-After、数据库和 Redis Scheduler 回归通过。包及应用严格 Clippy、3 项包契约、关闭回调 feature 的编译、三语文档构建和 Chrome 检查通过。
 

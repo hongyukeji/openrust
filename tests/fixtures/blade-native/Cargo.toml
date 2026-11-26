@@ -7,12 +7,12 @@ rust-version = "1.95"
 [features]
 standalone = []
 [dependencies]
-openrust = { package = "openrust-framework", path = "../../../vendor/openrust/framework" }
+openrust = { package = "openrust-framework", path = "../../../vendor/openrust-framework" }
 native-package = { path = "package" }
 tokio = { version = "1.54.1", features = ["macros", "rt"] }
 serde_json = "1"
 [build-dependencies]
-openrust-package-discovery = { path = "../../../vendor/openrust/package-discovery" }
+openrust-package-discovery = { path = "../../../vendor/openrust-package-discovery" }
 
 [package.metadata.openrust.blade]
 paths = ["templates"]

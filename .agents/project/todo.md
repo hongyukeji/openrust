@@ -64,25 +64,25 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 本轮从顺序2开始持续开发，当前实现、回归、真实消费者与未验边界见[驱动扩展验收](audits/driver-extensions/README.md)；本节初始只读结论由各项最新记录补充。
 
 - [x] **DRV-01 文件系统自定义驱动（2026-11-25 定向验收闭合，真实供应商发布边界保留）**
-  - **已完成：** [FilesystemManager](../../vendor/openrust/framework/src/filesystem/filesystem_manager.rs)和Storage已提供extend／build_from_config；[FilesystemAdapter](../../vendor/openrust/framework/src/filesystem/filesystem_adapter.rs)通过custom承载外部Cloud／Filesystem实现，不要求下游修改内部枚举。具名并发缓存、失败重试、工厂替换与应用隔离、路径保护和流式取消均通过实际消费者；详见[验收](audits/driver-extensions/README.md)。
+  - **已完成：** [FilesystemManager](../../vendor/openrust-framework/src/filesystem/filesystem_manager.rs)和Storage已提供extend／build_from_config；[FilesystemAdapter](../../vendor/openrust-framework/src/filesystem/filesystem_adapter.rs)通过custom承载外部Cloud／Filesystem实现，不要求下游修改内部枚举。具名并发缓存、失败重试、工厂替换与应用隔离、路径保护和流式取消均通过实际消费者；详见[验收](audits/driver-extensions/README.md)。
   - **处理范围：** 对照固定Laravel FilesystemManager的自定义工厂和适配层职责，补外部后端可承载的适配接缝及注册／解析入口。保留Storage、Factory、FilesystemAdapter的既有公开返回类型和行为；不能只加extend注册表，最终仍要求调用方修改内部枚举。保持local／S3的路径保护、权限、流式操作、错误策略和临时URL行为。
   - **验收：** 从独立消费crate实现测试后端，在应用Provider注册，经真实Storage具名磁盘入口完成读写、删除及错误传播；覆盖未知驱动、配置错误、同驱动多配置、实例复用、替换后缓存失效、应用隔离及配置缓存前后。云／临时URL等可选能力不支持时明确返回错误，不伪装成功。
 
 - [x] **DRV-02 Pay 自定义支付驱动（本地交付完成）**
   - **已完成：** `PayManager::extend`、`PayDriver` 和 `DriverNotification` 接入原 `Pay`／`Gateway` 入口；独立消费者、微信与支付宝协议、三库真实 HTTP／Artisan、事务及缓存通过。见[支付验收](audits/pay/README.md#custom-drivers)。真实商户与资金验收仍在下文发布边界。
-  - **处理范围：** 提供可由外部crate实现的支付契约与应用实例内工厂注册，打通Pay::driver到Gateway的实际消费者；核对[公共输入／结果与VerifiedNotification](../../vendor/openrust/pay/src/types.rs)对外部实现的可构造性和信任边界，不通过直接开放全部私有验签字段绕过既有校验。保留内置微信／支付宝、订单／金额／场景、密钥快照、错误及回调语义；不顺带承诺新币种、服务商或新支付产品。
+  - **处理范围：** 提供可由外部crate实现的支付契约与应用实例内工厂注册，打通Pay::driver到Gateway的实际消费者；核对[公共输入／结果与VerifiedNotification](../../vendor/openrust-pay/src/types.rs)对外部实现的可构造性和信任边界，不通过直接开放全部私有验签字段绕过既有校验。保留内置微信／支付宝、订单／金额／场景、密钥快照、错误及回调语义；不顺带承诺新币种、服务商或新支付产品。
   - **验收：** 外部测试驱动经Provider注册，使用原Pay入口执行支付、查询、关闭、退款及回调，明确不支持操作；内置协议正反例继续通过。保持DatabaseNotifications的去重、行锁、业务回调及完成标记在同一事务边界；涉及共享存储的改动按项目三库规则实测。未知驱动、工厂失败重试、具名隔离、替换／旧句柄、配置缓存、HTTP与独立Artisan均需覆盖。
 
 - [x] **DRV-03 文本机器翻译与七个内置驱动（本地交付完成）**。命名、分批迁移及验收见[本地化与文本翻译拆分计划](plans/localization-and-text-translation.md)。
   - **已完成：** [TR-01、TR-02A／B／C](audits/localization-and-text-translation/README.md#tr-01-文本翻译底座)均已交付。独立包、外部驱动契约、七个驱动的协议验收和三语文档齐备。LibreTranslate 另通过本地真实模型翻译。
-  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[localization 模块](../../vendor/openrust/framework/src/localization/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust/framework/src/contracts/localization/loader.rs)负责词条来源。文本翻译通过独立包的 Translate 门面调用。
+  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[localization 模块](../../vendor/openrust-framework/src/localization/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust-framework/src/contracts/localization/loader.rs)负责词条来源。文本翻译通过独立包的 Translate 门面调用。
   - **处理范围：** 按拆分计划交付 DeepL、LibreTranslate、Azure、Google Cloud、腾讯云、阿里云及百度翻译开放平台，分批适配和逐家验收。提供异步文本翻译契约、具名服务商配置、默认驱动解析、外部crate可实现的驱动与应用Provider工厂注册；明确原文／译文、源／目标语言及供应商错误语义。支持同驱动多份配置、应用隔离和可预测的实例复用／配置刷新，复用现有HTTP Client、配置与容器机制；不预先引入复杂翻译平台，也不把网络翻译隐式接入Lang／__／Blade词条查询。
   - **验收：** 独立消费crate实现自定义驱动，经正式公开入口把文本翻译为指定语言；实测HTTP、独立Artisan和Worker装配及配置缓存前后。覆盖未知驱动、配置错误、空文本、Unicode、语言标签与不支持语言、服务商超时／限流／错误响应、工厂失败重试、同驱动具名隔离、替换／旧句柄和多应用隔离。对未实现的自动识别／批量等可选能力明确边界；模拟服务商验收记录协议与装配覆盖，真实供应商凭据就绪后另验实际译文和错误，不把模拟成功当成真实翻译效果。同步三语用法及验收记录，不改既有Lang公开契约。
 
 - [x] **DRV-04 Cashier 具名账户 HTTP 扩展**：对照固定 Stripe／Paddle 上游后核定现有 HTTP Factory 为扩展入口，支持账户中间件与测试传输；Stripe／Paddle 的计费语义继续由现有契约处理。实际 HTTP、Artisan、账户隔离和客户端缓存回归通过。[范围与验收](audits/pay/cashier.md#account-http)
 
 - [x] **DRV-05 短信既有扩展消费者与三语示例补齐（2026-11-25 三语、HTTP／Artisan及三库双队列闭合）**
-  - **已有能力：** [SmsDriver／SmsManager::extend](../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)及[自定义驱动测试](../../vendor/openrust/framework/tests/sms_manager.rs)已存在，覆盖实例复用、显式配置刷新、失败重试、工厂替换及应用隔离。此项不是新增短信驱动引擎，也不以Sms门面没有同名extend就判为无法扩展。
+  - **已有能力：** [SmsDriver／SmsManager::extend](../../vendor/openrust-framework/src/notifications/sms/sms_manager.rs)及[自定义驱动测试](../../vendor/openrust-framework/tests/sms_manager.rs)已存在，覆盖实例复用、显式配置刷新、失败重试、工厂替换及应用隔离。此项不是新增短信驱动引擎，也不以Sms门面没有同名extend就判为无法扩展。
   - **处理与验收：** 在[三语短信指南](../../docs/zh-Hans/digging-deeper/sms.md#custom-sms-providers)补外部SmsDriver实现、Provider解析Manager注册工厂、具名配置及Sms::driver调用的完整可编译示例，并实测HTTP与独立Artisan／队列Worker的装配。替换工厂／修改配置后，沿用forget_drivers与旧SmsSender保留快照的既有规则；常驻进程须获得自己的注册，不序列化闭包或依赖父进程内存。
 
 - [x] **DRV-06 语言资源默认 Loader 可替换性**。L10N-01／L10N-02 已交付。按应用 Provider 注册 `lang.loader` 并配置 `lang.resources`，普通 Lang 查询使用启动时发布的来源。显式刷新保留运行时覆盖，支持失败回退。数据库包已迁名，三库 HTTP／Artisan／Worker 与配置缓存通过。见[拆分验收](audits/localization-and-text-translation/README.md#l10n-02-默认-loader-与数据库词条)。
@@ -162,4 +162,4 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## Vendor 目录统一
 
-- [ ] 当前小阶段开发完成并通过验收后，立即按[项目规范](conventions.md#代码与测试目录)将 `vendor/` 目录统一迁移到 `vendor/<Cargo 包名>/`。例如将 `vendor/openrust/ai/` 迁至 `vendor/openrust-ai/`。按各包 `Cargo.toml` 的 `package.name` 确定目录，同步更新工作区成员、路径依赖、构建与发布脚本、测试、项目指引和三语文档中的现行路径。迁移后核对 Cargo 工作区与依赖解析、编译和发布入口。
+- [x] 27 个自有包按 `package.name` 迁入 `vendor/<Cargo 包名>/`，核对 3,493 个文件和 786 个锁定依赖，迁移前后成员与解析关系一致。更新构建和发布脚本、测试、项目指引及三语文档。Rust 1.95 全工作区、全目标和全 feature 编译检查、格式和命名检查、许可核对及三语站点通过。macOS ARM64 独立 Release 在其他工作目录实测四组 `vendor:publish`、迁移路径与 SQLite 账本名称、`route:list`、`/up` 和网关鉴权。独立包示例采用工作区的本地补丁，实测启用、禁用、发现、缓存、HTTP、Artisan 及 SQLite。保留固定提交与历史验收快照引用。

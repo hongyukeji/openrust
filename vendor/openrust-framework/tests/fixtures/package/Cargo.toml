@@ -1,0 +1,12 @@
+[workspace]
+members = ["app", "package"]
+resolver = "3"
+
+[patch.crates-io]
+reqwest = { path = "../../../../reqwest" }
+pcre2 = { path = "../../../../pcre2" }
+rav1e = { path = "../../../../rav1e" }
+imgalifier-avif = { path = "../../../../imgalifier-avif" }
+sqlx-sqlite = { path = "../../../../sqlx-sqlite" }
+crypto-glue = { path = "../../../../crypto-glue" }
+sqlx-mysql = { path = "../../../../sqlx-mysql" }

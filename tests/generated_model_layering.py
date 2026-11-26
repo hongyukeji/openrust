@@ -158,7 +158,7 @@ def run():
         assert_model((generated / f'app/models/{name}.rs').read_text(), name)
     stub = generated / 'stubs/model.rs.stub'
     stub.parent.mkdir(exist_ok=True)
-    stub_source = (generated / 'vendor/openrust/framework/src/foundation/console/stubs/model.rs.stub').read_text()
+    stub_source = (generated / 'vendor/openrust-framework/src/foundation/console/stubs/model.rs.stub').read_text()
     stub_source += '\nimpl {{model}} { pub fn stub_marker() -> &\'static str { "custom-stub" } }\n'
     stub.write_text(stub_source)
     cli('make:model', 'CustomizedProbe')
@@ -220,7 +220,7 @@ def run():
     cli('fortify:install')
     assert action.read_bytes() == action_source
     # 故意错放字段的模型只用于序列化反例；没有业务流程或数据库访问。
-    misplaced = (generated / 'vendor/openrust/framework/src/foundation/console/stubs/model.rs.stub').read_text()
+    misplaced = (generated / 'vendor/openrust-framework/src/foundation/console/stubs/model.rs.stub').read_text()
     misplaced = misplaced.replace('{{model}}', 'MisplacedHiddenProbe').replace('{{table_reference}}', '"users"').replace('{{connection}}', '')
     misplaced = misplaced.replace('ModelMetadata::new("users")', 'ModelMetadata::new("users").fillable(&["two_factor_secret", "two_factor_recovery_codes"]).hidden(&["password", "remember_token"])')
     (generated / 'app/models/misplaced_hidden_probe.rs').write_text(misplaced)

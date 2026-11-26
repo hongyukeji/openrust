@@ -89,7 +89,7 @@ async fn tutorial_""" + name + """() {
  fixture.close().await;
 }
 """
-target = source_root / "vendor/openrust/settings/tests/tutorial_generated.rs"
+target = source_root / "vendor/openrust-settings/tests/tutorial_generated.rs"
 if not target.resolve().is_relative_to(source_root):
     parser.error("生成路径不能通过符号链接逃逸源码快照")
 target.write_text(source)

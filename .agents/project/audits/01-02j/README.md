@@ -7,7 +7,7 @@
 ## 固定参考及旧版复用
 
 - 固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Container](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php)：build、resolveDependencies、resolvePrimitive、resolveClass、resolve/needsContextualBuild、addContextualBinding。对照 [ContainerTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContainerTest.php) 的具体类自动构造、嵌套依赖与默认参数。固定文档对应 container 的 resolving、zero-configuration-resolution、binding-interfaces-to-implementations、contextual-binding；仅交付本批对应子节。
-- 实现前核对旧版 `6d1a8192:vendor/openrust/framework/src/container/class_descriptor.rs`、class_descriptor_tests.rs、descriptor_resolve.rs、selection_tests.rs、binding_state_tests.rs，提取编译参数描述、类型化槽、元数据不等于绑定、默认值惰性、空值/类型检查、共享配方与历史隔离。旧 ClassDirectory 的 PHP 弱标量转换、属性、接口投影、命名目录与资源系统未整包迁入。
+- 实现前核对旧版 `6d1a8192:vendor/openrust-framework/src/container/class_descriptor.rs`、class_descriptor_tests.rs、descriptor_resolve.rs、selection_tests.rs、binding_state_tests.rs，提取编译参数描述、类型化槽、元数据不等于绑定、默认值惰性、空值/类型检查、共享配方与历史隔离。旧 ClassDirectory 的 PHP 弱标量转换、属性、接口投影、命名目录与资源系统未整包迁入。
 - 固定 Goravel v1.18.0 继续作为编译型应用装配参考；本批不修改入口、bootstrap/、默认配置或部署形式。
 
 ## 正式接口及行为

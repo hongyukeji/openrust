@@ -15,7 +15,7 @@
 
 ### M01：Activitylog 模型文件仍包含事件处理与存储调度
 
-- 文件：[models.rs](../../../../vendor/openrust/activitylog/src/models.rs)，重点为 `build_stored`（313 行）、`load_related`（352 行）、`save_after_commit`（372 行）和 `LogsActivityListener`（400 行）。
+- 文件：[models.rs](../../../../vendor/openrust-activitylog/src/models.rs)，重点为 `build_stored`（313 行）、`load_related`（352 行）、`save_after_commit`（372 行）和 `LogsActivityListener`（400 行）。
 - 调用链：`LogsActivity::boot_logs_activity` 注册监听器 → `handle`／`handle_in_transaction` → 通过主键读取数据库当前行和关联 → 构造审计数据 → 缓冲、事务内保存或提交后保存。
 - 问题：上轮只移走了自定义 ActivityModel 的存储适配；该文件中的 `tx.table(...)`／`get_connection().table(...)`、关联加载、事件处理和提交后调度仍同时存在。日志模型能力与监听／持久化编排尚未完全分开。
 - 建议：保留 `models::concerns::LogsActivity` 及其覆写钩子；将监听器放到独立 Observer／listener 模块，将当前行与关联快照读取放到内部存储辅助模块，提交后缓冲／写入复用 Repository 和 Buffer。按现有调用层次拆，不为每个辅助函数新建服务类型。
@@ -23,7 +23,7 @@
 
 ### M02：数据库通知记录混合行映射与具体数据库操作
 
-- 文件：[database_notification.rs](../../../../vendor/openrust/framework/src/notifications/database_notification.rs)，`DatabaseRoute::table`（66 行）、`find`（72 行）、`DatabaseNotification::set_read_at`（154 行）、`insert`（172 行）。
+- 文件：[database_notification.rs](../../../../vendor/openrust-framework/src/notifications/database_notification.rs)，`DatabaseRoute::table`（66 行）、`find`（72 行）、`DatabaseNotification::set_read_at`（154 行）、`insert`（172 行）。
 - 调用链：`DatabaseChannel::send`／`send_queued` → 通知记录 `insert`；消费者通过 `DatabaseRoute::find` 读取记录，再调用 `mark_as_read`／`mark_as_unread` 更新状态。
 - 问题：同一文件兼有身份路由、记录定义、行解码、连接选择、插入及条件更新。公开状态方法本身合理，具体查询与映射实现可以独立。
 - 建议：在 notifications 内部抽出 database store／repository，承接查询、行映射、插入与已读状态持久化；保留 `DatabaseRoute::query/find`、`DatabaseNotification::schema`、标记方法及序列化契约。无需为了目录形式改造成另一套公开模型 API。
@@ -31,7 +31,7 @@
 
 ### M03：Fortify 密码重置完成流程进入模型注册适配器
 
-- 文件：[password_reset_model.rs](../../../../vendor/openrust/fortify/src/password_reset_model.rs)，`ModelAdapter<T>::complete`（23 行）；消费者为 [actions/mod.rs](../../../../vendor/openrust/fortify/src/actions/mod.rs) 的 `CompletePasswordReset::handle`（225 行）。
+- 文件：[password_reset_model.rs](../../../../vendor/openrust-fortify/src/password_reset_model.rs)，`ModelAdapter<T>::complete`（23 行）；消费者为 [actions/mod.rs](../../../../vendor/openrust-fortify/src/actions/mod.rs) 的 `CompletePasswordReset::handle`（225 行）。
 - 调用链：业务 Action 查注册表 → 适配器完成类型转换 → 生成并设置 remember token → `save()` → 派发 `PasswordReset`。
 - 问题：业务 Action 主要做注册解析，真正的完成流程却在适配文件中。它不是应用模型定义，但存在适配职责与业务流程混合。
 - 建议：让现有 `CompletePasswordReset` 承担 token 生成与事件顺序；适配器只负责把输入应用到具体模型并持久化，避免新增平行的重置服务体系。
@@ -39,7 +39,7 @@
 
 ### M04：Fortify 邮箱验证适配器承担验证与事件编排
 
-- 文件：[email_verification_model.rs](../../../../vendor/openrust/fortify/src/email_verification_model.rs)，`TypedAccount<T>::verify`（47 行）；消费者为 [email_verification.rs](../../../../vendor/openrust/fortify/src/http/controllers/email_verification.rs) 的控制器 `verify`（67 行）。
+- 文件：[email_verification_model.rs](../../../../vendor/openrust-fortify/src/email_verification_model.rs)，`TypedAccount<T>::verify`（47 行）；消费者为 [email_verification.rs](../../../../vendor/openrust-fortify/src/http/controllers/email_verification.rs) 的控制器 `verify`（67 行）。
 - 调用链：控制器取认证账户 → 注册适配器 → 检查验证状态 → `mark_email_as_verified` → 派发 `Verified` → 更新当前 Session 用户。
 - 问题：类型擦除适配文件中实现了验证成功后的业务事件决策；这与模型本身的状态方法是两个职责。
 - 建议：将“检查、调用状态方法、决定是否派发事件”放到 Fortify 的内部验证 Action／服务函数；适配器保留账户转接、主键、邮箱和模型操作的类型适配。不能直接替换为另一 HTTP 请求入口而重复校验或派发事件。
@@ -47,7 +47,7 @@
 
 ### M05：Passkeys Record 适配器中隐藏了认证校验流程
 
-- 文件：[record.rs](../../../../vendor/openrust/passkeys/src/record.rs)，`Loaded<M>::verify`（108 行）；消费者为 [actions.rs](../../../../vendor/openrust/passkeys/src/actions.rs) 的 `VerifyPasskey::call`（118 行）。
+- 文件：[record.rs](../../../../vendor/openrust-passkeys/src/record.rs)，`Loaded<M>::verify`（108 行）；消费者为 [actions.rs](../../../../vendor/openrust-passkeys/src/actions.rs) 的 `VerifyPasskey::call`（118 行）。
 - 调用链：Action 按 credential_id 查记录并开事务 → Record 锁住具体模型、`refresh_for_update` → 校验归属用户 → WebAuthn 验证并更新凭据 → 更新时间并在事务内保存。
 - 问题：Record 本来承担实际模型实例的类型擦除与保留，但这里同时做认证决策、调用 WebAuthn 和持久化，Action 与存储适配的边界不清晰。
 - 建议：保留 `PasskeyRecord` 的公开投影与实例身份；认证规则和 WebAuthn 调用归已有 VerifyPasskey Action／内部认证辅助函数，模型锁定、刷新及保存归 Store／持久化适配。拆分后仍须让校验与计数器更新处于原来的同一锁和事务保护范围，不能简单把校验移到锁外。
@@ -55,7 +55,7 @@
 
 ### M06：Cashier 的存储层反向包含远端调用与业务状态机
 
-- 文件：[store.rs](../../../../vendor/openrust/cashier/src/store.rs)，`BillingStore::execute`（95 行）、`sync_subscription`（242 行）、`process`（273 行）。
+- 文件：[store.rs](../../../../vendor/openrust-cashier/src/store.rs)，`BillingStore::execute`（95 行）、`sync_subscription`（242 行）、`process`（273 行）。
 - 调用链：Billable 的修改流程 → `BillingStore::execute` → 选择 Stripe／Paddle 策略、占用幂等操作、调用远端 Client、裁决 done／rejected／unknown 并回写；Webhook 流程通过 Store 开事务、查询远端资源、同步订阅／账单并执行应用回调。
 - 问题：属于服务与存储混合，未发现这些逻辑塞进 Subscription 模型。`BillingStore` 既实现 SQL，又编排支付渠道、远端请求、事件处理和幂等状态机，职责偏大。
 - 建议：保留既有 BillingStore 公开入口并按需委托；由现有 billing／webhook 服务模块承接远端流程，Store 承接操作占用、状态落库和事务内数据写入。先保持幂等和事务语义完成结构拆分；HTTP 是否移出锁区、如何重试属于独立行为优化，不在同批机械改动。
@@ -63,8 +63,8 @@
 
 ## 可选的文件组织改善
 
-- **S01 Scout**：[searchable.rs](../../../../vendor/openrust/scout/src/searchable.rs) 的 `import`（176 行）负责分页取模型、过滤并调用 EngineManager 同步，且由 Searchable 默认入口和 EngineManager 注册的导入闭包共同消费。可移到独立导入辅助模块，使该文件聚焦模型契约；保留 `make_all_searchable`、批量 hook、软删除、chunk 和失败传播。属于内部文件组织改善，不认定所有 Searchable 查询都是业务越层。
-- **S02 Fortify 恢复码**：[two_factor_authenticatable.rs](../../../../vendor/openrust/fortify/src/two_factor_authenticatable.rs) 的 `replace_recovery_code`（28 行）包含生成、解密／替换／加密、保存与事件。固定上游本身把此方法放在模型 trait 中，因此保留是合规的；如需与包内双因素 Actions 统一，可将内部步骤委托给辅助实现。不能将它列为缺失 Service 的硬性缺陷，也不能删除方法。现有 Enable／Confirm／Disable／Generate 流程已经在 Actions。
+- **S01 Scout**：[searchable.rs](../../../../vendor/openrust-scout/src/searchable.rs) 的 `import`（176 行）负责分页取模型、过滤并调用 EngineManager 同步，且由 Searchable 默认入口和 EngineManager 注册的导入闭包共同消费。可移到独立导入辅助模块，使该文件聚焦模型契约；保留 `make_all_searchable`、批量 hook、软删除、chunk 和失败传播。属于内部文件组织改善，不认定所有 Searchable 查询都是业务越层。
+- **S02 Fortify 恢复码**：[two_factor_authenticatable.rs](../../../../vendor/openrust-fortify/src/two_factor_authenticatable.rs) 的 `replace_recovery_code`（28 行）包含生成、解密／替换／加密、保存与事件。固定上游本身把此方法放在模型 trait 中，因此保留是合规的；如需与包内双因素 Actions 统一，可将内部步骤委托给辅助实现。不能将它列为缺失 Service 的硬性缺陷，也不能删除方法。现有 Enable／Confirm／Disable／Generate 流程已经在 Actions。
 
 ## 本轮无需为分层强拆的实现
 

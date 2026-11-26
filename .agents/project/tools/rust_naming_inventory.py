@@ -13,7 +13,7 @@ def snake(name):
 
 def paths():
     names = subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=ROOT).decode().split('\0')
-    return sorted({name for name in names if name.endswith('.rs') and (name.startswith(('vendor/openrust/','app/','bootstrap/','config/','routes/','database/','tests/')) or '/' not in name) and (ROOT/name).is_file()})
+    return sorted({name for name in names if name.endswith('.rs') and (name.startswith(('vendor/openrust-','app/','bootstrap/','config/','routes/','database/','tests/')) or '/' not in name) and (ROOT/name).is_file()})
 
 def parse(name):
     data=(ROOT/name).read_bytes()

@@ -22,7 +22,7 @@ if not source.is_relative_to(root / 'target/tmp') or not (source / 'artisan').is
 if not evidence.is_relative_to(root / 'target/tmp'):
     parser.error('验收记录目录必须位于项目 target/tmp/ 内')
 evidence.mkdir(parents=True, exist_ok=True)
-fixture = source / 'vendor/openrust/framework/tests/fixtures/rule_generated'
+fixture = source / 'vendor/openrust-framework/tests/fixtures/rule_generated'
 fixture.mkdir(parents=True, exist_ok=True)
 commands = []
 collisions = {'RuleContext': 'rule_context', 'Value': 'value', 'Box': 'box', 'Option': 'option', 'Vec': 'vec', 'Result': 'result'}
@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='rule-consumer-') as temp:
     hashes = {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in fixture.glob('*.rs')}
     (evidence / 'rule-generator-commands.json').write_text(json.dumps({'commands': commands, 'sha256': hashes}, ensure_ascii=False, indent=2))
 
-support = (source / 'vendor/openrust/framework/tests/validation_rule_tutorial.rs').read_text()
+support = (source / 'vendor/openrust-framework/tests/validation_rule_tutorial.rs').read_text()
 transport = support[support.index('async fn transport('):support.index('async fn start(')]
 modules = ''.join(f'#[path="fixtures/rule_generated/collision_{module}.rs"]mod collision_{module};\n' for module in collisions.values())
 checks = ''.join(f'assert!(collision_{module}::{name}.is_implicit());' for name, module in collisions.items())
@@ -109,7 +109,7 @@ fn validate(request:&mut Request)->HttpFuture<'_,Result<Response,HttpError>>{Box
  server.abort();let _=server.await;
 }
 '''
-target = source / 'vendor/openrust/framework/tests/rule_generated_tutorial.rs'
+target = source / 'vendor/openrust-framework/tests/rule_generated_tutorial.rs'
 target.write_text(code)
 subprocess.run(['rustfmt', '+1.95.0', '--edition', '2024', str(target), *map(str, fixture.glob('*.rs'))], check=True)
 for name, expected in hashes.items():

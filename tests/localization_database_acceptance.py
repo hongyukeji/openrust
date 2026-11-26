@@ -102,7 +102,7 @@ def execute(args):
     artisan("vendor:publish", "--tag=localization-database-migrations")
     migration, = (stage / "database/migrations").glob("*_create_language_lines_table.rs")
     assert migration.read_bytes() == (
-        project / "vendor/openrust/localization-database/stubs/create_language_lines_table.stub"
+        project / "vendor/openrust-localization-database/stubs/create_language_lines_table.stub"
     ).read_bytes()
     artisan("vendor:publish", "--tag=localization-database-migrations")
     assert tuple(migration.parent.glob("*_create_language_lines_table.rs")) == (migration,)

@@ -77,7 +77,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 框架默认译文与应用覆盖 {#default-translations}
 
-18 种语言的默认资源位于 `vendor/openrust/framework/src/localization/lang/`，随二进制交付。需要定制时，在应用语言目录添加覆盖文件。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
+18 种语言的默认资源位于 `vendor/openrust-framework/src/localization/lang/`，随二进制交付。需要定制时，在应用语言目录添加覆盖文件。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
 
 ```json
 {"required": "自定义提示：:attribute 必填", "min": {"string": "至少输入 :min 个字符"}}
@@ -350,7 +350,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### 数据库翻译源（扩展） {#database-translation-loader}
 
-在应用 Cargo 依赖中通过 `path = "vendor/openrust/localization-database"` 添加 `openrust-localization-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
+在应用 Cargo 依赖中通过 `path = "vendor/openrust-localization-database"` 添加 `openrust-localization-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
 
 先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
 
@@ -592,7 +592,7 @@ Localizer 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_loc
 
 替换旧二进制前，使用旧版本执行 `./main artisan config:clear`、`./main artisan view:clear`，源码方式可用既有 `./artisan` 入口。新代码、资源和配置同时部署，再执行 `config:cache`、`view:cache` 重建缓存并重启所有常驻进程；进程内翻译目录缓存随重启清除。旧邮件／通知队列应先排空；无法排空时，由应用专用工具检查序列化 `locale` 字段，加密任务还需要旧应用密钥。不要在队列、共享缓存或设置 JSON 中做通用文本替换。
 
-数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/localization-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
+数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust-localization-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
 Faker 原生 provider 键仅保留在私有边界，`locale()`、`random_locale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
 

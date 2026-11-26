@@ -8,7 +8,7 @@
 
 对照固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Container.php](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php)：resolve 的事件、缓存和 resolved 顺序，beforeResolving/resolving/afterResolving 登记及各派发阶段，getCallbacksForType 与 tagged。文档对应固定 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md#container-events`。继续沿用固定 Goravel v1.18.0 的编译型应用方式，不改应用入口。
 
-编码前核对旧版 `6d1a8192:vendor/openrust/framework/src/container/resolving_hooks.rs` 和 extensions.rs。提取 ResolutionEvent、全局/指定选择器的有序分组、分阶段快照、锁外执行及失败后共享值保留的机制。特别复用 hooks_preserve_selector_groups_and_read_registrations_after_global_callbacks、failed_completed_hook_leaves_published_singleton_without_success_history 的回归意图。旧异步 Resolver、ClassRegistry 投影和关闭资源队列未整包引入。
+编码前核对旧版 `6d1a8192:vendor/openrust-framework/src/container/resolving_hooks.rs` 和 extensions.rs。提取 ResolutionEvent、全局/指定选择器的有序分组、分阶段快照、锁外执行及失败后共享值保留的机制。特别复用 hooks_preserve_selector_groups_and_read_registrations_after_global_callbacks、failed_completed_hook_leaves_published_singleton_without_success_history 的回归意图。旧异步 Resolver、ClassRegistry 投影和关闭资源队列未整包引入。
 
 ## 实现与差异
 

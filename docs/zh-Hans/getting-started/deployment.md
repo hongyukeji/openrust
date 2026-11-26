@@ -160,7 +160,7 @@ $app = Join-Path $PWD 'release/main.exe'
 & $app
 ```
 
-构建包含 `webhook-client` 或 `webhook-server` 时，将各已启用包的 `THIRD_PARTY_NOTICES.md` 和 `LICENSES/` 从 `vendor/openrust/<包名>/` 复制到 `release/licenses/<包名>/`。
+构建包含 `webhook-client` 或 `webhook-server` 时，将各已启用包的 `THIRD_PARTY_NOTICES.md` 和 `LICENSES/` 从 `vendor/openrust-<包名>/` 复制到 `release/licenses/<包名>/`。
 
 后续发布应保留应用密钥、数据库和可写存储。服务管理器可从其他工作目录运行 `main.exe`，也可用 `APP_BASE_PATH` 指定绝对应用根目录。
 

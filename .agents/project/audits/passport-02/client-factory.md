@@ -1,6 +1,6 @@
 # Passport-02 编译绑定客户端工厂
 
-2026-11-20，接续 scope／连接批次。固定 Passport 13.10.0 `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7` 的 `database/factories/ClientFactory.php`，来源副本及 SHA 保存在本批证据目录。已核对旧版 `v0.x:vendor/openrust/passport/src/client.rs` 的纯模型结构；本批复用当前主线 Eloquent Factory、Faker、Str 随机字符串及异步哈希，不引入旧版模型快照。
+2026-11-20，接续 scope／连接批次。固定 Passport 13.10.0 `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7` 的 `database/factories/ClientFactory.php`，来源副本及 SHA 保存在本批证据目录。已核对旧版 `v0.x:vendor/openrust-passport/src/client.rs` 的纯模型结构；本批复用当前主线 Eloquent Factory、Faker、Str 随机字符串及异步哈希，不引入旧版模型快照。
 
 ## 实现与适配
 

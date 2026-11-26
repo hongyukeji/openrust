@@ -23,7 +23,7 @@ fn native_artisan_discovers_telescope_and_preserves_published_and_cached_configu
         std::fs::create_dir_all(&path).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-                "vendor/openrust/framework/src/localization/lang/{language}/schema.json"
+                "vendor/openrust-framework/src/localization/lang/{language}/schema.json"
             )),
             path.join("schema.json"),
         )

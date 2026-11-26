@@ -4,7 +4,7 @@
 
 - Laravel [Adding Jobs to the Chain](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#adding-jobs-to-the-chain)、[Queueable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/Queueable.php) 和 [JobChainingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php)。
 - 固定 Goravel [queue.Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 参考编译型任务参数。
-- 旧版 `v0.x:vendor/openrust/framework/src/queue.rs` 的 `dispatch_chain` 使用固定任务组，未发现运行时前插或追加入口。参考旧版 `tests/server/queue/worker.rs` 的顺序和失败停止断言，沿用主线逐任务预约与原子交接。
+- 旧版 `v0.x:vendor/openrust-framework/src/queue.rs` 的 `dispatch_chain` 使用固定任务组，未发现运行时前插或追加入口。参考旧版 `tests/server/queue/worker.rs` 的顺序和失败停止断言，沿用主线逐任务预约与原子交接。
 
 ## 实现与差异
 

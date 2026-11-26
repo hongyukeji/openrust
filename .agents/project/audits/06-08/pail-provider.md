@@ -29,10 +29,10 @@
 ## 最小文件范围
 
 ```text
-vendor/openrust/framework/src/
+vendor/openrust-framework/src/
 ├── contracts/foundation.rs
 └── foundation/application.rs
-vendor/openrust/pail/
+vendor/openrust-pail/
 ├── Cargo.toml
 ├── src/{lib,handler}.rs
 └── tests/{capture,provider}.rs

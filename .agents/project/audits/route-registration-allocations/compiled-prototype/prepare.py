@@ -18,10 +18,10 @@ if not source.exists():
     with tarfile.open(fileobj=io.BytesIO(subprocess.check_output(['git', 'archive', revision], cwd=ROOT))) as archive:
         archive.extractall(source, filter='data')
     for name in ['router.rs', 'route.rs']:
-        shutil.copy2(source / 'vendor/openrust/framework/src/routing' / name, BASE / ('original-' + name))
+        shutil.copy2(source / 'vendor/openrust-framework/src/routing' / name, BASE / ('original-' + name))
 if args.revision:
     assert subprocess.check_output(['git', 'rev-parse', args.revision], cwd=ROOT, text=True).strip() == (BASE / 'base.txt').read_text().strip(), '隔离副本基线不同，请另选 ROUTE_PROTO_DIR'
-prototype = ROOT / 'vendor/openrust/framework/tests/prototypes/compiled_matcher.rs'
+prototype = ROOT / 'vendor/openrust-framework/tests/prototypes/compiled_matcher.rs'
 (source / prototype.relative_to(ROOT)).parent.mkdir(parents=True, exist_ok=True)
 if args.prototype_revision:
     (source / prototype.relative_to(ROOT)).write_bytes(subprocess.check_output(['git', 'show', args.prototype_revision + ':' + str(prototype.relative_to(ROOT))], cwd=ROOT))
@@ -57,25 +57,25 @@ router += module + '''impl Router {
     pub fn __bench_match(&self, path: &str) -> Option<usize> { self.matched(&Method::GET, "", path).map(|r| (r as *const Route as usize - self.routes.as_ptr() as usize) / std::mem::size_of::<Route>()) }
 }
 '''.replace('BODY',body).replace('PREPARE',prepare).replace('STATS',stats).replace('RESET',reset)
-(source / 'vendor/openrust/framework/src/routing/router.rs').write_text(router)
+(source / 'vendor/openrust-framework/src/routing/router.rs').write_text(router)
 route = (BASE / 'original-route.rs').read_text() + '\nimpl Route { pub(super) fn __prototype_path_matches(&self, path: &str) -> bool { self.pattern.matches(path) } }\n' if args.variant == 'prototype' and args.prototype_revision else (BASE / 'original-route.rs').read_text()
-(source / 'vendor/openrust/framework/src/routing/route.rs').write_text(route)
+(source / 'vendor/openrust-framework/src/routing/route.rs').write_text(route)
 print(source)
 
-for name in ['vendor/openrust/framework/tests/prototypes/workload.rs', 'vendor/openrust/framework/tests/routing_compiled_matrix.rs']:
+for name in ['vendor/openrust-framework/tests/prototypes/workload.rs', 'vendor/openrust-framework/tests/routing_compiled_matrix.rs']:
     destination = source / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / name, destination)
 folder = Path(__file__).parent
-examples = source / 'vendor/openrust/framework/examples'
+examples = source / 'vendor/openrust-framework/examples'
 (examples / 'compiled_support').mkdir(parents=True, exist_ok=True)
-(examples / 'compiled_support/support.rs').write_text((folder / 'support.rs').read_text().replace('../../../../../vendor/openrust/framework/tests/prototypes/workload.rs', 'workload.rs'))
-shutil.copy2(ROOT / 'vendor/openrust/framework/tests/prototypes/workload.rs', examples / 'compiled_support/workload.rs')
+(examples / 'compiled_support/support.rs').write_text((folder / 'support.rs').read_text().replace('../../../../../vendor/openrust-framework/tests/prototypes/workload.rs', 'workload.rs'))
+shutil.copy2(ROOT / 'vendor/openrust-framework/tests/prototypes/workload.rs', examples / 'compiled_support/workload.rs')
 for kind in ['alloc', 'time']:
     (examples / f'compiled_prototype_{kind}.rs').write_text((folder / f'{kind}.rs').read_text().replace('path = "support.rs"', 'path = "compiled_support/support.rs"'))
 
 # 两版都经过相同的准备边界；原型在应用启动完成前构建，不把编译隐藏在首个HTTP请求中。
-application_path = Path('vendor/openrust/framework/src/foundation/application.rs')
+application_path = Path('vendor/openrust-framework/src/foundation/application.rs')
 original = subprocess.check_output(['git', 'show', (BASE / 'base.txt').read_text().strip() + ':' + str(application_path)], cwd=ROOT, text=True)
 anchor = '        let loaded = routes.load_cache(&route_cache_path);'
 assert original.count(anchor) == 1

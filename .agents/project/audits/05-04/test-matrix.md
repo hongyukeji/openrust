@@ -1,6 +1,6 @@
 # 05-04 固定 Laravel 工厂与 Seeder 用例对照
 
-基线为 Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc`。下表按源码行号覆盖 Factory 测试文件中 70 个命名用例及 Seeder 文件中的五个命名用例。Rust 证据来自[工厂回归](../../../../vendor/openrust/framework/tests/eloquent_factories.rs)、[Seeder 与工厂集成测试](../../../../tests/seeding.rs)、[生成器回归](../../../../tests/startup.rs)和[实际请求与命令记录](README.md)。状态描述 Rust 已实测的范围，待补的组合单独列出。
+基线为 Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc`。下表按源码行号覆盖 Factory 测试文件中 70 个命名用例及 Seeder 文件中的五个命名用例。Rust 证据来自[工厂回归](../../../../vendor/openrust-framework/tests/eloquent_factories.rs)、[Seeder 与工厂集成测试](../../../../tests/seeding.rs)、[生成器回归](../../../../tests/startup.rs)和[实际请求与命令记录](README.md)。状态描述 Rust 已实测的范围，待补的组合单独列出。
 
 ## Factory
 

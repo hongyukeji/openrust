@@ -8,7 +8,7 @@
 
 - Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php) 中 loadDeferredProvider、registerDeferredProvider、make、bound、loadDeferredProviders 和 boot；[ProviderRepository](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/ProviderRepository.php) 的清单与逐键装载；[DeferrableProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Support/DeferrableProvider.php) 的 provides。
 - 固定文档 `960eedf0911155ad16326ade49c0ea5d18eda0b8` 的 providers#deferred-providers、container 及 facades。Goravel 继续使用固定 v1.18.0 的编译型装配参考，本批不改 main.rs、bootstrap/、artisan 或配置目录。
-- 编码前核对旧版 `6d1a8192:vendor/openrust/framework/src/foundation/provider/deferred.rs` 及 `tests/unit/foundation/deferred_providers.rs`。提取静态 provides/编译工厂、就绪等待、跨 Provider 等待图、取消通知、别名/实例、逐键消费与新实例重试、启动中双 boot/单 boot 的回归思路。旧持久化清单、事件分发、资源关闭和整个旧 Resolver 未整包迁入。
+- 编码前核对旧版 `6d1a8192:vendor/openrust-framework/src/foundation/provider/deferred.rs` 及 `tests/unit/foundation/deferred_providers.rs`。提取静态 provides/编译工厂、就绪等待、跨 Provider 等待图、取消通知、别名/实例、逐键消费与新实例重试、启动中双 boot/单 boot 的回归思路。旧持久化清单、事件分发、资源关闭和整个旧 Resolver 未整包迁入。
 
 ## 本批接口与行为
 

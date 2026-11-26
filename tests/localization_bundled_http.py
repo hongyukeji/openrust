@@ -58,7 +58,7 @@ for configured in [None, '*', 'en,fr', '']:
                         assert 'class="language-switcher"' not in body
                     if selected == 'fr':
                         assert 'Application French heading' in body
-                        defaults = json.loads((root / 'vendor/openrust/framework/src/localization/lang/fr/welcome.json').read_text())
+                        defaults = json.loads((root / 'vendor/openrust-framework/src/localization/lang/fr/welcome.json').read_text())
                         assert defaults['documentation'] in body
                     if selected == 'sv':
                         assert 'Application Swedish heading' in body

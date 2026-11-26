@@ -1,5 +1,5 @@
 #[cfg(feature = "pay")]
-#[path = "../vendor/openrust/pay/config/pay.rs"]
+#[path = "../vendor/openrust-pay/config/pay.rs"]
 mod config;
 #[cfg(feature = "pay")]
 #[test]

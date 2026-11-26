@@ -12,7 +12,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     stage = root / 'target/tmp/environment-file/portable'
-    source = root / 'vendor/openrust/framework'
+    source = root / 'vendor/openrust-framework'
     packages = tomllib.loads((root / 'Cargo.lock').read_text())['package']
     regex_version = next(item['version'] for item in packages if item['name'] == 'regex')
     (stage / 'src/environment_file').mkdir(parents=True, exist_ok=True)

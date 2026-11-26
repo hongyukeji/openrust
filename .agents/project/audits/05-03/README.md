@@ -11,7 +11,7 @@
 
 ## 精确小数与转换后的脏值比较
 
-- 对照固定 Laravel 的 `asDecimal` HalfUp 规则及 `originalIsEquivalent`。提取旧版 `6d1a8192:vendor/openrust/framework/src/database/eloquent/decimal_cast.rs` 的精确解析、有限分数及输入和输出上限，沿用同版 `bigdecimal 0.4.11`。参考 Goravel 的连接级查询职责，模型转换独立于驱动。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasAttributes.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+- 对照固定 Laravel 的 `asDecimal` HalfUp 规则及 `originalIsEquivalent`。提取旧版 `6d1a8192:vendor/openrust-framework/src/database/eloquent/decimal_cast.rs` 的精确解析、有限分数及输入和输出上限，沿用同版 `bigdecimal 0.4.11`。参考 Goravel 的连接级查询职责，模型转换独立于驱动。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasAttributes.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 - `AttributeCast::Decimal(u32)` 将文本读为定标字符串，赋值保留输入。模型 `getDirty`、`isDirty` 和 `originalIsEquivalent` 按转换结果判断，浮点使用固定基线的四倍 epsilon，保存跳过等价列。真实变化仍写入原始存储值。ModelState 的旧快照读写继续体现原始属性。
 - SQLite 与真实 MySQL 8.4.13 验证超过二进制浮点精确范围的小数、正负 HalfUp、有限分数、指数上限、整数与 JSON 等价，以及等价保存后的数据库原值。MySQL 使用 `DECIMAL(38,5)`，SQLite 使用文本列保留输入精度。
 - Rust 1.94.0 隔离副本格式检查、锁定离线工作区 436 项测试、全目标严格 Clippy、`./artisan inspire`、三语示例双库执行、VitePress 构建、12 项通用浏览器组合和 6 项新增锚点通过。

@@ -63,7 +63,7 @@
 
 | 部分 | 当前源码线索 | 套件待补的体验 |
 | --- | --- | --- |
-| 登录、注册、退出 | `vendor/openrust/fortify/src/http/controllers/`、应用 Action 模板、登录限流与 Session 流水线 | 安装预设、接口示例和端到端装配。 |
+| 登录、注册、退出 | `vendor/openrust-fortify/src/http/controllers/`、应用 Action 模板、登录限流与 Session 流水线 | 安装预设、接口示例和端到端装配。 |
 | 密码找回与邮箱验证 | 现有密码代理、Fortify 重置／验证控制器、通知、签名与模型契约 | API／无界面应用的邮件链接与前端落地地址。 |
 | 资料、密码更新 | Fortify 更新 Action 及现有用户模型 | 当前用户接口、明确的输出字段及资料变更后的验证状态。 |
 | API 认证 | 现有 Sanctum 实现与 `install:api` 安装器 | 与完整用户套件配合的受保护用户资源、可选设备令牌管理。 |

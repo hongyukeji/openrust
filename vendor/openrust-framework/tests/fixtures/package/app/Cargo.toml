@@ -1,0 +1,18 @@
+[package]
+name = "package-probe-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["package"]
+package = ["dep:probe-extension"]
+
+[build-dependencies]
+openrust-package-discovery = { path = "../../../../../openrust-package-discovery" }
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../../../.." }
+probe-extension = { package = "package-probe", path = "../package", optional = true }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt"] }

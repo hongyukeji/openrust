@@ -48,8 +48,8 @@
 cargo +1.94.0 test --locked --offline --manifest-path tmp/openrust-extensions-20261121/source/Cargo.toml -p openrust-telescope --tests
 TELESCOPE_TEST_DRIVER=pgsql python3 -B tests/postgres_acceptance.py -- <storage-test-binary> --nocapture
 TELESCOPE_TEST_DRIVER=mysql python3 -B tests/mysql_acceptance.py -- <storage-test-binary> --nocapture
-python3 -B vendor/openrust/telescope/tests/install_acceptance.py <root-binary>
-python3 -B vendor/openrust/telescope/tests/http_acceptance.py <telescope-acceptance-binary>
+python3 -B vendor/openrust-telescope/tests/install_acceptance.py <root-binary>
+python3 -B vendor/openrust-telescope/tests/http_acceptance.py <telescope-acceptance-binary>
 ```
 
 运行前设置上述项目内TMPDIR、独占CARGO_TARGET_DIR；HTTP夹具设置已安装的DOCS_PLAYWRIGHT_MODULE和DOCS_BROWSER_PATH。Provider的三库函数每次用新夹具数据库精确筛选，不让多TestApp争用固定表。Redis明确要求TELESCOPE_TEST_REDIS_URL，调用ignored函数时必须通过隔离Redis8夹具。

@@ -3,7 +3,7 @@
 ## 固定基线与旧版
 
 - 对照 Laravel [Chain Connection and Queue](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#chain-connection-queue)、[PendingChain](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bus/PendingChain.php)、[Queueable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/Queueable.php) 及 [JobChainingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/JobChainingTest.php)。
-- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型参数和 Worker 连接契约。旧版 `v0.x:vendor/openrust/framework/src/queue.rs` 的 `DispatchOptions` 与 `dispatch_chain` 支持派发组及首项延迟，组内任务没有独立连接、队列和延迟。沿用旧版链顺序断言与主线预约约束。
+- 参考固定 Goravel [Queue::Chain](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/queue.go) 的编译型参数和 Worker 连接契约。旧版 `v0.x:vendor/openrust-framework/src/queue.rs` 的 `DispatchOptions` 与 `dispatch_chain` 支持派发组及首项延迟，组内任务没有独立连接、队列和延迟。沿用旧版链顺序断言与主线预约约束。
 
 ## 实现与差异
 

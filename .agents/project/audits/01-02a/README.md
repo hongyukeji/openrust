@@ -8,7 +8,7 @@
 
 固定 Laravel framework `1449bf241017087fbd38c118ecaabef3f6797fdc:src/Illuminate/Container/Container.php` 的 bindIf、singletonIf、isShared、resolved、forgetInstance、forgetInstances，以及实例与工厂分别保存的行为。文档对应固定 `960eedf0911155ad16326ade49c0ea5d18eda0b8:container.md#binding` 和 resolving 相关段落。
 
-先核对旧版 `6d1a8192:vendor/openrust/framework/src/container/directory_tests.rs` 的 conditional_registration_noop_preserves_epoch_cache_callbacks_and_drops_outside_state、concurrent_conditionals_install_exactly_one_named_factory、raw_shared_and_forget_do_not_follow_alias_but_make_and_history_do。提取原键操作、晚绑定别名、条件登记原子性、保留工厂与锁外析构的回归意图，未搬入旧异步目录及跨模块依赖。沿用 01-01 对固定 Goravel 编译型容器接口的核对。
+先核对旧版 `6d1a8192:vendor/openrust-framework/src/container/directory_tests.rs` 的 conditional_registration_noop_preserves_epoch_cache_callbacks_and_drops_outside_state、concurrent_conditionals_install_exactly_one_named_factory、raw_shared_and_forget_do_not_follow_alias_but_make_and_history_do。提取原键操作、晚绑定别名、条件登记原子性、保留工厂与锁外析构的回归意图，未搬入旧异步目录及跨模块依赖。沿用 01-01 对固定 Goravel 编译型容器接口的核对。
 
 ## 实现与适配
 

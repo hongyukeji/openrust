@@ -2,7 +2,7 @@
 
 对应 [Laravel 13.x 上下文属性](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/container.md#contextual-attributes)、[构造参数解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php#L1243-L1282)、[属性回调](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php#L1601-L1639)及 [BoundMethod](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/BoundMethod.php)。对照固定版 [ContextualAttributeBindingTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/ContextualAttributeBindingTest.php) 和 [AfterResolvingAttributeCallbackTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Container/AfterResolvingAttributeCallbackTest.php)。应用继续通过 Provider 装配，与固定版 [Goravel 启动入口](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/main.go)职责相符。
 
-- 核对旧版 `6d1a8192` 的 `vendor/openrust/framework/src/container/attributes.rs` 与 `attribute_resolution_tests.rs`。复用属性工厂、注册解析器优先、构造空值回退、整组变参与回调次序，沿用当前构造和方法调用的参数表示。
+- 核对旧版 `6d1a8192` 的 `vendor/openrust-framework/src/container/attributes.rs` 与 `attribute_resolution_tests.rs`。复用属性工厂、注册解析器优先、构造空值回退、整组变参与回调次序，沿用当前构造和方法调用的参数表示。
 - 提供 `ContextualAttribute`、`whenHasAttribute`、`resolveFromAttribute`、`afterResolvingAttribute`，接到构造函数、方法、闭包及 `SelfBuilding::newInstance`。显式构造参数跳过属性，方法显式命名参数继续触发回调。方法按命名值、属性、类名值的顺序选择，属性空值保留。
 - 编译描述符替代 PHP 反射。属性通过类型身份匹配，服务回调使用声明的 Rust 服务类型。同步回调也用于异步构建，用户代码在注册表锁外执行。属性实例在各次解析和回调中独立创建。构造后类回调先于扩展器和常规服务解析回调。
 - 框架内置的上下文属性、类绑定与生命周期属性和接口投影另按依赖接入。本批验收自定义属性和标记回调的通用机制。

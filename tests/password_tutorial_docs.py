@@ -13,4 +13,4 @@ for lang in ['en','zh-Hans','zh-Hant']:
 }
 '''
  parts.append('mod '+lang.replace('-','_').lower()+'{'+code+test+'}')
-(source/'vendor/openrust/framework/tests/password_docs_generated.rs').write_text('\n'.join(parts))
+(source/'vendor/openrust-framework/tests/password_docs_generated.rs').write_text('\n'.join(parts))

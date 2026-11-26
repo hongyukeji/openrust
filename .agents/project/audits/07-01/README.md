@@ -110,7 +110,7 @@
 
 ## 多语言数字拼读
 
-- 固定 Laravel `Number::spell` 和 `spellOrdinal` 采用 ICU 的区域数据、默认规则与公开序数规则。Rust 内置 ICU 76.1／CLDR 46 的 102 套规则资源与 869 个区域条目，支持逐位拼读、分母规则、数词复数、区域回退及本地化数字输出。沿用实例作用域和含端点的 `after`／`until`。v0.x 的 Number 实现和金标覆盖类型保留的 clamp，已在初批复用。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php) [规则数据来源](../../../../vendor/openrust/framework/src/support/number/spellout/README.md)
+- 固定 Laravel `Number::spell` 和 `spellOrdinal` 采用 ICU 的区域数据、默认规则与公开序数规则。Rust 内置 ICU 76.1／CLDR 46 的 102 套规则资源与 869 个区域条目，支持逐位拼读、分母规则、数词复数、区域回退及本地化数字输出。沿用实例作用域和含端点的 `after`／`until`。v0.x 的 Number 实现和金标覆盖类型保留的 clamp，已在初批复用。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php) [规则数据来源](../../../../vendor/openrust-framework/src/support/number/spellout/README.md)
 - 实跑 PHP 8.5.12／ICU 76.1 的固定 Laravel，核对 13,913 组有限数拼读和序数。另与 ICU 76.1 比对 2,607 组无穷大与 NaN。范围覆盖区域变体、小数前导零、负数、两种端点、64 位整数边界和缺省序数规则。在超出有符号 64 位范围的浮点值触发数字回退时，Rust 保留可往返转换的十进制表示。英文 `1e40` 的数字回退已验证。PHP／ICU 在该范围内的转换溢出结果属于运行时差异。
 - Rust 1.94.0 锁定离线执行 Number、Strings 和 Stringable 扫描的 18 项定向测试。工作区全目标严格 Clippy 与变更文件格式通过。工作区格式检查仍报告基线中的 Sanctum 测试排版。真实 Artisan 执行三语共用示例，回环 HTTP 200 核对德语、俄语、台湾繁体中文小数拼读。三语 VitePress 构建、拼读章节锚点及 12 项桌面和移动浏览器检查通过。验收路由和命令仅用于隔离副本。
 

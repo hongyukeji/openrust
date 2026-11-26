@@ -1,0 +1,37 @@
+[package]
+name = "openrust-content-moderation"
+version.workspace = true
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+publish = false
+
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
+[features]
+webhooks = ["dep:hmac", "dep:openrust-webhook-client"]
+
+[dependencies]
+base64 = "0.22"
+cap-std = "4.0.3"
+hmac = { version = "0.13", optional = true }
+http = "1.5"
+openrust = { package = "openrust-framework", path = "../openrust-framework" }
+openrust-webhook-client = { path = "../openrust-webhook-client", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+thiserror = "2"
+url = "2.5.8"
+zeroize = "1"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.6", features = ["fs"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt"] }
+
+[lints]
+workspace = true

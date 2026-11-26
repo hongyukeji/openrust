@@ -17,7 +17,7 @@
 
 ## 实现与公开范围
 
-独立 `vendor/openrust/pay`，根 `pay` feature 与 `config/pay.rs`，包发现登记 `PayServiceProvider`；包Provider的boot钩子登记原生通知收件箱迁移。凭据按网关实例快照，`forgetDrivers` 后后续解析读取新配置，已持有实例保留旧快照。密钥支持 PEM 文件或内联 PEM，来源二选一；微信允许预配置多个可信公钥用于轮换，不从回调自动下载或信任公钥。
+独立 `vendor/openrust-pay`，根 `pay` feature 与 `config/pay.rs`，包发现登记 `PayServiceProvider`；包Provider的boot钩子登记原生通知收件箱迁移。凭据按网关实例快照，`forgetDrivers` 后后续解析读取新配置，已持有实例保留旧快照。密钥支持 PEM 文件或内联 PEM，来源二选一；微信允许预配置多个可信公钥用于轮换，不从回调自动下载或信任公钥。
 
 微信 Native／JSAPI（含小程序）／H5／App，支付宝扫码／电脑网页／手机网页／App；查单、关单、退款与退款查询。微信前端调起参数由商户私钥签名。CNY 金额使用整数分，拒绝浮点、不合法金额和路径注入。订单与退款单号稳定复用，不自动重试；失去响应、验签失败或不可信结果返回 OutcomeUnknown，由应用先用原单号查单。
 

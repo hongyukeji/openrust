@@ -6,7 +6,7 @@
 
 固定 Framework 13.40.0 `1449bf241017087fbd38c118ecaabef3f6797fdc`：核对 CompilesEchos、CompilesConditionals、CompilesComponents、CompilesIncludes、CompilerEngine 和 [HandleExceptions::handleError / handleDeprecationError](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php)。PHP 运算结果以实际 PHP 8.4.14 与全部固定为 13.40.0 的 Illuminate 包生成，不以 Rust 实现生成预期。
 
-旧版 `../openrust-v0.x` `6d1a81924` 的 `vendor/openrust/framework/src/view.rs` 使用 MiniJinja，不具备可直接复用的 Blade 算术 AST。旧 `support/scalars.rs` 的 PHP 数值解析、浮点整数转换及精度 14 输出已移植到当前 input_scalars。本批复用该实现和边界意图，只扩大内部可见性，不引入第二份转换算法。入口、装配与 Goravel 参考关系保持原样，未改 main、bootstrap 或 Runner。
+旧版 `../openrust-v0.x` `6d1a81924` 的 `vendor/openrust-framework/src/view.rs` 使用 MiniJinja，不具备可直接复用的 Blade 算术 AST。旧 `support/scalars.rs` 的 PHP 数值解析、浮点整数转换及精度 14 输出已移植到当前 input_scalars。本批复用该实现和边界意图，只扩大内部可见性，不引入第二份转换算法。入口、装配与 Goravel 参考关系保持原样，未改 main、bootstrap 或 Runner。
 
 ## 实现与适配
 
@@ -54,7 +54,7 @@ npm --prefix docs run build
 tests/
 ├── console.rs
 └── blade_arithmetic_http.py
-vendor/openrust/framework/
+vendor/openrust-framework/
 ├── src/support/input_scalars.rs
 ├── src/view/compilers/
 │   ├── blade_compiler.rs

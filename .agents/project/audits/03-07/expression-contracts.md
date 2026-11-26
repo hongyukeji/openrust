@@ -4,7 +4,7 @@
 
 ## 契约与实现
 
-以固定 Laravel Framework v13.40.0 的 BladeCompiler、CompilesIncludes、CompilesEchos、CompilesComponents 和 PHP 8.4.14 实际结果核定。旧版 `v0.x:vendor/openrust/framework/src/view.rs` 使用 MiniJinja，无可直接移植的 Blade 原生数组表达式；保留当前指令树、注册器与原生 ViewValue 结构。
+以固定 Laravel Framework v13.40.0 的 BladeCompiler、CompilesIncludes、CompilesEchos、CompilesComponents 和 PHP 8.4.14 实际结果核定。旧版 `v0.x:vendor/openrust-framework/src/view.rs` 使用 MiniJinja，无可直接移植的 Blade 原生数组表达式；保留当前指令树、注册器与原生 ViewValue 结构。
 
 | PHP 能力 | 本批 Rust 契约与验证 |
 | --- | --- |
@@ -21,7 +21,7 @@
 
 证据目录 `/private/tmp/openrust-v03-20261120/`，独立源码由 baseline.txt 的提交建立，仅叠加本批 14 份源码／测试／正文；[SHA 清单](expression-contracts-sha256.json)逐份核对一致。同期 Passport／Eloquent 及 Cargo.lock 改动未进入快照，不将本批验收扩展到这些后续工作。
 
-参考 `vendor/openrust/framework/tests/reference/blade_unpacking.php`，使用既有 Composer 锁定夹具及镜像 `composer@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c`，`--network none`。脚本核对 PHP 8.4.14 与全部 Illuminate v13.40.0；96 例最终连续两次逐字节一致，56 成功、40 标量展开／索引溢出错误。覆盖顺序、覆盖位置、数字键、字符串键、负索引、嵌套、偏移、JS、组件、include、CSS 与短路。Laravel 错误类被视图包装，Rust 断言具体 RenderFailed 原因而非接受任意错误。
+参考 `vendor/openrust-framework/tests/reference/blade_unpacking.php`，使用既有 Composer 锁定夹具及镜像 `composer@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c`，`--network none`。脚本核对 PHP 8.4.14 与全部 Illuminate v13.40.0；96 例最终连续两次逐字节一致，56 成功、40 标量展开／索引溢出错误。覆盖顺序、覆盖位置、数字键、字符串键、负索引、嵌套、偏移、JS、组件、include、CSS 与短路。Laravel 错误类被视图包装，Rust 断言具体 RenderFailed 原因而非接受任意错误。
 
 初轮 Rust 对照发现 include 仍走旧具名参数解析而编译失败，修复后全部匹配；初轮日志保留在 tests-isolated.log。PHP 字面量标量展开可能导致不可捕获的编译 fatal，夹具用变量输入验证可捕获的运行期失败。没有将这种 PHP 与 Rust 编译阶段差异隐藏为等价错误。
 

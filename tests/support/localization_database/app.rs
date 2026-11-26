@@ -7,7 +7,7 @@ mod migrations;
 
 mod language_lines {
     include!(
-        "../../../vendor/openrust/localization-database/stubs/create_language_lines_table.stub"
+        "../../../vendor/openrust-localization-database/stubs/create_language_lines_table.stub"
     );
 }
 

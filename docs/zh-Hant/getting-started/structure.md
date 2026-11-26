@@ -4,7 +4,7 @@
 
 根目錄的 `main.rs` 連接 Tokio 和 `bootstrap::create_application`。`Cargo.toml` 與 `Cargo.lock` 宣告應用程式、工作區和鎖定的相依套件。應用程式程式碼位於 `app/`，編譯型設定載入器位於 `config/`，Web 和主控台路由宣告位於 `routes/`。
 
-框架原始碼位於 `vendor/openrust/framework/`。檢視位於 `resources/views/`，網站檔案位於 `public/`，公開儲存磁碟位於 `storage/app/public/`。測試放在根應用程式或所屬 crate 的 `tests/` 目錄。
+框架原始碼位於 `vendor/openrust-framework/`。檢視位於 `resources/views/`，網站檔案位於 `public/`，公開儲存磁碟位於 `storage/app/public/`。測試放在根應用程式或所屬 crate 的 `tests/` 目錄。
 
 ## 模型、持久化與服務
 

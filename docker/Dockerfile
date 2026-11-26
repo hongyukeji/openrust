@@ -44,9 +44,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     for package in webhook-client webhook-server; do \
       if printf '%s\n' "$packages" | grep -q "^openrust-$package "; then \
         notices="/out/licenses/$package"; \
-        install -D -m 0644 "vendor/openrust/$package/THIRD_PARTY_NOTICES.md" "$notices/THIRD_PARTY_NOTICES.md"; \
+        install -D -m 0644 "vendor/openrust-$package/THIRD_PARTY_NOTICES.md" "$notices/THIRD_PARTY_NOTICES.md"; \
         install -d -m 0755 "$notices/LICENSES"; \
-        cp -R "vendor/openrust/$package/LICENSES/." "$notices/LICENSES/"; \
+        cp -R "vendor/openrust-$package/LICENSES/." "$notices/LICENSES/"; \
       fi; \
     done
 

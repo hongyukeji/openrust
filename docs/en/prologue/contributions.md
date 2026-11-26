@@ -6,7 +6,7 @@ Include the source revision, operating system, Rust version, and the smallest re
 
 ## Make a change
 
-Keep application integration in the root application and framework code in `vendor/openrust/framework/`. Follow the fixed the framework baseline and the project's Rust conventions. Update the English, Simplified Chinese, and Traditional Chinese guides together when public behavior changes.
+Keep application integration in the root application and framework code in `vendor/openrust-framework/`. Follow the fixed the framework baseline and the project's Rust conventions. Update the English, Simplified Chinese, and Traditional Chinese guides together when public behavior changes.
 
 Run the repository checks from the root:
 
