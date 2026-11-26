@@ -323,6 +323,10 @@ async fn formal_progress_example(){
     code_snippet=re.search(r'```rust\n(.*?)```',text.split('{#component-code-snippets}',1)[1],re.S).group(1)
     code_checks=methods_checks.replace('formal_component_text_example','formal_component_code_example').replace('register_component_text)','register_component_code)').replace('"components:text"','"components:code"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("first line"));assert!(output.stdout.contains("second line"));assert!(output.stdout.contains("➜"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_component_code{\n'+code_snippet+code_checks+'}\n')
+    time_snippet=re.search(r'```rust\n(.*?)```',text.split('{#component-time-helpers}',1)[1],re.S).group(1)
+    time_checks=methods_checks.replace('formal_component_text_example','formal_time_helpers_example').replace('register_component_text)','register_time_helpers)').replace('"components:text"','"components:time"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("delay=-5; runtime=100.00ms"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_time_helpers{\n'+time_snippet+time_checks+'}\n')
+
 
 
 

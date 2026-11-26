@@ -1,0 +1,86 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "source_type": "Illuminate\\Support\\InteractsWithTime, inherited by Console\\View\\Components\\Task",
+  "native_types": [
+    "support::InteractsWithTime",
+    "support::TimeDelay",
+    "console::view::components::Task"
+  ],
+  "status": "verified_documented_delay_union_and_default_duration",
+  "bindings": [
+    {
+      "source": "secondsUntil",
+      "native": "seconds_until",
+      "status": "verified_owned_task_and_composable_trait"
+    },
+    {
+      "source": "availableAt",
+      "native": "available_at",
+      "status": "verified_owned_task_and_composable_trait"
+    },
+    {
+      "source": "parseDateInterval",
+      "native": "parse_date_interval",
+      "status": "verified_owned_task_and_composable_trait"
+    },
+    {
+      "source": "currentTime",
+      "native": "current_time",
+      "status": "verified_owned_task_and_composable_trait"
+    },
+    {
+      "source": "runTimeForHumans",
+      "native": "run_time_for_humans",
+      "status": "verified_owned_task_and_composable_trait"
+    }
+  ],
+  "source_reference": {
+    "php": "8.5.12",
+    "carbon": "3.10.3 / 8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f",
+    "files": [
+      "Support/InteractsWithTime.php",
+      "Carbon/Traits/Units.php rawAddUnit",
+      "PHP DateTimeImmutable::modify and DateTimeZone constructors"
+    ],
+    "development_only": true
+  },
+  "source_oracles": {
+    "time": "time-delay-oracle.json",
+    "time_rows": 320,
+    "offset": "time-offset-oracle.json",
+    "offset_rows": 11,
+    "default_duration": "task-runtime-oracle.json, existing32 rows rerun"
+  },
+  "runtime": {
+    "new_artisan_processes": 3,
+    "new_http_requests": 26,
+    "concurrent_clock_requests": 14,
+    "timezone_instance_and_facade_success_and_error_requests": 11,
+    "framework_targets": 8,
+    "framework_parent_tests": 32,
+    "formal_document_consumers": 180,
+    "browser_checks": 12
+  },
+  "semantics": [
+    "整数延迟保留符号，绝对日期剩余秒数取max0；parse日期/整数不变，区间以现有日期工厂当前时间转换。",
+    "available_at整数使用日期工厂而非可覆写current_time；Unix i64加法保留源回绕，最小整数沿源rawAddUnit的日期修改表达式回退。",
+    "区间年月日经既有Calendar ParseState一次归一化/时区解析，再加固定时长；不串行经Date::plus改变公开加法语义。闰日/月末、纽约gap/fold、日历天与86400秒、微秒与负纪元全部真实源对照。",
+    "Task默认耗时抽到同一实现，wall_time共用；既有set_run_time_formatter通过Trait仍生效，默认整数解析错误来源链保留；通用Trait按DateError分类。",
+    "日期修改表达式保留未指定的原时分秒/微秒并忽略表达式时区覆盖；默认日期构造解析行为不变。三位数字偏移经既有时区解析，构造和默认表达式各自校验规则不合并。"
+  ],
+  "adaptations": [
+    "PHP受保护Trait以Rust公共组合Trait和Task入口表达，错误关联类型接收DateError；文档union用TimeDelay显式表示，非任意PHP弱类型输入。",
+    "Rust省略位置参数以显式available_at(0)表达，不新增不必要的平行接口。Date值沿用既有不可变带时区类型。",
+    "日期区间受既有原生Date/Jiff范围约束，超出返回DateError::OutOfRange；整数时间戳无需构造额外日期，保持源i64结果。",
+    "复用现有DateFactory/Facade/DateInterval/Calendar状态/zone解析和Task formatter，无新依赖、时钟全局状态、PHP运行时、CLI或序列化更改。v0.x没有这四个所属助手可直接提取，现有Calendar本身来自已验旧版。"
+  ],
+  "associated_fixes": [
+    "calendar zone支持经真实DateTimeZone确认的三位数字偏移；非法五位仍报错。",
+    "Calendar finish_modification单独保留未覆盖时间分量，其他finish构造路径仍原语义。",
+    "新增内部add_date_interval_input仅接同一个Calendar区间状态，不改变Date::plus、队列延迟或其他调度服务。"
+  ],
+  "remaining": [
+    "默认时长的完整Carbon语言/自定义cascade SDK属于日期库后续范围，本簇仅验证既有默认短单位和覆写；不以Trait五个入口关闭完整日期库。",
+    "终端样式/颜色仓库与独立扩展对象、通用HTML恢复、Factory容器覆盖、Helper/HelperSet及Artisan其余锚点继续，整章仍开放。"
+  ]
+}

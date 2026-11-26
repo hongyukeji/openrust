@@ -562,3 +562,9 @@ pub use section_output::{ConsoleSectionHandle, ConsoleSectionOutput};
 
 mod output_reference;
 pub use output_reference::{AsOutput, NewLineView, OutputReference};
+
+impl From<crate::support::DateError> for ConsoleError {
+    fn from(error: crate::support::DateError) -> Self {
+        Self::from_source(error)
+    }
+}

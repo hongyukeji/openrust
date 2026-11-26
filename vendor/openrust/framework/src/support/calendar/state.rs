@@ -385,7 +385,10 @@ impl ParseState {
         self.apply_relative(Some(prefer_dst))
     }
 
-    pub fn finish(mut self) -> Result<CalendarInstant> {
+    pub fn finish(self) -> Result<CalendarInstant> {
+        self.finish_with_mode(false)
+    }
+    fn finish_with_mode(mut self, modification: bool) -> Result<CalendarInstant> {
         let use_frozen_zone = self.frozen && self.date_mask != DATE_FIELDS;
         if use_frozen_zone {
             self.timezone = self.base_timezone.clone();
@@ -405,7 +408,7 @@ impl ParseState {
                 self.civil.hour = current.hour;
                 self.civil.minute = current.minute;
                 self.civil.second = current.second;
-                self.civil.microsecond = if self.date_mask != 0 && !self.frozen {
+                self.civil.microsecond = if self.date_mask != 0 && !self.frozen && !modification {
                     0
                 } else {
                     current.microsecond
@@ -413,7 +416,7 @@ impl ParseState {
             }
         }
         let inherit_time = self.frozen && self.date_mask & format::YEAR == 0;
-        if self.have_date && !self.time_touched && !inherit_time {
+        if self.have_date && !self.time_touched && !inherit_time && !modification {
             self.civil = self.civil.midnight();
         }
         let prefer_dst = (self.zone_count != 0 && !use_frozen_zone).then_some(true);
@@ -424,7 +427,7 @@ impl ParseState {
         // 对既有日期的modify不接受表达式覆盖对象时区，其他扫描状态继续沿用。
         self.timezone = self.base_timezone.clone();
         self.zone_count = 0;
-        self.finish()
+        self.finish_with_mode(true)
     }
 
     fn apply_relative(mut self, prefer_dst: Option<bool>) -> Result<CalendarInstant> {

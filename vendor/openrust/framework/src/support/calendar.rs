@@ -296,6 +296,32 @@ fn parse_factory_format_with_zone(
     format::parse(text, pattern, civil, &zone)
 }
 
+/// 年月日先共同归一化，再叠加固定子日时长；复用既有区间状态和时区解析。
+pub(crate) fn add_date_interval_input(
+    date: &super::Date,
+    interval: super::DateInterval,
+) -> Result<InputDate> {
+    let time = date.as_date_time();
+    let start = CalendarInstant::from_timestamp(time.timestamp())?;
+    let zone = ResolvedTimezone::from_jiff(time.time_zone().clone(), time.timestamp());
+    let mut state = state::ParseState::new(zone.civil(start)?, zone.clone());
+    for (unit, value) in [
+        (state::RelativeUnit::Year, interval.years),
+        (state::RelativeUnit::Month, interval.months),
+        (state::RelativeUnit::Day, interval.days),
+    ] {
+        state.add(unit, value)?;
+    }
+    let calendar = state.finish_interval(start)?.try_timestamp()?;
+    let instant = calendar
+        .checked_add(jiff::SignedDuration::from_micros(interval.microseconds))
+        .map_err(|_| range_error())?;
+    Ok(InputDate::new(
+        CalendarInstant::from_timestamp(instant)?,
+        zone,
+    ))
+}
+
 pub(crate) fn modify_date_input(text: &str, date: &super::Date) -> Result<InputDate> {
     if text.len() > MAX_CALENDAR_BYTES {
         return Err(limit_error());

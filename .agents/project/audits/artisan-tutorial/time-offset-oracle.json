@@ -1,0 +1,62 @@
+[
+    {
+        "input": "-922",
+        "name": "-09:22",
+        "offset": -33720,
+        "error": null
+    },
+    {
+        "input": "+123",
+        "name": "+01:23",
+        "offset": 4980,
+        "error": null
+    },
+    {
+        "input": "+12345",
+        "error": "DateTimeZone::__construct(): Unknown or bad timezone (+12345)"
+    },
+    {
+        "input": "+123456",
+        "name": "+12:34:56",
+        "offset": 45296,
+        "error": null
+    },
+    {
+        "input": "+12599",
+        "error": "DateTimeZone::__construct(): Unknown or bad timezone (+12599)"
+    },
+    {
+        "input": "+1234",
+        "name": "+12:34",
+        "offset": 45240,
+        "error": null
+    },
+    {
+        "input": "-999",
+        "name": "-10:39",
+        "offset": -38340,
+        "error": null
+    },
+    {
+        "input": "+000",
+        "name": "+00:00",
+        "offset": 0,
+        "error": null
+    },
+    {
+        "input": "+00000",
+        "error": "DateTimeZone::__construct(): Unknown or bad timezone (+00000)"
+    },
+    {
+        "input": "+12:34",
+        "name": "+12:34",
+        "offset": 45240,
+        "error": null
+    },
+    {
+        "input": "+9:22",
+        "name": "+09:22",
+        "offset": 33720,
+        "error": null
+    }
+]

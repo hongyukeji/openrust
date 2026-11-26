@@ -2282,3 +2282,35 @@ fn register_component_code() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 時間與延遲輔助方法 {#component-time-helpers}
+
+`InteractsWithTime` 提供 `seconds_until`、`available_at`、`parse_date_interval`、`current_time` 和 `run_time_for_humans`。Task 同時直接提供繼承的四個延遲／日期方法；既有耗時覆寫透過 Trait 呼叫仍然生效。實作者選擇可接收 `DateError` 的關聯錯誤型別，保留命令既有的錯誤處理。
+
+`TimeDelay` 接收 `i64`、`Date` 或 `DateInterval`。整數延遲保留正負；絕對日期的剩餘秒數最低為零，可執行時間則保留原時間戳。日期區間相對於日期工廠目前值解析，保留月份及夏令時間前後的本地日曆天，不簡單折算固定秒數；年／月／日分量共同正規化，再疊加固定時長分量。解析後回傳日期或秒數，不改變原值。紀元前時間按向下取整的整秒處理。
+
+預設可執行偏移明確傳 `0`，因為 Rust 沒有省略位置參數。`available_at` 的相對秒數使用日期工廠，不複用覆寫的 `current_time`；只有絕對日期的 `seconds_until` 才減去該鉤子。凍結時鐘沿用應用／請求／任務作用域，耗時顯示仍使用真實牆鐘。日曆區間超出既有原生日期範圍回傳受檢錯誤。整數可執行時間戳保留有符號 64 位回繞規則；最小整數沿用日期修改運算式的後備路徑。這些助手不代替佇列排程，也不表示整個日期庫已經完成。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, view::components::Task};
+use openrust::support::{DateError, InteractsWithTime, facades::Artisan};
+struct RetryClock;
+impl InteractsWithTime for RetryClock { type Error = DateError; }
+fn register_time_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:time", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let clock = RetryClock;
+            assert_eq!(clock.seconds_until(-5)?, -5);
+            let mut task = Task::new(output);
+            let current = task.current_time()?;
+            let available = task.available_at(60)?;
+            assert!(available >= current + 60);
+            let runtime = InteractsWithTime::run_time_for_humans(&mut task, 0.0, Some(0.1))?;
+            drop(task);
+            output.comment(&format!("delay=-5; runtime={runtime}"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

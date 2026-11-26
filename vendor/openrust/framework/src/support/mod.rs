@@ -94,3 +94,6 @@ pub use view_error_bag::ViewErrorBag;
 pub use crate::validation::{ValidatedInput, ValidatedInputIter};
 
 pub(crate) use collection::NextIndex;
+
+pub(crate) mod interacts_with_time;
+pub use interacts_with_time::{InteractsWithTime, TimeDelay};

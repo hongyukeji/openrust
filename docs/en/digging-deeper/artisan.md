@@ -2282,3 +2282,35 @@ fn register_component_code() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Time and delay helpers {#component-time-helpers}
+
+`InteractsWithTime` supplies `seconds_until`, `available_at`, `parse_date_interval`, `current_time` and `run_time_for_humans`. Task also exposes its four inherited delay/date methods directly; its existing duration override remains effective through the trait. Implementers select an error type that accepts `DateError`, so existing command error handling is preserved.
+
+`TimeDelay` accepts an `i64`, a `Date` or a `DateInterval`. Integer delays retain their sign; absolute dates produce a nonnegative remaining duration and retain their timestamp for availability. A calendar interval is resolved against the current date factory, preserving calendar months and local days across DST; it is not reduced to a fixed number of seconds. Year/month/day components normalize together before adding the fixed-duration component. Parsing returns a date or seconds without mutating the original value. Negative epoch timestamps use whole seconds rounded down.
+
+Pass `0` explicitly for the default availability offset: Rust has no omitted positional arguments. `available_at` resolves relative seconds from the date factory, not an overridden `current_time`; only date-based `seconds_until` subtracts that hook. Frozen clocks follow the existing application/request/task scope, while elapsed-time display still uses wall time. Calendar intervals outside the existing native date range return checked errors. Integer availability timestamps retain signed 64-bit wraparound; the minimum integer follows the existing date-modification fallback. These helpers do not replace queue scheduling or claim the entire date library is complete.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, view::components::Task};
+use openrust::support::{DateError, InteractsWithTime, facades::Artisan};
+struct RetryClock;
+impl InteractsWithTime for RetryClock { type Error = DateError; }
+fn register_time_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:time", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let clock = RetryClock;
+            assert_eq!(clock.seconds_until(-5)?, -5);
+            let mut task = Task::new(output);
+            let current = task.current_time()?;
+            let available = task.available_at(60)?;
+            assert!(available >= current + 60);
+            let runtime = InteractsWithTime::run_time_for_humans(&mut task, 0.0, Some(0.1))?;
+            drop(task);
+            output.comment(&format!("delay=-5; runtime={runtime}"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

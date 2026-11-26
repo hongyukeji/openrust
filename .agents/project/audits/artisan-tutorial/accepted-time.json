@@ -1,0 +1,52 @@
+{
+  "base": "b40fe1d3eafe9f3a533998e5478b7b0e6b36c893",
+  "contract": "time-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/time-gates-final2.log",
+    "target/tmp/artisan-tutorial-20261125/time-head-intersection.log",
+    "target/tmp/artisan-tutorial-20261125/time-site-final2.log"
+  ],
+  "test_results": [
+    "test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 1.12s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.29s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+    "test result: ok. 180 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s"
+  ],
+  "source_oracles": {
+    "time": "time-delay-oracle.json",
+    "time_rows": 320,
+    "offset": "time-offset-oracle.json",
+    "offset_rows": 11,
+    "default_duration": "task-runtime-oracle.json, existing32 rows rerun"
+  },
+  "runtime": {
+    "new_artisan_processes": 3,
+    "new_http_requests": 26,
+    "concurrent_clock_requests": 14,
+    "timezone_instance_and_facade_success_and_error_requests": 11,
+    "framework_targets": 8,
+    "framework_parent_tests": 32,
+    "formal_document_consumers": 180,
+    "browser_checks": 12
+  },
+  "failed_attempts_not_counted": [
+    "time-native-first.log: private target name nonexistent",
+    "time-native-second.log: config capturing closure and missing Facade import fixed",
+    "time-reference-expanded2.log: source rejects direct text -999; offset constructor fixture kept separate",
+    "time-expanded.log/time-fallback.log: six minimum-integer available results mismatched; reused modify parser and fixed offset/time retention",
+    "time-dst-before.log: three month+day DST results differed by one hour; existing aggregate interval state now reused",
+    "time-gates.log: guard75 / tail killpg EPERM, not a Clippy pass",
+    "time-gates-resumed.log: nonminimal boolean in test fixed without allow",
+    "initial Docker timeouts/loader failure and host PHP missing dylib are not accepted source executions"
+  ],
+  "remaining": [
+    "默认时长的完整Carbon语言/自定义cascade SDK属于日期库后续范围，本簇仅验证既有默认短单位和覆写；不以Trait五个入口关闭完整日期库。",
+    "终端样式/颜色仓库与独立扩展对象、通用HTML恢复、Factory容器覆盖、Helper/HelperSet及Artisan其余锚点继续，整章仍开放。"
+  ],
+  "pushed": false
+}

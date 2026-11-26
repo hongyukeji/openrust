@@ -834,3 +834,18 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 12框架目标、177正式三语直接提取消费者、实际Artisan5进程/HTTP17请求（错误恢复及12并发）/PTY5场景、三语站点12手机桌面浏览器、workspace all-targets严格Clippy与fmt均通过。后续HEAD新增根应用测试依赖aws-lc-rs，已合并保留并重跑本簇消费者及锁定严格门禁；未回退他人提交。辅助ignored由父进程实际执行，不额外虚计独立测试。初轮short_open_tag错误假设、行号float key、特殊标识符词法模式和标签碰撞反例均保留失败日志并修复复验；首轮严格检查slice lint修复，未加allow。私有PTY脚本最初误用oracle路径，修后真实5项通过。
 
 守卫在完整门禁首轮触及32GB，安全结束本批Cargo并清理项目编译profile，实际释放75,314,606,080字节，恢复107,317,514,240字节可用；源码、日志、锁、依赖下载、数据库/卷均保留，恢复后完整重跑。其余临时缓存继续复用，未另复制target。源对照容器--rm，HTTP/Artisan/PTY/浏览器均已结束，无新增持久服务。完整原始日志在target/tmp/artisan-tutorial-20261125/component-code-*，失败和中断不计通过。继续样式/颜色仓库、独立扩展类型、通用HTML恢复及Factory/Helper/Time，整章仍开放；见accepted-component-code.json，不推送。
+
+
+## 59. 时间 Trait 与 Task 继承助手（2026-11-26）
+
+58已本地提交ef70dd71f40f8261445fc68240ee73c48cd120e0。固定InteractsWithTime五个所属方法逐项映射到support::InteractsWithTime和Task：seconds_until、available_at、parse_date_interval、current_time、run_time_for_humans。TimeDelay表达文档的整数/Date/DateInterval union；Trait关联错误接受DateError，Task保留ConsoleError和原耗时覆盖；默认耗时与wall_time共用，不再两套实现。源保护可见性用原生公共组合入口表达；默认availableAt()显式available_at(0)，不假设Rust支持省略参数。无新依赖／PHP运行时／全局时钟／CLI和数据格式变化，不改队列或调度业务。
+
+320真实固定PHP8.5.12＋Carbon3.10.3场景分别走通用Trait与Task，另11真实DateTimeZone构造场景走Request实例和Facade HTTP成功/失败。覆盖整数正负/53位精度/64位两端、原日期不变、区间转换、UTC/上海/纽约、月末闰日、gap/fold、日历天与86400秒区别、微秒、负纪元和覆写current_time。相对available_at按源读取日期工厂，不能错误复用覆写current_time；只有日期seconds_until减该钩子。整数可执行时间戳保留源有符号回绕；最小整数abs转浮点后源区间构造失败，回退日期修改，未硬编码时间戳。
+
+实际反例修复两处已有Calendar接线：-922等三位数字偏移此前不被固定偏移构造接受；modify日期此前按构造流程清掉未指定的时分秒/微秒。现在三位偏移按真实构造语义处理，五位非法仍拒绝；modify单独保留原时间，其他构造语义不变。额外DST检查复现先加月落入3月10日02:30不存在时间、再加一天导致差一小时：改由既有ParseState共同归一化年月日、解析时区，再加固定时长。新增add_date_interval_input仅接原引擎，不造第二套算法，也不改Date::plus的既有逐单位公开语义。初版6个最小整数差异、DST3个方法结果差异保留，修后320全匹配。日期区间仍受既有原生Date/Jiff范围约束，超界受检错误与源超大日期可表示范围差异已公开；不以此宣称完整Carbon语言／自定义cascade SDK已完成。
+
+8框架目标32父测试、180直接正式三语消费者、3新Artisan进程、26新HTTP（1区间错误、14不同冻结时钟并发、11时区实例/门面成功或错误）、三语站点12浏览器、workspace/all-targets严格Clippy和fmt通过。旧Task387布局/32默认时长等回归由原7父测试实跑，不重复虚计为本簇新功能；ignored CLI辅助由父进程实际执行。补实际默认整数解析错误的ParseIntError来源链；Trait调用Task仍走既有覆盖。后续保留并交集复验HEAD已提交的标量辅助导出／区间舍入复用，相关代码未夹带本提交。
+
+失败真实保留：初始PHP脚本缺自动加载返回255、Docker只读查询/启动90秒超时后恢复；host旧PHP7.4因缺tidy动态库不可运行，未改用户安装或冒作固定来源；补自动加载后实际重新执行。加入-999为直接日期文本时源本身拒绝该表达式，构造器和表达式规则不同，修正夹具分层后重新生成，不把失败当通过。私有Rust目标最初误名console_task，配置捕获闭包/Facade import编译问题及Clippy布尔简化已修，不加allow；早期错误来源链抽取已补保留。第一次最终门禁在严格检查尾段32GB停线，末尾killpg EPERM未计通过；项目守卫随后持锁释放68,368,412,672字节并保留源码/日志/锁/数据库/卷，恢复后全套重跑。该可复现退役组错误另提交ad7731383a70ddeceb2ff88b231b660a621f6a6e，见guard-retired-group-2026-11-26.md，历史未截获组状态不追认。
+
+证据target/tmp/artisan-tutorial-20261125/time-*；Source容器--rm，HTTP／Artisan／浏览器已结束，无持久数据库服务或本批残留进程。沿现有缓存/TMPDIR，必要清理按守卫执行，未另复制缓存。每个核定源码/测试与验收快照SHA一致后回写；保留其他协作者WIP，仅本地提交。继续样式/颜色仓库、独立扩展对象、通用HTML恢复、Factory容器构造覆盖和Helper/HelperSet，整章开放，不推送。详见time-contracts.json及accepted-time.json。

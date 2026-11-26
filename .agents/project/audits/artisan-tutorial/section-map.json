@@ -358,7 +358,7 @@
       "native": "console::CommandIo",
       "remaining": [
         "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-        "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+        "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
       ]
     },
     {
@@ -543,7 +543,7 @@
     "contract": "factory-typed-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "dynamic_component_factory": {
@@ -551,7 +551,7 @@
     "contract": "factory-dispatch-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "custom_component_factory": {
@@ -559,7 +559,7 @@
     "contract": "factory-registry-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_core": {
@@ -567,7 +567,7 @@
     "contract": "component-core-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_compile": {
@@ -575,7 +575,7 @@
     "contract": "component-compile-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_render": {
@@ -583,7 +583,7 @@
     "contract": "component-render-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_palette": {
@@ -591,7 +591,7 @@
     "contract": "component-palette-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_sizing": {
@@ -599,7 +599,7 @@
     "contract": "component-sizing-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_style_methods": {
@@ -607,7 +607,7 @@
     "contract": "component-style-methods-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_list_elements": {
@@ -615,7 +615,7 @@
     "contract": "component-list-elements-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_preformatted": {
@@ -624,7 +624,7 @@
     "prior_pending_list_pre_resolved": 8,
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_html_table": {
@@ -632,7 +632,7 @@
     "contract": "component-html-table-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_code": {
@@ -640,7 +640,15 @@
     "contract": "component-code-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
+    ]
+  },
+  "time_helpers": {
+    "status": "verified_documented_delay_union_and_default_duration",
+    "contract": "time-contracts.json",
+    "remaining": [
+      "默认时长的完整Carbon语言/自定义cascade SDK属于日期库后续范围，本簇仅验证既有默认短单位和覆写；不以Trait五个入口关闭完整日期库。",
+      "终端样式/颜色仓库与独立扩展对象、通用HTML恢复、Factory容器覆盖、Helper/HelperSet及Artisan其余锚点继续，整章仍开放。"
     ]
   }
 }

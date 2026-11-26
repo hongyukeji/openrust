@@ -128,7 +128,7 @@
       ],
       "remaining": [
         "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-        "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+        "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
       ]
     },
     {
@@ -179,7 +179,37 @@
       "protected": [],
       "status": "verified_concrete_task_builtin_outputs_and_default_duration",
       "native": "console::view::components::Task",
-      "evidence": "task-contracts.json"
+      "evidence": [
+        "task-contracts.json",
+        "time-contracts.json"
+      ],
+      "inherited_bindings": [
+        {
+          "source": "secondsUntil",
+          "native": "seconds_until",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "availableAt",
+          "native": "available_at",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "parseDateInterval",
+          "native": "parse_date_interval",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "currentTime",
+          "native": "current_time",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "runTimeForHumans",
+          "native": "run_time_for_humans",
+          "status": "verified_owned_task_and_composable_trait"
+        }
+      ]
     },
     {
       "source_type": "TwoColumnDetail",
@@ -200,9 +230,50 @@
       "status": "verified_concrete_line_family_builtin_outputs",
       "native": "console::view::components::Warn",
       "evidence": "line-components-contracts.json"
+    },
+    {
+      "source_type": "InteractsWithTime",
+      "public": [],
+      "protected": [
+        "secondsUntil",
+        "availableAt",
+        "parseDateInterval",
+        "currentTime",
+        "runTimeForHumans"
+      ],
+      "status": "verified_documented_delay_union_and_default_duration",
+      "native": "support::InteractsWithTime, Task",
+      "evidence": "time-contracts.json",
+      "owned_bindings": [
+        {
+          "source": "secondsUntil",
+          "native": "seconds_until",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "availableAt",
+          "native": "available_at",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "parseDateInterval",
+          "native": "parse_date_interval",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "currentTime",
+          "native": "current_time",
+          "status": "verified_owned_task_and_composable_trait"
+        },
+        {
+          "source": "runTimeForHumans",
+          "native": "run_time_for_humans",
+          "status": "verified_owned_task_and_composable_trait"
+        }
+      ]
     }
   ],
-  "inheritance": "Recorded default markup/style/layout/text/list/rule/pre/table/code bindings verified; standalone extension objects, style repositories, general recovery, Factory override and helper/time remain open.",
+  "inheritance": "Recorded default markup/style/layout/text/list/rule/pre/table/code bindings verified; standalone extension objects, style repositories, general recovery, Factory override and helper remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -263,7 +334,7 @@
     "contract": "component-style-methods-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_list_elements": {
@@ -271,7 +342,7 @@
     "contract": "component-list-elements-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_preformatted": {
@@ -280,7 +351,7 @@
     "prior_pending_list_pre_resolved": 8,
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_html_table": {
@@ -288,7 +359,7 @@
     "contract": "component-html-table-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
     ]
   },
   "component_code": {
@@ -296,7 +367,15 @@
     "contract": "component-code-contracts.json",
     "remaining": [
       "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+      "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
+    ]
+  },
+  "time_helpers": {
+    "status": "verified_documented_delay_union_and_default_duration",
+    "contract": "time-contracts.json",
+    "remaining": [
+      "默认时长的完整Carbon语言/自定义cascade SDK属于日期库后续范围，本簇仅验证既有默认短单位和覆写；不以Trait五个入口关闭完整日期库。",
+      "终端样式/颜色仓库与独立扩展对象、通用HTML恢复、Factory容器覆盖、Helper/HelperSet及Artisan其余锚点继续，整章仍开放。"
     ]
   }
 }

@@ -73,10 +73,10 @@
     "task-{consumers,docs-consumers,rustdoc,clippy,fmt,docs,browser}.log"
   ],
   "remaining": [
-    "Remaining four InteractsWithTime delay/date protected methods and complete Carbon locale/custom cascade SDK are not claimed by concrete Task display.",
-    "Five question components and dedicated QuestionHelper swap/restore remain pending.",
-    "Abstract Component extension/compile/mutate lifecycle, Factory/CommandIo and general third-party output interfaces remain pending.",
+    "Complete Carbon locale/custom cascade SDK is outside the default Task duration verified here.",
+    "Standalone style extension objects and repositories, general markup recovery, Factory container override and Helper/HelperSet remain pending.",
     "Full Artisan chapter and release platform matrix remain open."
   ],
-  "pushed": false
+  "pushed": false,
+  "time_helpers_contract": "time-contracts.json"
 }

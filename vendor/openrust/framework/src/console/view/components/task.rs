@@ -5,12 +5,12 @@ use super::mutators::{
 use crate::console::{
     AsOutput, ConsoleError, OutputOptions, OutputReference, OutputVerbosity, Terminal,
 };
+use crate::support::interacts_with_time::wall_time;
 use regex::Regex;
 use serde_json::Value;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
     sync::LazyLock,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 type RunTimeFormatter<'a> =
@@ -39,63 +39,39 @@ impl<'a> Task<'a> {
         if let Some(formatter) = &mut self.run_time_formatter {
             return formatter(start, end);
         }
-        let end = match end {
-            Some(end) => end,
-            None => wall_time(),
-        };
-        let milliseconds = (end - start) * 1000.0;
-        if milliseconds.is_nan() {
-            return Ok("nanms".into());
-        }
-        if milliseconds.is_infinite() {
-            return Ok(if milliseconds.is_sign_positive() {
-                "0s"
-            } else {
-                "infms"
-            }
-            .into());
-        }
-        if milliseconds <= 1000.0 {
-            let formatted = crate::support::calendar::format_decimal_number(milliseconds, 2)
-                .map_err(|_| ConsoleError::new("任务耗时超出范围"))?;
-            let (integer, fraction) = formatted.split_once('.').expect("固定精度包含小数点");
-            let (sign, digits) = integer
-                .strip_prefix('-')
-                .map_or(("", integer), |n| ("-", n));
-            let mut result = String::from(sign);
-            for (i, digit) in digits.chars().enumerate() {
-                if i > 0 && (digits.len() - i).is_multiple_of(3) {
-                    result.push(',');
+        crate::support::interacts_with_time::run_time_for_humans(start, end).map_err(|error| {
+            match error {
+                crate::support::interacts_with_time::RunTimeError::Format => {
+                    ConsoleError::new("任务耗时超出范围")
                 }
-                result.push(digit);
+                crate::support::interacts_with_time::RunTimeError::Integer(source) => {
+                    ConsoleError::from_source(source)
+                }
             }
-            return Ok(format!("{result}.{fraction}ms"));
-        }
-        // 短单位显示向下取整秒；月份按四周、年份按十二个月进位。
-        let mut seconds = format!("{:.0}", (milliseconds / 1000.0).floor())
-            .parse::<i64>()
-            .map_err(ConsoleError::from_source)?;
-        let mut parts = Vec::new();
-        for (unit, divisor, plural) in [
-            ("yr", 29_030_400, "yrs"),
-            ("mo", 2_419_200, "mos"),
-            ("w", 604_800, "w"),
-            ("d", 86_400, "d"),
-            ("h", 3600, "h"),
-            ("m", 60, "m"),
-            ("s", 1, "s"),
-        ] {
-            let amount = seconds / divisor;
-            seconds %= divisor;
-            if amount > 0 {
-                parts.push(format!(
-                    "{amount}{}",
-                    if amount == 1 { unit } else { plural }
-                ));
-            }
-        }
-        Ok(parts.join(" "))
+        })
     }
+    pub fn seconds_until(
+        &self,
+        delay: impl Into<crate::support::TimeDelay>,
+    ) -> Result<i64, ConsoleError> {
+        crate::support::InteractsWithTime::seconds_until(self, delay)
+    }
+    pub fn available_at(
+        &self,
+        delay: impl Into<crate::support::TimeDelay>,
+    ) -> Result<i64, ConsoleError> {
+        crate::support::InteractsWithTime::available_at(self, delay)
+    }
+    pub fn parse_date_interval(
+        &self,
+        delay: impl Into<crate::support::TimeDelay>,
+    ) -> Result<crate::support::TimeDelay, ConsoleError> {
+        crate::support::InteractsWithTime::parse_date_interval(self, delay)
+    }
+    pub fn current_time(&self) -> Result<i64, ConsoleError> {
+        crate::support::InteractsWithTime::current_time(self)
+    }
+
     pub fn render(&mut self, description: &str) -> Result<(), ConsoleError> {
         self.render_with(description, OutputVerbosity::Normal)
     }
@@ -183,9 +159,13 @@ impl<'a> Task<'a> {
         }
     }
 }
-fn wall_time() -> f64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_secs_f64(),
-        Err(error) => -error.duration().as_secs_f64(),
+impl crate::support::InteractsWithTime for Task<'_> {
+    type Error = ConsoleError;
+    fn run_time_for_humans(
+        &mut self,
+        start: f64,
+        end: Option<f64>,
+    ) -> Result<String, ConsoleError> {
+        Task::run_time_for_humans(self, start, end)
     }
 }

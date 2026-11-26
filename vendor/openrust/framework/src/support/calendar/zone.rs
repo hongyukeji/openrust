@@ -290,6 +290,7 @@ fn parse_offset(name: &str) -> Option<i32> {
     } else {
         match digits.len() {
             1 | 2 => (integer(digits)?, 0, 0),
+            3 => (integer(digits.get(..1)?)?, integer(digits.get(1..)?)?, 0),
             4 => (integer(digits.get(..2)?)?, integer(digits.get(2..)?)?, 0),
             6 => (
                 integer(digits.get(..2)?)?,
