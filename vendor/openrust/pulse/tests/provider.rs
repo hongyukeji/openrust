@@ -727,6 +727,115 @@ async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
 }
 
 #[tokio::test]
+async fn dashboard_cards_follow_fixed_orderings_and_usage_limits() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"]["SlowRequests"] = false.into();
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let cards = [
+        ("slow_requests", "slow_request", "slow-requests", "count"),
+        ("slow_queries", "slow_query", "slow-queries", "count"),
+        ("slow_jobs", "slow_job", "slow-jobs", "count"),
+        (
+            "slow_outgoing_requests",
+            "slow_outgoing_request",
+            "slow-outgoing-requests",
+            "count",
+        ),
+        ("exceptions", "exception", "exceptions", "latest"),
+    ];
+    let mut items = Vec::new();
+    for (_, kind, _, _) in cards {
+        for (key, value) in [("frequent", 100), ("frequent", 200), ("peak", 500)] {
+            items.push(
+                openrust_pulse::Entry::new(timestamp, kind, key, Some(value))
+                    .count()
+                    .max()
+                    .into(),
+            );
+        }
+    }
+    for (kind, range) in [
+        ("user_request", 1..=12),
+        ("user_job", 21..=32),
+        ("slow_user_request", 41..=52),
+    ] {
+        for user in range {
+            let count = user % 20;
+            for _ in 0..count {
+                items.push(
+                    openrust_pulse::Entry::new(timestamp, kind, user.to_string(), None)
+                        .count()
+                        .into(),
+                );
+            }
+        }
+    }
+    storage.store(&items).await.unwrap();
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let default = response.json::<serde_json::Value>().unwrap();
+    let override_query = cards
+        .iter()
+        .map(|(_, _, query, value)| format!("{query}={value}"))
+        .collect::<Vec<_>>()
+        .join("&");
+    let response = app
+        .get(&format!(
+            "/pulse/api/metrics?period=1h&{override_query}&usage=slow_requests"
+        ))
+        .await
+        .unwrap();
+    response.assert_ok();
+    let selection = response.json::<serde_json::Value>().unwrap();
+    for (name, _, _, _) in cards {
+        let (default_key, selected_key) = if name == "exceptions" {
+            ("frequent", "peak")
+        } else {
+            ("peak", "frequent")
+        };
+        assert_eq!(default[name][0]["key"], default_key, "{name}");
+        assert_eq!(selection[name][0]["key"], selected_key, "{name}");
+    }
+    for (data, card, expected) in [
+        (&default, "requests", 12),
+        (&default, "jobs", 32),
+        (&selection, "requests", 52),
+    ] {
+        let rows = data[card].as_array().unwrap();
+        let keys = rows
+            .iter()
+            .map(|row| row["key"].as_str().unwrap().parse::<u32>().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(keys, ((expected - 9)..=expected).rev().collect::<Vec<_>>());
+    }
+    let response = app
+        .get("/pulse/api/metrics?usage=jobs&slow-requests=unknown&exceptions=unknown")
+        .await
+        .unwrap();
+    response.assert_ok();
+    let jobs = response.json::<serde_json::Value>().unwrap();
+    assert_eq!(jobs["requests"], default["jobs"]);
+    assert_eq!(jobs["slow_requests"], default["slow_requests"]);
+    assert_eq!(jobs["exceptions"], default["exceptions"]);
+    app.get("/pulse/api/metrics?usage=invalid")
+        .await
+        .unwrap()
+        .assert_status(http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods() {
     use openrust::contracts::foundation::Application as _;
     let mut app = app();

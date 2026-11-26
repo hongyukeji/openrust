@@ -38,6 +38,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 面板使用原生 HTML、JavaScript 與 JSON 介面。透過 `./artisan vendor:publish --tag=pulse-dashboard` 發佈範本；自訂範本保留 `<!-- PULSE_STYLES -->` 和 `<!-- PULSE_SCRIPTS -->` 可注入套件資源。`Pulse::with_css` 接受可信任的應用程式 CSS 路徑或 HTML，去重並追加；`css` 與 `js` 回傳資源 HTML。Rust 將上游多載的 CSS 設定入口表達為 `with_css`。
 
+慢操作卡片預設按最慢耗時排列，可切換為按次數排序。例外預設按次數排列，可切換為按最近發生時間排序。用量顯示請求、慢請求或工作的前十名使用者。面板選擇儲存在頁面 URL。指標入口接受 `slow-requests=count`、`slow-queries=count`、`slow-jobs=count`、`slow-outgoing-requests=count`、`exceptions=latest` 和 `usage=requests|slow_requests|jobs`。
+
 ## 記錄器 {#recorders}
 
 `pulse.recorders` 按型別名稱設定 `CacheInteractions`、`Exceptions`、`Queues`、`SlowJobs`、`SlowOutgoingRequests`、`SlowQueries`、`SlowRequests`、`UserJobs`、`UserRequests` 和 `Servers`。`false` 或 `enabled=false` 在啟動時關閉該記錄器。`sample_rate` 為 0–1，慢記錄的 `threshold` 單位為毫秒；`ignore` 接受 PHP 分隔符形式的 PCRE 模式。

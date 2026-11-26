@@ -38,6 +38,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 The dashboard uses native HTML, JavaScript and JSON. Publish its template with `./artisan vendor:publish --tag=pulse-dashboard`. Keep `<!-- PULSE_STYLES -->` and `<!-- PULSE_SCRIPTS -->` in a custom template to inject package assets. `Pulse::with_css` appends trusted application CSS paths or HTML, removing duplicates; `css` and `js` return asset HTML. Rust expresses the upstream overloaded CSS setter as `with_css`.
 
+Slow activity cards default to the slowest operation and can sort by count. Exceptions default to count and can sort by latest occurrence. Application usage shows the top ten users for requests, slow requests or jobs. Dashboard selections are kept in the page URL. The metrics endpoint accepts `slow-requests=count`, `slow-queries=count`, `slow-jobs=count`, `slow-outgoing-requests=count`, `exceptions=latest` and `usage=requests|slow_requests|jobs`.
+
 ## Recorders {#recorders}
 
 Configure `pulse.recorders` using the type names `CacheInteractions`, `Exceptions`, `Queues`, `SlowJobs`, `SlowOutgoingRequests`, `SlowQueries`, `SlowRequests`, `UserJobs`, `UserRequests` and `Servers`. Set a recorder to `false` or `enabled=false` to disable registration at startup. `sample_rate` ranges from 0 to 1. Slow recorder `threshold` values use milliseconds; `ignore` accepts PCRE patterns with PHP-style delimiters.

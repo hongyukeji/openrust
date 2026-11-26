@@ -112,6 +112,14 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 同一固定 PHP 探针发现 `collapseValues` 的下一项差异。单批内 `01` 与 `1`、`1e0` 与 `1.0` 作为类型或键时按 PHP 宽松比较只保留较后提交的等值项。大小写有差异的文本、空文本与 `0`、相邻的大整数及同向溢出的整数字符串仍可独立保存。Rust 在写库前倒序处理同批仪表值，复用框架固定 PHP 字符串比较函数。普通键按字节分组，数字候选再按 PHP 语义比较，只与已保留的项对比。负零、指数和大数边界通过，跨批次仍由数据库精确 upsert。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13 严格及非严格模式、独占 Redis 8.10.3 重试与裁剪、Pulse 和 Telescope 默认 90 项、快照格式和相关严格 Clippy 均通过。当前批次 Release 及其他目标平台继续验收。证据为 `target/tmp/observability-parity/pulse-value-numeric-keys-macos-verified.log` 和 `target/tmp/observability-parity/pulse-value-numeric-keys-upstream.log`。 [固定 DatabaseStorage](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Storage/DatabaseStorage.php)
 
+## 面板慢操作、异常与用量排序
+
+固定 Pulse 的四个慢操作组件以 `max` 降序为默认，接受各自 URL 参数上的 `count`。异常以 `count` 降序为默认，`exceptions=latest` 改按最大时间戳。Usage 可选请求、慢请求或任务，并在解析用户信息前把查询限制在前十名。 [固定 Pulse 面板组件](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire)
+
+原生面板过去对四张慢操作卡一律按次数查询，且用量读取最多 101 项。Rust 现通过授权的指标端点查询正确的顺序和上限，在浏览器中提供独立排序和用量选择。页面 URL 保留选项，刷新继续使用当前选项。保留原生单独的任务用量卡。修复前真实请求在慢请求卡错误地将高频项排在最长耗时项之前，证据为 `target/tmp/observability-parity/pulse-dashboard-order-baseline.log`。
+
+固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
+
 ## SlowJobs 任务尝试计时
 
 固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)

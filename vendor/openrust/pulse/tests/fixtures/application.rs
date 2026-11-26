@@ -75,7 +75,21 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         .await?
         .count()
         .max();
+        for _ in 0..2 {
+            Pulse::record(
+                "slow_request",
+                json!(["GET", "/frequent", "fixture::probe"]).to_string(),
+                Some(600),
+                None,
+            )
+            .await?
+            .count()
+            .max();
+        }
         Pulse::record("user_request", "42", None, None)
+            .await?
+            .count();
+        Pulse::record("slow_user_request", "99", None, None)
             .await?
             .count();
         Pulse::record("cache_hit", unsafe_text, None, None)

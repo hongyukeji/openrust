@@ -32,6 +32,18 @@ try{
   }
   const response=page.waitForResponse(r=>r.url().includes('/api/metrics?period=1h'));
   await page.click('#refresh');assert.equal((await response).status(),200);
+  const slow = page.locator('.card').filter({has: page.getByRole('heading',{name:'Slow requests',exact:true})});
+  assert((await slow.locator('tr').nth(1).innerText()).includes('window.compromised'));
+  const filterResponse = page.waitForResponse(r => new URL(r.url()).searchParams.get('slow-requests') === 'count' && r.url().includes('/api/metrics'));
+  await page.getByLabel('Order slow requests', {exact:true}).selectOption('count');
+  assert.equal((await filterResponse).status(),200);
+  await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
+  await page.getByLabel('Usage type', {exact:true}).selectOption('slow_requests');
+  const usage = page.locator('.card').filter({has: page.getByRole('heading',{name:'Application usage',exact:true})});
+  await usage.getByText('ID: 99',{exact:true}).waitFor();
+  await page.reload();
+  await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
+  await usage.getByText('ID: 99',{exact:true}).waitFor();
   await page.screenshot({path:process.env.PULSE_SCREENSHOT_DIR+`/dashboard-${mobile?'mobile':'desktop'}.png`,fullPage:true});
   assert.deepEqual(errors,[]);
   console.log(`native Pulse ${mobile?'mobile':'desktop'}: authorization, live metrics, 4 periods, SVG, meters, text escaping and refresh PASS`);

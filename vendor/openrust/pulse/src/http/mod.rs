@@ -86,35 +86,68 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             "7d" => 604800,
             _ => return Err(HttpError::InvalidRequest),
         };
+        let usage = request.query(Some("usage"))?;
+        let usage_type = match usage.as_ref().and_then(serde_json::Value::as_str) {
+            None | Some("requests") => "user_request",
+            Some("slow_requests") => "slow_user_request",
+            Some("jobs") => "user_job",
+            Some(_) => return Err(HttpError::InvalidRequest),
+        };
         let pulse = crate::facades::Pulse::get_facade_root()?;
         let mut cards = serde_json::Map::new();
-        for (name, types) in [
-            ("slow_requests", vec!["slow_request"]),
-            ("slow_queries", vec!["slow_query"]),
-            ("slow_jobs", vec!["slow_job"]),
-            ("slow_outgoing_requests", vec!["slow_outgoing_request"]),
-            ("exceptions", vec!["exception"]),
-            ("requests", vec!["user_request"]),
-            ("jobs", vec!["user_job"]),
-            ("cache", vec!["cache_hit", "cache_miss"]),
+        for (name, kind) in [
+            ("slow_requests", "slow_request"),
+            ("slow_queries", "slow_query"),
+            ("slow_jobs", "slow_job"),
+            ("slow_outgoing_requests", "slow_outgoing_request"),
+            ("exceptions", "exception"),
+            ("requests", usage_type),
+            ("jobs", "user_job"),
         ] {
-            let types: Vec<String> = types.into_iter().map(str::to_owned).collect();
-            let aggregates = if name == "requests" || name == "jobs" {
-                vec!["count".into()]
+            let is_usage = matches!(name, "requests" | "jobs");
+            let aggregates = if is_usage {
+                &["count"][..]
             } else {
-                vec!["count".into(), "max".into()]
+                &["count", "max"]
             };
-            let rows = if types.len() == 1 {
-                pulse
-                    .aggregate(&types[0], &aggregates, interval, Some("count"), "desc", 101)
-                    .await?
-            } else {
-                pulse
-                    .aggregate_types(&types, "count", interval, None, "desc", 101)
-                    .await?
+            let aggregates = aggregates
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect::<Vec<_>>();
+            let order = match name {
+                "requests" | "jobs" => "count",
+                "exceptions" => {
+                    if request
+                        .query(Some("exceptions"))?
+                        .as_ref()
+                        .and_then(serde_json::Value::as_str)
+                        == Some("latest")
+                    {
+                        "max"
+                    } else {
+                        "count"
+                    }
+                }
+                _ => {
+                    let parameter = name.replace('_', "-");
+                    if request
+                        .query(Some(parameter.as_str()))?
+                        .as_ref()
+                        .and_then(serde_json::Value::as_str)
+                        == Some("count")
+                    {
+                        "count"
+                    } else {
+                        "max"
+                    }
+                }
             };
+            let limit = if is_usage { 10 } else { 101 };
+            let rows = pulse
+                .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
+                .await?;
             let mut rows: Vec<_> = rows.into_iter().map(row).collect();
-            if name == "requests" || name == "jobs" {
+            if is_usage {
                 let keys: Vec<_> = rows
                     .iter()
                     .filter_map(|row| row.get("key").and_then(|v| v.as_str()).map(str::to_owned))
@@ -131,6 +164,20 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             }
             cards.insert(name.into(), serde_json::Value::Array(rows));
         }
+        let cache = pulse
+            .aggregate_types(
+                &["cache_hit".into(), "cache_miss".into()],
+                "count",
+                interval,
+                None,
+                "desc",
+                101,
+            )
+            .await?;
+        cards.insert(
+            "cache".into(),
+            serde_json::Value::Array(cache.into_iter().map(row).collect()),
+        );
         cards.insert(
             "queues".into(),
             serde_json::to_value(
