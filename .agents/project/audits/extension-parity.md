@@ -329,6 +329,8 @@ Rust 将原始参数传给 `RequestSending` 与 `ResponseReceived`，连接失�
 
 隔离快照沿用 `8041ae15a` 加前批和本批文件。真实回环 HTTP 核对跨源目标、GET 初始查询、表单 302／307、原始正文 302、回调前后头部与重定向超限。Telescope 仓储用例在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 分别实际通过。Telescope 全包 32 项、框架 HTTP 客户端 21 项、独立 Redis 8.10.3 用例、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。
 
+原始 JSON 的关联数组形状补充实测覆盖成功请求、连接失败和显式结构化对象，三库入库及脱敏均已通过。 [出站请求形状审计](telescope/README.md#出站请求的原始-json-形状)
+
 ### 出站重定向的方法、正文与 Referer
 
 固定 Laravel HTTP Client 通过 [Guzzle 7.10.0 RedirectMiddleware](https://github.com/guzzle/guzzle/blob/7.10.0/src/RedirectMiddleware.php) 默认跟随带 `Location` 的 3xx。300–303 清正文并保留 GET、HEAD、OPTIONS，其他方法变为 GET。其余 3xx 沿用原方法与正文。默认关闭 Referer 追踪，因此清除上一跳的 Referer。PHP 8.5.12 中通过 Laravel `PendingRequest::send` 和 Guzzle MockHandler 对 9 种状态与 7 种方法实际验证 63 组，日志 `target/tmp/observability-parity/redirect-method-upstream.log`。

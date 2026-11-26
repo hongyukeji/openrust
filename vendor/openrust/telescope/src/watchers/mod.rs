@@ -824,13 +824,15 @@ fn client_content(
     let payload = request.multipart.as_ref().map_or_else(
         || {
             let payload = request.diagnostic_data();
-            if matches!(
-                request.diagnostic_source,
-                Some(RecordedRequestDataSource::MultipartDescriptors(_))
-            ) {
-                telescope.multipart_descriptors(payload)
-            } else {
-                telescope.request_parameters(payload)
+            match request.diagnostic_source {
+                Some(RecordedRequestDataSource::MultipartDescriptors(_)) => {
+                    telescope.multipart_descriptors(payload)
+                }
+                None => {
+                    // 从线上正文解码的诊断载荷使用 PHP 关联数组的形状。
+                    client_json_shape(telescope.request_parameters(payload))
+                }
+                _ => telescope.request_parameters(payload),
             }
         },
         |fields| {

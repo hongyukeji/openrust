@@ -25,6 +25,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/async", async_handler)?;
     openrust::support::facades::Route::get("/redis", redis_handler)?;
     openrust::support::facades::Route::get("/client", client_handler)?;
+    openrust::support::facades::Route::get("/client-request-shape", client_request_shape_handler)?;
     openrust::support::facades::Route::get(
         "/client-response-shape",
         client_response_shape_handler,
@@ -2004,6 +2005,129 @@ async fn multipart_media_rewrites_preserve_the_correct_telescope_diagnostic() {
                 .starts_with(media.unwrap_or("multipart/form-data; boundary=")),
             "{uri}"
         );
+    }
+}
+
+const CLIENT_REQUEST_SHAPE: &str = r#"{"empty":{},"list":{"0":"first","1":"second"},"reverse":{"1":{},"0":{"0":"nested"}},"leading":{"01":"value"},"array":[{},{"0":"inner"}]}"#;
+
+fn client_request_shape_handler(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::http::client::{Error, Http};
+
+        let origin = request.headers()["x-origin-url"].to_str().unwrap();
+        let unavailable = request.headers()["x-failed-url"].to_str().unwrap();
+        let raw = || {
+            Http::pending_request().unwrap().with_body(
+                CLIENT_REQUEST_SHAPE,
+                http::HeaderValue::from_static("application/json"),
+            )
+        };
+        raw()
+            .send(http::Method::POST, &format!("{origin}/raw"))
+            .await
+            .unwrap();
+        let structured: serde_json::Value = serde_json::from_str(CLIENT_REQUEST_SHAPE).unwrap();
+        Http::pending_request()
+            .unwrap()
+            .post(&format!("{origin}/structured"), &structured)
+            .await
+            .unwrap();
+        assert!(matches!(
+            raw()
+                .send(http::Method::POST, &format!("{unavailable}/failed"))
+                .await,
+            Err(Error::Connection)
+        ));
+        Ok(openrust::http::Response::from("observed"))
+    })
+}
+
+#[tokio::test]
+async fn raw_client_json_diagnostics_match_php_array_shapes() {
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+    let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = origin.local_addr().unwrap();
+    let unavailable = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let failed = unavailable.local_addr().unwrap();
+    drop(unavailable);
+    let wire = tokio::spawn(async move {
+        for path in ["raw", "structured"] {
+            let (socket, _) = origin.accept().await.unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut line = String::new();
+            assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+            assert!(line.starts_with(&format!("POST /{path} ")));
+            loop {
+                line.clear();
+                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            let mut body = vec![0; CLIENT_REQUEST_SHAPE.len()];
+            socket.read_exact(&mut body).await.unwrap();
+            assert_eq!(body, CLIENT_REQUEST_SHAPE.as_bytes(), "{path}");
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        }
+    });
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .make::<Telescope>()
+        .await
+        .unwrap()
+        .hide_request_parameters(&["list.1"]);
+    let request = http::Request::builder()
+        .uri("/api/client-request-shape")
+        .header("x-origin-url", format!("http://{address}"))
+        .header("x-failed-url", format!("http://{failed}"))
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    let response = tokio::time::timeout(std::time::Duration::from_secs(30), app.call(request))
+        .await
+        .unwrap()
+        .unwrap();
+    response.assert_ok();
+    wire.await.unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 3);
+    let array_shape = json!({
+        "empty":[], "list":["first","********"], "reverse":{"1":[],"0":["nested"]},
+        "leading":{"01":"value"}, "array":[[],["inner"]],
+    });
+    let mut object_shape: serde_json::Value = serde_json::from_str(CLIENT_REQUEST_SHAPE).unwrap();
+    object_shape["list"]["1"] = json!("********");
+    for (path, status, expected) in [
+        ("raw", Some(200), &array_shape),
+        ("structured", Some(200), &object_shape),
+        ("failed", None, &array_shape),
+    ] {
+        let entry = entries
+            .iter()
+            .find(|entry| {
+                entry.content["uri"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with(&format!("/{path}"))
+            })
+            .unwrap();
+        assert_eq!(
+            entry.content.get("response_status").cloned(),
+            status.map(|code| json!(code))
+        );
+        assert_eq!(&entry.content["payload"], expected, "{path}");
     }
 }
 

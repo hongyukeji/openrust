@@ -44,7 +44,7 @@ When request middleware changes multipart to another media type, successful diag
 
 Import `openrust::database::DatabaseCursorExt` and call `cursor.try_next_with_source().await?` to associate SQL with the line that reads the next item. Standard stream consumers use the cursor creation site when available.
 
-Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types.
+Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types. In decoded raw JSON, empty objects and objects whose keys run from `0` in order appear as arrays. Structured JSON passed to the client keeps its nested object shapes.
 
 After a redirect, response diagnostics show the final URL and preserve the original GET, JSON, or form input. Connection failures use the request carried by the exception, so diagnostics only decode a supported buffered body.
 
