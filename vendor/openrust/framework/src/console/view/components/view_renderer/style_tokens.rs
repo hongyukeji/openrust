@@ -2,9 +2,9 @@
 /// 保留原类名，避免响应式前缀改变依赖原始标记的布局判定。
 pub(super) struct Token<'a> {
     pub original: &'a str,
-    pub resolved: &'a str,
+    pub resolved: Option<&'a str>,
 }
-pub(super) fn tokens(input: &str, width: i64) -> Vec<Token<'_>> {
+pub(super) fn tokens(input: &str, width: i64, include_inactive: bool) -> Vec<Token<'_>> {
     // 对应“空白后，在下一个左方括号前没有右方括号”；反向扫描避免重复搜索。
     let mut closing = None;
     let mut opening = None;
@@ -41,7 +41,8 @@ pub(super) fn tokens(input: &str, width: i64) -> Vec<Token<'_>> {
             Some(("2xl", value)) => (5, value, width >= 153),
             _ => (0, original, true),
         };
-        if active && !resolved.is_empty() {
+        let resolved = (active && !resolved.is_empty()).then_some(resolved);
+        if resolved.is_some() || include_inactive {
             values.push((rank, Token { original, resolved }));
         }
     }

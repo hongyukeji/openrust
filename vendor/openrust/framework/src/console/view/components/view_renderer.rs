@@ -6,6 +6,9 @@ mod layout;
 mod lists;
 mod palette;
 mod pre;
+mod repository;
+pub use repository::{StyleRepository, TerminalStyle, TerminalStyles};
+pub use style_methods::StyleArgument;
 mod style;
 mod style_methods;
 mod style_tokens;
@@ -24,10 +27,18 @@ pub trait ComponentViewRenderer: Send {
 }
 #[derive(Default)]
 #[non_exhaustive]
-pub struct BuiltinComponentViewRenderer;
+pub struct BuiltinComponentViewRenderer {
+    styles: Option<StyleRepository>,
+}
 impl BuiltinComponentViewRenderer {
     pub const fn new() -> Self {
-        Self
+        Self { styles: None }
+    }
+
+    pub fn with_styles(styles: StyleRepository) -> Self {
+        Self {
+            styles: Some(styles),
+        }
     }
 }
 impl ComponentViewRenderer for BuiltinComponentViewRenderer {
@@ -37,7 +48,7 @@ impl ComponentViewRenderer for BuiltinComponentViewRenderer {
         options: OutputOptions,
         output: &mut ComponentContext<'_>,
     ) -> Result<(), ConsoleError> {
-        let markup = layout::render(html)?;
+        let markup = layout::render(html, self.styles.as_ref())?;
         output.as_output().writeln(markup.as_str(), options)
     }
 }

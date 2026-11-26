@@ -22,4 +22,7 @@ pub use component::{
 mod view_compiler;
 pub use view_compiler::{BuiltinComponentViewCompiler, ComponentViewCompiler};
 mod view_renderer;
-pub use view_renderer::{BuiltinComponentViewRenderer, ComponentViewRenderer};
+pub use view_renderer::{
+    BuiltinComponentViewRenderer, ComponentViewRenderer, StyleArgument, StyleRepository,
+    TerminalStyle, TerminalStyles,
+};

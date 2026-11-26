@@ -1,21 +1,30 @@
 // 第三方许可见 ../LICENSE.renderer。
 mod tokens;
-use super::{dom::Node, pre, style, tree::Prepared};
+use super::{StyleRepository, dom::Node, pre, style, tree::Prepared};
 use crate::{
     console::{ConsoleError, Terminal},
     support::input_scalars,
 };
-fn paint(text: &str, class: &str) -> Result<String, ConsoleError> {
+fn paint(
+    text: &str,
+    class: &str,
+    styles: Option<&StyleRepository>,
+) -> Result<String, ConsoleError> {
     style::format(
         text.to_owned(),
-        &style::inline(class)?,
+        &style::inline(class, styles)?,
         &None,
         Terminal::new().get_width(),
         false,
         [0; 2],
     )
 }
-pub(super) fn prepare(nodes: &[Node], id: usize, depth: usize) -> Result<Prepared, ConsoleError> {
+pub(super) fn prepare(
+    nodes: &[Node],
+    id: usize,
+    depth: usize,
+    styles: Option<&StyleRepository>,
+) -> Result<Prepared, ConsoleError> {
     let node = &nodes[id];
     let mut source = pre::inner(nodes, id, depth)?;
     let extra = source
@@ -84,7 +93,7 @@ pub(super) fn prepare(nodes: &[Node], id: usize, depth: usize) -> Result<Prepare
         let marked = matches!(number,NumberValue::Integer(n)if n==mark);
         if mark != 0 {
             if marked {
-                content.push_str(&paint("  ➜ ", "text-red strong")?);
+                content.push_str(&paint("  ➜ ", "text-red strong", styles)?);
             } else {
                 content.push_str("    ");
             }
@@ -92,10 +101,11 @@ pub(super) fn prepare(nodes: &[Node], id: usize, depth: usize) -> Result<Prepare
         content.push_str(&paint(
             &format!("{:>width$}", text(number)),
             if marked { "italic strong" } else { "text-gray" },
+            styles,
         )?);
-        content.push_str(&paint("▕ ", "text-gray")?);
+        content.push_str(&paint("▕ ", "text-gray", styles)?);
         for (kind, text) in line {
-            content.push_str(&paint(&text, kind.class())?);
+            content.push_str(&paint(&text, kind.class(), styles)?);
         }
         content.push('\n');
     }
@@ -104,7 +114,7 @@ pub(super) fn prepare(nodes: &[Node], id: usize, depth: usize) -> Result<Prepare
     node.name.as_mut().expect("代码元素具有名称").local = "div".into();
     node.attrs.clear();
     Ok(Prepared {
-        style: Some(style::classes(&node)?),
+        style: Some(style::classes(&node, styles)?),
         raw_element: false,
         children: vec![Prepared {
             style: None,

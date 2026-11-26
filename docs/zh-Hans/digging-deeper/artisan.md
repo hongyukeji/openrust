@@ -2453,3 +2453,43 @@ fn register_default_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 自定义终端样式与颜色 {#terminal-style-repository}
+
+创建 `StyleRepository` 并交给内置渲染器。克隆后的句柄共享已注册样式，独立仓库可为同名样式配置不同行为。使用 `create` 或 `create_with` 注册自定义类。回调接收当前样式上下文，其后依次执行注册句柄上通过 `apply` 附加的样式类。
+
+颜色使用 `#a855f7` 或 `#a5f` 等十六进制值。通过 `text-brand-500` 或 `bg-brand-500` 使用颜色时，注册完整键名 `brand-500`。自定义名称区分大小写，精确注册名称优先于内置处理，包括响应式前缀。重复注册替换该名称的条目，已有句柄继续持有原定义。 自定义样式的嵌套达到渲染深度上限时返回错误，循环引用也可安全退出。
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{
+        BuiltinComponentViewRenderer, ComponentContext, ComponentViewRenderer, StyleRepository,
+    },
+};
+use openrust::support::facades::Artisan;
+
+fn register_style_repository() -> Result<(), ConsoleError> {
+    let styles = StyleRepository::new();
+    styles.create("brand-500").color("#a855f7")?;
+    styles
+        .create_with("status", |element, _| {
+            element.uppercase();
+            Ok(())
+        })
+        .apply("font-bold text-brand-500");
+
+    Artisan::command_with("tools:status-style", AsyncCommandCallback::new(move |_, _, output| {
+        let styles = styles.clone();
+        Box::pin(async move {
+            BuiltinComponentViewRenderer::with_styles(styles).render(
+                "<span class='status'>Ready for work</span>",
+                OutputFormat::Normal.into(),
+                &mut ComponentContext::Output(output.as_output()),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

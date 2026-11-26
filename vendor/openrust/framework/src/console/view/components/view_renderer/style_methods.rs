@@ -27,12 +27,13 @@ fn parts(input: &str) -> Vec<&str> {
     }
     result
 }
-#[derive(Clone)]
-pub(super) enum Argument<'a> {
+/// 终端样式回调的字符串或整数参数。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StyleArgument<'a> {
     Text(&'a str),
     Integer(i64),
 }
-impl<'a> Argument<'a> {
+impl<'a> StyleArgument<'a> {
     fn new(value: &'a str) -> Self {
         if input_scalars::numeric_prefix(value) == Some(value) {
             Self::Integer(input_scalars::integer_string(value))
@@ -40,13 +41,13 @@ impl<'a> Argument<'a> {
             Self::Text(value)
         }
     }
-    pub fn text(&self) -> Result<&'a str, ConsoleError> {
+    pub(super) fn text(&self) -> Result<&'a str, ConsoleError> {
         match self {
             Self::Text(v) => Ok(v),
             _ => Err(ConsoleError::new("组件样式需要文本参数")),
         }
     }
-    pub fn integer(&self) -> Result<i64, ConsoleError> {
+    pub(super) fn integer(&self) -> Result<i64, ConsoleError> {
         match self {
             Self::Integer(v) => Ok(*v),
             _ => Err(ConsoleError::new("组件样式需要整数参数")),
@@ -55,18 +56,18 @@ impl<'a> Argument<'a> {
 }
 pub(super) struct Method<'a> {
     pub name: String,
-    pub args: Vec<Argument<'a>>,
+    pub args: Vec<StyleArgument<'a>>,
 }
 impl<'a> Method<'a> {
-    pub fn argument(&self, n: usize) -> Result<&Argument<'a>, ConsoleError> {
+    pub fn argument(&self, n: usize) -> Result<&StyleArgument<'a>, ConsoleError> {
         self.args
             .get(n)
             .ok_or_else(|| ConsoleError::new("组件样式缺少参数"))
     }
-    pub fn text(&self, n: usize) -> Result<&'a str, ConsoleError> {
+    pub(super) fn text(&self, n: usize) -> Result<&'a str, ConsoleError> {
         self.argument(n)?.text()
     }
-    pub fn integer(&self, n: usize) -> Result<i64, ConsoleError> {
+    pub(super) fn integer(&self, n: usize) -> Result<i64, ConsoleError> {
         self.argument(n)?.integer()
     }
 }
@@ -78,7 +79,7 @@ pub(super) fn resolve(input: &str) -> Result<Method<'_>, ConsoleError> {
         if METHODS.contains(&method.as_str()) {
             return Ok(Method {
                 name: method,
-                args: pieces[n..].iter().map(|p| Argument::new(p)).collect(),
+                args: pieces[n..].iter().map(|p| StyleArgument::new(p)).collect(),
             });
         }
     }

@@ -12,6 +12,7 @@ pub(super) fn prepare_children(
     tag: &str,
     parent: &Style,
     children: &mut [Prepared],
+    styles: Option<&super::StyleRepository>,
 ) -> Result<(), ConsoleError> {
     if !matches!(tag, "ul" | "ol" | "dl") {
         return Ok(());
@@ -50,12 +51,12 @@ pub(super) fn prepare_children(
             "list-none"
         } else if has(parent, "list-decimal") {
             index += 1;
-            style::apply(own, &format!("list-decimal-{index}"), "li", 0)?;
+            style::apply(own, &format!("list-decimal-{index}"), "li", 0, styles)?;
             continue;
         } else {
             "list-none"
         };
-        style::apply(own, class, "li", 0)?;
+        style::apply(own, class, "li", 0, styles)?;
     }
     Ok(())
 }

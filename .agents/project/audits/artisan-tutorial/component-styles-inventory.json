@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "source_inventory_complete_native_extension_mapping_pending",
+  "status": "source_inventory_complete_repository_and_style_verified_standalone_styles_element_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -10,7 +10,8 @@
     "component-list-elements-contracts.json",
     "component-pre-elements-contracts.json",
     "component-html-table-contracts.json",
-    "component-code-contracts.json"
+    "component-code-contracts.json",
+    "style-repository-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1323,5 +1324,28 @@
   ],
   "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes.",
   "list_border_backend": "list and borderT verified through owning generic component renderer with actual li/ul/ol/hr element checks; not an export of standalone dependency Styles.",
-  "time_helpers_note": "Time delay helpers verified separately in time-contracts.json; standalone style extension mapping remains pending."
+  "time_helpers_note": "Time delay helpers verified separately in time-contracts.json; standalone style extension mapping remains pending.",
+  "native_extensions": {
+    "StyleRepository": [
+      "create / create_with",
+      "flush",
+      "has",
+      "get"
+    ],
+    "TerminalStyle": [
+      "new / new_with_color",
+      "apply",
+      "color",
+      "get_color",
+      "invoke"
+    ],
+    "BuiltinComponentViewRenderer": [
+      "with_styles"
+    ],
+    "TerminalStyles": [
+      "apply",
+      "uppercase",
+      "font_bold"
+    ]
+  }
 }

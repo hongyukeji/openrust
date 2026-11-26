@@ -1,0 +1,40 @@
+{
+  "base": "043279299273bc0be36f583633f031b92575175c",
+  "contract": "style-repository-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.48s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.16s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 198 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s"
+  ],
+  "runtime": {
+    "source_render_cases": 72,
+    "source_color_cases": 10,
+    "framework_targets": 9,
+    "framework_parent_tests": 32,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 198,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/style-repository-cycle-retest.log",
+    "target/tmp/artisan-tutorial-20261125/style-repository-gates.log",
+    "target/tmp/artisan-tutorial-20261125/style-repository-site.log",
+    "target/tmp/artisan-tutorial-20261125/style-repository-source.json"
+  ],
+  "unaccepted_attempts": [
+    "style-repository-stack-overflow.log: HTTP cycle overflowed a worker stack; bounded style invocation and reran full gates"
+  ],
+  "remaining": [
+    "独立 TerminalStyles 与 Element 的其他公开方法、通用 HTML 恢复。",
+    "Factory 容器构造与覆盖及 Artisan 其他锚点。"
+  ],
+  "pushed": false
+}

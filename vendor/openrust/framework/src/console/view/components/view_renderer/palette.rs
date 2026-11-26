@@ -1,6 +1,21 @@
 // 第三方许可见 ../LICENSE.renderer。
+use super::StyleRepository;
 use crate::{console::ConsoleError, support::Str};
-pub(super) fn color_value(base: &str, variant: i64) -> Result<String, ConsoleError> {
+pub(super) fn color_value(
+    base: &str,
+    variant: i64,
+    styles: Option<&StyleRepository>,
+) -> Result<String, ConsoleError> {
+    if let Some(styles) = styles {
+        let name = if variant > 0 {
+            std::borrow::Cow::Owned(format!("{base}-{variant}"))
+        } else {
+            std::borrow::Cow::Borrowed(base)
+        };
+        if let Some(style) = styles.lookup(name.as_ref()) {
+            return Ok(style.get_color());
+        }
+    }
     let name = if variant > 0 {
         format!("{base}_{variant}")
     } else {

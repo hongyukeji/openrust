@@ -3,8 +3,8 @@ use super::super::display::{trim_text, visible_width};
 use super::dimensions::{self, Constraint, Dimension, Dimensions, Target};
 use super::dom::Node;
 use super::{
-    palette,
-    style_methods::{self, Argument},
+    StyleRepository, TerminalStyles, palette,
+    style_methods::{self, StyleArgument as Argument},
     style_tokens,
 };
 use crate::{
@@ -43,7 +43,10 @@ pub(super) struct Style {
 fn error(value: &str) -> ConsoleError {
     ConsoleError::new(format!("控制台组件暂不支持此终端样式：{value}"))
 }
-pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
+pub(super) fn classes(
+    node: &Node,
+    styles: Option<&StyleRepository>,
+) -> Result<Style, ConsoleError> {
     let mut s = Style {
         element: match node.tag() {
             "ul" => "ul",
@@ -72,7 +75,7 @@ pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
 
         _ => {}
     }
-    apply(&mut s, node.attr("class"), node.tag(), 0)?;
+    apply(&mut s, node.attr("class"), node.tag(), 0, styles)?;
     if node.tag() == "b" {
         s.bold = Some(true);
     }
@@ -93,16 +96,16 @@ pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
     }
     Ok(s)
 }
-pub(super) fn inline(class: &str) -> Result<Style, ConsoleError> {
+pub(super) fn inline(class: &str, styles: Option<&StyleRepository>) -> Result<Style, ConsoleError> {
     let mut style = Style {
         element: "generic",
         display: "inline",
         ..Default::default()
     };
-    apply(&mut style, class, "span", 0)?;
+    apply(&mut style, class, "span", 0, styles)?;
     Ok(style)
 }
-fn transform(s: &mut Style, key: &'static str) {
+pub(super) fn transform(s: &mut Style, key: &'static str) {
     if !s.transform.contains(&key) {
         s.transform.push(key);
     }
@@ -118,6 +121,7 @@ pub(super) fn apply(
     input: &str,
     tag: &str,
     depth: usize,
+    styles: Option<&StyleRepository>,
 ) -> Result<(), ConsoleError> {
     if depth > 256 {
         return Err(ConsoleError::new("组件样式递归超出范围"));
@@ -132,8 +136,20 @@ pub(super) fn apply(
         "span" | "strong" | "b" | "i" | "em" | "u" | "s" | "a" | "br" => "",
         _ => "block",
     };
-    for token in style_tokens::tokens(&format!("{defaults} {input}"), Terminal::new().get_width()) {
-        let m = style_methods::resolve(token.resolved)?;
+    for token in style_tokens::tokens(
+        &format!("{defaults} {input}"),
+        Terminal::new().get_width(),
+        styles.is_some(),
+    ) {
+        if let Some(registered) = styles.and_then(|repo| repo.lookup(token.original)) {
+            let mut formatter = TerminalStyles::new(s, styles, tag, depth);
+            registered.invoke(&mut formatter, &[])?;
+            continue;
+        }
+        let Some(resolved) = token.resolved else {
+            continue;
+        };
+        let m = style_methods::resolve(resolved)?;
         mark(s, token.original);
         match m.name.as_str() {
             "block" => s.display = "block",
@@ -212,7 +228,7 @@ pub(super) fn apply(
                         _ => "center",
                     };
                 } else {
-                    let color = palette::color_value(value, variant)?;
+                    let color = palette::color_value(value, variant, styles)?;
                     let (slot, key) = if m.name == "bg" {
                         (&mut s.bg, "bg")
                     } else {
@@ -261,7 +277,7 @@ pub(super) fn apply(
                 }
             }
             "setstyle" => mark(s, m.text(0)?),
-            "addstyle" => apply(s, m.text(0)?, tag, depth + 1)?,
+            "addstyle" => apply(s, m.text(0)?, tag, depth + 1, styles)?,
             "m" | "mt" | "mr" | "mb" | "ml" | "mx" | "my" | "p" | "pt" | "pr" | "pb" | "pl"
             | "px" | "py" | "spacex" | "spacey" => {
                 let n = m.integer(0)?;

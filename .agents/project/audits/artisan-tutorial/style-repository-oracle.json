@@ -1,0 +1,792 @@
+{
+    "render": [
+        {
+            "kind": "basic",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"notice\">hello<\/div>",
+            "markup": "[!]HELLO",
+            "out": "[!]HELLO\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "basic",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"notice\">hello<\/div>",
+            "markup": "[!]HELLO",
+            "out": "[!]HELLO\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "basic",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"notice\">hello<\/div>",
+            "markup": "[!]HELLO",
+            "out": "[!]HELLO\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "basic",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"notice\">hello<\/div>",
+            "markup": "[!]HELLO",
+            "out": "[!]HELLO\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "cascade",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"notice block wrap\">hello<\/div>",
+            "markup": "[!]HELLO[?]",
+            "out": "[!]HELLO[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "cascade",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"notice block wrap\">hello<\/div>",
+            "markup": "[!]HELLO[?]",
+            "out": "[!]HELLO[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "cascade",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"notice block wrap\">hello<\/div>",
+            "markup": "[!]HELLO[?]",
+            "out": "[!]HELLO[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "cascade",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"notice block wrap\">hello<\/div>",
+            "markup": "[!]HELLO[?]",
+            "out": "[!]HELLO[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "overwrite",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"replaced\">hello<\/div>",
+            "markup": "hello[new]",
+            "out": "hello[new]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "overwrite",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"replaced\">hello<\/div>",
+            "markup": "hello[new]",
+            "out": "hello[new]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "overwrite",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"replaced\">hello<\/div>",
+            "markup": "hello[new]",
+            "out": "hello[new]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "overwrite",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"replaced\">hello<\/div>",
+            "markup": "hello[new]",
+            "out": "hello[new]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "shadow",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"font-bold\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "shadow",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"font-bold\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "shadow",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"font-bold\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "shadow",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"font-bold\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "case",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"Notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [Notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "case",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"Notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [Notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "case",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"Notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [Notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "case",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"Notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [Notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "color",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"text-brand bg-brand-500\">hello<\/div>",
+            "markup": "<fg=#aBc;bg=#123456>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"text-brand bg-brand-500\">hello<\/div>",
+            "markup": "<fg=#aBc;bg=#123456>hello<\/>",
+            "out": "\u001b[37;40mhello\u001b[39;49m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"text-brand bg-brand-500\">hello<\/div>",
+            "markup": "<fg=#aBc;bg=#123456>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"text-brand bg-brand-500\">hello<\/div>",
+            "markup": "<fg=#aBc;bg=#123456>hello<\/>",
+            "out": "\u001b[37;40mhello\u001b[39;49m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color-shadow",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"text-red-500 bg-red\">hello<\/div>",
+            "markup": "<fg=#345678;bg=#234567>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color-shadow",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"text-red-500 bg-red\">hello<\/div>",
+            "markup": "<fg=#345678;bg=#234567>hello<\/>",
+            "out": "\u001b[30;40mhello\u001b[39;49m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color-shadow",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"text-red-500 bg-red\">hello<\/div>",
+            "markup": "<fg=#345678;bg=#234567>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "color-shadow",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"text-red-500 bg-red\">hello<\/div>",
+            "markup": "<fg=#345678;bg=#234567>hello<\/>",
+            "out": "\u001b[30;40mhello\u001b[39;49m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "no-color",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"text-empty\">hello<\/div>",
+            "markup": "<fg=>hello<\/>",
+            "out": "<fg=>hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "no-color",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"text-empty\">hello<\/div>",
+            "markup": "<fg=>hello<\/>",
+            "out": "<fg=>hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "no-color",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"text-empty\">hello<\/div>",
+            "markup": "<fg=>hello<\/>",
+            "out": "<fg=>hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "no-color",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"text-empty\">hello<\/div>",
+            "markup": "<fg=>hello<\/>",
+            "out": "<fg=>hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"sm:banner\">hello<\/div>",
+            "markup": "hello[custom]",
+            "out": "hello[custom]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"sm:banner\">hello<\/div>",
+            "markup": "hello[custom]",
+            "out": "hello[custom]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"sm:banner\">hello<\/div>",
+            "markup": "hello[custom]",
+            "out": "hello[custom]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"sm:banner\">hello<\/div>",
+            "markup": "hello[custom]",
+            "out": "hello[custom]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-inactive",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"md:notice\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-inactive",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"md:notice\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-inactive",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"md:notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [md:notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-inactive",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"md:notice\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "Termwind\\Exceptions\\StyleNotFound:Style [md:notice] not found.",
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-built-in",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"sm:text-brand\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-built-in",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"sm:text-brand\">hello<\/div>",
+            "markup": "hello",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-built-in",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"sm:text-brand\">hello<\/div>",
+            "markup": "<fg=#aBc>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "media-built-in",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"sm:text-brand\">hello<\/div>",
+            "markup": "<fg=#aBc>hello<\/>",
+            "out": "\u001b[37mhello\u001b[39m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "nested",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"text-brand\"><span class=\"wrap\">hello<\/span><\/div>",
+            "markup": "<fg=#aBc><fg=#aBc>hello[?]<\/><\/>",
+            "out": "hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "nested",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"text-brand\"><span class=\"wrap\">hello<\/span><\/div>",
+            "markup": "<fg=#aBc><fg=#aBc>hello[?]<\/><\/>",
+            "out": "\u001b[37mhello[?]\u001b[39m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "nested",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"text-brand\"><span class=\"wrap\">hello<\/span><\/div>",
+            "markup": "<fg=#aBc><fg=#aBc>hello[?]<\/><\/>",
+            "out": "hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "nested",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"text-brand\"><span class=\"wrap\">hello<\/span><\/div>",
+            "markup": "<fg=#aBc><fg=#aBc>hello[?]<\/><\/>",
+            "out": "\u001b[37mhello[?]\u001b[39m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "array-callback",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"receive\">hello<\/div>",
+            "markup": "<options=bold>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "array-callback",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"receive\">hello<\/div>",
+            "markup": "<options=bold>hello<\/>",
+            "out": "\u001b[1mhello\u001b[22m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "array-callback",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"receive\">hello<\/div>",
+            "markup": "<options=bold>hello<\/>",
+            "out": "hello\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "array-callback",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"receive\">hello<\/div>",
+            "markup": "<options=bold>hello<\/>",
+            "out": "\u001b[1mhello\u001b[22m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "literal-negated-color",
+            "width": 20,
+            "ansi": false,
+            "html": "<div class=\"text-brand--5\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "TypeError:Termwind\\ValueObjects\\Styles::text(): Argument #2 ($variant) must be of type int, string given, called in \/r\/Termwind\/src\/Actions\/StyleToMethod.php on line 102",
+            "callback_arguments": []
+        },
+        {
+            "kind": "literal-negated-color",
+            "width": 20,
+            "ansi": true,
+            "html": "<div class=\"text-brand--5\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "TypeError:Termwind\\ValueObjects\\Styles::text(): Argument #2 ($variant) must be of type int, string given, called in \/r\/Termwind\/src\/Actions\/StyleToMethod.php on line 102",
+            "callback_arguments": []
+        },
+        {
+            "kind": "literal-negated-color",
+            "width": 82,
+            "ansi": false,
+            "html": "<div class=\"text-brand--5\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "TypeError:Termwind\\ValueObjects\\Styles::text(): Argument #2 ($variant) must be of type int, string given, called in \/r\/Termwind\/src\/Actions\/StyleToMethod.php on line 102",
+            "callback_arguments": []
+        },
+        {
+            "kind": "literal-negated-color",
+            "width": 82,
+            "ansi": true,
+            "html": "<div class=\"text-brand--5\">hello<\/div>",
+            "markup": null,
+            "out": "",
+            "error": "TypeError:Termwind\\ValueObjects\\Styles::text(): Argument #2 ($variant) must be of type int, string given, called in \/r\/Termwind\/src\/Actions\/StyleToMethod.php on line 102",
+            "callback_arguments": []
+        },
+        {
+            "kind": "pre",
+            "width": 20,
+            "ansi": false,
+            "html": "<pre class=\"notice\">hello<\/pre>",
+            "markup": "\n[!]HELLO   ",
+            "out": "\n[!]HELLO   \n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "pre",
+            "width": 20,
+            "ansi": true,
+            "html": "<pre class=\"notice\">hello<\/pre>",
+            "markup": "\n[!]HELLO   ",
+            "out": "\n[!]HELLO   \n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "pre",
+            "width": 82,
+            "ansi": false,
+            "html": "<pre class=\"notice\">hello<\/pre>",
+            "markup": "\n[!]HELLO   ",
+            "out": "\n[!]HELLO   \n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "pre",
+            "width": 82,
+            "ansi": true,
+            "html": "<pre class=\"notice\">hello<\/pre>",
+            "markup": "\n[!]HELLO   ",
+            "out": "\n[!]HELLO   \n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "list",
+            "width": 20,
+            "ansi": false,
+            "html": "<ol><li class=\"wrap\">hello<\/li><\/ol>",
+            "markup": "1. hello[?]",
+            "out": "1. hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "list",
+            "width": 20,
+            "ansi": true,
+            "html": "<ol><li class=\"wrap\">hello<\/li><\/ol>",
+            "markup": "1. hello[?]",
+            "out": "1. hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "list",
+            "width": 82,
+            "ansi": false,
+            "html": "<ol><li class=\"wrap\">hello<\/li><\/ol>",
+            "markup": "1. hello[?]",
+            "out": "1. hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "list",
+            "width": 82,
+            "ansi": true,
+            "html": "<ol><li class=\"wrap\">hello<\/li><\/ol>",
+            "markup": "1. hello[?]",
+            "out": "1. hello[?]\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "code",
+            "width": 20,
+            "ansi": false,
+            "html": "<code class=\"notice\">hello<\/code>",
+            "markup": "\n<fg=gray>  1<\/><fg=gray>▕ <\/><fg=blue>\u001b[1mhello\u001b[0m<\/>",
+            "out": "\n  1▕ \u001b[1mhello\u001b[0m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "code",
+            "width": 20,
+            "ansi": true,
+            "html": "<code class=\"notice\">hello<\/code>",
+            "markup": "\n<fg=gray>  1<\/><fg=gray>▕ <\/><fg=blue>\u001b[1mhello\u001b[0m<\/>",
+            "out": "\n\u001b[90m  1\u001b[39m\u001b[90m▕ \u001b[39m\u001b[34m\u001b[1mhello\u001b[0m\u001b[39m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "code",
+            "width": 82,
+            "ansi": false,
+            "html": "<code class=\"notice\">hello<\/code>",
+            "markup": "\n<fg=gray>  1<\/><fg=gray>▕ <\/><fg=blue>\u001b[1mhello\u001b[0m<\/>",
+            "out": "\n  1▕ \u001b[1mhello\u001b[0m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "code",
+            "width": 82,
+            "ansi": true,
+            "html": "<code class=\"notice\">hello<\/code>",
+            "markup": "\n<fg=gray>  1<\/><fg=gray>▕ <\/><fg=blue>\u001b[1mhello\u001b[0m<\/>",
+            "out": "\n\u001b[90m  1\u001b[39m\u001b[90m▕ \u001b[39m\u001b[34m\u001b[1mhello\u001b[0m\u001b[39m\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "table",
+            "width": 20,
+            "ansi": false,
+            "html": "<table class=\"notice\"><tr><td class=\"wrap\">hello<\/td><\/tr><\/table>",
+            "markup": "+----------+\n| hello[?] |\n+----------+",
+            "out": "+----------+\n| hello[?] |\n+----------+\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "table",
+            "width": 20,
+            "ansi": true,
+            "html": "<table class=\"notice\"><tr><td class=\"wrap\">hello<\/td><\/tr><\/table>",
+            "markup": "+----------+\n| hello[?] |\n+----------+",
+            "out": "+----------+\n| hello[?] |\n+----------+\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "table",
+            "width": 82,
+            "ansi": false,
+            "html": "<table class=\"notice\"><tr><td class=\"wrap\">hello<\/td><\/tr><\/table>",
+            "markup": "+----------+\n| hello[?] |\n+----------+",
+            "out": "+----------+\n| hello[?] |\n+----------+\n",
+            "error": null,
+            "callback_arguments": []
+        },
+        {
+            "kind": "table",
+            "width": 82,
+            "ansi": true,
+            "html": "<table class=\"notice\"><tr><td class=\"wrap\">hello<\/td><\/tr><\/table>",
+            "markup": "+----------+\n| hello[?] |\n+----------+",
+            "out": "+----------+\n| hello[?] |\n+----------+\n",
+            "error": null,
+            "callback_arguments": []
+        }
+    ],
+    "colors": [
+        {
+            "value": "#123456",
+            "stored": "#123456",
+            "error": null
+        },
+        {
+            "value": "#f12",
+            "stored": "#f12",
+            "error": null
+        },
+        {
+            "value": "#Ff1",
+            "stored": "#Ff1",
+            "error": null
+        },
+        {
+            "value": "#hex",
+            "stored": "#Ff1",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        },
+        {
+            "value": "red",
+            "stored": "#Ff1",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        },
+        {
+            "value": "123456",
+            "stored": "#Ff1",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        },
+        {
+            "value": "#1234",
+            "stored": "#Ff1",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        },
+        {
+            "value": "#12345678",
+            "stored": "#Ff1",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        },
+        {
+            "value": "#123\n",
+            "stored": "#123\n",
+            "error": null
+        },
+        {
+            "value": "#１２３",
+            "stored": "#123\n",
+            "error": "Termwind\\Exceptions\\InvalidColor"
+        }
+    ],
+    "identities": {
+        "get_same": true,
+        "replaced": true,
+        "original_color": "#123\n",
+        "replacement_color": "",
+        "flushed": true
+    },
+    "invocation": {
+        "args": [
+            7,
+            "alpha"
+        ],
+        "same": true,
+        "color": "#f12",
+        "markup": "HELLO[?]"
+    }
+}

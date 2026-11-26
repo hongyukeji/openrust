@@ -351,6 +351,10 @@ async fn formal_progress_example(){
     default_helpers_checks=process_helper_checks.replace('formal_process_helper_example','formal_default_helpers_example').replace('register_process_helpers)','register_default_helpers)').replace('"tools:git-version"','"tools:helpers"')
     parts.append('mod '+locale.replace('-','_').lower()+'_default_helpers{\n'+default_helpers_snippet+default_helpers_checks+'}\n')
 
+    style_repository_snippet=re.search(r'```rust\n(.*?)```',text.split('{#terminal-style-repository}',1)[1],re.S).group(1)
+    style_repository_checks=process_helper_checks.replace('formal_process_helper_example','formal_style_repository_example').replace('register_process_helpers)','register_style_repository)').replace('"tools:git-version"','"tools:status-style"').replace('"git version "','"READY FOR WORK"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_style_repository{\n'+style_repository_snippet+style_repository_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

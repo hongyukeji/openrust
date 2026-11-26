@@ -71,6 +71,7 @@ pub(super) fn prepare(
     id: usize,
     first: bool,
     depth: usize,
+    styles: Option<&super::StyleRepository>,
 ) -> Result<Prepared, ConsoleError> {
     let html = inner(nodes, id, depth)?;
     let mut lines: Vec<_> = html.split('\n').collect();
@@ -89,7 +90,7 @@ pub(super) fn prepare(
     node.name.as_mut().expect("预格式元素具有名称").local = "div".into();
     let mut content = String::new();
     for line in lines {
-        let style = style::classes(&node)?;
+        let style = style::classes(&node, styles)?;
         let line = format!("{line}{}", " ".repeat(width - line.len()));
         let raw = Prepared {
             style: None,

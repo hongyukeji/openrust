@@ -2249,7 +2249,8 @@
     "61: The native HelperInterface, Helper membership and HelperSet APIs are verified separately. Application and Command default registry wiring remains open.",
     "62: FormatterHelper and DebugFormatterHelper native helper objects are verified against fixed source and real consumers. ProcessHelper and application default registry wiring remain open.",
     "63: ProcessHelper runs and validates native process execution, selected output and callbacks. Application default registry wiring remains open.",
-    "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open."
+    "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open.",
+    "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open."
   ],
   "native_adaptations": [
     {
@@ -2849,6 +2850,29 @@
       "get_helper_set",
       "set_helper_set",
       "set_command_helper_set"
+    ]
+  },
+  "terminal_style_repository": {
+    "StyleRepository": [
+      "create / create_with",
+      "flush",
+      "has",
+      "get"
+    ],
+    "TerminalStyle": [
+      "new / new_with_color",
+      "apply",
+      "color",
+      "get_color",
+      "invoke"
+    ],
+    "BuiltinComponentViewRenderer": [
+      "with_styles"
+    ],
+    "TerminalStyles": [
+      "apply",
+      "uppercase",
+      "font_bold"
     ]
   }
 }

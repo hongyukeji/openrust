@@ -1,6 +1,6 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::super::display::styling;
-use super::{dom::Node, layout, pre, style, tree::Prepared};
+use super::{StyleRepository, dom::Node, layout, pre, style, tree::Prepared};
 use crate::{
     console::{
         ConsoleError, Output, Table, TableCell, TableCellStyle, TableRow, TableSeparator, Terminal,
@@ -44,7 +44,12 @@ fn cell_style(style: &style::Style, align: &str) -> Result<TableCellStyle, Conso
         ("cellFormat", json!(template)),
     ])
 }
-fn rows(nodes: &[Node], id: usize, depth: usize) -> Result<Vec<TableRow>, ConsoleError> {
+fn rows(
+    nodes: &[Node],
+    id: usize,
+    depth: usize,
+    styles: Option<&StyleRepository>,
+) -> Result<Vec<TableRow>, ConsoleError> {
     let mut row = vec![];
     for child in &nodes[id].children {
         let node = &nodes[*child];
@@ -59,17 +64,17 @@ fn rows(nodes: &[Node], id: usize, depth: usize) -> Result<Vec<TableRow>, Consol
             LazyLock::new(|| Regex::new(r"<br\s?/?>").expect("合法单元格换行表达式"));
         let html = pre::inner(nodes, *child, depth + 1)?;
         let html = BREAK.replace_all(&html, "\n");
-        let text = layout::render(trim(&html))?;
+        let text = layout::render(trim(&html), styles)?;
         if styling().is_match(&text) {
             class.push_str(" font-normal");
         }
-        let styles = style::inline(&class)?;
-        let content = format(text, &styles)?;
+        let cell = style::inline(&class, styles)?;
+        let content = format(text, &cell)?;
         row.push(
             TableCell::new(content)
                 .with_colspan(input_scalars::integer_string(node.attr("colspan")).max(1))
                 .with_rowspan(input_scalars::integer_string(node.attr("rowspan")).max(1))
-                .with_style(cell_style(&styles, node.attr("align"))?),
+                .with_style(cell_style(&cell, node.attr("align"))?),
         );
     }
     let mut result = vec![];
@@ -83,14 +88,22 @@ fn rows(nodes: &[Node], id: usize, depth: usize) -> Result<Vec<TableRow>, Consol
     result.extend((0..border).map(|_| TableRow::Separator(TableSeparator::new())));
     Ok(result)
 }
-fn title(nodes: &[Node], id: usize) -> Result<String, ConsoleError> {
-    format(" %s ".to_owned(), &style::inline(nodes[id].attr("class"))?)
+fn title(
+    nodes: &[Node],
+    id: usize,
+    styles: Option<&StyleRepository>,
+) -> Result<String, ConsoleError> {
+    format(
+        " %s ".to_owned(),
+        &style::inline(nodes[id].attr("class"), styles)?,
+    )
 }
 pub(super) fn prepare(
     nodes: &[Node],
     id: usize,
     first: bool,
     depth: usize,
+    styles: Option<&StyleRepository>,
 ) -> Result<Prepared, ConsoleError> {
     let mut output = Output::default();
     output.set_decorated(true);
@@ -111,12 +124,12 @@ pub(super) fn prepare(
                         if header {
                             table
                                 .get_style_mut()
-                                .set_header_title_format(title(nodes, *child)?);
+                                .set_header_title_format(title(nodes, *child, styles)?);
                             table.set_header_title(Some(node.attr("title")));
                         } else {
                             table
                                 .get_style_mut()
-                                .set_footer_title_format(title(nodes, *child)?);
+                                .set_footer_title_format(title(nodes, *child, styles)?);
                             table.set_footer_title(Some(node.attr("title")));
                         }
                     }
@@ -124,7 +137,7 @@ pub(super) fn prepare(
                         if nodes[*tr].tag() != "tr" {
                             continue;
                         }
-                        let values = rows(nodes, *tr, depth + 1)?;
+                        let values = rows(nodes, *tr, depth + 1, styles)?;
                         if header {
                             for row in values {
                                 if let TableRow::Cells(cells) = row {
@@ -140,12 +153,12 @@ pub(super) fn prepare(
                 "tbody" => {
                     for tr in &node.children {
                         if nodes[*tr].tag() == "tr" {
-                            table.add_rows(rows(nodes, *tr, depth + 1)?)?;
+                            table.add_rows(rows(nodes, *tr, depth + 1, styles)?)?;
                         }
                     }
                 }
                 _ => {
-                    table.add_rows(rows(nodes, *child, depth + 1)?)?;
+                    table.add_rows(rows(nodes, *child, depth + 1, styles)?)?;
                 }
             }
         }
@@ -160,7 +173,7 @@ pub(super) fn prepare(
     let mut node = nodes[id].clone();
     node.name.as_mut().expect("表格具有名称").local = "div".into();
     node.attrs.clear();
-    let own = style::classes(&node)?;
+    let own = style::classes(&node, styles)?;
     Ok(Prepared {
         style: Some(own),
         raw_element: false,

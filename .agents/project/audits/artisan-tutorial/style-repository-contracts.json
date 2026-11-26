@@ -1,0 +1,51 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_terminal_style_and_color_repository",
+  "bindings": {
+    "StyleRepository": [
+      "create / create_with",
+      "flush",
+      "has",
+      "get"
+    ],
+    "TerminalStyle": [
+      "new / new_with_color",
+      "apply",
+      "color",
+      "get_color",
+      "invoke"
+    ],
+    "BuiltinComponentViewRenderer": [
+      "with_styles"
+    ],
+    "TerminalStyles": [
+      "apply",
+      "uppercase",
+      "font_bold"
+    ]
+  },
+  "source_oracle": "style-repository-oracle.json",
+  "runtime": {
+    "source_render_cases": 72,
+    "source_color_cases": 10,
+    "framework_targets": 9,
+    "framework_parent_tests": 32,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 198,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "使用显式可共享注册表替代进程级静态仓库。重名定义产生新句柄，旧句柄与清空前的引用继续可用。",
+    "精确原类名优先于内置和响应式过滤。颜色先查原名或正变体名，再落入既有调色板。",
+    "回调与组合样式共用现有布局状态。动态方法和直接调用共享整数／文本参数表示。",
+    "读取组合定义的快照后释放锁，从而允许用户回调。默认无仓库路径维持原有非活动类过滤。",
+    "原生自定义样式调用受32层共享深度上限保护。真实HTTP工作线程曾复现栈溢出，修复后循环返回错误并继续处理请求。"
+  ],
+  "remaining": [
+    "独立 TerminalStyles 与 Element 的其他公开方法、通用 HTML 恢复。",
+    "Factory 容器构造与覆盖及 Artisan 其他锚点。"
+  ]
+}

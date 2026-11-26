@@ -357,9 +357,10 @@
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
+        "终端SDK继续独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
         "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
-      ]
+      ],
+      "style_repository": "style-repository-contracts.json"
     },
     {
       "anchor": "tables",
@@ -689,6 +690,14 @@
     "remaining": [
       "终端样式与颜色仓库、独立扩展对象和通用 HTML 恢复。",
       "具体 Factory 的容器构造与覆盖和其余 Artisan 文档锚点继续。"
+    ]
+  },
+  "terminal_style_repository": {
+    "status": "verified_terminal_style_and_color_repository",
+    "contract": "style-repository-contracts.json",
+    "remaining": [
+      "独立 TerminalStyles 与 Element 的其他公开方法、通用 HTML 恢复。",
+      "Factory 容器构造与覆盖及 Artisan 其他锚点。"
     ]
   }
 }

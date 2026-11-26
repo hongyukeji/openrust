@@ -1,6 +1,6 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::{
-    code,
+    StyleRepository, code,
     dom::{self, Node},
     lists, pre, style, table,
     tree::Prepared,
@@ -43,6 +43,7 @@ fn prepare(
     first: bool,
     last: bool,
     depth: usize,
+    styles: Option<&StyleRepository>,
 ) -> Result<Prepared, ConsoleError> {
     if depth > 256 {
         return Err(ConsoleError::new("控制台组件嵌套超过安全深度"));
@@ -65,20 +66,20 @@ fn prepare(
         });
     }
     if node.tag() == "pre" {
-        return pre::prepare(nodes, id, first, depth);
+        return pre::prepare(nodes, id, first, depth, styles);
     }
     if node.tag() == "table" {
-        return table::prepare(nodes, id, first, depth);
+        return table::prepare(nodes, id, first, depth, styles);
     }
     if node.tag() == "code" {
-        return code::prepare(nodes, id, depth);
+        return code::prepare(nodes, id, depth, styles);
     }
     let mut children = vec![];
     let (first_meaningful, last_meaningful) = boundaries(nodes, &node.children);
     for (index, id) in node.children.iter().enumerate() {
         let first = first_meaningful.is_none_or(|first| first >= index);
         let last = last_meaningful.is_none_or(|last| last <= index);
-        let child = prepare(nodes, *id, first, last, depth + 1)?;
+        let child = prepare(nodes, *id, first, last, depth + 1, styles)?;
         if child.style.is_some()
             || child.raw_element
             || child.content.as_ref().is_some_and(|text| !text.is_empty())
@@ -87,8 +88,8 @@ fn prepare(
         }
     }
     // 转换子节点后构造当前元素，与默认布局的构造和错误顺序一致。
-    let style = style::classes(node)?;
-    lists::prepare_children(node.tag(), &style, &mut children)?;
+    let style = style::classes(node, styles)?;
+    lists::prepare_children(node.tag(), &style, &mut children, styles)?;
     Ok(Prepared {
         style: Some(style),
         raw_element: false,
@@ -100,7 +101,7 @@ fn prepare(
         br: node.tag() == "br",
     })
 }
-pub(super) fn render(html: &str) -> Result<String, ConsoleError> {
+pub(super) fn render(html: &str, styles: Option<&StyleRepository>) -> Result<String, ConsoleError> {
     static TAG: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"<[/!a-zA-Z]").expect("合法标签起始表达式"));
     if !TAG.is_match(html) {
@@ -117,7 +118,7 @@ pub(super) fn render(html: &str) -> Result<String, ConsoleError> {
     for (index, id) in nodes[body].children.iter().enumerate() {
         let first = first_meaningful.is_none_or(|first| first >= index);
         let last = last_meaningful.is_none_or(|last| last <= index);
-        let child = prepare(&nodes, *id, first, last, 0)?;
+        let child = prepare(&nodes, *id, first, last, 0, styles)?;
         if child.style.is_some()
             || child.raw_element
             || child.content.as_ref().is_some_and(|text| !text.is_empty())

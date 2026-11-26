@@ -2453,3 +2453,43 @@ fn register_default_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Custom terminal styles and colors {#terminal-style-repository}
+
+Create a `StyleRepository` and pass it to the built-in renderer. Clones share registrations. Independent repositories can use the same names with different behavior. Register a custom class with `create` or `create_with`. The callback receives the current style context, and each `apply` on the registered handle appends classes to run after the callback.
+
+Colors use hexadecimal values such as `#a855f7` or `#a5f`. To use a color as `text-brand-500` or `bg-brand-500`, register the exact key `brand-500`. Custom names are case-sensitive. An exact registered class takes precedence over built-in processing, including responsive prefixes. Re-registering a name replaces its entry. Existing handles keep their original definitions. Nested custom styles return an error at the rendering depth limit so a cycle cannot terminate the application.
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{
+        BuiltinComponentViewRenderer, ComponentContext, ComponentViewRenderer, StyleRepository,
+    },
+};
+use openrust::support::facades::Artisan;
+
+fn register_style_repository() -> Result<(), ConsoleError> {
+    let styles = StyleRepository::new();
+    styles.create("brand-500").color("#a855f7")?;
+    styles
+        .create_with("status", |element, _| {
+            element.uppercase();
+            Ok(())
+        })
+        .apply("font-bold text-brand-500");
+
+    Artisan::command_with("tools:status-style", AsyncCommandCallback::new(move |_, _, output| {
+        let styles = styles.clone();
+        Box::pin(async move {
+            BuiltinComponentViewRenderer::with_styles(styles).render(
+                "<span class='status'>Ready for work</span>",
+                OutputFormat::Normal.into(),
+                &mut ComponentContext::Output(output.as_output()),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
