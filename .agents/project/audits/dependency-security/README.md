@@ -119,3 +119,9 @@ Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
 `0855b54f2` 与本轮已验快照的依赖输入相同：锁定全feature公告0 errors／0 warnings；启用图672项均有许可证声明，唯一Git来源仍为固定oxideav-jpegxl `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`。38个本地包的LICENSE／NOTICE条目齐备，Docker交付复制根LICENSE及THIRD_PARTY_NOTICES。有限敏感模式扫描未跟踪运行.env；9处命中均为公开测试密钥、无效示例或文档marker，经人工核对。声明齐备及扫描通过不代替实际发行许可审查，也不证明不存在其他秘密。
 
 证据统一在项目内 `target/tmp/final-acceptance-20261121/{advisories.jsonl,licenses.json,release-checks.json}`。最终发布版本、tag、推送、Release及部署均未授权，继续保留用户批准门禁。
+
+## 2026-11-27 Rust 1.95 与 Smithy 上游包
+
+Rust 最低支持版本升为 1.95。基线锁文件与更新后的 AWS 依赖分别在 macOS ARM64、Rust 1.95.0 下通过 `cargo check --locked --workspace --all-targets --all-features`。更新后仓库和独立包夹具均解析到 crates.io 的 `aws-smithy-http 0.64.3`、`aws-smithy-runtime 1.16.4` 和 `aws-smithy-types 1.9.5`，依赖图中没有 `pin-utils`，已删除三个本地回移及各自的 patch 接线。[Smithy 上游修改](https://github.com/smithy-lang/smithy-rs/commit/66b12d3e2165f98ff62146b46fb248c5845e8ea4)
+
+SQS 回环协议与队列消费者 3 项、SES v2 回环 Artisan 邮件发送 1 项、隔离 RustFS 1.0.5 对象读写及预签名 3 项通过。RustFS 容器已回收。托管 AWS、DynamoDB 运行时及其他平台未在本批实测。日志位于 `target/tmp/rust-195-upgrade/` 下的 `baseline.log`、`aws-check.log`、`fixture-metadata.log` 和 `aws-consumers.log`。

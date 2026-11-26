@@ -29,13 +29,13 @@ parking_lot = "=0.12.5"
 memory-stats = { version = "1.2.0", features = ["always_use_statm"] }
 argon2 = "0.6.0"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
-aws-config = { version = "=1.8.18", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
+aws-config = { version = "=1.13.4", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
-aws-sdk-dynamodb = { version = "=1.116.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
-aws-sdk-s3 = { version = "=1.137.0", default-features = false, features = ["rt-tokio", "default-https-client", "http-1x"] }
-aws-sdk-ses = { version = "=1.106.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
-aws-sdk-sesv2 = { version = "=1.122.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
-aws-sdk-sqs = { version = "=1.101.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-dynamodb = { version = "=1.141.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-s3 = { version = "=1.162.0", default-features = false, features = ["rt-tokio", "default-https-client", "http-1x"] }
+aws-sdk-ses = { version = "=1.127.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sesv2 = { version = "=1.150.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sqs = { version = "=1.123.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
 base64 = "0.22.1"
 bcrypt = "0.19.3"
 cap-std = "4.0.3"
