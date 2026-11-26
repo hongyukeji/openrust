@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use openrust::{
     database::{
         Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
@@ -6,7 +8,7 @@ use openrust::{
     support::Str,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use serde_json::Value as Json;
+use serde_json::{Map, Value as Json};
 
 use crate::{
     AiError, AiResult, ConversationParticipant, ToolResult, conversation_store::now,
@@ -201,6 +203,7 @@ impl ApprovalStore {
         id: &str,
         claim: Option<&str>,
         results: &[ToolResult],
+        edits: Option<&BTreeMap<String, Map<String, Json>>>,
     ) -> AiResult<i64> {
         let row = self
             .query(scope, id)
@@ -219,12 +222,18 @@ impl ApprovalStore {
         let revision = integer(&row, "revision").map_err(storage_error)?;
         // 在原始快照上追加结果，保留旧记录中的附件直到正常归档或结算。
         let mut snapshot = snapshot_json(&row)?;
+        let results_json = serde_json::json!(results);
+        let edits_json = edits.map(|edits| serde_json::json!(edits));
         if let Some(recorded) = snapshot.get("resolved_results") {
-            return if recorded == &serde_json::json!(results) {
-                Ok(revision)
-            } else {
-                Err(AiError::InvalidApprovalDecisions)
-            };
+            if recorded != &results_json {
+                return Err(AiError::InvalidApprovalDecisions);
+            }
+            match (edits_json.as_ref(), snapshot.get("edited_arguments")) {
+                (None, _) => return Ok(revision),
+                (Some(edits), Some(recorded)) if edits == recorded => return Ok(revision),
+                (Some(_), Some(_)) => return Err(AiError::InvalidApprovalDecisions),
+                (Some(_), None) => {}
+            }
         }
         let calls = snapshot
             .pointer("/response/tool_calls")
@@ -235,13 +244,21 @@ impl ApprovalStore {
                 call.get("id").and_then(Json::as_str) != Some(result.id.as_str())
                     || call.get("name").and_then(Json::as_str) != Some(result.name.as_str())
             })
+            || edits.is_some_and(|edits| {
+                edits
+                    .keys()
+                    .any(|id| !results.iter().any(|result| &result.id == id))
+            })
         {
             return Err(AiError::InvalidApprovalDecisions);
         }
         let next = revision
             .checked_add(1)
             .ok_or(AiError::ConversationStorageUnavailable)?;
-        snapshot["resolved_results"] = serde_json::json!(results);
+        snapshot["resolved_results"] = results_json;
+        if let Some(edits) = edits_json {
+            snapshot["edited_arguments"] = edits;
+        }
         let fields = Record::from([
             ("snapshot".into(), snapshot.to_string().into()),
             ("revision".into(), next.into()),

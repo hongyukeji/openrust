@@ -713,6 +713,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 审批恢复会在下一次模型请求前保存本步工具结果。应用可按同一参与者、Agent、会话和审批 ID 调用 `approval_results_for`，读取已保存且尚在处理中的结果。完成后从会话历史读取结果。如果恢复进程在续跑途中退出，已保存结果仍可查询，重复提交同一审批会被拒绝，以防工具重复执行。
 
+使用 `Decision::edit` 时，工具使用审批后的参数执行。审批快照会将改动后的参数与结果一起保存，完成后的响应和会话历史也会保留实际执行参数。回放到需要原生推理块的同一连接与模型时，SDK 按供应商协议保留原始块，并附上实际工具结果。通用协议回放使用编辑后的参数。
+
 SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批次仅能被一个请求领取。当前审批有效期为 24 小时。领取后的请求失败或中断时，工具可能已经执行，SDK 不会自动重放。工具执行后如果下一次模型请求失败，SDK 将已完成结果保存到失败的会话轮次，并结清审批。审批快照通过私有文件引用保留本轮和历史中的图片及文档。恢复时先核对参与者、Agent 和连接，再读取文件。
 
 需要流式输出时，通过 `stream_with_approvals` 创建响应，并使用现有的 SSE 适配器。SDK 先保存快照，再发出审批事件。默认的 `tool_approval_request` 事件包含 `conversation_id` 与 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，并为每个调用发送 `tool-approval-request`。AG-UI 在各中断项的元数据中交付 ID。用 `resume_approval` 提交决定，恢复会话并接收普通响应。

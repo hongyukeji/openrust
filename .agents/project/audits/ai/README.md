@@ -587,11 +587,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan／HTTP 实测文件�
 
 - [固定 Laravel ResolvesPendingApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ResolvesPendingApprovals.php) · [固定 Laravel ResumesToolApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/ResumesToolApprovals.php)
 
-审批领取后将该步骤的完整结果按工具调用 ID、名称和顺序核对，写入私有快照的 `resolved_results`。同结果可重复提交，变更结果会被拒绝。旧快照原 JSON 的附件内容或引用随原记录保留，新快照继续只使用附件引用。独立进程通过 `PendingConversation::approval_results_for` 可在模型续跑期间读取结果。正常完成、失败历史提交或再次暂停继续走原事务边界。进程中断后仍可读取结果，领取状态防止再次执行工具。审批恢复后的单行暂停历史合并及编辑参数在重放历史中的契约仍单独核对。
+审批领取后将该步骤的完整结果按工具调用 ID、名称和顺序核对，写入私有快照的 `resolved_results`。同结果可重复提交，变更结果会被拒绝。旧快照原 JSON 的附件内容或引用随原记录保留，新快照继续只使用附件引用。独立进程通过 `PendingConversation::approval_results_for` 可在模型续跑期间读取结果。正常完成、失败历史提交或再次暂停继续走原事务边界。进程中断后仍可读取结果，领取状态防止再次执行工具。审批恢复后的单行暂停历史合并仍单独核对。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测独立 Artisan 创建审批、HTTP 领取、本地 Responses 上游阻塞、独立 HTTP／Artisan 读取与身份隔离。强制终止续跑进程后保留结果并拒绝重复执行。SQLite 注入快照写入失败时，上游收到零次后续请求，独立 HTTP 读取含原工具结果的失败历史。三库复验旧附件、重复审批、SSE 三种格式、并发领取及私有附件归档；SDK 16 项、严格 Clippy 和三语文档构建通过。
 
 - [固定 Laravel DatabaseConversationStore::storeApprovalResults](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php#L635)
+
+编辑审批使用同一份 `ExecutionPlan` 的参数执行工具、记录私有快照的 `edited_arguments` 和完成后写入公开工具步骤。调用 ID、顺序与原生协议块保持原样。OpenAI Chat 的普通工具重放直接使用执行参数。OpenAI Responses、Anthropic、Gemini 的同连接同模型原生块沿用各自回放规则，切换凭证后使用通用历史中的实际参数。保留未编辑调用的参数及原结果类型。
+
+独立 Artisan 创建审批和检查运行中快照，真实 HTTP 不同进程执行审批、查看历史、同连接重放和更换凭证重放。SQLite 覆盖 Chat Completions、Responses、Anthropic Messages 和 Gemini，PostgreSQL 18.7 额外验收 Responses，MySQL 8.4.13 额外验收 Gemini。本地模拟检查原金额 80、执行金额 40、拒绝项保留金额 30、只执行一次及签名块完整。另复验 SQLite 旧附件快照、重复审批、中断和结果写入失败。SDK 16 项、严格 Clippy 及三语站点通过。
+
+- [固定 Laravel TextGenerationLoop::resolveApprovalResults](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php#L978) · [Claude 工具推理回放](https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows) · [Gemini GenerateContent 思考签名](https://aistudio.google.com/docs/thought-signatures?generate-content=true)
 
 ## AI-03 流式工具审批事件
 

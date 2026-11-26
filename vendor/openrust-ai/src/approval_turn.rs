@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use openrust::{
     database::{DatabaseError, DatabaseResult, Transaction},
     support::Str,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use crate::{
     AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval, ToolResult,
@@ -136,11 +139,21 @@ impl ApprovalSession {
         Ok(pending)
     }
 
-    pub(crate) async fn store_approval_results(&mut self, results: &[ToolResult]) -> AiResult<()> {
+    pub(crate) async fn store_approval_results(
+        &mut self,
+        results: &[ToolResult],
+        edits: &BTreeMap<String, Map<String, Value>>,
+    ) -> AiResult<()> {
         let claim = self.claim.as_ref().ok_or(AiError::ApprovalConsumed)?;
         let revision = self
             .store
-            .store_approval_results(&self.scope(), &claim.id, Some(&claim.token), results)
+            .store_approval_results(
+                &self.scope(),
+                &claim.id,
+                Some(&claim.token),
+                results,
+                Some(edits),
+            )
             .await?;
         self.claim.as_mut().expect("审批已领取").revision = revision;
         Ok(())

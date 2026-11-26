@@ -300,9 +300,10 @@ impl ApprovalCheckpoint {
             return Err(AiError::InvalidApprovalDecisions.into());
         }
         plan.apply_decisions(decisions)?;
+        let mut edits = plan.edited_arguments();
         session.claim(pending_record.0, pending_record.1).await?;
         let results = plan.run().await;
-        let stored = session.store_approval_results(&results).await;
+        let stored = session.store_approval_results(&results, &edits).await;
         let approved_ids: BTreeSet<_> = self.pending.iter().map(|approval| &approval.id).collect();
         let resolved = results
             .iter()
@@ -312,7 +313,13 @@ impl ApprovalCheckpoint {
         session.record_resolution(self.invocation_id(), pending_record.0, resolved);
         let mut run = self.run;
         let requested_model = self.requested_model.or_else(|| self.response.model.clone());
-        run.add_step(self.response, results, requested_model);
+        let mut response = self.response;
+        for call in &mut response.tool_calls {
+            if let Some(arguments) = edits.remove(&call.id) {
+                call.arguments = arguments;
+            }
+        }
+        run.add_step(response, results, requested_model);
         let model = prompt.text.model;
         let outcome = match stored {
             Ok(()) => {
@@ -817,6 +824,20 @@ impl ExecutionPlan<'_> {
             }
         }
         Ok(())
+    }
+
+    fn edited_arguments(&self) -> BTreeMap<String, Map<String, Value>> {
+        self.calls
+            .iter()
+            .zip(&self.actions)
+            .filter_map(|(call, action)| match action {
+                ToolAction::Run {
+                    edit: Some(arguments),
+                    ..
+                } => Some((call.id.clone(), arguments.clone())),
+                _ => None,
+            })
+            .collect()
     }
 
     pub(crate) async fn run(self) -> Vec<ToolResult> {

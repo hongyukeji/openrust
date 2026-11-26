@@ -778,7 +778,7 @@ impl ConversationStore for DatabaseConversationStore {
             };
             validate_message_scope(&scope).map_err(storage_error)?;
             self.approval_store()
-                .store_approval_results(&scope, approval, None, results)
+                .store_approval_results(&scope, approval, None, results, None)
                 .await?;
             Ok(())
         })
