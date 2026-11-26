@@ -62,3 +62,9 @@ python3 -B tests/webhooks_licenses.py --image openrust:webhook-licenses-default-
 核对 `pcre2-sys 0.2.10` crate 的 SHA-256 与 `Cargo.lock` 一致。其头文件标明 PCRE2 10.46，SLJIT 头文件与该版本固定子模块 `e51eabbfb8eabc6526f56e4e88b29fb10d1ee048` 逐字节一致。复用运行镜像已有的根 `THIRD_PARTY_NOTICES.md`，保存 Rust 封装的 MIT／Unlicense、PCRE2 和 SLJIT 的完整原文。 [PCRE2 10.46 原文](https://github.com/PCRE2Project/pcre2/blob/pcre2-10.46/LICENCE.md) · [SLJIT 原文](https://github.com/zherczeg/sljit/blob/e51eabbfb8eabc6526f56e4e88b29fb10d1ee048/LICENSE)
 
 对同一源码叠加声明后重建 amd64 镜像，从实际只读容器取回声明，逐字节核对四份原文及整份根声明。原有 10 个许可文件核对仍通过。复测 HTTP、37 项 Artisan 迁移、重复迁移、缓存重启、空队列 Worker 及 SIGTERM 退出 0。没有改动部署命令、包功能或版权原文。其他静态依赖和发布渠道保留逐制品核对。
+
+### 静态 AWS-LC 原文
+
+两份 crate 归档的 SHA-256 与锁文件一致。按 `aws-lc-rs 1.19.0` 和 `aws-lc-sys 0.47.0` 的发布源码 `5d496f88b40f327e28315deecc1a5a1fd1e81e95`，将两份许可、上游 NOTICE、Fiat Cryptography 以及固定 AWS-LC 子模块中的 s2n-bignum 和 Jitter Entropy 原文加入根声明。 [AWS-LC Rust 发布源码](https://github.com/aws/aws-lc-rs/tree/5d496f88b40f327e28315deecc1a5a1fd1e81e95) · [固定 AWS-LC 子模块](https://github.com/aws/aws-lc/tree/cd481c207e38f06aeb5766f4a1cdfce10a4c0af8)
+
+复用 `96d3859f7` 的干净归档，仅叠加当前根声明。amd64 Release ELF 内定义了 `aws_lc_0_47_0_SHA256` 和 `aws_lc_0_47_0_EVP_DigestSign`。从实际镜像取回 10 个许可文件，核对根声明及新增六段原文的字节。仿真运行验证 37 项迁移及空重跑、配置及路由缓存、缓存前后 HTTP、独立 Worker 的空队列检查和 SIGTERM 退出 0。日志位于 `target/tmp/webhook-runtime-aws-lc/`。

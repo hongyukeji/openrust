@@ -215,7 +215,7 @@ The proxy configuration in `docker/nginx/default.conf` preserves the request pat
 
 Build settings use `APP_BUILD_FEATURES` and `APP_BUILD_JOBS` (default `4`), passed through Compose to the Dockerfile. Override `APP_STORAGE_PATH` for a different storage mount; relative paths start at `docker/` and must be writable by UID/GID `10001`.
 
-When the build includes `webhook-client` or `webhook-server`, directly or as a dependency, the image includes that package's third-party notices and license texts under `/app/licenses/<package>/`.
+The image includes distribution notices at `/app/THIRD_PARTY_NOTICES.md`, including the notices for bundled PCRE2 and AWS-LC. When the build includes `webhook-client` or `webhook-server`, directly or as a dependency, its notices and license texts are under `/app/licenses/<package>/`.
 
 Nginx permits request bodies up to 8 MiB, matching the framework input limit. Proxy read and send timeouts use the Nginx default of 60 seconds; streaming and WebSocket connections should exchange data or heartbeats promptly. Configure longer idle timeouts in `docker/nginx/default.conf` only when needed.
 

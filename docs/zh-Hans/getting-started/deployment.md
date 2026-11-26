@@ -215,7 +215,7 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 
 构建参数使用 `APP_BUILD_FEATURES` 和 `APP_BUILD_JOBS`（默认 `4`），由 Compose 传入 Dockerfile。`APP_STORAGE_PATH` 可修改存储挂载路径，相对路径从 `docker/` 计算，目录须对 UID/GID `10001` 可写。
 
-构建直接或通过依赖引入 `webhook-client` 或 `webhook-server` 时，镜像在 `/app/licenses/<包名>/` 中附带对应包的第三方声明和许可证原文。
+镜像的发行声明位于 `/app/THIRD_PARTY_NOTICES.md`，包括随包分发的 PCRE2 和 AWS-LC 声明。构建直接或通过依赖引入 `webhook-client` 或 `webhook-server` 时，对应包的第三方声明和许可证原文位于 `/app/licenses/<包名>/`。
 
 Nginx 请求体上限为 8 MiB，与框架输入限制一致。代理读取和发送超时使用 Nginx 默认的 60 秒；流式响应与 WebSocket 应及时传送数据或心跳。确需更长空闲等待时，在 `docker/nginx/default.conf` 中按需设置相应超时。
 
