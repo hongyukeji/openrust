@@ -42,6 +42,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢操作、例外、用量、快取與佇列卡片會將查詢結果在 `pulse.cache` 中快取五秒。不同時間範圍、排序方式或用量類型分別快取。快取總計和逐鍵明細使用獨立快取項目。伺服器心跳與歷史曲線共用一個快取項目，依時間範圍和伺服器設定區分。 將游標移到卡片標題可查看查詢耗時和執行時間。快取卡片分別顯示總計與逐鍵明細的查詢時間。
 
+佇列卡片顯示所選時間範圍內各佇列的峰值。取樣率大於零且小於一時，峰值估算帶 `~`，提示中可查看原始計數。卡片出現多個連線時，佇列名稱會顯示連線前綴。取樣率為零時顯示已有的原始計數。
+
 快取卡片顯示所選時段的命中、未命中和命中率，彙總包括 100 列明細以外的鍵。啟用取樣時，面板用 `~` 標記估算次數。JSON 指標的 `cache_totals` 傳回原始總量和取樣率。
 
 伺服器卡片同時顯示最近一次快照和所選時段內的 CPU、記憶體平均歷史。距回報不足 30 秒時標為最近回報。可為 `pulse.dashboard.servers.ignore_after` 設定秒數或 `15 seconds`、`1 minute and 15 seconds` 等相對時長來隱藏過期快照，預設 `null` 會保留。預設按主機名稱升冪。`sort_direction` 可設為 `asc` 或 `desc`。`sort_by` 支援 `name`、`cpu_current`、`memory_current`、`memory_total`、`updated_at`、`recently_reported`、`cpu`、`memory` 和 `storage`。用 `storage.0.used` 等巢狀路徑可選擇特定讀數。數值主機名稱依數值排序。

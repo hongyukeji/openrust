@@ -852,6 +852,8 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
 
 #[tokio::test]
 async fn dashboard_usage_cache_and_queue_cards_share_five_second_query_results() {
+    use openrust::contracts::foundation::Application as _;
+
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(dashboard_cache_config)
@@ -870,16 +872,31 @@ async fn dashboard_usage_cache_and_queue_cards_share_five_second_query_results()
                 .into()
         })
     };
+    let config = app.app().config().unwrap();
+    config
+        .set("pulse.recorders.Queues.sample_rate", json!(0.4))
+        .unwrap();
     let target = "/pulse/api/metrics?period=1h";
     storage.store(&rows("1")).await.unwrap();
     let first = app.get(target).await.unwrap();
     first.assert_ok();
     let first = first.json::<serde_json::Value>().unwrap();
+    assert_eq!(first["queue_sample_rate"], 0.4);
+
     storage.store(&rows("2")).await.unwrap();
+    config
+        .set("pulse.recorders.Queues.sample_rate", json!(0.8))
+        .unwrap();
 
     let replay = app.get(target).await.unwrap();
     replay.assert_ok();
     let replay = replay.json::<serde_json::Value>().unwrap();
+    assert_eq!(replay["queue_sample_rate"], 0.8);
+    assert_eq!(
+        replay["query_timing"]["queues"],
+        first["query_timing"]["queues"]
+    );
+
     let new_period = app.get("/pulse/api/metrics?period=6h").await.unwrap();
     new_period.assert_ok();
     let new_period = new_period.json::<serde_json::Value>().unwrap();

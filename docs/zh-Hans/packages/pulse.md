@@ -42,6 +42,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢操作、异常、用量、缓存和队列卡片将查询结果在 `pulse.cache` 中缓存五秒。不同时间范围、排序方式或用量类型分别缓存。缓存总计和逐键明细使用独立缓存项。服务器心跳与历史曲线共用一个缓存项，按时间范围和服务器配置区分。 悬停在卡片标题上可查看查询耗时和执行时间。缓存卡片分别显示总计和逐键明细的查询时间。
 
+队列卡片显示所选时间范围内各队列的峰值。采样率大于零且小于一时，峰值估算带 `~`，提示中可查看原始计数。卡片出现多个连接时，队列名称带连接前缀。采样率为零时显示已有的原始计数。
+
 缓存卡片显示所选时段的命中、未命中和命中率，汇总包括 100 行明细以外的键。启用采样时，面板用 `~` 标记估算次数。JSON 指标的 `cache_totals` 返回原始总量和采样率。
 
 服务器卡片同时显示最近一次快照和所选时段内的 CPU、内存平均历史。距上报不足 30 秒时标为最近上报。可为 `pulse.dashboard.servers.ignore_after` 设置秒数或 `15 seconds`、`1 minute and 15 seconds` 等相对时长来隐藏过期快照，默认 `null` 会保留。默认按主机名升序。`sort_direction` 可设为 `asc` 或 `desc`。`sort_by` 支持 `name`、`cpu_current`、`memory_current`、`memory_total`、`updated_at`、`recently_reported`、`cpu`、`memory` 和 `storage`。用 `storage.0.used` 等嵌套路径可选择具体读数。数值主机名按数值排序。

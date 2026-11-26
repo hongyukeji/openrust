@@ -164,7 +164,70 @@ function servers(card, values, graphs, queryTitle) {
         }
     }
 }
-function queues(card,values){const colors=['#38bdf8','#c084fc','#34d399','#fbbf24','#fb7185'];for(const [key,types] of Object.entries(values)){card.append(cell('h3',key));const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 100');svg.setAttribute('role','img');svg.setAttribute('aria-label',key+' queue activity');const series=Object.entries(types).map(([type,readings])=>[type,Object.values(readings).map(v=>Number(v??0))]);const max=Math.max(1,...series.flatMap(([,values])=>values));const legend=document.createElement('div');legend.className='legend';series.forEach(([type,readings],index)=>{const color=colors[index%colors.length];const line=document.createElementNS(svg.namespaceURI,'polyline');line.setAttribute('points',readings.map((v,i)=>`${i/Math.max(1,readings.length-1)*600},${95-v/max*90}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke',color);line.setAttribute('stroke-width','2');svg.append(line);const label=cell('span',`${type}: ${readings.reduce((a,b)=>a+b,0)}`);label.style.borderColor=color;legend.append(label)});card.append(svg,legend)}}
+const queueSeries = [
+    ['queued', 'Queued', '#38bdf8'],
+    ['processing', 'Processing', '#c084fc'],
+    ['processed', 'Processed', '#34d399'],
+    ['released', 'Released', '#fbbf24'],
+    ['failed', 'Failed', '#fb7185'],
+];
+
+function queues(card, values, rate) {
+    const entries = Object.entries(values);
+    const connections = new Set(entries.map(([key]) => key.split(':', 1)[0]));
+    const showConnection = connections.size > 1;
+    const sampled = Number.isFinite(rate) && rate > 0 && rate < 1;
+    const format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0});
+    const count = raw => sampled ? '~' + format.format(raw / rate) : format.format(raw);
+    for (const [key, types] of entries) {
+        const label = showConnection ? key : key.slice(key.indexOf(':') + 1);
+        const series = queueSeries.map(([type, name, color]) => {
+            const readings = Object.values(types[type] ?? {}).map(value => Number(value ?? 0));
+            return {type, name, color, readings};
+        });
+        const maximum = Math.max(0, ...series.flatMap(({readings}) => readings));
+        const peak = cell('small', 'Peak: ' + count(maximum));
+        peak.className = 'queue-peak';
+        if (sampled) peak.title = `Sample rate: ${rate}, Raw value: ${format.format(maximum)}`;
+        card.append(cell('h3', label), peak);
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 600 100');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', label + ' queue activity');
+        const legend = document.createElement('div');
+        legend.className = 'legend';
+        const scale = Math.max(1, maximum);
+        for (const {type, name, readings, color} of series) {
+            const coordinates = readings.map((value, index) => {
+                const x = index / Math.max(1, readings.length - 1) * 600;
+                return `${x} ${95 - value / scale * 90}`;
+            });
+            const commands = [];
+            for (let index = 1; index < readings.length; index++) {
+                if (readings[index - 1] !== 0 || readings[index] !== 0) {
+                    commands.push(`M ${coordinates[index - 1]} L ${coordinates[index]}`);
+                }
+            }
+            if (readings.length === 1 && readings[0] !== 0) {
+                commands.push(`M ${coordinates[0]} h 0.01`);
+            }
+            const line = document.createElementNS(svg.namespaceURI, 'path');
+            line.dataset.queueSeries = type;
+            line.setAttribute('d', commands.join(' '));
+            line.setAttribute('fill', 'none');
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', '2');
+            line.setAttribute('stroke-linecap', 'round');
+            svg.append(line);
+            const total = readings.reduce((sum, value) => sum + value, 0);
+            const legendLabel = cell('span', `${name}: ${count(total)}`);
+            legendLabel.style.borderColor = color;
+            legend.append(legendLabel);
+        }
+        card.append(svg, legend);
+    }
+}
 function renderRows(card, values, headings = {}) {
     const box = document.createElement('div');
     box.className = 'rows';
@@ -260,7 +323,7 @@ function render(data) {
         } else if (name === 'servers') {
             servers(card, values, data.server_graphs ?? {}, queryTitle);
         } else if (name === 'queues') {
-            queues(card, values);
+            queues(card, values, data.queue_sample_rate);
         } else if (Array.isArray(values)) {
             renderRows(card, values);
         } else {

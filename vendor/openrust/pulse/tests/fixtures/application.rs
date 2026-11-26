@@ -100,10 +100,13 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .await?
                 .count();
         }
-        Pulse::record("queued", "redis:default", None, None)
-            .await?
-            .count()
-            .only_buckets();
+        let queued_at = jiff::Timestamp::now().as_second() - 30;
+        for _ in 0..3 {
+            Pulse::record("queued", "redis:default", None, Some(queued_at))
+                .await?
+                .count()
+                .only_buckets();
+        }
         for (metric, value) in [("cpu", 25), ("memory", 2048)] {
             Pulse::record(metric, "acceptance", Some(value), None)
                 .await?
@@ -152,7 +155,7 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":if std::env::var("PULSE_PROBE_TRANSPORT").as_deref() == Ok("1") {
             json!({"Servers":false,"SlowQueries":false,"UserRequests":{},"SlowRequests":{"threshold":{"#^/api/stream$#":100}}})
         } else {
-            json!({"Servers":false,"SlowQueries":false,"CacheInteractions":{"enabled":false,"sample_rate":0.5}})
+            json!({"Servers":false,"SlowQueries":false,"CacheInteractions":{"enabled":false,"sample_rate":0.5},"Queues":{"enabled":false,"sample_rate":0.4}})
         },"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
     ]);
         match env.get("PULSE_PROBE_CONFIG") {

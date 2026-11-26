@@ -229,6 +229,11 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         })
         .await?;
         cards.insert("queues".into(), queues.value);
+        let queue_sample_rate = config
+            .get("pulse.recorders.Queues.sample_rate")
+            .and_then(|value| value.as_f64())
+            .unwrap_or(1.0);
+        cards.insert("queue_sample_rate".into(), queue_sample_rate.into());
         timings.insert("queues", queues.timing);
         let options = config.get("pulse.dashboard.servers").unwrap_or_default();
         let ignore_after = match &options["ignore_after"] {

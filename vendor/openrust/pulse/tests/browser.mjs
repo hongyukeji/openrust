@@ -40,7 +40,11 @@ try{
    assert(await meter.isVisible());
    assert.equal(await meter.getAttribute('value'),percentage);
   }
-  assert.equal(await page.locator('svg polyline').count(),5);
+  const queue = page.getByRole('img',{name:'default queue activity',exact:true});
+  assert.equal(await queue.locator('path[data-queue-series]').count(),5);
+  const peak = page.locator('.queue-peak');
+  assert.equal(await peak.textContent(), 'Peak: ~8');
+  assert.equal(await peak.getAttribute('title'), 'Sample rate: 0.4, Raw value: 3');
   assert((await page.locator('#cards').innerText()).includes('ID: 42'));
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));
   assert.equal(await page.locator('#cards img').count(),0);
