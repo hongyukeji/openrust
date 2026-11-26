@@ -26,7 +26,19 @@ impl ServiceProvider for ProbeProvider {
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/probe", probe)?;
+    Route::get("/dump/{label}", dump_probe)?;
     Ok(())
+}
+fn dump_probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let label = request.route("label").unwrap_or_default().to_owned();
+    Box::pin(async move {
+        openrust::support::dump(&format!(
+            "live telescope {label} <img src=x onerror=window.dumpCompromised=true>"
+        ))
+        .await
+        .unwrap();
+        Ok(Response::from("dumped"))
+    })
 }
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {

@@ -297,6 +297,17 @@ fn client_response_config(
     Ok(config)
 }
 
+fn dump_array_cache_config(
+    base: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> FixtureConfig {
+    let mut config = provider_config(base, env)?;
+    let cache = config.get_mut("cache").unwrap();
+    cache["default"] = json!("process-local");
+    cache["stores"]["process-local"] = json!({"driver":"array"});
+    Ok(config)
+}
+
 fn application() -> openrust::testing::TestApp {
     application_with_config(provider_config)
 }
@@ -497,6 +508,31 @@ fn native_handler(
                 .unwrap(),
         ))
     })
+}
+
+#[tokio::test]
+async fn dump_list_reports_an_array_cache_selected_by_alias() {
+    let mut app = application_with_config(dump_array_cache_config);
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .make::<Telescope>()
+        .await
+        .unwrap()
+        .auth(|_| Box::pin(async { Ok(true) }));
+    for (section, expected) in [("logs", "enabled"), ("dumps", "wrong-cache")] {
+        let response = api_call(
+            &mut app,
+            "POST",
+            &format!("/telescope/telescope-api/{section}"),
+            json!({}),
+        )
+        .await;
+        response.assert_ok();
+        let body: serde_json::Value = response.json().unwrap();
+        assert_eq!(body["status"], expected);
+    }
 }
 
 #[tokio::test]

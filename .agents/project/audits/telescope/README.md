@@ -74,6 +74,12 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 
 OpenRust 经实际 HTTP、Eloquent 关系、SQL 和 Telescope 仓储在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对上述结果、条目数量及调用行，并验证原生流式游标的单条查询归因。SQLite 的 Watchers 20 项和 Eloquent 关系 6 项、两库专项、隔离快照格式及相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/query-polymorphic-reads-{upstream,macos-retry}.log`。
 
+### Dumps 面板的采集与轮询
+
+固定 PHP 8.5.12 的原生授权 HTTP 在数组缓存上返回 `wrong-cache`，文件缓存上返回 `enabled`。固定发布页面在 Chrome 通过两秒轮询发现实际新 Dump 并加载完整列表，轮询收到 HTTP 403 后停止。上游返回 Symfony 的 HTML 初始化片段，OpenRust 的面板直接显示 Rust Debug 文本。 [固定 DumpController](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Http/Controllers/DumpController.php) [固定 Dumps 页面](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/resources/js/screens/dumps/index.vue)
+
+OpenRust 的 Dumps 打开时刷新四秒采集租约，以两秒列表探测更新状态，发现新记录后重新读取列表。离开页面取消计时及在途请求。真实桌面与移动浏览器在原生 HTTP 上验证 Debug 内容作为文本显示、授权拒绝停止轮询、手动刷新恢复及离开页面后无后续轮询。数组缓存的具名别名在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的授权入口复验。Telescope Provider 35 项、Watchers 20 项、Pulse Provider 30 项、Telescope 全目标严格 Clippy、隔离快照格式及三语文档桌面与移动六组通过。证据为 `target/tmp/observability-parity/telescope-http-reference/dump-{status,browser}.log` 与 `target/tmp/observability-parity/telescope-dumps-{baseline,macos-retry,browser-macos,docs}.log`。
+
 
 ## 公开 Watcher 与缓冲响应补齐（2026-11-21）
 

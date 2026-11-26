@@ -326,6 +326,18 @@ async fn paused() -> Result<bool, HttpError> {
     ))
 }
 async fn status(watcher: &str) -> Result<&'static str, HttpError> {
+    if watcher == "DumpWatcher" {
+        let store = openrust::cache::Cache::get_default_driver()?;
+        let config = Config::get_facade_root()?;
+        if config
+            .get(&format!("cache.stores.{store}.driver"))
+            .as_ref()
+            .and_then(Value::as_str)
+            == Some("array")
+        {
+            return Ok("wrong-cache");
+        }
+    }
     let config = Config::get_facade_root()?;
     if config.get("telescope.enabled") != Some(json!(true)) {
         return Ok("disabled");

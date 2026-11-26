@@ -12,7 +12,7 @@ try {
   await context.setExtraHTTPHeaders({'x-test-operator':'operator'});
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   const response=await page.goto(endpoint+'/events/example');
-  assert.equal(response.status(),200);assert.equal(response.headers()['cache-control'],'no-store');
+  assert.equal(response.status(),200);assert(response.headers()['cache-control'].split(',').map(value=>value.trim()).includes('no-store'));
   assert(response.headers()['content-security-policy'].includes("frame-ancestors 'none'"));
   await page.locator('#entries button').first().waitFor();
   assert((await page.locator('#entries').innerText()).includes('<img src=x onerror=window.compromised=true>'));
@@ -29,9 +29,42 @@ try {
   await page.waitForFunction(tag=>!document.querySelector('#monitored').textContent.includes(tag),tag);
   await page.locator('#recording').click();await page.waitForFunction(()=>document.querySelector('#status').textContent==='paused');
   await page.locator('#recording').click();await page.waitForFunction(()=>document.querySelector('#status').textContent==='enabled');
+  const isDumpPoll=request=>new URL(request.url()).pathname.endsWith('/telescope-api/dumps')&&new URL(request.url()).searchParams.get('take')==='1';
+  let dumpPolls=0;
+  page.on('request',request=>{if(isDumpPoll(request))dumpPolls++});
+  const [dumpIndex]=await Promise.all([
+   page.waitForResponse(response=>response.url().endsWith('/telescope-api/dumps')&&response.ok()),
+   page.getByRole('button',{name:'Dumps',exact:true}).click(),
+  ]);
+  assert.equal((await dumpIndex.json()).status,'enabled');
+  const dumpLabel=mobile?'mobile-refresh':'desktop-refresh';
+  assert.equal((await context.request.get(new URL('/api/dump/'+dumpLabel,endpoint).href)).status(),200);
+  await page.locator('#entries pre').filter({hasText:dumpLabel}).waitFor();
+  const dump=await page.locator('#entries pre').filter({hasText:dumpLabel}).textContent();
+  assert(dump.includes('<img src=x onerror=window.dumpCompromised=true>'));
+  assert.equal(await page.locator('#entries img').count(),0);
+  assert.equal(await page.evaluate(()=>window.dumpCompromised),undefined);
+  assert(dumpPolls>0);
+
+  await page.route('**/telescope-api/dumps?take=1',route=>route.continue({
+   headers:{...route.request().headers(),'x-test-operator':'guest'},
+  }),{times:1});
+  await page.waitForResponse(response=>isDumpPoll(response.request())&&response.status()===403);
+  await page.locator('#notice').filter({hasText:'Access denied'}).waitFor();
+  const stoppedAt=dumpPolls;
+  await page.waitForTimeout(2200);
+  assert.equal(dumpPolls,stoppedAt);
+  await Promise.all([
+   page.waitForResponse(response=>isDumpPoll(response.request())&&response.ok()),
+   page.getByRole('button',{name:'Refresh',exact:true}).click(),
+  ]);
+  await page.getByRole('button',{name:'Events',exact:true}).click();
+  const leftAt=dumpPolls;
+  await page.waitForTimeout(2200);
+  assert.equal(dumpPolls,leftAt);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(errors,[]);
-  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume and layout`);
+  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup and layout`);
   await context.close();
  }
 } finally { await browser.close(); }
