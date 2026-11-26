@@ -246,3 +246,7 @@ SQLite 和 PostgreSQL 18.7 的实际 HTTP 和 Artisan 验收费用拆项、人�
 在具名 SDK 连接上启用 `forward_usage_context`。网关按通过鉴权的 Key 范围保存 SDK 调用 ID 和回合编号。每个回合有独立的网关请求 ID，每次出站有独立的尝试 ID。调用 ID 仅用于查询与归集，回退沿用同一回合的网关请求 ID。
 
 SQLite 与 PostgreSQL 18.7 均以实际 Artisan 缓冲调用与 HTTP 流完成两回合工具调用，并核对 ID、两种 Key 隔离、默认关闭、异常头忽略及成本 0.20、应收 0.25。同一 SDK 调用包含一次失败回退的三尝试组合仍待验收。两包测试及严格 Clippy 通过。
+
+## GW-04 用量与计费同页读取
+
+`ai:gateway:usage:list --billing` 先限定用量页，在同一条数据库查询中读取用量、结算和完整账单证据。证据关联不会增加用量条数或改变游标。SQLite 与 PostgreSQL 18.7 实测 HTTP 请求暂停、结算与多个 Artisan 进程并发读取，分别确认未结算和已结算记录各自一致。逐条游标、空页、重复及更正证据、金额和事务回滚回归通过，网关包测试和严格 Clippy 通过。此轮未实测 MySQL 与 SQL Server。

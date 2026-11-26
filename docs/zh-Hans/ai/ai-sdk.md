@@ -234,7 +234,7 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 }
 ```
 
-费率用十进制字符串表示，单位为指定币种每百万 Token。分别定价时配置 `cache_read`、`cache_write` 或 `reasoning`。每笔费用使用请求时保存的费率。缺少价格或用量证据时，金额可保留待核对。运行 `./artisan ai:gateway:usage:list --billing` 可查看成本、应收、价格版本及精确小数金额。
+费率用十进制字符串表示，单位为指定币种每百万 Token。分别定价时配置 `cache_read`、`cache_write` 或 `reasoning`。每笔费用使用请求时保存的费率。缺少价格或用量证据时，金额可保留待核对。运行 `./artisan ai:gateway:usage:list --billing` 可查看成本、应收、价格版本及精确小数金额。每页在同一条数据库查询中读取用量、费用和账单证据。
 
 每次上游尝试各有一条记录。回退尝试共用 `request_id`。记录包含下游 Key 或分组、公开模型、连接、上游模型、响应状态和供应商实际返回的 Token 数。缺失用量保留为 `null`。账本省略 Key 密钥、请求正文和生成文本。
 

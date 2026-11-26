@@ -12,9 +12,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    billing::ChargePlan,
+    billing::{self, ChargePlan, ChargeRecord},
     managed_keys::{now, nullable},
     output_quota::QuotaReservation,
+    reconciliation,
 };
 
 const TABLE: &str = "ai_gateway_usage";
@@ -283,39 +284,6 @@ impl UsageStore {
         crate::reconciliation::import(&self.connection, report, actor).await
     }
 
-    pub(crate) async fn charges(
-        &self,
-        records: &[UsageRecord],
-    ) -> DatabaseResult<Vec<crate::billing::ChargeRecord>> {
-        if records.is_empty() {
-            return Ok(Vec::new());
-        }
-        let attempts: Vec<_> = records
-            .iter()
-            .map(|record| Value::from(record.id.as_str()))
-            .collect();
-        let rows = self
-            .connection
-            .table(crate::billing::TABLE)
-            .use_write_pdo()
-            .where_in("attempt_id", attempts.clone())
-            .select(crate::billing::COLUMNS)
-            .order_by_desc("attempt_id")
-            .order_by("direction", "asc")
-            .get()
-            .await?;
-        let mut actual = crate::reconciliation::actual_costs(&self.connection, attempts).await?;
-        rows.into_iter()
-            .map(|row| {
-                let mut charge = crate::billing::decode(row)?;
-                if charge.direction == "cost" {
-                    charge.actual = actual.remove(&charge.attempt_id);
-                }
-                Ok(charge)
-            })
-            .collect()
-    }
-
     pub(crate) async fn begin(
         &self,
         context: &LogContext,
@@ -503,7 +471,8 @@ impl UsageStore {
         before: Option<&str>,
         invocation: (Option<&str>, Option<&str>),
         limit: u64,
-    ) -> DatabaseResult<Vec<UsageRecord>> {
+        billing: bool,
+    ) -> DatabaseResult<(Vec<UsageRecord>, Option<Vec<ChargeRecord>>)> {
         let mut query = self
             .connection
             .table(TABLE)
@@ -526,7 +495,79 @@ impl UsageStore {
         if let Some(scope) = invocation.1 {
             query = query.r#where("invocation_scope", "=", scope);
         }
-        query.get().await?.into_iter().map(decode).collect()
+        if !billing {
+            let usage = query
+                .get()
+                .await?
+                .iter()
+                .map(decode)
+                .collect::<DatabaseResult<_>>()?;
+            return Ok((usage, None));
+        }
+        self.billing_page(query).await
+    }
+
+    async fn billing_page(
+        &self,
+        mut page: Builder<'_>,
+    ) -> DatabaseResult<(Vec<UsageRecord>, Option<Vec<ChargeRecord>>)> {
+        let mut evidence = reconciliation::evidence_query(&self.connection);
+        // 先限定用量页，再在同一条查询中读取结算与证据。
+        let rows = self
+            .connection
+            .table(TABLE)
+            .use_write_pdo()
+            .from_sub(&mut page, "usage_page")?
+            .left_join(
+                billing::TABLE,
+                "usage_page.id",
+                "=",
+                "ai_gateway_charges.attempt_id",
+            )
+            .left_join_sub(&mut evidence, "cost_evidence", |join| {
+                join.on(
+                    "ai_gateway_charges.attempt_id",
+                    "=",
+                    "cost_evidence.attempt_id",
+                )
+                .r#where("ai_gateway_charges.direction", "=", "cost")
+            })?
+            .select(["usage_page.*"])
+            .add_select(billing::COLUMNS)
+            .add_select([
+                "cost_evidence.entry_scope as evidence_scope",
+                "cost_evidence.currency as evidence_currency",
+                "cost_evidence.amount as evidence_amount",
+                "cost_evidence.revision as evidence_revision",
+            ])
+            .order_by_desc("usage_page.id")
+            .order_by("ai_gateway_charges.direction", "asc")
+            .get()
+            .await?;
+        let mut actual = reconciliation::actual_costs(&rows)?;
+        let mut usage = Vec::<UsageRecord>::new();
+        let mut charges = Vec::<ChargeRecord>::new();
+        for row in &rows {
+            let id = super::managed_keys::text(row, "id")?;
+            if usage.last().is_none_or(|record| record.id != id) {
+                usage.push(decode(row)?);
+            }
+            if matches!(row.get("attempt_id"), Some(Value::Null)) {
+                continue;
+            }
+            let direction = super::managed_keys::text(row, "direction")?;
+            if charges
+                .last()
+                .is_none_or(|charge| charge.attempt_id != id || charge.direction != direction)
+            {
+                let mut charge = billing::decode(row)?;
+                if charge.direction == "cost" {
+                    charge.actual = actual.remove(&id);
+                }
+                charges.push(charge);
+            }
+        }
+        Ok((usage, Some(charges)))
     }
 }
 
@@ -641,9 +682,9 @@ async fn finish_usage(
         .await
 }
 
-fn decode(row: Row) -> DatabaseResult<UsageRecord> {
-    let text = |column| super::managed_keys::text(&row, column);
-    let integer = |column| super::managed_keys::integer(&row, column);
+fn decode(row: &Row) -> DatabaseResult<UsageRecord> {
+    let text = |column| super::managed_keys::text(row, column);
+    let integer = |column| super::managed_keys::integer(row, column);
     let optional_text = |column| match row.get(column) {
         Some(Value::Text(value)) => Ok(Some(value.clone())),
         Some(Value::Null) => Ok(None),

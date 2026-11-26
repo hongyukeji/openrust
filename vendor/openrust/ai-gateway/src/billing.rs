@@ -7,13 +7,13 @@ use crate::usage::Settlement;
 
 pub(crate) const TABLE: &str = "ai_gateway_charges";
 pub(crate) const COLUMNS: [&str; 7] = [
-    "attempt_id",
-    "direction",
-    "version",
-    "currency",
-    "tariff",
-    "amount",
-    "state",
+    "ai_gateway_charges.attempt_id",
+    "ai_gateway_charges.direction",
+    "ai_gateway_charges.version",
+    "ai_gateway_charges.currency",
+    "ai_gateway_charges.tariff",
+    "ai_gateway_charges.amount",
+    "ai_gateway_charges.state",
 ];
 const SCALE: i128 = 1_000_000_000_000;
 const PER_MILLION: i128 = 1_000_000;
@@ -299,8 +299,8 @@ pub(crate) struct ChargeRecord {
     pub(crate) actual: Option<crate::reconciliation::ActualCost>,
 }
 
-pub(crate) fn decode(row: Row) -> DatabaseResult<ChargeRecord> {
-    let text = |column| crate::managed_keys::text(&row, column);
+pub(crate) fn decode(row: &Row) -> DatabaseResult<ChargeRecord> {
+    let text = |column| crate::managed_keys::text(row, column);
     let optional_text = |column| match row.get(column) {
         Some(Value::Text(text)) => Ok(Some(text.clone())),
         Some(Value::Null) => Ok(None),

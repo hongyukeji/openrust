@@ -64,13 +64,14 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     })
                     .transpose()?;
                 let invocation = invocation.map(str::to_ascii_uppercase);
-                let records = store
+                let (records, charges) = store
                     .list(
                         request,
                         key,
                         before,
                         (invocation.as_deref(), invocation_scope.as_deref()),
                         limit as u64,
+                        input.matches().get_flag("billing"),
                     )
                     .await
                     .map_err(|_| ConsoleError::new("无法读取网关用量记录"))?;
@@ -79,11 +80,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     .filter(|_| records.len() == limit as usize)
                     .map(|record| &record.id);
                 let mut result = json!({"usage":records,"next":next});
-                if input.matches().get_flag("billing") {
-                    let charges = store
-                        .charges(&records)
-                        .await
-                        .map_err(|_| ConsoleError::new("无法读取网关计费记录"))?;
+                if let Some(charges) = charges {
                     result["charges"] = json!(charges);
                 }
                 write_json(output, result)?;

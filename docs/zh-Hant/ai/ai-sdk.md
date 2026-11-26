@@ -234,7 +234,7 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 }
 ```
 
-費率以十進位字串表示，單位為指定幣別每百萬 Token。分項定價時設定 `cache_read`、`cache_write` 或 `reasoning`。每筆費用使用請求時儲存的費率。缺少價格或用量證據時，金額可保留待核對。執行 `./artisan ai:gateway:usage:list --billing` 可查看成本、應收、價格版本與精確小數金額。
+費率以十進位字串表示，單位為指定幣別每百萬 Token。分項定價時設定 `cache_read`、`cache_write` 或 `reasoning`。每筆費用使用請求時儲存的費率。缺少價格或用量證據時，金額可保留待核對。執行 `./artisan ai:gateway:usage:list --billing` 可查看成本、應收、價格版本與精確小數金額。每頁在同一條資料庫查詢中讀取用量、費用和帳單證據。
 
 每次上游嘗試各有一筆記錄。備援嘗試共用 `request_id`。記錄包含下游 Key 或群組、公開模型、連線、上游模型、回應狀態和供應商實際回報的 Token 數。缺少的用量保留為 `null`。帳本省略 Key 金鑰、請求本文和產生的文字。
 

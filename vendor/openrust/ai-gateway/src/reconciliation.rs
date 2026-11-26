@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use openrust::database::{
-    Connection, DatabaseError, DatabaseResult, Row, Transaction, Value, query::Record,
+    Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
+    query::{Builder, Record},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -273,16 +274,9 @@ async fn match_attempt(
     Ok(("matched", Some(id)))
 }
 
-pub(crate) async fn actual_costs(
-    connection: &Connection,
-    attempts: Vec<Value>,
-) -> DatabaseResult<BTreeMap<String, ActualCost>> {
-    if attempts.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let rows = connection
+pub(crate) fn evidence_query(connection: &Connection) -> Builder<'_> {
+    connection
         .table(EVIDENCE)
-        .use_write_pdo()
         .join(
             REPORTS,
             "ai_gateway_cost_evidence.report_id",
@@ -296,19 +290,21 @@ pub(crate) async fn actual_costs(
             "ai_gateway_cost_evidence.amount",
             "ai_gateway_cost_reports.revision",
         ])
-        .where_in("ai_gateway_cost_evidence.attempt_id", attempts)
         .r#where("ai_gateway_cost_evidence.state", "=", "matched")
         .r#where("ai_gateway_cost_reports.complete", "=", true)
-        .get()
-        .await?;
+}
+
+pub(crate) fn actual_costs(rows: &[Row]) -> DatabaseResult<BTreeMap<String, ActualCost>> {
     let mut latest = BTreeMap::<(String, String), (i64, ActualCost)>::new();
     for row in rows {
-        let scope = (text(&row, "attempt_id")?, text(&row, "entry_scope")?);
-        let revision = integer(&row, "revision")?.ok_or(DatabaseError::InvalidScalar)?;
+        let Some(revision) = integer(row, "evidence_revision")? else {
+            continue;
+        };
+        let scope = (text(row, "attempt_id")?, text(row, "evidence_scope")?);
         let candidate = ActualCost {
             state: "confirmed",
-            currency: Some(text(&row, "currency")?),
-            amount: Some(text(&row, "amount")?),
+            currency: Some(text(row, "evidence_currency")?),
+            amount: Some(text(row, "evidence_amount")?),
         };
         let selected = latest.entry(scope).or_insert((revision, candidate.clone()));
         if revision > selected.0 {
