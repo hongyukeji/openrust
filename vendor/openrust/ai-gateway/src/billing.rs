@@ -20,7 +20,7 @@ const PER_MILLION: i128 = 1_000_000;
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(try_from = "String", into = "String")]
-struct Amount(i128);
+pub(crate) struct Amount(i128);
 
 impl TryFrom<String> for Amount {
     type Error = &'static str;
@@ -288,13 +288,15 @@ fn rate_component(total: &mut i128, rate: Option<Amount>, count: Option<i64>) ->
 
 #[derive(Serialize)]
 pub(crate) struct ChargeRecord {
-    attempt_id: String,
-    direction: String,
+    pub(crate) attempt_id: String,
+    pub(crate) direction: String,
     version: String,
     currency: Option<String>,
     tariff: Option<serde_json::Value>,
     amount: Option<String>,
     state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) actual: Option<crate::reconciliation::ActualCost>,
 }
 
 pub(crate) fn decode(row: Row) -> DatabaseResult<ChargeRecord> {
@@ -315,5 +317,6 @@ pub(crate) fn decode(row: Row) -> DatabaseResult<ChargeRecord> {
             .map_err(|_| DatabaseError::InvalidScalar)?,
         amount: optional_text("amount")?,
         state: text("state")?,
+        actual: None,
     })
 }

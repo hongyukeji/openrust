@@ -249,6 +249,14 @@ impl UsageStore {
         Self { connection }
     }
 
+    pub(crate) async fn import_cost_report(
+        &self,
+        report: crate::reconciliation::CostReport,
+        actor: String,
+    ) -> DatabaseResult<crate::reconciliation::ImportResult> {
+        crate::reconciliation::import(&self.connection, report, actor).await
+    }
+
     pub(crate) async fn charges(
         &self,
         records: &[UsageRecord],
@@ -256,23 +264,29 @@ impl UsageStore {
         if records.is_empty() {
             return Ok(Vec::new());
         }
-        self.connection
+        let attempts: Vec<_> = records
+            .iter()
+            .map(|record| Value::from(record.id.as_str()))
+            .collect();
+        let rows = self
+            .connection
             .table(crate::billing::TABLE)
             .use_write_pdo()
-            .where_in(
-                "attempt_id",
-                records
-                    .iter()
-                    .map(|record| Value::from(record.id.as_str()))
-                    .collect::<Vec<_>>(),
-            )
+            .where_in("attempt_id", attempts.clone())
             .select(crate::billing::COLUMNS)
             .order_by_desc("attempt_id")
             .order_by("direction", "asc")
             .get()
-            .await?
-            .into_iter()
-            .map(crate::billing::decode)
+            .await?;
+        let mut actual = crate::reconciliation::actual_costs(&self.connection, attempts).await?;
+        rows.into_iter()
+            .map(|row| {
+                let mut charge = crate::billing::decode(row)?;
+                if charge.direction == "cost" {
+                    charge.actual = actual.remove(&charge.attempt_id);
+                }
+                Ok(charge)
+            })
             .collect()
     }
 

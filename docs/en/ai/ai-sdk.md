@@ -244,6 +244,32 @@ With the same Key used for generation, call `GET /v1/usage?days=7` using Bearer 
 
 Managed Keys retain their usage history after rotation. Replacing an environment Key starts a new history for its new credential. The operator's Artisan ledger includes earlier attempts and upstream details.
 
+#### Import provider cost evidence {#import-cost-evidence}
+
+Use `./artisan ai:gateway:billing:import invoice.json --actor=operator` for a provider statement with per-request amounts. The command matches the named provider and its request ID within the UTC time window. The start is inclusive and the end is exclusive.
+
+```json
+{
+  "source": "provider-invoice",
+  "statement_id": "daily-2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "entries": [
+    {
+      "id": "invoice-line-1",
+      "provider": "openai",
+      "upstream_request_id": "req_example",
+      "currency": "USD",
+      "amount": "0.03"
+    }
+  ]
+}
+```
+
+Use `complete: false` for a partial statement. For a corrected statement, keep its source, statement ID and time window, then increase the revision. Reimporting the same revision and contents is idempotent. The usage list's original `amount` preserves the rate-based estimate, and `actual` shows the confirmed supplier cost when available. A currency mismatch or conflicting report is visible for operator review.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

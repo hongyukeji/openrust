@@ -234,3 +234,9 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 SQLite 和 PostgreSQL 18.7 的实际 HTTP 和 Artisan 验收费用拆项、人民币和美元的独立账目、微小金额半偶舍入、明确零、缺价、缺计数、模型变更、重复终帧及重启换价。SQLite 故障样本验证计费更新失败时同一用量结算回滚。两次成功回合和一次失败回退场景目前确认成本 0.20、应收 0.25，失败尝试金额待供应商账单补证。包测试、严格 Clippy 和三语文档通过。资金余额、硬预算、晚到调整及账单对账仍待验收。
 
 - [固定 Sub2API 用量计费事务](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/repository/usage_billing_repo.go) · [固定 Laravel TextUsage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/TextUsage.php)
+
+## GW-04 逐请求供应商账单证据
+
+`ai:gateway:billing:import` 接收带来源、账单 ID、版本、UTC 窗口和操作者的逐请求账单。按具名连接、实际出站窗口和上游请求 ID 精确匹配。源账单与明细追加保存，同版本同内容幂等，不同内容冲突。部分账单、未匹配项、歧义和币种不符保留证据。每个来源采用最新完整版本的同一请求金额，彼此冲突的完整来源保留待核对状态。`usage:list --billing` 保留配置价格结算值，通过 `actual` 提供可确认的供应商成本。
+
+独立 HTTP 生成两次成功回合及一次失败回退，再由 Artisan 导入失败尝试的 0.03 成本。SQLite 与 PostgreSQL 18.7 均复算成本 0.23、下游应收 0.25，并验证同请求 ID 跨连接隔离、并发重复导入、部分账单、币种不符、旧版重送、更正及来源冲突。包测试、严格 Clippy 与三语文档通过。目前样例的两次回合从独立 HTTP 请求发出，SDK 多轮调用关联、聚合报表、资金预算及追加调整仍在后续批次。

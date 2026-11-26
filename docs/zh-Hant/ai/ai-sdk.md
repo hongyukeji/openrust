@@ -244,6 +244,32 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 託管 Key 輪替後保留歷史。替換環境 Key 後，新憑證開始累積自己的歷史。維運人員可透過 Artisan 帳本查詢先前記錄及上游明細。
 
+#### 匯入供應商成本證據 {#import-cost-evidence}
+
+用 `./artisan ai:gateway:billing:import invoice.json --actor=operator` 匯入包含逐請求金額的供應商帳單。指令依 UTC 時間範圍、具名連線與上游請求 ID 比對。時間範圍包含起始時間，排除結束時間。
+
+```json
+{
+  "source": "provider-invoice",
+  "statement_id": "daily-2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "entries": [
+    {
+      "id": "invoice-line-1",
+      "provider": "openai",
+      "upstream_request_id": "req_example",
+      "currency": "USD",
+      "amount": "0.03"
+    }
+  ]
+}
+```
+
+部分帳單使用 `complete: false`。更正時沿用來源、帳單 ID 和時間範圍並增加版本號。同版本同內容可重複匯入。用量清單的 `amount` 保留費率計算值，`actual` 顯示已有證據的供應商成本。幣別不符或報表衝突會保留供維運核對。
+
 ### 群組輸出 Token 配額 {#gateway-output-quota}
 
 啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。

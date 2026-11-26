@@ -72,6 +72,39 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             })
         }),
     )?;
+    Artisan::command_with(
+        "ai:gateway:billing:import {file : 供应商账单 JSON 文件} {--actor= : 审计操作者}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let path =
+                    argument(input, "file").ok_or_else(|| ConsoleError::new("请指定账单文件"))?;
+                let actor = argument(input, "actor")
+                    .filter(|actor| !actor.is_empty())
+                    .ok_or_else(|| ConsoleError::new("请用 --actor 指定审计操作者"))?;
+                let file = std::fs::File::open(path)
+                    .map_err(|_| ConsoleError::new("无法读取供应商账单文件"))?;
+                let report = serde_json::from_reader(std::io::BufReader::new(file))
+                    .map_err(|_| ConsoleError::new("供应商账单 JSON 格式无效"))?;
+                let result = store
+                    .import_cost_report(report, actor.into())
+                    .await
+                    .map_err(|error| match error {
+                        openrust::database::DatabaseError::InvalidQuery(reason) => {
+                            ConsoleError::new(reason)
+                        }
+                        _ => ConsoleError::new("无法导入网关账单"),
+                    })?;
+                write_json(output, json!(result))?;
+                Ok(0)
+            })
+        }),
+    )?;
     Ok(())
 }
 

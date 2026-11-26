@@ -244,6 +244,32 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 托管 Key 轮换后保留历史。替换环境 Key 后，新凭证开始累积自己的历史。运维可通过 Artisan 账本查询早期记录和上游明细。
 
+#### 导入供应商成本证据 {#import-cost-evidence}
+
+用 `./artisan ai:gateway:billing:import invoice.json --actor=operator` 导入包含逐请求金额的供应商账单。命令按 UTC 时间窗口、命名连接和上游请求 ID 匹配。窗口包含开始时间，排除结束时间。
+
+```json
+{
+  "source": "provider-invoice",
+  "statement_id": "daily-2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "entries": [
+    {
+      "id": "invoice-line-1",
+      "provider": "openai",
+      "upstream_request_id": "req_example",
+      "currency": "USD",
+      "amount": "0.03"
+    }
+  ]
+}
+```
+
+部分账单使用 `complete: false`。更正时沿用来源、账单 ID 和时间窗口并增加版本号。同版本同内容可重复导入。用量清单中的 `amount` 保留费率计算值，`actual` 展示有证据的供应商成本。币种不符或报告冲突会保留供运维核对。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。
