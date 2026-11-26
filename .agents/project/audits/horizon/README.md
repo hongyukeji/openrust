@@ -216,6 +216,10 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 同一制品在 Windows 11 ARM64 的 x64 兼容层连接隔离 Redis 8.10.3。空闲退出、等待排空、快速终止、快速重启、Master 丢失、自定义处理器、Redis 命令队列和文件命令队列八组通过。入口、子进程替换、输出和控制均从实际运行采证。证据为 `target/tmp/observability-windows/observability-horizon-x64-release.log`。物理 Windows x64、x64 三扩展根组合及正式托管仍需独立验收。
 
+### macOS launchd 进程托管
+
+在 macOS ARM64 用户域用实际 `launchctl bootstrap` 注册隔离服务，运行包含 `a5d28592d` Horizon 实现的原生 Artisan 开发制品。用本机隔离 Redis 8.10.3 和实际 Worker 验证服务 PID、Master 心跳及任务领取。第一个运行中任务经过 `horizon:terminate --wait` 完成后，launchd 以新 PID 启动替代 Master 并恢复 Worker。第二个运行中任务经过 `launchctl bootout` 完成，Worker 退出码为 0，Redis 不再返回 Master 状态。夹具与 Redis 进程结束后清理临时注册。证据为 `target/tmp/observability-parity/horizon-launchd-{build,macos-retry}.log`。正式环境所用 Linux／Windows 服务管理器与部署参数继续单独验收。
+
 ## 任务耗时计时契约
 
 固定 Horizon 在 `JobReserved` 的保留状态监听器之后启动 `Stopwatch`，成功删除时读取耗时，异常或失败时清理计时器。PHP 8.5.12 用受控时钟执行固定 `Stopwatch`，确认毫秒保留两位小数，半值进位，重复启动覆盖，未知及清理后的计时返回空值。证据为 `target/tmp/observability-parity/horizon-stopwatch-upstream.log`。 [固定 Stopwatch](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Stopwatch.php) [固定事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
