@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ImageAttachment, StructuredOutput, TextPrompt};
+use crate::{Attachment, StructuredOutput, TextPrompt};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -45,7 +45,7 @@ impl Message {
 pub struct AgentPrompt<'a> {
     pub text: TextPrompt<'a>,
     pub messages: &'a [Message],
-    pub attachments: &'a [ImageAttachment],
+    pub attachments: &'a [Attachment],
     pub structured_output: Option<StructuredOutput<'a>>,
 }
 

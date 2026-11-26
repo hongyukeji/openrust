@@ -6,7 +6,7 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, ImageAttachment, Message, StepResponse, StructuredOutput,
+    AgentPrompt, AiError, AiResult, Attachment, Message, StepResponse, StructuredOutput,
     TextPrompt, TextProvider, ToolDefinition, ToolStep, Usage,
 };
 
@@ -27,7 +27,7 @@ pub struct PendingStep<'a> {
     pub instructions: Cow<'a, str>,
     pub prompt: &'a str,
     pub messages: Cow<'a, [Message]>,
-    pub attachments: Cow<'a, [ImageAttachment]>,
+    pub attachments: Cow<'a, [Attachment]>,
     pub structured_output: Option<StructuredOutput<'a>>,
     pub steps: &'a [ToolStep],
     pub usage: Usage,
@@ -56,7 +56,7 @@ impl<'a> PendingStep<'a> {
         self
     }
 
-    pub fn with_attachments(mut self, attachments: impl Into<Cow<'a, [ImageAttachment]>>) -> Self {
+    pub fn with_attachments(mut self, attachments: impl Into<Cow<'a, [Attachment]>>) -> Self {
         self.attachments = attachments.into();
         self
     }
@@ -118,7 +118,7 @@ pub(crate) async fn generate_step(
                 if step.model.trim().is_empty() {
                     return Err(AiError::MissingModel);
                 }
-                crate::image::validate_prompt_images(&step.attachments)?;
+                crate::attachments::validate_prompt_attachments(&step.attachments)?;
                 context
                     .allowed
                     .extend(step.tools.iter().map(|tool| tool.name.clone()));

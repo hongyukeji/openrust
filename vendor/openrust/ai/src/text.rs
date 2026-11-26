@@ -3,16 +3,17 @@ use std::{sync::Arc, time::Duration};
 use async_openai::types::{
     chat::{
         ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
-        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
-        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
-        ChatCompletionStreamOptions, CreateChatCompletionRequest, ImageUrl, ResponseFormat,
+        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartFile,
+        ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
+        ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent,
+        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent,
+        ChatCompletionRequestUserMessageContentPart, ChatCompletionStreamOptions,
+        CreateChatCompletionRequest, FileObject, ImageUrl, ResponseFormat,
         ResponseFormatJsonSchema,
     },
     responses::{
-        CreateResponse, EasyInputContent, EasyInputMessage, InputContent, InputImageContent,
-        InputItem, InputParam, InputTextContent, ResponseTextParam, Role,
+        CreateResponse, EasyInputContent, EasyInputMessage, InputContent, InputFileContent,
+        InputImageContent, InputItem, InputParam, InputTextContent, ResponseTextParam, Role,
         TextResponseFormatConfiguration,
     },
 };
@@ -27,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
+    AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
     audio::{AudioProvider, OpenAiAudioProvider},
@@ -279,7 +280,7 @@ impl OpenAiTextProvider {
         Ok(response.data)
     }
 
-    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> CreateChatCompletionRequest {
+    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<CreateChatCompletionRequest> {
         let user = |text: &str| {
             ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
                 content: ChatCompletionRequestUserMessageContent::Text(text.into()),
@@ -311,7 +312,7 @@ impl OpenAiTextProvider {
         let latest = if prompt.attachments.is_empty() {
             user(prompt.text.prompt)
         } else {
-            use ChatCompletionRequestUserMessageContentPart::{ImageUrl as ImagePart, Text};
+            use ChatCompletionRequestUserMessageContentPart::{File, ImageUrl as ImagePart, Text};
             let mut parts = Vec::new();
             if !prompt.text.prompt.trim().is_empty() {
                 parts.push(Text(ChatCompletionRequestMessageContentPartText {
@@ -319,22 +320,37 @@ impl OpenAiTextProvider {
                     ..Default::default()
                 }));
             }
-            parts.extend(prompt.attachments.iter().map(|image| {
-                ImagePart(ChatCompletionRequestMessageContentPartImage {
-                    image_url: ImageUrl {
-                        url: image.data_url(),
-                        detail: None,
-                    },
-                    ..Default::default()
-                })
-            }));
+            for attachment in prompt.attachments {
+                parts.push(match attachment {
+                    Attachment::Image(image) => {
+                        ImagePart(ChatCompletionRequestMessageContentPartImage {
+                            image_url: ImageUrl {
+                                url: image.data_url(),
+                                detail: None,
+                            },
+                            ..Default::default()
+                        })
+                    }
+                    Attachment::Document(document) if document.is_pdf() => {
+                        File(ChatCompletionRequestMessageContentPartFile {
+                            file: FileObject {
+                                filename: Some(document.filename().into()),
+                                file_data: Some(document.data_url()),
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        })
+                    }
+                    Attachment::Document(_) => return Err(AiError::AttachmentsNotSupported),
+                });
+            }
             ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
                 content: ChatCompletionRequestUserMessageContent::Array(parts),
                 name: None,
             })
         };
         messages.push(latest);
-        CreateChatCompletionRequest {
+        Ok(CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
             response_format: prompt.structured_output.as_ref().map(|output| {
@@ -348,53 +364,66 @@ impl OpenAiTextProvider {
                 ..Default::default()
             }),
             ..Default::default()
-        }
+        })
     }
 
     fn responses_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> CreateResponse {
-        let input = if prompt.messages.is_empty() && prompt.attachments.is_empty() {
-            InputParam::Text(prompt.text.prompt.into())
-        } else {
-            let message = |role, content| {
-                InputItem::EasyMessage(EasyInputMessage {
-                    r#type: Default::default(),
-                    role,
-                    content,
-                    phase: None,
-                })
-            };
-            let mut history: Vec<_> = prompt
-                .messages
-                .iter()
-                .map(|entry| {
-                    let role = match entry.role {
-                        MessageRole::User => Role::User,
-                        MessageRole::Assistant => Role::Assistant,
-                    };
-                    message(role, EasyInputContent::Text(entry.content.clone()))
-                })
-                .collect();
-            let content = if prompt.attachments.is_empty() {
-                EasyInputContent::Text(prompt.text.prompt.into())
+        let input =
+            if prompt.messages.is_empty() && prompt.attachments.is_empty() {
+                InputParam::Text(prompt.text.prompt.into())
             } else {
-                let mut parts = Vec::new();
-                if !prompt.text.prompt.trim().is_empty() {
-                    parts.push(InputContent::InputText(InputTextContent {
-                        text: prompt.text.prompt.into(),
-                        ..Default::default()
-                    }));
-                }
-                parts.extend(prompt.attachments.iter().map(|image| {
-                    InputContent::InputImage(InputImageContent {
-                        image_url: Some(image.data_url()),
-                        ..Default::default()
+                let message = |role, content| {
+                    InputItem::EasyMessage(EasyInputMessage {
+                        r#type: Default::default(),
+                        role,
+                        content,
+                        phase: None,
                     })
-                }));
-                EasyInputContent::ContentList(parts)
+                };
+                let mut history: Vec<_> = prompt
+                    .messages
+                    .iter()
+                    .map(|entry| {
+                        let role = match entry.role {
+                            MessageRole::User => Role::User,
+                            MessageRole::Assistant => Role::Assistant,
+                        };
+                        message(role, EasyInputContent::Text(entry.content.clone()))
+                    })
+                    .collect();
+                let content =
+                    if prompt.attachments.is_empty() {
+                        EasyInputContent::Text(prompt.text.prompt.into())
+                    } else {
+                        let mut parts = Vec::new();
+                        if !prompt.text.prompt.trim().is_empty() {
+                            parts.push(InputContent::InputText(InputTextContent {
+                                text: prompt.text.prompt.into(),
+                                ..Default::default()
+                            }));
+                        }
+                        parts.extend(prompt.attachments.iter().map(
+                            |attachment| match attachment {
+                                Attachment::Image(image) => {
+                                    InputContent::InputImage(InputImageContent {
+                                        image_url: Some(image.data_url()),
+                                        ..Default::default()
+                                    })
+                                }
+                                Attachment::Document(document) => {
+                                    InputContent::InputFile(InputFileContent {
+                                        filename: Some(document.filename().into()),
+                                        file_data: Some(document.data_url()),
+                                        ..Default::default()
+                                    })
+                                }
+                            },
+                        ));
+                        EasyInputContent::ContentList(parts)
+                    };
+                history.push(message(Role::User, content));
+                InputParam::Items(history)
             };
-            history.push(message(Role::User, content));
-            InputParam::Items(history)
-        };
         CreateResponse {
             instructions: (!prompt.text.instructions.is_empty())
                 .then(|| prompt.text.instructions.into()),
@@ -420,7 +449,7 @@ impl OpenAiTextProvider {
                 self.connection
                     .send(
                         endpoint,
-                        &Self::chat_body(prompt, stream),
+                        &Self::chat_body(prompt, stream)?,
                         stream,
                         prompt.text.timeout,
                     )
@@ -618,7 +647,7 @@ impl OpenAiTextProvider {
     ) -> AiResult<Value> {
         match self.protocol {
             OpenAiProtocol::ChatCompletions => {
-                let body = serde_json::to_value(Self::chat_body(prompt, stream))
+                let body = serde_json::to_value(Self::chat_body(prompt, stream)?)
                     .map_err(|_| AiError::InvalidSchema)?;
                 crate::tool_protocol::chat_request(body, tools, history)
             }

@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, ImageAttachment, Message,
+    AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, Message,
     QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent,
     TextModelTier, Tool, agent_broadcast::StreamBroadcast,
 };
@@ -35,7 +35,7 @@ pub trait Agent: Send + Sync + 'static {
         &[]
     }
 
-    fn attachments(&self) -> &[ImageAttachment] {
+    fn attachments(&self) -> &[Attachment] {
         &[]
     }
 
@@ -196,7 +196,7 @@ pub struct AnonymousAgent {
     instructions: String,
     model_tier: TextModelTier,
     messages: Vec<Message>,
-    attachments: Vec<ImageAttachment>,
+    attachments: Vec<Attachment>,
     tools: Vec<Arc<dyn Tool>>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     max_steps: Option<usize>,
@@ -241,9 +241,9 @@ impl AnonymousAgent {
 
     pub fn with_attachments(
         mut self,
-        attachments: impl IntoIterator<Item = ImageAttachment>,
+        attachments: impl IntoIterator<Item = impl Into<Attachment>>,
     ) -> Self {
-        self.attachments = attachments.into_iter().collect();
+        self.attachments = attachments.into_iter().map(Into::into).collect();
         self
     }
 
@@ -265,7 +265,7 @@ impl Agent for AnonymousAgent {
     fn messages(&self) -> &[Message] {
         &self.messages
     }
-    fn attachments(&self) -> &[ImageAttachment] {
+    fn attachments(&self) -> &[Attachment] {
         &self.attachments
     }
 

@@ -20,6 +20,8 @@ pub enum AiError {
     ModelsNotSupported,
     MessagesNotSupported,
     AttachmentsNotSupported,
+    TooManyAttachments,
+    InvalidDocument,
     StructuredOutputNotSupported,
     InvalidSchema,
     InvalidTools,
@@ -84,6 +86,8 @@ impl fmt::Display for AiError {
             Self::MissingCredential => formatter.write_str("AI 连接的环境凭证未配置"),
             Self::ModelsNotSupported => formatter.write_str("该 AI 协议驱动未提供模型目录"),
             Self::AttachmentsNotSupported => formatter.write_str("该 AI 协议驱动不支持提示词附件"),
+            Self::TooManyAttachments => formatter.write_str("AI 提示词附件数量超出限制"),
+            Self::InvalidDocument => formatter.write_str("AI 文档名称或格式无效"),
             Self::MessagesNotSupported => formatter.write_str("该 AI 协议驱动未接收历史消息"),
             Self::StructuredOutputNotSupported => {
                 formatter.write_str("该 AI 协议驱动未提供结构化输出")

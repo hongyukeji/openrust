@@ -357,3 +357,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 `SummarizeAgent` 默认提示最多三句，句数至少为一，使用经济型模型。通过扩展 trait 提供 `Str::summarize`、`Stringable::summarize` 和单次覆盖入口。真实 Artisan 验证 Responses 经济档、显式模型切换到 Anthropic、目录合并和 Fake，真实 HTTP 验证高能力档、Gemini 的默认模型回退和经济档 SSE。上游均使用本地 TCP 协议服务。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel 摘要宏](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php#L102) · [固定 Laravel SummarizeAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Agents/SummarizeAgent.php)
+
+## AI-02 Agent 文档附件
+
+`Attachment` 统一图片与文档的本轮提示输入，保留传入顺序。`DocumentAttachment` 从字节、私有 Storage、本地路径或上传接收 PDF、UTF-8 文本和 Markdown。OpenAI Responses 发送 `input_file`，Chat Completions 发送 PDF `file`，Anthropic Messages 使用原生 `document`，Gemini 使用 `inlineData`。Chat Completions 对纯文本和 Markdown 附件在出站前返回不支持。附件共用数量和原始字节限制。
+
+独立 Artisan 验证本地文件、命名磁盘、混合顺序、错误格式和 Fake 记录。真实 HTTP 逐协议发送 multipart，核对四个本地 TCP 上游收到的 PDF 原始字节、文件名、普通响应和 SSE，以及三种支持协议的 Markdown 映射。远端 URL、供应商文件 ID、会话历史及排队的文件恢复仍按独立契约验收。
+
+- [固定 Laravel Document](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Document.php) · [OpenAI File inputs](https://developers.openai.com/api/docs/guides/file-inputs) · [Anthropic PDF support](https://platform.claude.com/docs/en/build-with-claude/pdf-support) · [Gemini Document understanding](https://ai.google.dev/gemini-api/docs/document-processing)

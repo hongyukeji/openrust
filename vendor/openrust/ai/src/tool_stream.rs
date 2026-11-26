@@ -102,7 +102,7 @@ struct OwnedPrompt {
     model: String,
     timeout: Option<Duration>,
     messages: Vec<Message>,
-    attachments: Vec<crate::ImageAttachment>,
+    attachments: Vec<crate::Attachment>,
     schema: Option<(Value, bool)>,
 }
 

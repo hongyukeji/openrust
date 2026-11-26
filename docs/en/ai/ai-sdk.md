@@ -257,6 +257,23 @@ Read an uploaded image with `ImageAttachment::from_upload(&file)`, a local file 
 
 The selected model must support image input. OpenAI Responses, Chat Completions, Anthropic Messages, and Gemini each use their native image format. The SDK accepts PNG, JPEG, and WebP, with at most 16 attachments and less than 50 MB of raw images per prompt. Provider limits also apply. Attachments can accompany text or be the only input. They travel with the current turn and its tool steps. The text conversation store keeps only text.
 
+### Document attachments {#document-attachments}
+
+Load a PDF, UTF-8 text file, or Markdown file with `DocumentAttachment`. It supports `from_bytes(filename, bytes)`, `from_upload(&file)`, `from_path(path).await`, and `from_storage(path, disk).await`. Wrap mixed files in `Attachment` to keep them in the order you supply.
+
+```rust
+use openrust_ai::{Agent, Attachment, DocumentAttachment, ImageAttachment, agent};
+
+let report = DocumentAttachment::from_storage("reports/quarterly.pdf", None).await?;
+let chart = ImageAttachment::from_storage("reports/chart.png", None).await?;
+let response = agent("Review the quarterly report.")
+    .with_attachments([Attachment::from(report), Attachment::from(chart)])
+    .prompt("Summarize the results.")
+    .await?;
+```
+
+Use a document-capable model. Responses, Anthropic Messages, and Gemini accept these three document formats. Chat Completions accepts PDF only. Documents and images share the per-prompt count and size limits.
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

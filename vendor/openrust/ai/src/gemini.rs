@@ -12,9 +12,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog, StepEventStream,
-    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
-    TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, MessageRole, ModelCatalog,
+    StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint,
+    TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -87,10 +87,12 @@ impl GeminiTextProvider {
         if prompt.attachments.is_empty() || !prompt.text.prompt.trim().is_empty() {
             parts.push(json!({"text":prompt.text.prompt}));
         }
-        parts.extend(prompt.attachments.iter().map(|image| {
-            json!({
-                "inlineData":{"mimeType":image.mime(),"data":Str::to_base64(image.content())}
-            })
+        parts.extend(prompt.attachments.iter().map(|attachment| {
+            let (mime, content) = match attachment {
+                Attachment::Image(image) => (image.mime(), image.content()),
+                Attachment::Document(document) => (document.mime(), document.content()),
+            };
+            json!({"inlineData":{"mimeType":mime,"data":Str::to_base64(content)}})
         }));
         contents.push(json!({"role":"user","parts":parts}));
         let mut body = json!({"contents":contents});

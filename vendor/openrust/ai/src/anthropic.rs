@@ -12,9 +12,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, ModelCatalog, StepEventStream, StepResponse,
-    StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier, TextPrompt,
-    TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, ModelCatalog, StepEventStream,
+    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
+    TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
     connection::{Authorization, Connection},
     files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
@@ -37,7 +37,7 @@ impl AnthropicTextProvider {
         )?)))
     }
 
-    fn prompt_body(prompt: &AgentPrompt<'_>) -> Value {
+    fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
         let mut messages: Vec<_> = prompt
             .messages
             .iter()
@@ -50,10 +50,22 @@ impl AnthropicTextProvider {
             if !prompt.text.prompt.trim().is_empty() {
                 blocks.push(json!({"type":"text","text":prompt.text.prompt}));
             }
-            blocks.extend(prompt.attachments.iter().map(|image| json!({
-                "type":"image",
-                "source":{"type":"base64","media_type":image.mime(),"data":Str::to_base64(image.content())}
-            })));
+            for attachment in prompt.attachments {
+                blocks.push(match attachment {
+                    Attachment::Image(image) => json!({
+                        "type":"image",
+                        "source":{"type":"base64","media_type":image.mime(),"data":Str::to_base64(image.content())}
+                    }),
+                    Attachment::Document(document) if document.is_pdf() => json!({
+                        "type":"document","title":document.filename(),
+                        "source":{"type":"base64","media_type":document.mime(),"data":Str::to_base64(document.content())}
+                    }),
+                    Attachment::Document(document) => json!({
+                        "type":"document","title":document.filename(),
+                        "source":{"type":"text","media_type":"text/plain","data":document.text()?}
+                    }),
+                });
+            }
             Value::Array(blocks)
         };
         messages.push(json!({"role":"user","content":content}));
@@ -68,11 +80,11 @@ impl AnthropicTextProvider {
         if let Some(output) = &prompt.structured_output {
             body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
         }
-        body
+        Ok(body)
     }
 
     async fn send(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
-        let mut body = Self::prompt_body(prompt);
+        let mut body = Self::prompt_body(prompt)?;
         if stream {
             body["stream"] = true.into();
         }
@@ -278,7 +290,7 @@ impl AnthropicTextProvider {
         tools: &[ToolDefinition],
         history: &[ToolStep],
     ) -> AiResult<Value> {
-        let mut body = Self::prompt_body(prompt);
+        let mut body = Self::prompt_body(prompt)?;
         let messages = body["messages"]
             .as_array_mut()
             .ok_or(AiError::InvalidResponse)?;

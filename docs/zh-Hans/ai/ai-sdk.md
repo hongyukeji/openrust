@@ -257,6 +257,23 @@ let response = agent("Describe the scene.")
 
 所选模型需支持图片输入。OpenAI Responses、Chat Completions、Anthropic Messages 和 Gemini 分别使用原生图片格式。SDK 接收 PNG、JPEG 和 WebP，单次最多 16 张，原始图片总量须小于 50 MB，同时受供应商限制。可以只发送图片，也可以附上文字。附件跟随本轮调用及工具续步，文本会话存储只记录文本。
 
+### 文档附件 {#document-attachments}
+
+使用 `DocumentAttachment` 读取 PDF、UTF-8 文本文档或 Markdown。支持 `from_bytes(filename, bytes)`、`from_upload(&file)`、`from_path(path).await` 和 `from_storage(path, disk).await`。混合传入图片和文档时，用 `Attachment` 统一类型，保留传入顺序。
+
+```rust
+use openrust_ai::{Agent, Attachment, DocumentAttachment, ImageAttachment, agent};
+
+let report = DocumentAttachment::from_storage("reports/quarterly.pdf", None).await?;
+let chart = ImageAttachment::from_storage("reports/chart.png", None).await?;
+let response = agent("Review the quarterly report.")
+    .with_attachments([Attachment::from(report), Attachment::from(chart)])
+    .prompt("Summarize the results.")
+    .await?;
+```
+
+请选择支持文档的模型。Responses、Anthropic Messages 和 Gemini 接收这三种格式。Chat Completions 仅接收 PDF。图片和文档共用每次提示词的附件数量及大小限额。
+
 ## Agent 工具 {#agent-tools}
 
 实现 `Tool` 的名称、描述、JSON Schema 和异步 `handle`。用 `ToolRequest::validate` 运行框架验证规则，或通过 `decode` 将参数读为 Rust 类型。工具可以读取上游调用 ID 和本次执行的独立 ID。

@@ -12,13 +12,11 @@ use serde_json::{Value, json};
 
 use crate::{
     Ai, AiError, AiResult, Usage,
+    attachments::{MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, data_url},
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
 };
-
-const MAX_ATTACHMENTS: usize = 16;
-const MAX_ATTACHMENT_BYTES: usize = 50_000_000;
 
 pub struct Image;
 
@@ -171,19 +169,6 @@ impl fmt::Debug for ImageAttachment {
     }
 }
 
-pub(crate) fn validate_prompt_images(images: &[ImageAttachment]) -> AiResult<()> {
-    if images.len() > MAX_ATTACHMENTS
-        || images
-            .iter()
-            .map(|image| image.content.len())
-            .fold(0usize, usize::saturating_add)
-            >= MAX_ATTACHMENT_BYTES
-    {
-        return Err(AiError::InvalidImage);
-    }
-    Ok(())
-}
-
 impl ImageAttachment {
     pub fn from_bytes(content: impl Into<Bytes>) -> AiResult<Self> {
         let content = content.into();
@@ -199,18 +184,16 @@ impl ImageAttachment {
     }
 
     pub async fn from_path(path: impl AsRef<Path>) -> AiResult<Self> {
-        let file = tokio::fs::File::open(path.as_ref())
+        let content = media_storage::read_path(path.as_ref(), MAX_ATTACHMENT_BYTES)
             .await
-            .map_err(|_| AiError::MediaStorageUnavailable)?;
-        if !file
-            .metadata()
-            .await
-            .map_err(|_| AiError::MediaStorageUnavailable)?
-            .is_file()
-        {
-            return Err(AiError::InvalidImage);
-        }
-        Self::from_bytes(media_storage::read_limited(file, MAX_ATTACHMENT_BYTES).await?)
+            .map_err(|error| {
+                if matches!(error, AiError::MediaTooLarge) {
+                    AiError::InvalidImage
+                } else {
+                    error
+                }
+            })?;
+        Self::from_bytes(content)
     }
 
     pub async fn from_storage(path: &str, disk: Option<&str>) -> AiResult<Self> {
@@ -232,7 +215,7 @@ impl ImageAttachment {
     }
 
     pub(crate) fn data_url(&self) -> String {
-        as_data_url(self.mime(), &self.content)
+        data_url(self.mime(), &self.content)
     }
 
     pub fn format(&self) -> ImageFormat {
@@ -242,10 +225,6 @@ impl ImageAttachment {
     pub fn content(&self) -> &[u8] {
         &self.content
     }
-}
-
-fn as_data_url(mime: &str, content: &[u8]) -> String {
-    format!("data:{mime};base64,{}", Str::to_base64(content))
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
@@ -286,7 +265,7 @@ impl GeneratedImage {
     }
 
     pub fn data_url(&self) -> String {
-        as_data_url(self.mime(), &self.content)
+        data_url(self.mime(), &self.content)
     }
 
     pub async fn store(&self, directory: &str, disk: Option<&str>) -> AiResult<String> {

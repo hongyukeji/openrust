@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -55,6 +57,19 @@ pub(crate) async fn read(path: &str, disk: Option<&str>, limit: usize) -> AiResu
         return Ok(None);
     };
     read_limited(reader, limit).await.map(Some)
+}
+
+pub(crate) async fn read_path(path: &Path, limit: usize) -> AiResult<Bytes> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|_| AiError::MediaStorageUnavailable)?;
+    if !metadata.is_file() {
+        return Err(AiError::MediaStorageUnavailable);
+    }
+    let file = tokio::fs::File::open(path)
+        .await
+        .map_err(|_| AiError::MediaStorageUnavailable)?;
+    read_limited(file, limit).await
 }
 
 pub(crate) async fn read_limited(reader: impl AsyncRead, limit: usize) -> AiResult<Bytes> {

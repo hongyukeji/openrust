@@ -14,6 +14,7 @@ mod agent;
 mod agent_broadcast;
 mod agent_queue;
 mod anthropic;
+mod attachments;
 mod audio;
 pub mod classification;
 #[path = "../config/ai.rs"]
@@ -54,6 +55,7 @@ mod transcription;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
+pub use attachments::{Attachment, DocumentAttachment};
 pub use audio::{
     Audio, AudioFormat, AudioPrompt, AudioProvider, AudioResponse, AudioVoice,
     PendingAudioGeneration, ToAudio,

@@ -154,7 +154,7 @@ impl Agent for StructuredAnonymousAgent {
     fn messages(&self) -> &[Message] {
         self.agent.messages()
     }
-    fn attachments(&self) -> &[crate::ImageAttachment] {
+    fn attachments(&self) -> &[crate::Attachment] {
         self.agent.attachments()
     }
 

@@ -628,7 +628,7 @@ impl AiManager {
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
-        crate::image::validate_prompt_images(attachments)?;
+        crate::attachments::validate_prompt_attachments(attachments)?;
         if let Some(fake) = self.text_fake::<A>() {
             let provider = options
                 .provider
@@ -725,7 +725,7 @@ impl AiManager {
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
-        crate::image::validate_prompt_images(attachments)?;
+        crate::attachments::validate_prompt_attachments(attachments)?;
         if self.text_fake::<A>().is_some() {
             return self
                 .prompt_with_history(agent, prompt, options, structured_output, messages)
