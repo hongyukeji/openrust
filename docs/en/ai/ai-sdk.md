@@ -225,6 +225,22 @@ Pass the authenticated participant's type and ID when continuing a conversation.
 
 The SDK saves completed user and assistant messages together. The next prompt receives the latest 100 messages in chronological order by default. Change `conversations.max_messages` in `config/ai.rs` to adjust that limit. The store uses the default database connection unless `AI_CONVERSATIONS_CONNECTION` names another connection. For a history screen, use `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` for newest-first cursor pagination. Use `stream()` for a streamed turn and pass its `response` to your SSE renderer. The conversation ID is available immediately. The SDK saves the turn before sending the final completion event. An interrupted stream leaves no new messages. For an Agent with a schema, use `prompt_structured()` or `stream_structured()`.
 
+## Text summarization {#text-summarization}
+
+Import the extension traits to use the same summarization agent from `Str` and `Stringable`. The default requests at most three sentences. `summarize_with` accepts a sentence count and the usual `PromptOptions` for a connection, model and timeout.
+
+```rust
+use openrust::support::Str;
+use openrust_ai::{PromptOptions, Summarizes, SummarizesText};
+
+let short = Str::summarize(article).await?;
+let detailed = Str::of(article)
+    .summarize_with(5, PromptOptions::default())
+    .await?;
+```
+
+Summarization uses `models.text.cheapest` for the selected connection. Agents can also choose `TextModelTier::Smartest`, which uses `models.text.smartest`. For presets, set `OPENAI_MODEL_CHEAPEST` and `OPENAI_MODEL_SMARTEST` or use the same suffixes with the preset’s model variable. An unset tier uses the connection’s default model. An explicit model takes precedence over a tier.
+
 ## Image attachments {#prompt-images}
 
 ```rust

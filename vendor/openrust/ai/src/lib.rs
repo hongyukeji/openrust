@@ -44,6 +44,7 @@ mod reranking;
 mod stores;
 mod streaming;
 mod structured;
+mod summarize;
 mod text;
 mod tool_protocol;
 mod tool_stream;
@@ -105,7 +106,8 @@ pub use streaming::{
 pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
 };
-pub use text::{AgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage};
+pub use summarize::{SummarizeAgent, Summarizes, SummarizesText};
+pub use text::{AgentResponse, TextEndpoint, TextModelTier, TextPrompt, TextProvider, Usage};
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,
     ToolRequest, ToolResult, ToolStep,

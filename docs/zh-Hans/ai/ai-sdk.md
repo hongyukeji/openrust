@@ -225,6 +225,22 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+## 文本摘要 {#text-summarization}
+
+导入扩展 trait 后，`Str` 和 `Stringable` 共用同一个摘要 Agent，默认请求不超过三句。`summarize_with` 可传入句数，并用常规的 `PromptOptions` 指定连接、模型和超时。
+
+```rust
+use openrust::support::Str;
+use openrust_ai::{PromptOptions, Summarizes, SummarizesText};
+
+let short = Str::summarize(article).await?;
+let detailed = Str::of(article)
+    .summarize_with(5, PromptOptions::default())
+    .await?;
+```
+
+摘要使用所选连接的 `models.text.cheapest`。Agent 也可选择 `TextModelTier::Smartest`，使用 `models.text.smartest`。OpenAI 预设可用 `OPENAI_MODEL_CHEAPEST` 和 `OPENAI_MODEL_SMARTEST` 设置，其他预设在其模型变量上加相同后缀。未配置的档位回退到连接的默认模型，显式指定的模型优先。
+
 ## 图片附件 {#prompt-images}
 
 ```rust

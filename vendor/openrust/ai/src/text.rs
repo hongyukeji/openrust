@@ -82,9 +82,22 @@ pub struct TextPrompt<'a> {
     pub timeout: Option<Duration>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextModelTier {
+    #[default]
+    Default,
+    Cheapest,
+    Smartest,
+}
+
 pub trait TextProvider: Send + Sync {
     fn name(&self) -> &str;
     fn default_text_model(&self) -> AiResult<&str>;
+
+    fn text_model(&self, _tier: TextModelTier) -> AiResult<&str> {
+        self.default_text_model()
+    }
+
     fn generate_text<'a>(
         &'a self,
         prompt: TextPrompt<'a>,
@@ -435,6 +448,10 @@ impl TextProvider for OpenAiTextProvider {
 
     fn default_text_model(&self) -> AiResult<&str> {
         self.connection.default_text_model()
+    }
+
+    fn text_model(&self, tier: TextModelTier) -> AiResult<&str> {
+        self.connection.text_model(tier)
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {

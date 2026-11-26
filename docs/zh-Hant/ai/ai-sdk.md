@@ -225,6 +225,22 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。串流對話使用 `stream()`，將回傳的 `response` 交給 SSE 轉譯器。呼叫開始後即可讀取對話 ID。SDK 在傳送最終完成事件前儲存該輪訊息，串流中斷時不會新增對話訊息。宣告了回應結構的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+## 文字摘要 {#text-summarization}
+
+匯入擴充 trait 後，`Str` 與 `Stringable` 共用同一個摘要 Agent，預設要求不超過三句。`summarize_with` 可傳入句數，並用一般的 `PromptOptions` 指定連線、模型與逾時。
+
+```rust
+use openrust::support::Str;
+use openrust_ai::{PromptOptions, Summarizes, SummarizesText};
+
+let short = Str::summarize(article).await?;
+let detailed = Str::of(article)
+    .summarize_with(5, PromptOptions::default())
+    .await?;
+```
+
+摘要使用所選連線的 `models.text.cheapest`。Agent 也可選擇 `TextModelTier::Smartest`，使用 `models.text.smartest`。OpenAI 預設可用 `OPENAI_MODEL_CHEAPEST` 與 `OPENAI_MODEL_SMARTEST` 設定，其他預設可在其模型變數上加相同後綴。未設定的檔位會改用連線的預設模型，明確指定的模型優先。
+
 ## 圖片附件 {#prompt-images}
 
 ```rust

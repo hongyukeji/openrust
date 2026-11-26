@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     Agent, AgentMiddleware, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message,
-    PromptOptions, StreamableAgentResponse, Tool,
+    PromptOptions, StreamableAgentResponse, TextModelTier, Tool,
 };
 
 #[derive(Clone, Copy)]
@@ -145,6 +145,10 @@ impl StructuredAnonymousAgent {
 impl Agent for StructuredAnonymousAgent {
     fn instructions(&self) -> &str {
         self.agent.instructions()
+    }
+
+    fn model_tier(&self) -> TextModelTier {
+        self.agent.model_tier()
     }
 
     fn messages(&self) -> &[Message] {

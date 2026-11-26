@@ -349,3 +349,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 验证本地、私有磁盘、Fake、图片数量上限和真实 Responses 请求。真实 HTTP Kernel 解析 multipart，四个本地 TCP 协议入口逐一核对鉴权、图片字节、普通响应、SSE 及仅图片输入。Chat 工具流验证第二步仍保留同一张图片与工具结果。文档、供应商存储 ID、远端附件、单次调用及历史附件、真实供应商视觉模型仍列为后续验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel Image](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Image.php)
+
+## AI-02 模型档位与文本摘要
+
+`Agent::model_tier` 及匿名 Agent 的 `with_model_tier` 对应固定 Laravel 的 `UseCheapestModel` 和 `UseSmartestModel`。连接在 `models.text.cheapest`、`models.text.smartest` 配置模型 ID，显式模型优先，未设置档位时使用已配置的默认模型。模型发现合并默认模型、档位模型和上游模型。内置连接预设通过既有模型环境变量加 `_CHEAPEST`、`_SMARTEST` 后缀读取对应配置。
+
+`SummarizeAgent` 默认提示最多三句，句数至少为一，使用经济型模型。通过扩展 trait 提供 `Str::summarize`、`Stringable::summarize` 和单次覆盖入口。真实 Artisan 验证 Responses 经济档、显式模型切换到 Anthropic、目录合并和 Fake，真实 HTTP 验证高能力档、Gemini 的默认模型回退和经济档 SSE。上游均使用本地 TCP 协议服务。
+
+- [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel 摘要宏](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php#L102) · [固定 Laravel SummarizeAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Agents/SummarizeAgent.php)

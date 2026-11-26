@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog, StepEventStream,
-    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider,
-    ToolCall, ToolDefinition, ToolStep, Usage,
+    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
+    TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -160,6 +160,10 @@ impl TextProvider for GeminiTextProvider {
 
     fn default_text_model(&self) -> AiResult<&str> {
         self.0.default_text_model()
+    }
+
+    fn text_model(&self, tier: TextModelTier) -> AiResult<&str> {
+        self.0.text_model(tier)
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {

@@ -6,7 +6,12 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         let url = env.get_utf8(url_env)?.unwrap_or(default_url);
         Ok::<_, ConfigError>(json!({
             "driver": driver, "url": url, "key_env": key_env,
-            "models": {"text": {"default": env.get_utf8(model_env)?, "default_env": model_env}}
+            "models": {"text": {
+                "default": env.get_utf8(model_env)?,
+                "default_env": model_env,
+                "cheapest": env.get_utf8(&format!("{model_env}_CHEAPEST"))?,
+                "smartest": env.get_utf8(&format!("{model_env}_SMARTEST"))?,
+            }}
         }))
     };
 

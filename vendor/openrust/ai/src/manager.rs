@@ -16,8 +16,8 @@ use serde_json::Value;
 use crate::{
     Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
     FakeRerankingGateway, FakeRerankingResult, FakeTextGateway, PromptOptions, RecordedEmbeddings,
-    RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextPrompt,
-    TextProvider,
+    RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextModelTier,
+    TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     classification::{
         DecisionsProtocol, FakeClassificationGateway, FakeClassificationResult,
@@ -642,7 +642,12 @@ impl AiManager {
                 .or_else(|| {
                     self.text_provider(provider.as_deref())
                         .ok()
-                        .and_then(|resolved| resolved.default_text_model().ok().map(str::to_owned))
+                        .and_then(|resolved| {
+                            resolved
+                                .text_model(agent.model_tier())
+                                .ok()
+                                .map(str::to_owned)
+                        })
                 });
             return fake.respond(crate::RecordedPrompt {
                 text: prompt.into(),
@@ -656,7 +661,11 @@ impl AiManager {
             });
         }
         let provider = self.text_provider_for(agent, options.provider)?;
-        let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
+        let model = resolve_model(
+            provider.as_ref(),
+            options.model.or_else(|| agent.model()),
+            agent.model_tier(),
+        )?;
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -728,7 +737,11 @@ impl AiManager {
         }
         let tools = agent.tools();
         let provider = self.text_provider_for(agent, options.provider)?;
-        let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
+        let model = resolve_model(
+            provider.as_ref(),
+            options.model.or_else(|| agent.model()),
+            agent.model_tier(),
+        )?;
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -748,10 +761,14 @@ impl AiManager {
     }
 }
 
-fn resolve_model<'a>(provider: &'a dyn TextProvider, model: Option<&'a str>) -> AiResult<&'a str> {
+fn resolve_model<'a>(
+    provider: &'a dyn TextProvider,
+    model: Option<&'a str>,
+    tier: TextModelTier,
+) -> AiResult<&'a str> {
     match model {
         Some(model) if !model.trim().is_empty() => Ok(model),
         Some(_) => Err(AiError::MissingModel),
-        None => provider.default_text_model(),
+        None => provider.text_model(tier),
     }
 }

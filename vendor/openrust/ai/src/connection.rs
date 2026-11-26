@@ -9,7 +9,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AiError, AiResult, ModelCatalog, TextEndpoint, models::ListedModel, text::transport_error,
+    AiError, AiResult, ModelCatalog, TextEndpoint, TextModelTier, models::ListedModel,
+    text::transport_error,
 };
 
 #[derive(Default, Deserialize)]
@@ -27,6 +28,8 @@ struct Models {
 #[derive(Default, Deserialize)]
 struct TextModels {
     default: Option<String>,
+    cheapest: Option<String>,
+    smartest: Option<String>,
     #[serde(default)]
     ids: Vec<String>,
 }
@@ -233,6 +236,19 @@ impl Connection {
             .ok_or(AiError::MissingModel)
     }
 
+    pub(crate) fn text_model(&self, tier: TextModelTier) -> AiResult<&str> {
+        let models = &self.config.models.text;
+        let selected = match tier {
+            TextModelTier::Default => None,
+            TextModelTier::Cheapest => models.cheapest.as_deref(),
+            TextModelTier::Smartest => models.smartest.as_deref(),
+        };
+        match selected.filter(|model| !model.trim().is_empty()) {
+            Some(model) => Ok(model),
+            None => self.default_text_model(),
+        }
+    }
+
     pub(crate) fn embeddings_configured(&self) -> bool {
         self.config.models.embeddings.is_some()
     }
@@ -369,6 +385,8 @@ impl Connection {
         configured
             .default
             .iter()
+            .chain(&configured.cheapest)
+            .chain(&configured.smartest)
             .chain(&configured.ids)
             .map(String::as_str)
     }

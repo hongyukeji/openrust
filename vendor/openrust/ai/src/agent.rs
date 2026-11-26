@@ -4,8 +4,8 @@ use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::ty
 
 use crate::{
     AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, ImageAttachment, Message,
-    QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent, Tool,
-    agent_broadcast::StreamBroadcast,
+    QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent,
+    TextModelTier, Tool, agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -25,6 +25,10 @@ pub trait Agent: Send + Sync + 'static {
 
     fn model(&self) -> Option<&str> {
         None
+    }
+
+    fn model_tier(&self) -> TextModelTier {
+        TextModelTier::Default
     }
 
     fn messages(&self) -> &[Message] {
@@ -190,6 +194,7 @@ pub trait Agent: Send + Sync + 'static {
 
 pub struct AnonymousAgent {
     instructions: String,
+    model_tier: TextModelTier,
     messages: Vec<Message>,
     attachments: Vec<ImageAttachment>,
     tools: Vec<Arc<dyn Tool>>,
@@ -200,6 +205,7 @@ pub struct AnonymousAgent {
 pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
+        model_tier: TextModelTier::Default,
         messages: Vec::new(),
         attachments: Vec::new(),
         tools: Vec::new(),
@@ -209,6 +215,11 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
 }
 
 impl AnonymousAgent {
+    pub fn with_model_tier(mut self, tier: TextModelTier) -> Self {
+        self.model_tier = tier;
+        self
+    }
+
     pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
         self.tools = tools;
         self
@@ -245,6 +256,10 @@ impl AnonymousAgent {
 impl Agent for AnonymousAgent {
     fn instructions(&self) -> &str {
         &self.instructions
+    }
+
+    fn model_tier(&self) -> TextModelTier {
+        self.model_tier
     }
 
     fn messages(&self) -> &[Message] {
