@@ -1,0 +1,59 @@
+{
+  "base": "b42a2d2da45d2feb223b87060a47da42dac9f17e",
+  "contract": "component-pre-elements-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-pre-gates.log",
+    "target/tmp/artisan-tutorial-20261125/component-pre-site.log",
+    "target/tmp/artisan-tutorial-20261125/component-pre-pty-results.json"
+  ],
+  "test_results": [
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.34s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.45s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 171 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+  ],
+  "source_oracle": {
+    "file": "component-pre-elements-oracle.json",
+    "cases": 1480,
+    "errors": 264,
+    "warning_policy": "real HandleExceptions; only deprecation logging omitted"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 171,
+    "browser_checks": 12
+  },
+  "resolved_prior_pending": {
+    "previous": "component-list-pre-pending.json",
+    "resolved_by": "component-pre-elements-oracle.json",
+    "matched_source_indexes": [
+      171,
+      356,
+      541,
+      726,
+      911,
+      1096,
+      1281,
+      1466
+    ],
+    "matched_case_count": 8
+  },
+  "failed_attempts_not_counted": [
+    "component-pre-first.log: empty raw filtering and boolean attributes",
+    "component-pre-second.log: CRLF normalization",
+    "component-pre-third.log: HTML4 pre/ul closure",
+    "component-pre-fourth.log: previous generic test still expected valid pre to fail",
+    "component-pre-probe-interrupted.json: Docker stalled supplemental probe, safely stopped; actual source rerun later succeeded"
+  ],
+  "remaining": [
+    "终端SDK继续table/code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "pushed": false
+}

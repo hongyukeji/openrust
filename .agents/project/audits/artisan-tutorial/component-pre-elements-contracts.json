@@ -1,0 +1,57 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "verified_preformatted_markup_pipeline_table_code_and_extension_sdk_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer -> pre::prepare",
+  "bindings": {
+    "PreRenderer::toElement": "pre::inner/prepare, existing per-line div Style and Prepared, opaque raw element result",
+    "Node::getHtml": "parsed nodes content plus XML-like element serialization after decoding; comments retained and decoded by existing HTML401 helper",
+    "HTML5 first pre LF / CR normalization": "PreservingTree token adapter and collision-free temporary markers restored after mature parser",
+    "list raw-element callback checks": "Prepared::raw_element distinguishes specialized raw results from original text nodes"
+  },
+  "source_oracle": {
+    "file": "component-pre-elements-oracle.json",
+    "cases": 1480,
+    "errors": 264,
+    "warning_policy": "real HandleExceptions; only deprecation logging omitted"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 171,
+    "browser_checks": 12
+  },
+  "resolved_prior_pending": {
+    "previous": "component-list-pre-pending.json",
+    "resolved_by": "component-pre-elements-oracle.json",
+    "matched_source_indexes": [
+      171,
+      356,
+      541,
+      726,
+      911,
+      1096,
+      1281,
+      1466
+    ],
+    "matched_case_count": 8
+  },
+  "scope": [
+    "空/1/多行、首尾各仅去一空行、连续空行、CRLF/CR、Tab、UTF-8字节填充、实体、内嵌标签/空标签/属性/注释及原有Raw/Normal/ANSI行为。",
+    "每行独立div样式/默认isFirstChild=false、宽度/分数/内外距/大小写/粗体/颜色/hidden/justify/flex和错误；空pre不解析未使用样式，隐藏/空Raw仍保留有效元素。",
+    "内部标记不递归注册组件；作为原始元素不继承父样式，父列表仍做对象子类型校验，不能把Raw元素当作原始字符串放行。",
+    "显式disabled=\"\"与省略值disabled保持区别，CRLF字节长度与后续回车格式化顺序匹配；私有标记与输入不碰撞，并测试原输入已有私用区字符。",
+    "补pre遇到dd/dl/dt/fieldset/form/li/table/ul的固定自动结束规则；本簇只证明已有来源覆盖，未宣称完整HTML4恢复或table/code支持。"
+  ],
+  "adaptations": [
+    "继续既有html5ever成熟tokenizer和TreeBuilder，薄TokenSink清除首LF抑制，标记保留被预处理丢失的CR/空属性信息；不新增解析器依赖或PHP运行时。",
+    "复用已有Prepared/Style/format和PHP HTML401解码；序列化内容中XML转义与紧接的实体解码相消，保留节点结构与注释。",
+    "沿原输出通道和具体组件快路径，保留尺寸1,000,000与深度256限制；不声称未测性能收益。",
+    "旧v0.x无对应HTML预格式组件，沿51-55已有调研；许可不删改。"
+  ],
+  "remaining": [
+    "终端SDK继续table/code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

@@ -314,6 +314,9 @@ async fn formal_progress_example(){
     lists_code=re.search(r'```rust\n(.*?)```',text.split('{#component-list-elements}',1)[1],re.S).group(1)
     lists_checks=methods_checks.replace('formal_component_text_example','formal_component_lists_example').replace('register_component_text)','register_component_lists)').replace('"components:text"','"components:lists"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("• Alpha"));assert!(output.stdout.contains("1. First"));assert!(output.stdout.contains("2. Second"));assert!(output.stdout.contains("────────────"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_component_lists{\n'+lists_code+lists_checks+'}\n')
+    pre_code=re.search(r'```rust\n(.*?)```',text.split('{#component-preformatted-output}',1)[1],re.S).group(1)
+    pre_checks=methods_checks.replace('formal_component_text_example','formal_component_pre_example').replace('register_component_text)','register_component_pre)').replace('"components:text"','"components:pre"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("One   "));assert!(output.stdout.contains("Two   "));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_pre{\n'+pre_code+pre_checks+'}\n')
 
 
 

@@ -795,3 +795,16 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 第二次测试启动前守卫触及32GB线并持锁清理全项目编译profile，实际释放71,406,161,920字节，可用103,690,067,968字节；源码/WIP/依赖下载/日志/锁/数据库保留，随后正常并发重建验收，无手工解锁或删除工作树。两份已提交且无锁的53/54私有索引回收1,333,096字节，共享索引/patch/验收记录保留。先隔离验收，再核对根12路径基线回写；Source容器--rm、HTTP/PTY/浏览器全部收尾，无数据库或持久服务变更。
 
 仍继续table/code/pre、自定义样式/颜色仓库、独立Styles/Element/Style/Repository公开对象、通用恢复、Factory容器覆盖及Helper/Time；列表默认HTML绑定已验不重开，不据此关闭整章。命令与最终SHA见accepted-component-list-elements.json。本地提交，不推送。
+
+
+## 56. 预格式行输出与原始元素装配（2026-11-26）
+
+55已本地提交b42a2d2da45d2feb223b87060a47da42dac9f17e，未推送。固定PreRenderer::toElement/Node::getHtml逐项核对：首尾最多各去一个空行、最大UTF-8字节长度+3补空格，每行通过既有div的Style/Prepared渲染，再返回原始元素；不按终端列宽代替字节长度，不递归注册内部标记。空/hidden pre仍是有效原始元素，不能被正文过滤器删除；它与原始字符串不同，列表回调仍要拒绝无效对象子类型。旧v0.x无该组件，沿前簇调研和现有输出机制，没有新依赖。
+
+实际来源暴露的关联缺口已处理：HTML5会自动丢掉pre首LF、把CRLF归一，固定管线则自行去一个空行并保留CR供字节填充/后续格式化；Node注释原先被丢弃；空布尔属性与省略值来源被HTML5合并；pre内ul会按固定HTML4结束pre。现在用成熟tokenizer/TreeBuilder的薄TokenSink清除首LF抑制，私有无碰撞临时标记在解析后还原CR/显式空属性，保留注释及原始元素类别，扩展限定自动结束规则。不另造HTML解析器，不改公开API或数据契约。注释实体复用现有HTML401解码。仅证明所列序列化/恢复范围，不包装成完整HTML4或专用table/code已实现。
+
+最终1480真实来源（264错误）全部核对，包含55留下的8个ul/pre场景，索引对应记录已核一致；Raw/Normal、ANSI开关、20/80列均验。七框架目标26父消费者、5实际Artisan/17HTTP失败恢复和12并发/5PTY ioctl20列、171直接提取正式三语文档消费者、12浏览器组合与严格workspace/all-targets Clippy/格式通过。实际CLI复用同二进制，不复制独立产物。辅助ignore由父调用，不另算功能或独立通过。
+
+失败过程原样保留：首轮空/hidden原始元素被滤除，次轮发现CRLF预处理差异，第三轮只余pre/ul隐式结束，均据固定来源修复；第四轮普通渲染旧测试仍断言pre必须失败，已改为无效pre样式报错，由新增来源和真实消费者覆盖正常pre，不降低错误标准。最初薄TokenSink未消费must_use结果，改为明确验证Continue，无allow。一个额外PHP属性探针遇Docker暂时不响应，仅终止本批探针及其父进程；后续docker version恢复、1480来源实际重跑完成，未重启应用或Docker服务，最终同镜像无运行容器。中断探针不计通过。
+
+先独立快照验收，通过后14路径逐项核根基线再回写，保留其他在途变更。沿现行缓存/TMPDIR，无本簇磁盘停线、数据库或持久服务；HTTP/PTY/浏览器已结束。既有样式/尺寸/颜色/渲染回归保持通过。继续table/code、自定义样式/颜色仓库、独立扩展对象、通用恢复与Factory/Helper/Time；已验pre及旧8项不重开。命令/SHA见accepted-component-pre-elements.json，仅本地提交、不推送。

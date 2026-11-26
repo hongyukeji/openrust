@@ -1,6 +1,6 @@
 use html5ever::{
     Attribute, QualName,
-    tendril::{StrTendril, TendrilSink},
+    tendril::StrTendril,
     tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink},
 };
 use std::{
@@ -12,6 +12,8 @@ pub(super) struct Node {
     pub name: Option<QualName>,
     pub attrs: Vec<Attribute>,
     pub text: String,
+    pub comment: bool,
+    pub explicit_empty: Vec<String>,
     pub children: Vec<usize>,
     parent: Option<usize>,
     template: Option<usize>,
@@ -22,6 +24,8 @@ impl Node {
             name: None,
             attrs: vec![],
             text: String::new(),
+            comment: false,
+            explicit_empty: vec![],
             children: vec![],
             parent: None,
             template: None,
@@ -64,7 +68,7 @@ impl Sink {
                     .unwrap_or(nodes[parent].children.len());
                 if position > 0 {
                     let previous = nodes[parent].children[position - 1];
-                    if nodes[previous].name.is_none() {
+                    if nodes[previous].name.is_none() && !nodes[previous].comment {
                         nodes[previous].text.push_str(&text);
                         return;
                     }
@@ -108,8 +112,11 @@ impl TreeSink for Sink {
         n.attrs = attrs;
         self.push(n)
     }
-    fn create_comment(&self, _: StrTendril) -> usize {
-        self.push(Node::empty())
+    fn create_comment(&self, text: StrTendril) -> usize {
+        let mut node = Node::empty();
+        node.comment = true;
+        node.text = text.to_string();
+        self.push(node)
     }
     fn create_pi(&self, _: StrTendril, _: StrTendril) -> usize {
         self.push(Node::empty())
@@ -162,8 +169,84 @@ impl TreeSink for Sink {
         }
     }
 }
+struct PreservingTree(html5ever::tree_builder::TreeBuilder<usize, Sink>);
+impl html5ever::tokenizer::TokenSink for PreservingTree {
+    type Handle = usize;
+    fn process_token(
+        &self,
+        token: html5ever::tokenizer::Token,
+        line: u64,
+    ) -> html5ever::tokenizer::TokenSinkResult<usize> {
+        use html5ever::tokenizer::{TagKind, Token};
+        let pre = matches!(&token,Token::TagToken(tag) if tag.name.as_ref()=="pre" && tag.kind==TagKind::StartTag);
+        let result = self.0.process_token(token, line);
+        // 清除 HTML5 对 pre 首换行的抑制；固定预格式管线自行移除一个空边界行。
+        if pre {
+            let cleared = self
+                .0
+                .process_token(Token::CharacterTokens("\n".into()), line);
+            debug_assert!(matches!(
+                cleared,
+                html5ever::tokenizer::TokenSinkResult::Continue
+            ));
+        }
+        result
+    }
+    fn end(&self) {
+        self.0.end();
+    }
+    fn adjusted_current_node_present_but_not_in_html_namespace(&self) -> bool {
+        self.0
+            .adjusted_current_node_present_but_not_in_html_namespace()
+    }
+}
 pub(super) fn parse(html: &str) -> Vec<Node> {
-    html5ever::parse_document(Sink(RefCell::new(vec![Node::empty()])), Default::default()).one(html)
+    use html5ever::{
+        TokenizerResult, buffer_queue::BufferQueue, tokenizer::Tokenizer, tree_builder::TreeBuilder,
+    };
+    use std::sync::LazyLock;
+    // 临时标记不与输入冲突，解析后即恢复，避免 HTML5 预处理吞并 CR 或丢失空属性来源。
+    let mut marker = "\u{e000}".to_owned();
+    while html.contains(&marker) {
+        marker.push('\u{e001}');
+    }
+    let carriage = format!("{marker}R");
+    let empty = format!("{marker}E");
+    static EMPTY: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r#"(?i)(\b[a-z_:][a-z0-9_:.-]*\s*=\s*)(""|'')"#)
+            .expect("合法空属性表达式")
+    });
+    let html = html.replace('\r', &carriage);
+    let html = EMPTY.replace_all(&html, |capture: &regex::Captures<'_>| {
+        format!(
+            "{}{}{}{}",
+            &capture[1],
+            &capture[2][..1],
+            empty,
+            &capture[2][1..]
+        )
+    });
+    let tree = PreservingTree(TreeBuilder::new(
+        Sink(RefCell::new(vec![Node::empty()])),
+        Default::default(),
+    ));
+    let tokenizer = Tokenizer::new(tree, Default::default());
+    let input = BufferQueue::default();
+    input.push_back(html.as_ref().into());
+    while !matches!(tokenizer.feed(&input), TokenizerResult::Done) {}
+    tokenizer.end();
+    let mut nodes = tokenizer.sink.0.sink.finish();
+    let restore = |s: &str| s.replace(&carriage, "\r").replace(&empty, "");
+    for node in &mut nodes {
+        node.text = restore(&node.text);
+        for attr in &mut node.attrs {
+            if attr.value.as_ref() == empty {
+                node.explicit_empty.push(attr.name.local.to_string());
+            }
+            attr.value = restore(&attr.value).into();
+        }
+    }
+    nodes
 }
 
 /// 列表范围内按固定 HTML4 自动结束规则提升后续节点；其余恢复差异单列。
@@ -174,6 +257,7 @@ pub(super) fn recover_lists(nodes: &mut [Node]) {
             "dt" => &["dl"],
             "ol" => &["form"],
             "ul" => &["address", "form", "menu", "pre"],
+            "pre" => &["dd", "dl", "dt", "fieldset", "form", "li", "table", "ul"],
             _ => continue,
         };
         let Some(position) = nodes[id]

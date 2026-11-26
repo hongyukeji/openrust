@@ -144,7 +144,7 @@ fn unsupported_markup_fails_instead_of_silently_losing_layout_and_compile_errors
     component.set_view_compiler(Some(Box::new(Markup)));
     for html in [
         "<div class='not-a-style'>X</div>",
-        "<pre>X</pre>",
+        "<pre class='not-a-style'>X</pre>",
         "<table><tr><td>X</td></tr></table>",
         "<span class='w-999999999'>X</span>",
     ] {

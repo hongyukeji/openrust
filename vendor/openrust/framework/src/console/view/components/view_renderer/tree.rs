@@ -9,6 +9,7 @@ use std::sync::Arc;
 /// 缓存子节点拼接结果；外层宽度变化只重新格式化该内容，不重算后代。
 pub(super) struct Prepared {
     pub style: Option<Style>,
+    pub raw_element: bool,
     pub children: Vec<Self>,
     pub content: Option<String>,
     pub parent: Option<Arc<Constraint>>,

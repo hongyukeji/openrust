@@ -2155,7 +2155,7 @@ fn register_component_text() -> Result<(), ConsoleError> {
 
 Use `ul` / `ol` with direct `li` children; text nodes are retained without taking a number. Unordered lists default to bullets and accept `list-square` / `list-none`. Ordered lists count only numbered entries, so the example renders `1. First` and `2. Second`; the skipped entry has no number. Marker checks use the original class names. A parent list appends styles during construction, reapplying the item's default block style; an item's pre-existing text transformations still keep their original execution order.
 
-A `dl` accepts `dt` and `dd` elements, with bold terms and a four-column left margin for definitions by default. Invalid direct child elements return an error. `hr` applies its border after width processing: `w-12` produces twelve rule characters. A zero content width can still fill the inherited width at this later border stage. The numeric `border-t` argument does not set thickness. Table, code and preformatted renderers and custom style/color repositories remain separate unfinished capabilities.
+A `dl` accepts `dt` and `dd` elements, with bold terms and a four-column left margin for definitions by default. Invalid direct child elements return an error. `hr` applies its border after width processing: `w-12` produces twelve rule characters. A zero content width can still fill the inherited width at this later border stage. The numeric `border-t` argument does not set thickness. Table and code renderers and custom style/color repositories remain separate unfinished capabilities.
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2177,6 +2177,39 @@ fn register_component_lists() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(ListCompiler)));
             component.render_view("list", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### Preformatted output {#component-preformatted-output}
+
+`pre` preserves line content instead of collapsing whitespace. It removes at most one empty first and last line, pads every remaining line to the maximum UTF-8 byte length plus three spaces, then renders each line through the normal div styles. Multibyte text therefore does not use terminal-column width for this initial padding step. The example emits a leading line break and `One   ` / `Two   `.
+
+Inner tags remain literal markup rather than recursively registered components; output options still determine how the final formatter handles them. The preformatted result is opaque to parent styles, while layout can measure its rendered content. Empty and hidden results remain valid elements. Direct preformatted children are rejected by list child-type checks when they are not moved outside the list by HTML recovery. CRLF, comments, explicit empty attributes and minimized boolean attributes retain their established serialization distinctions. Table/code rendering and general malformed-HTML recovery remain separate unfinished capabilities.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct PreCompiler;
+impl ComponentViewCompiler for PreCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "pre" => Ok("<pre>One\nTwo</pre>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_pre() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:pre", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(PreCompiler)));
+            component.render_view("pre", json!({}))?;
             Ok(0)
         })
     }))?;

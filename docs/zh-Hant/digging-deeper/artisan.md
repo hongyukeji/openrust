@@ -2155,7 +2155,7 @@ fn register_component_text() -> Result<(), ConsoleError> {
 
 `ul`／`ol` 的直接子元素使用 `li`；文字節點保留，但不佔編號。無序列表預設圓點，可用 `list-square`／`list-none`。有序列表只給實際編號項遞增，所以範例輸出 `1. First` 和 `2. Second`，跳過項不帶編號。標記檢查使用原始類名。父列表在建構時附加樣式，會重新套用子項預設的 block；子項已有文字變換仍保留首次登記的執行順序。
 
-`dl` 接受 `dt` 和 `dd`，預設術語粗體、定義左邊距四欄。無效的直接子元素回傳錯誤。`hr` 在寬度處理後產生邊框：`w-12` 輸出十二個線字元；內容寬度為零時，後續邊框階段仍可能填滿繼承寬度。`border-t` 的數字參數不設定粗細。表格、程式碼與預格式渲染器、自訂樣式／顏色倉庫仍是獨立未完成能力。
+`dl` 接受 `dt` 和 `dd`，預設術語粗體、定義左邊距四欄。無效的直接子元素回傳錯誤。`hr` 在寬度處理後產生邊框：`w-12` 輸出十二個線字元；內容寬度為零時，後續邊框階段仍可能填滿繼承寬度。`border-t` 的數字參數不設定粗細。表格與程式碼渲染器、自訂樣式／顏色倉庫仍是獨立未完成能力。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2177,6 +2177,39 @@ fn register_component_lists() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(ListCompiler)));
             component.render_view("list", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### 預格式輸出 {#component-preformatted-output}
+
+`pre` 保留行內容，不折疊空白。最多移除首尾各一個空行，將其餘行按最大 UTF-8 位元組長度加三個空格補齊，再透過一般 div 樣式逐行渲染。因此初始填充對多位元組文字使用位元組長度，而不是終端欄寬。範例輸出首個換行以及 `One   `／`Two   `。
+
+內部標籤作為原樣標記保留，不遞迴註冊成元件；最終格式器如何處理它們仍取決於輸出選項。預格式結果不繼承父樣式，佈局可測量其已渲染內容。空結果和隱藏結果仍是有效元素。未被 HTML 恢復移到列表外的直接預格式子元素，會被列表子型別檢查拒絕。CRLF、註解、顯式空屬性和省略值的布林屬性保留既定序列化區別。表格／程式碼渲染與通用異常 HTML 恢復仍是獨立未完成能力。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct PreCompiler;
+impl ComponentViewCompiler for PreCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "pre" => Ok("<pre>One\nTwo</pre>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_pre() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:pre", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(PreCompiler)));
+            component.render_view("pre", json!({}))?;
             Ok(0)
         })
     }))?;

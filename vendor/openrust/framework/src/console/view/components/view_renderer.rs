@@ -4,6 +4,7 @@ mod dom;
 mod layout;
 mod lists;
 mod palette;
+mod pre;
 mod style;
 mod style_methods;
 mod style_tokens;

@@ -19,6 +19,9 @@ pub(super) fn prepare_children(
     let mut index = 0;
     for child in children {
         let Some(own) = &mut child.style else {
+            if child.raw_element {
+                return Err(ConsoleError::new("列表不接受预格式子元素"));
+            }
             continue;
         };
         if tag == "dl" {

@@ -1,7 +1,7 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::{
     dom::{self, Node},
-    lists, style,
+    lists, pre, style,
     tree::Prepared,
 };
 use crate::console::{ConsoleError, Terminal};
@@ -24,10 +24,11 @@ fn normalized(text: &str, first: bool, last: bool) -> String {
 
 fn meaningful(node: &Node) -> bool {
     node.name.is_some()
-        || !node
-            .text
-            .trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}'])
-            .is_empty()
+        || (!node.comment
+            && !node
+                .text
+                .trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}'])
+                .is_empty())
 }
 fn boundaries(nodes: &[Node], children: &[usize]) -> (Option<usize>, Option<usize>) {
     (
@@ -49,13 +50,21 @@ fn prepare(
     if node.name.is_none() {
         return Ok(Prepared {
             style: None,
+            raw_element: false,
             children: vec![],
-            content: Some(normalized(&node.text, first, last)),
+            content: Some(if node.comment {
+                String::new()
+            } else {
+                normalized(&node.text, first, last)
+            }),
             parent: None,
             spacing: [0; 2],
             first,
             br: false,
         });
+    }
+    if node.tag() == "pre" {
+        return pre::prepare(nodes, id, first, depth);
     }
     let mut children = vec![];
     let (first_meaningful, last_meaningful) = boundaries(nodes, &node.children);
@@ -63,7 +72,10 @@ fn prepare(
         let first = first_meaningful.is_none_or(|first| first >= index);
         let last = last_meaningful.is_none_or(|last| last <= index);
         let child = prepare(nodes, *id, first, last, depth + 1)?;
-        if child.style.is_some() || child.content.as_ref().is_some_and(|text| !text.is_empty()) {
+        if child.style.is_some()
+            || child.raw_element
+            || child.content.as_ref().is_some_and(|text| !text.is_empty())
+        {
             children.push(child);
         }
     }
@@ -72,6 +84,7 @@ fn prepare(
     lists::prepare_children(node.tag(), &style, &mut children)?;
     Ok(Prepared {
         style: Some(style),
+        raw_element: false,
         children,
         content: None,
         parent: None,
@@ -98,7 +111,10 @@ pub(super) fn render(html: &str) -> Result<String, ConsoleError> {
         let first = first_meaningful.is_none_or(|first| first >= index);
         let last = last_meaningful.is_none_or(|last| last <= index);
         let child = prepare(&nodes, *id, first, last, 0)?;
-        if child.style.is_some() || child.content.as_ref().is_some_and(|text| !text.is_empty()) {
+        if child.style.is_some()
+            || child.raw_element
+            || child.content.as_ref().is_some_and(|text| !text.is_empty())
+        {
             children.push(child);
         }
     }
