@@ -1,0 +1,16 @@
+use openrust::json_schema::{JsonSchemaTypeFactory, types::ObjectType};
+use openrust_ai::{Agent, HasStructuredOutput};
+
+pub struct {{class}};
+
+impl Agent for {{class}} {
+    fn instructions(&self) -> &str {
+        "根据用户的问题提供结构化结果。"
+    }
+}
+
+impl HasStructuredOutput for {{class}} {
+    fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
+        schema.object([("value", schema.string().required(true).into())])
+    }
+}

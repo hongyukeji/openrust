@@ -93,7 +93,8 @@ impl ServiceProvider for AiServiceProvider {
             self.commands(app, console::register);
             let config = &[("config/ai.rs", include_bytes!("../config/ai.rs").as_slice())];
             self.publishes(app, config, "ai")?;
-            self.publishes(app, config, "ai-config")
+            self.publishes(app, config, "ai-config")?;
+            self.publishes(app, console::STUBS, "ai-stubs")
         })
     }
 }

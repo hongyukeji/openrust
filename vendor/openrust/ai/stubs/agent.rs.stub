@@ -1,0 +1,9 @@
+use openrust_ai::Agent;
+
+pub struct {{class}};
+
+impl Agent for {{class}} {
+    fn instructions(&self) -> &str {
+        "根据用户的问题提供帮助。"
+    }
+}

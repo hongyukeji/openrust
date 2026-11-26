@@ -1,0 +1,31 @@
+use openrust::{
+    http::HttpFuture,
+    json_schema::{JsonSchemaTypeFactory, types::ObjectType},
+};
+use openrust_ai::{AiError, AiResult, Tool, ToolRequest};
+
+pub struct {{class}};
+
+impl Tool for {{class}} {
+    fn name(&self) -> &str {
+        "{{tool}}"
+    }
+
+    fn description(&self) -> &str {
+        "读取字符串参数。"
+    }
+
+    fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
+        schema.object([("value", schema.string().required(true).into())])
+    }
+
+    fn handle<'a>(&'a self, request: ToolRequest<'a>) -> HttpFuture<'a, AiResult<String>> {
+        Box::pin(async move {
+            request
+                .get("value")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned)
+                .ok_or(AiError::InvalidToolArguments)
+        })
+    }
+}

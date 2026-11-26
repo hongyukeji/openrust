@@ -84,6 +84,17 @@ let answer = response.text;
 
 Agent tools work with buffered Chat Completions, Responses, Anthropic Messages, and Gemini GenerateContent. Claude and Gemini receive their original model content again with the tool results so the provider can verify its signatures. The Agent sends results back with their call IDs and exposes `tool_calls` and `tool_results` on the response. Use `with_max_steps(n)` to limit model steps. Tool execution stops on the last step, and any calls proposed in that step appear as failed results.
 
+## Generate an Agent or tool {#generators}
+
+```shell
+./artisan make:agent CatalogAgent
+./artisan make:agent Products/StockAgent --structured
+./artisan make:tool LookupInventory
+./artisan vendor:publish --tag=ai-stubs
+```
+
+Agents and tools are generated under `app/ai/agents` and `app/ai/tools`. Declare the generated modules in their parent Rust modules and recompile. Add `--force` to replace an existing generated file. Use the published files in `stubs/` to customize the templates.
+
 ## Embeddings {#embeddings}
 
 Set `AI_EMBEDDINGS_PROVIDER=openai` and `OPENAI_EMBEDDING_MODEL` to the model ID from your provider. The SDK sends text inputs as a batch and orders the vectors by the original input index.

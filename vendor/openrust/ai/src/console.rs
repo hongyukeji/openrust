@@ -8,7 +8,10 @@ use serde_json::json;
 
 use crate::{Agent, Ai, Message, PromptOptions, StructuredAgentResponse, StructuredOutput, agent};
 
+mod make;
 mod select_model;
+
+pub(crate) use make::STUBS;
 
 pub(crate) fn register() -> Result<(), ConsoleError> {
     Artisan::add(Box::new(Models {
@@ -21,6 +24,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息} {--schema= : JSON 对象模式}",
         )?,
     }))?;
+    make::register()?;
     select_model::register()
 }
 

@@ -84,6 +84,17 @@ let answer = response.text;
 
 工具呼叫支援 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的非串流請求。Claude 和 Gemini 會收到原始模型內容及工具結果，讓供應商核對簽章。Agent 用原呼叫 ID 把結果送回模型，並在回應中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步驟數。最後一個步驟提出的工具呼叫會記錄為失敗結果，工具不會執行。
 
+## 產生 Agent 或工具 {#generators}
+
+```shell
+./artisan make:agent CatalogAgent
+./artisan make:agent Products/StockAgent --structured
+./artisan make:tool LookupInventory
+./artisan vendor:publish --tag=ai-stubs
+```
+
+Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組中宣告產生的 Rust 模組，再重新編譯。加 `--force` 可覆寫既有檔案。發布後可編輯 `stubs/` 下的檔案，自訂產生範本。
+
 ## Embeddings {#embeddings}
 
 設定 `AI_EMBEDDINGS_PROVIDER=openai`，並將供應商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批次傳送文字，並依輸入順序回傳向量。
