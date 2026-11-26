@@ -297,6 +297,8 @@ The gateway caps outgoing text generation before reserving the maximum receivabl
 
 Run `./artisan ai:gateway:budget:show team` to see the current UTC window's limit, reserved amount, amount booked within the limit and available balance. Exhaustion returns HTTP 429 with `budget_exceeded`. Routes without a verified ceiling return `budget_unbounded` unless you set `unknown` to `monitor`. Monitor routes keep their regular usage and billing behavior.
 
+After a restart, run `./artisan ai:gateway:budget:recover team` to release stale reservations for attempts that never reached the dispatch marker. The default age is 300 seconds. Use `--after=SECONDS` and `--limit=COUNT` to control the scan. Recovery closes the attempt and its charge records together with the reservation release. Attempts that reached the dispatch marker stay available for reconciliation.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

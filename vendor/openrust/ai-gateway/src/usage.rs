@@ -13,9 +13,9 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     billing::{self, ChargePlan, ChargeRecord},
-    budget::{Budget, BudgetBalance, BudgetReservation},
-    managed_keys::{now, nullable},
-    output_quota::QuotaReservation,
+    budget::{self, Budget, BudgetBalance, BudgetReservation},
+    managed_keys::{integer, now, nullable, text},
+    output_quota::{self, QuotaReservation},
     reconciliation,
 };
 
@@ -284,6 +284,107 @@ impl UsageStore {
         budget: &Budget,
     ) -> DatabaseResult<BudgetBalance> {
         budget.balance(&self.connection, group).await
+    }
+
+    pub(crate) async fn recover_budget(
+        &self,
+        group: &str,
+        age: i64,
+        limit: u64,
+    ) -> DatabaseResult<usize> {
+        let cutoff = now().saturating_sub(age);
+        let rows = self
+            .connection
+            .table(TABLE)
+            .use_write_pdo()
+            .select([
+                "id",
+                "group_name",
+                "budget_id",
+                "reserved_receivable_atoms",
+                "output_quota_id",
+                "reserved_output_tokens",
+            ])
+            .r#where("group_name", "=", group)
+            .r#where("started_at", "<=", cutoff)
+            .r#where("usage_state", "=", "not_dispatched")
+            .where_null("dispatch_started_at")
+            .where_null("finished_at")
+            .where_not_null("budget_id")
+            .order_by("id", "asc")
+            .limit(limit)
+            .get()
+            .await?;
+        let mut recovered = 0;
+        for row in rows {
+            // 数据库的默认排序规则可能把大小写不同的授权分组视为相等。
+            if text(&row, "group_name")? != group {
+                continue;
+            }
+            let recovered_one = self
+                .connection
+                .transaction(
+                    move |transaction| {
+                        let row = row.clone();
+                        Box::pin(async move {
+                            let id = text(&row, "id")?;
+                            // 与出站标记共用原子条件。已开始出站的尝试留给账务核对。
+                            if transaction
+                                .table(TABLE)
+                                .r#where("id", "=", id.as_str())
+                                .r#where("usage_state", "=", "not_dispatched")
+                                .where_null("dispatch_started_at")
+                                .where_null("finished_at")
+                                .update(Record::from([
+                                    ("outcome".into(), "expired_before_dispatch".into()),
+                                    ("finished_at".into(), now().into()),
+                                ]))
+                                .await?
+                                != 1
+                            {
+                                return Ok(false);
+                            }
+                            if transaction
+                                .table(billing::TABLE)
+                                .r#where("attempt_id", "=", id.as_str())
+                                .r#where("state", "=", "pending")
+                                .update(Record::from([
+                                    ("state".into(), "not_billable".into()),
+                                    ("amount".into(), "0".into()),
+                                ]))
+                                .await?
+                                != 2
+                            {
+                                return Err(DatabaseError::InvalidQuery(
+                                    "AI 网关未出站的价格快照状态无效",
+                                ));
+                            }
+                            if let Some(tokens) = integer(&row, "reserved_output_tokens")? {
+                                output_quota::release_reservation(
+                                    transaction,
+                                    &text(&row, "output_quota_id")?,
+                                    tokens,
+                                )
+                                .await?;
+                            }
+                            let reserved = integer(&row, "reserved_receivable_atoms")?
+                                .ok_or(DatabaseError::InvalidScalar)?;
+                            budget::release_reservation(
+                                transaction,
+                                &text(&row, "budget_id")?,
+                                reserved,
+                                0,
+                            )
+                            .await?;
+                            Ok(true)
+                        })
+                    },
+                    3,
+                )
+                .await?;
+            recovered += usize::from(recovered_one);
+        }
+        Ok(recovered)
     }
 
     pub(crate) async fn import_cost_report(

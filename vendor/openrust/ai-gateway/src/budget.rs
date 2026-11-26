@@ -258,26 +258,7 @@ impl BudgetReservation {
         };
         let charged = amount.atoms().filter(|amount| *amount <= self.atoms);
         if let Some(charged) = charged {
-            if self.atoms != 0
-                && self
-                    .scope(transaction)
-                    .r#where("held_atoms", ">=", self.atoms)
-                    .decrement("held_atoms", self.atoms, Record::new())
-                    .await?
-                    != 1
-            {
-                return Err(DatabaseError::InvalidQuery("AI 网关预算释放状态无效"));
-            }
-            if charged < self.atoms
-                && self
-                    .scope(transaction)
-                    .r#where("occupied_atoms", ">=", self.atoms - charged)
-                    .decrement("occupied_atoms", self.atoms - charged, Record::new())
-                    .await?
-                    != 1
-            {
-                return Err(DatabaseError::InvalidQuery("AI 网关预算结算状态无效"));
-            }
+            release_reservation(transaction, &self.id, self.atoms, charged).await?;
         } else {
             // 回报超出声明上界时保留预占，记下真实应收并停止本账期准入。
             self.scope(transaction)
@@ -286,4 +267,39 @@ impl BudgetReservation {
         }
         Ok(())
     }
+}
+
+pub(crate) async fn release_reservation(
+    transaction: &mut Transaction,
+    id: &str,
+    reserved: i64,
+    charged: i64,
+) -> DatabaseResult<()> {
+    if reserved < charged || charged < 0 {
+        return Err(DatabaseError::InvalidScalar);
+    }
+    if reserved != 0
+        && transaction
+            .table(TABLE)
+            .r#where("id", "=", id)
+            .r#where("held_atoms", ">=", reserved)
+            .decrement("held_atoms", reserved, Record::new())
+            .await?
+            != 1
+    {
+        return Err(DatabaseError::InvalidQuery("AI 网关预算释放状态无效"));
+    }
+    let returned = reserved - charged;
+    if returned != 0
+        && transaction
+            .table(TABLE)
+            .r#where("id", "=", id)
+            .r#where("occupied_atoms", ">=", returned)
+            .decrement("occupied_atoms", returned, Record::new())
+            .await?
+            != 1
+    {
+        return Err(DatabaseError::InvalidQuery("AI 网关预算结算状态无效"));
+    }
+    Ok(())
 }

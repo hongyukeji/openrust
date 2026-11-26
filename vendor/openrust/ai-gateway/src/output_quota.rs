@@ -170,14 +170,26 @@ impl QuotaReservation {
             }
             return Ok(());
         }
-        let returned = self.amount - output_tokens;
-        let changed = query
-            .r#where("charged_tokens", ">=", returned)
-            .decrement("charged_tokens", returned, Record::new())
-            .await?;
-        if changed != 1 {
-            return Err(DatabaseError::InvalidQuery("AI 网关输出配额结算失败"));
-        }
-        Ok(())
+        release_reservation(transaction, &self.id, self.amount - output_tokens).await
     }
+}
+
+pub(crate) async fn release_reservation(
+    transaction: &mut Transaction,
+    id: &str,
+    amount: i64,
+) -> DatabaseResult<()> {
+    if amount <= 0 {
+        return Err(DatabaseError::InvalidScalar);
+    }
+    let changed = transaction
+        .table(TABLE)
+        .r#where("id", "=", id)
+        .r#where("charged_tokens", ">=", amount)
+        .decrement("charged_tokens", amount, Record::new())
+        .await?;
+    if changed != 1 {
+        return Err(DatabaseError::InvalidQuery("AI 网关输出配额结算失败"));
+    }
+    Ok(())
 }

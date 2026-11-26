@@ -297,6 +297,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 运行 `./artisan ai:gateway:budget:show team` 查看当前 UTC 账期的限额、预占、已在限额内入账的金额和可用余额。余额不足返回 HTTP 429 和 `budget_exceeded`。无法确认上界的路由返回 `budget_unbounded`，也可通过 `unknown: "monitor"` 放行，并保留常规用量及计费。
 
+进程重启后，可运行 `./artisan ai:gateway:budget:recover team` 释放已超时且未写入出站标记的预占。默认等待 300 秒，可用 `--after=秒数` 和 `--limit=条数` 调整扫描。恢复会在同一事务中关闭尝试及费用记录并释放预占。已写入出站标记的尝试继续保留供对账。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。

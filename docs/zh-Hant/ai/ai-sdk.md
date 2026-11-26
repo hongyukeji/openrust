@@ -297,6 +297,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 執行 `./artisan ai:gateway:budget:show team` 可查看目前 UTC 帳期的限額、預留、已在限額內入帳的金額及可用餘額。餘額不足時回傳 HTTP 429 和 `budget_exceeded`。無法確認上限的路由會回傳 `budget_unbounded`，也可透過 `unknown: "monitor"` 允許通過，並保留通常的用量與計費。
 
+程序重新啟動後，可執行 `./artisan ai:gateway:budget:recover team` 釋放已逾時且未寫入對外送出標記的預留。預設等待 300 秒，可用 `--after=秒數` 和 `--limit=筆數` 調整掃描。復原會在同一交易中關閉嘗試及費用記錄並釋放預留。已寫入對外送出標記的嘗試會繼續保留供對帳。
+
 ### 群組輸出 Token 配額 {#gateway-output-quota}
 
 啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。

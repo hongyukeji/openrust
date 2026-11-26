@@ -145,6 +145,32 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             })
         }),
     )?;
+    Artisan::command_with(
+        "ai:gateway:budget:recover {group : 授权分组} {--after= : 最短等待秒数，默认 300} {--limit= : 最多处理条数，默认 50}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let group =
+                    argument(input, "group").ok_or_else(|| ConsoleError::new("请指定授权分组"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let age = positive(input, "after")?.unwrap_or(300);
+                let limit = positive(input, "limit")?.unwrap_or(50);
+                if limit > 100 {
+                    return Err(ConsoleError::new("每次最多处理 100 条用量记录"));
+                }
+                let released = store
+                    .recover_budget(group, age, limit as u64)
+                    .await
+                    .map_err(|_| ConsoleError::new("无法恢复未出站的预算预占"))?;
+                write_json(output, json!({"released": released}))?;
+                Ok(0)
+            })
+        }),
+    )?;
     Ok(())
 }
 
