@@ -1,4 +1,5 @@
 {
+  "command_failed_manually": "命令已手动终止。",
     "command_missing": "命令「:name」不存在。",
     "command_ambiguous": "命令「:name」有歧义：:choices",
     "confirm": {

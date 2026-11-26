@@ -416,6 +416,31 @@ async fn formal_command_component_factory_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_command_component_factory{\n'+command_factory_snippet+command_factory_checks+'}\n')
 
+    exit_codes_snippet=re.search(r'```rust\n(.*?)```',text.split('{#exit-codes}',1)[1],re.S).group(1)
+    exit_codes_checks=r'''
+#[tokio::test]
+async fn formal_exit_codes_example() {
+    use openrust::foundation::{Application, configuration::Routing};
+    use openrust::support::facades::{App, Facade as _};
+    let root = std::env::temp_dir().join(format!("artisan-exit-{}-{}", std::process::id(), module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = Application::configure(root.clone())
+        .with_routing(Routing::default().commands(register_exit_codes)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let mut good = Output::default();
+        assert_eq!(Artisan::call("jobs:check", &["ready".into(),"--no-ansi".into()],&mut good).await.unwrap(),0);
+        assert_eq!(good.stdout, "Ready\n");
+        let mut bad = Output::default();
+        assert_eq!(Artisan::call("jobs:check", &["waiting".into(),"--no-ansi".into()],&mut bad).await.unwrap(),1);
+        assert!(bad.stdout.contains("The job is not ready."));
+        assert!(bad.stderr.is_empty());
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_exit_codes{\n'+exit_codes_snippet+exit_codes_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

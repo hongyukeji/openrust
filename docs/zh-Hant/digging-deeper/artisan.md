@@ -46,6 +46,35 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 選定的環境檔案變更時，服務會在原監聽連接埠重新啟動。用 `--env=local` 選擇環境，用 `--no-reload` 保持目前設定直到停止。按 Ctrl+C 停止服務。執行編譯後的 `main` 時省略模式引數，即可[一起啟動已設定的服務](../getting-started/deployment.md#一起執行服務)。
 
+### 結束代碼 {#exit-codes}
+
+只接收輸出的閉包正常回傳時，結束代碼為 0。型別化命令和可失敗閉包用 `Ok(0)` 表示成功，也可用 `Ok(code)` 指定結束代碼。`Artisan::call` 回傳該值，命令列啟動器也使用該值。
+
+透過 `?` 傳遞 `Input::fail` 或 `CommandIo::fail` 的結果，也可以直接回傳。Artisan 停止命令，透過錯誤元件輸出訊息並回傳結束代碼 1。`fail_default` 使用目前應用程式語言。其他 `ConsoleError` 仍進入例外處理。
+
+```rust
+use openrust::console::{ConsoleError, Input, Output};
+use openrust::support::facades::Artisan;
+
+fn check_readiness(input: &Input) -> Result<(), ConsoleError> {
+    if input.argument("state").and_then(|state| state.as_str().map(str::to_owned)).as_deref()
+        != Some("ready")
+    {
+        input.fail("The job is not ready.")?;
+    }
+    Ok(())
+}
+
+fn register_exit_codes() -> Result<(), ConsoleError> {
+    Artisan::command_with("jobs:check {state}", |input: &Input, output: &mut Output| {
+        check_readiness(input)?;
+        input.io(output).line("Ready")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
 ## 開發程序 {#the-dev-command}
 
 在應用程式目錄同時執行已登記的開發程序。預設的開發伺服器和佇列監聽器直接使用 Artisan 目前的執行檔。Vite 等 Node 程序依需要使用 Node。

@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第76簇退出码和手动失败已验，继续命令 I/O 四个锚点终审和命令注册。见[验收契约](audits/artisan-tutorial/artisan-exit-codes-contracts.json)。
+
 - Artisan 第75簇命令组件工厂已验，继续退出语义及命令注册。见[验收契约](audits/artisan-tutorial/command-component-factory-contracts.json)。
 
 - Artisan 第74簇 HTML4 片段恢复已验，继续组件工厂容器覆盖。见[验收契约](audits/artisan-tutorial/terminal-html-recovery-contracts.json)。

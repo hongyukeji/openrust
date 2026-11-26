@@ -1,0 +1,86 @@
+[
+    {
+        "mode": "implicit",
+        "ansi": false,
+        "status": 0,
+        "out": "finished\n",
+        "error": null
+    },
+    {
+        "mode": "implicit",
+        "ansi": true,
+        "status": 0,
+        "out": "finished\n",
+        "error": null
+    },
+    {
+        "mode": "explicit",
+        "ansi": false,
+        "status": 23,
+        "out": "",
+        "error": null
+    },
+    {
+        "mode": "explicit",
+        "ansi": true,
+        "status": 23,
+        "out": "",
+        "error": null
+    },
+    {
+        "mode": "negative",
+        "ansi": false,
+        "status": -1,
+        "out": "",
+        "error": null
+    },
+    {
+        "mode": "negative",
+        "ansi": true,
+        "status": -1,
+        "out": "",
+        "error": null
+    },
+    {
+        "mode": "default",
+        "ansi": false,
+        "status": 1,
+        "out": "\n   ERROR  Command failed manually.  \n\n",
+        "error": null
+    },
+    {
+        "mode": "default",
+        "ansi": true,
+        "status": 1,
+        "out": "\n  \u001b[37;41m ERROR \u001b[39;49m Command failed manually.  \n\n",
+        "error": null
+    },
+    {
+        "mode": "throwable",
+        "ansi": false,
+        "status": null,
+        "out": "",
+        "error": "LogicException:outside manual failure"
+    },
+    {
+        "mode": "throwable",
+        "ansi": true,
+        "status": null,
+        "out": "",
+        "error": "LogicException:outside manual failure"
+    },
+    {
+        "mode": "nested",
+        "ansi": false,
+        "status": 1,
+        "out": "before failure\n\n   ERROR  Stop this operation.  \n\n",
+        "error": null
+    },
+    {
+        "mode": "nested",
+        "ansi": true,
+        "status": 1,
+        "out": "before failure\n\n  \u001b[37;41m ERROR \u001b[39;49m Stop this operation.  \n\n",
+        "error": null
+    }
+]

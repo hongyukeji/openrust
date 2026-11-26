@@ -46,6 +46,35 @@ Use `./artisan serve` to run HTTP on its own. The default address is `127.0.0.1:
 
 The server restarts after changes to the selected environment file and keeps its listening port. Use `--env=local` to select an environment and `--no-reload` to keep the current configuration until you stop the server. Press Ctrl+C to stop. Run the compiled `main` without mode arguments to [start configured services together](../getting-started/deployment.md#run-services-together).
 
+### Exit Codes {#exit-codes}
+
+An output-only closure that returns normally exits with status 0. For typed or fallible commands, return `Ok(0)` for success or `Ok(code)` to set an explicit status. The status is returned by `Artisan::call` and passed to the command-line launcher.
+
+Use `Input::fail` or `CommandIo::fail` with `?` or return the resulting error directly. Artisan stops the command, renders the message through its error component, and returns status 1. `fail_default` uses the current application language. Other `ConsoleError` values still go through exception handling.
+
+```rust
+use openrust::console::{ConsoleError, Input, Output};
+use openrust::support::facades::Artisan;
+
+fn check_readiness(input: &Input) -> Result<(), ConsoleError> {
+    if input.argument("state").and_then(|state| state.as_str().map(str::to_owned)).as_deref()
+        != Some("ready")
+    {
+        input.fail("The job is not ready.")?;
+    }
+    Ok(())
+}
+
+fn register_exit_codes() -> Result<(), ConsoleError> {
+    Artisan::command_with("jobs:check {state}", |input: &Input, output: &mut Output| {
+        check_readiness(input)?;
+        input.io(output).line("Ready")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
 ## Development Processes {#the-dev-command}
 
 Run the registered development processes together from the application directory. The default development server and queue listener use the same compiled executable as Artisan. Node is used only by Node-based entries such as Vite.

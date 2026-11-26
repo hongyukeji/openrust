@@ -2260,7 +2260,8 @@
     "72: Custom terminal modifier callback order, data and errors are verified. Dynamic element dispatch and HTML recovery stay open.",
     "73: Typed element entry and runtime forwarding, values and errors verified. General HTML recovery stays open.",
     "74: HTML4 fragment recovery verified against 252 source oracle cases, plus terminal and HTTP consumers. Factory injection remains open.",
-    "75: Bind and construct command component dispatch once per execution, preserve its original output and verify dynamic/sync customization."
+    "75: Bind and construct command component dispatch once per execution, preserve its original output and verify dynamic/sync customization.",
+    "76: Command manual failure renders a component and reports code 1; explicit codes and ordinary errors preserve their established paths."
   ],
   "native_adaptations": [
     {
@@ -3060,6 +3061,19 @@
     "CommandIo": [
       "components",
       "output_components"
+    ]
+  },
+  "artisan_exit_codes": {
+    "CommandIo": [
+      "fail",
+      "fail_default"
+    ],
+    "Input": [
+      "fail",
+      "fail_default"
+    ],
+    "ConsoleError": [
+      "manual_failure"
     ]
   }
 }

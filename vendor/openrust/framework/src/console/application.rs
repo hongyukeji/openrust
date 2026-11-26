@@ -926,7 +926,16 @@ async fn run_command_with_events(
             Some(constructor.make(input, super::AsOutput::as_output(output))?);
     }
 
-    let status = command.handle(application, input, output).await?;
+    let status = match command.handle(application, input, output).await {
+        Ok(status) => status,
+        Err(error) => {
+            let Some(message) = error.manual_failure_message() else {
+                return Err(error);
+            };
+            input.io(output).output_components().error(message)?;
+            1
+        }
+    };
     let duration = started.elapsed();
     events
         .dispatch(

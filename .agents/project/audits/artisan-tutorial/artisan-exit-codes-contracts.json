@@ -1,0 +1,39 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "CommandIo": [
+      "fail",
+      "fail_default"
+    ],
+    "Input": [
+      "fail",
+      "fail_default"
+    ],
+    "ConsoleError": [
+      "manual_failure"
+    ]
+  },
+  "source_oracle": "artisan-exit-codes-oracle.json",
+  "runtime": {
+    "source_exit_status_cases": 12,
+    "framework_targets": 22,
+    "framework_parent_tests": 86,
+    "new_artisan_processes": 5,
+    "new_http_requests": 4,
+    "formal_document_consumers": 231,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "只接收输出的闭包正常返回自动映射 0；Rust 类型化或可失败回调用 Ok(i32) 表达显式原生状态。",
+    "手动失败作为 ConsoleError 专用分支传播，区别普通异常；原命令输出的错误组件渲染后报告退出码 1。",
+    "手动失败返回 CommandFinished，保留退出码与原响应；普通异常继续原有异常路径。",
+    "无消息入口走既有 console 语言读取，实际英语及两种中文通过。",
+    "组件行为由原生 Result 明确传播，不添加 panic 或隐藏跳转。"
+  ],
+  "remaining": [
+    "命令生成、注册、程序调用、交互环境及开发进程等其他 Artisan 锚点。"
+  ]
+}

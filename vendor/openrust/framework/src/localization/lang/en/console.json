@@ -1,4 +1,5 @@
 {
+  "command_failed_manually": "Command failed manually.",
     "command_missing": "Command ':name' is not defined.",
     "command_ambiguous": "Command ':name' is ambiguous: :choices",
     "confirm": {

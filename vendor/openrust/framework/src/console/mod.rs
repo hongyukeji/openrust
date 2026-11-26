@@ -412,6 +412,7 @@ pub struct ConsoleError(ConsoleFailure);
 #[derive(Clone, Debug)]
 enum ConsoleFailure {
     Message(String),
+    Manual(String),
     Dump(String),
     Source(Arc<dyn Error + Send + Sync>),
     Runtime(Arc<dyn Error + Send + Sync>),
@@ -420,6 +421,18 @@ enum ConsoleFailure {
 impl ConsoleError {
     pub fn new(message: impl Into<String>) -> Self {
         Self(ConsoleFailure::Message(message.into()))
+    }
+
+    /// 创建由命令组件呈现的手动失败。通过 `?` 或返回 Err 交给 Artisan。
+    pub fn manual_failure(message: impl Into<String>) -> Self {
+        Self(ConsoleFailure::Manual(message.into()))
+    }
+
+    pub(super) fn manual_failure_message(&self) -> Option<&str> {
+        match &self.0 {
+            ConsoleFailure::Manual(message) => Some(message),
+            _ => None,
+        }
     }
 
     /// 保留下游错误类型与来源链，同时沿用控制台渲染流程。
@@ -450,9 +463,10 @@ impl ConsoleError {
 
     pub(crate) fn dump_output(&self) -> Option<&str> {
         match &self.0 {
-            ConsoleFailure::Message(_) | ConsoleFailure::Source(_) | ConsoleFailure::Runtime(_) => {
-                None
-            }
+            ConsoleFailure::Message(_)
+            | ConsoleFailure::Manual(_)
+            | ConsoleFailure::Source(_)
+            | ConsoleFailure::Runtime(_) => None,
             ConsoleFailure::Dump(output) => Some(output),
         }
     }
@@ -472,7 +486,9 @@ impl From<crate::support::CollectionError> for ConsoleError {
 impl fmt::Display for ConsoleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
-            ConsoleFailure::Message(message) => f.write_str(message),
+            ConsoleFailure::Message(message) | ConsoleFailure::Manual(message) => {
+                f.write_str(message)
+            }
             ConsoleFailure::Source(error) | ConsoleFailure::Runtime(error) => error.fmt(f),
             ConsoleFailure::Dump(_) => f.write_str("collection debugging stopped execution"),
         }

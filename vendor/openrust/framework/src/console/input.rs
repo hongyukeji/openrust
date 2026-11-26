@@ -1,9 +1,22 @@
 use serde_json::{Map, Value};
 
-use super::Input;
+use super::{ConsoleError, Input};
 mod mutation;
 
 impl Input {
+    /// 手动结束命令。调用方用 `?` 或直接返回此结果。
+    pub fn fail<T>(&self, message: impl Into<String>) -> Result<T, ConsoleError> {
+        Err(ConsoleError::manual_failure(message))
+    }
+
+    /// 使用当前应用语言的默认消息结束命令。
+    pub fn fail_default<T>(&self) -> Result<T, ConsoleError> {
+        self.fail(super::localization::text(
+            "command_failed_manually",
+            "Command failed manually.",
+        ))
+    }
+
     pub fn get_helper_set(&self) -> Option<&super::HelperSet> {
         self.helper_set.as_ref()
     }

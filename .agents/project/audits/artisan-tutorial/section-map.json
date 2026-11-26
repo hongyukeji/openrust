@@ -54,8 +54,12 @@
     },
     {
       "anchor": "exit-codes",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-exit-codes-contracts.json",
+        "accepted-artisan-exit-codes.json",
+        "console_artisan_exit_codes"
+      ]
     },
     {
       "anchor": "closure-commands",
@@ -789,5 +793,10 @@
       "按 Artisan 其他锚点继续核对命令退出、注册、程序调用与开发命令。",
       "原生类型化扩展目前开放四种行组件覆盖。注册表中的问答、任务和其他按名称调用可由 ComponentDispatch 接管。"
     ]
+  },
+  "artisan_exit_codes": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-exit-codes-contracts.json",
+    "remaining": []
   }
 }

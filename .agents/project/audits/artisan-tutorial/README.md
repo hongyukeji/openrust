@@ -965,3 +965,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 12 个固定源码场景核对默认、两应用替换、同次执行共享、普通输出切换和构造失败。原生构造器及分发状态通过当前应用绑定，所有动态调用可选择接管，同步行组件也有独立覆盖入口。
 
 81 个框架父测试、真实 Artisan 3 进程、HTTP 14 请求、228 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续命令退出、生成和注册。见 command-component-factory-contracts.json 与 accepted-command-component-factory.json。
+
+
+## 76. 退出码及手动终止
+
+12 个固定源码场景验证隐式成功、显式正负退出值、带消息和默认手动失败、普通错误，以及带与不带 ANSI 的完整输出。Rust 通过 Result 传播手动失败并保留结束事件，默认消息使用应用语言。该教程节已闭合。
+
+86 个框架父测试、真实 Artisan 5 进程、HTTP 4 请求、231 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。见 artisan-exit-codes-contracts.json 与 accepted-artisan-exit-codes.json。

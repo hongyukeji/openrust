@@ -46,6 +46,35 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 选中的环境文件发生变化时，服务会在原监听端口重启。用 `--env=local` 选择环境，用 `--no-reload` 保持当前配置直到停止。按 Ctrl+C 停止服务。不带模式参数运行编译后的 `main` 可[一起启动已配置的服务](../getting-started/deployment.md#一起运行服务)。
 
+### 退出码 {#exit-codes}
+
+只接收输出的闭包正常返回时，退出码为 0。类型化命令和可失败闭包用 `Ok(0)` 表示成功，也可用 `Ok(code)` 指定退出码。`Artisan::call` 返回该值，命令行启动器也使用该值。
+
+通过 `?` 传播 `Input::fail` 或 `CommandIo::fail` 的结果，也可以直接返回。Artisan 停止命令，通过错误组件输出消息并返回退出码 1。`fail_default` 使用当前应用语言。其他 `ConsoleError` 仍进入异常处理。
+
+```rust
+use openrust::console::{ConsoleError, Input, Output};
+use openrust::support::facades::Artisan;
+
+fn check_readiness(input: &Input) -> Result<(), ConsoleError> {
+    if input.argument("state").and_then(|state| state.as_str().map(str::to_owned)).as_deref()
+        != Some("ready")
+    {
+        input.fail("The job is not ready.")?;
+    }
+    Ok(())
+}
+
+fn register_exit_codes() -> Result<(), ConsoleError> {
+    Artisan::command_with("jobs:check {state}", |input: &Input, output: &mut Output| {
+        check_readiness(input)?;
+        input.io(output).line("Ready")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
 ## 开发进程 {#the-dev-command}
 
 在应用目录下并发运行已登记的开发进程。默认的开发服务器和队列监听器直接复用 Artisan 的当前二进制。Vite 等 Node 进程按需使用 Node。

@@ -16,6 +16,15 @@ impl Input {
     }
 }
 impl<'a> CommandIo<'a> {
+    /// 手动失败使用执行期间绑定的组件输出及 Artisan 退出码。
+    pub fn fail<T>(&self, message: impl Into<String>) -> Result<T, ConsoleError> {
+        self.input.fail(message)
+    }
+
+    pub fn fail_default<T>(&self) -> Result<T, ConsoleError> {
+        self.input.fail_default()
+    }
+
     pub fn get_helper_set(&self) -> Option<&super::HelperSet> {
         self.input.get_helper_set()
     }
