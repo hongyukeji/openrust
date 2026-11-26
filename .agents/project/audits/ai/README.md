@@ -329,3 +329,7 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 和 HTTP 验证无真实供应商配置、确定的 ID、严格响应序列、回调、断言、同名文件的连接隔离、应用隔离与私有 Storage 回读。两个包测试、严格 Clippy、三语文档构建、十二组浏览器及导航通过。仓库 Fake、文件提示词及其他媒体的 Fake 继续分列。
 
 - [固定 Laravel Files 入口](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files.php) · [固定 Laravel FakeFileGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeFileGateway.php)
+
+## GW-05 固定 DSH 客户端验收
+
+固定 DSH 0.2.3-alpha.2 真实进程已通过四种外部流式协议。真实 DSH Web 验证模型发现、手填、保存、选择及生成。协议和验收条件见[网关验收账本](gateway.md#gw-05-固定-dsh-客户端)。

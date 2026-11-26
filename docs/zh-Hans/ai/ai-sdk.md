@@ -149,6 +149,19 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 在 Codex 中配置 Responses 连接，填写网关基础 URL（例如 `https://your-app.example/v1`）和下游 Key，并用公开别名作为模型。原生 Responses 上游支持客户端工具命名空间。要使用上游网页搜索，在公开模型上设置 `"server_tools": ["web_search"]`。模型未启用网页搜索时，在 Codex 客户端配置中使用 `web_search = "disabled"`。
 
+### 接入 DeepSeek Harness {#dsh-model-connection}
+
+在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。
+
+| DSH 协议 | 基础 URL |
+| --- | --- |
+| OpenAI Chat Completions | `https://your-app.example/v1` |
+| OpenAI Responses | `https://your-app.example/v1` |
+| Anthropic Messages | `https://your-app.example` |
+| Gemini API | `https://your-app.example/v1beta` |
+
+通过 **拉取可用模型** 选择模型，或使用 **添加模型** 手填网关发布的别名。保存后，在对话输入区选择该连接的模型。
+
 ### 持久化网关用量 {#gateway-usage}
 
 在 `config/ai_gateway.rs` 设置 `usage.enabled = true` 后执行迁移。多实例共享用量数据库时，可通过 `usage.connection` 指定连接。

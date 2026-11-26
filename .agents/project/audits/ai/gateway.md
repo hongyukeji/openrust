@@ -166,3 +166,11 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 保留原生 OpenAI、Anthropic 的内联附件线路。请求引用由上游账号持有的文件、持久音频、消息或容器时，在出站前返回协议错误。覆盖 Responses 请求和函数结果的嵌套附件、Chat Completions 文件及续接音频、Messages 文件和容器。Responses 输入计数沿用原有的错误类型。
 
 独立 HTTP 与本地 TCP 上游验证另一个账号的文件 ID 拒绝、OpenAI 两种协议和 Anthropic 内联附件的字节继续出站。两个包测试及严格 Clippy、三语构建、十二组浏览器与完整导航通过。带租户授权的网关资源分配和 Gemini 远程文件引用留待后续验收。
+
+## GW-05 固定 DSH 客户端
+
+使用与固定提交对应的官方 npm 包 `@deepseek-ai/dsh@0.2.3-alpha.2`，在隔离 Linux ARM64 容器和 Node.js 24.22.3 中运行。用不同具名连接分别配置 Chat Completions、Responses、Anthropic Messages 与 Gemini 原生协议。四次独立 headless 调用都通过实际网关获取流式响应，真实 HTTP 协议模拟服务核实原生鉴权、模型映射和用量。
+
+实际 DSH Web 与 Chrome 验证从公开模型目录发现授权别名、排除未授权别名、在自定义连接中保存发现的 Chat 模型、手填 Responses 别名、用模型选择器选择后调用并显示本轮独立回复。运行时使用合成业务输入和隔离凭证。三语文档分别列出四种协议的 URL。供应商实机及其他 GW-05 入口继续验收。
+
+- [固定 DSH 自定义模型说明](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) · [DSH 固定版本发布](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.3-alpha.2)

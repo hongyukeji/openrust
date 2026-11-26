@@ -149,6 +149,19 @@ Add an optional `codex` object to a public model mapping to set its display name
 
 Set a Responses provider for Codex with the gateway base URL, such as `https://your-app.example/v1`, and the downstream Key. Use a published alias as the model. Native Responses upstreams can receive client tool namespaces. For upstream web search, allow `"server_tools": ["web_search"]` on the public model. Set `web_search = "disabled"` in the Codex client configuration when the model has no web search enabled.
 
+### Connect DeepSeek Harness {#dsh-model-connection}
+
+In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.
+
+| DSH protocol | Base URL |
+| --- | --- |
+| OpenAI Chat Completions | `https://your-app.example/v1` |
+| OpenAI Responses | `https://your-app.example/v1` |
+| Anthropic Messages | `https://your-app.example` |
+| Gemini API | `https://your-app.example/v1beta` |
+
+Choose an alias from **Fetch available models**, or enter a published alias with **Add model**. Create the provider, then select its model in the composer.
+
 ### Persist gateway usage {#gateway-usage}
 
 Set `usage.enabled` to `true` in `config/ai_gateway.rs` and run the migration. Set `usage.connection` to a named database connection when gateways share a usage database.
