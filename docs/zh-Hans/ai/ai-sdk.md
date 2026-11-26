@@ -313,6 +313,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 在 `ai.providers` 中，为连接自有网关的 SDK 连接设置 `"forward_usage_context": true`。网关为每次实际文本请求保存 `consumer_invocation` 和从零开始的 `model_turn`。运行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相关尝试，并可用 `--invocation-scope=<scope>` 限定发起调用的 Key 范围。各模型回合有独立的网关请求 ID。关联标识不影响计费或请求去重。
 
+SDK Agent 通过自有网关使用 xAI 原生工具时，在 `ai.providers` 新增独立连接并设为 `driver: "xai"`。URL 填以 `/v1` 结尾的网关地址，凭证使用下游网关 Key，`models.text.default` 填公开模型别名。设置 `store: false`，启用 `forward_usage_context` 以关联各模型回合。将 `ProviderTool::options` 传给该 SDK 连接名。需要在回合间回放供应商工具结果或加密推理时，把公开模型固定到能够读取这些状态的上游连接。
+
 网关先登记尝试，再向上游发送请求。正常结束、出错和取消都会结算。进程在结算之前退出时，账本可能保留 `pending` 记录供核对。
 
 使用发起模型调用的 Key，以 Bearer 或 `x-api-key` 鉴权请求 `GET /v1/usage?days=7`。返回该 Key 当日、累计以及按 UTC 日期汇总的用量。`days` 可设为 1 至 90。回退只计为一次请求，同时按实际出站次数统计尝试。缺失的 Token 数保持 `null`。

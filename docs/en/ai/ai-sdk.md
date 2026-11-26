@@ -313,6 +313,8 @@ Each upstream attempt has its own record. Retries share a `request_id`. The reco
 
 Set `"forward_usage_context": true` on the SDK connection to your gateway in `ai.providers`. The gateway records `consumer_invocation` and the zero-based `model_turn` for each actual text request. Use `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` to inspect the attempts, and add `--invocation-scope=<scope>` to limit results to the originating Key scope. Each model turn gets its own gateway request ID. Correlation IDs have no effect on charging or request deduplication.
 
+To use native xAI tools from an SDK Agent through your gateway, add a separate connection in `ai.providers` with `driver: "xai"`. Set its URL to the gateway base URL ending in `/v1`, use a downstream gateway key, and set `models.text.default` to the published model alias. Set `store: false` and enable `forward_usage_context` to correlate the model steps in the gateway ledger. Pass `ProviderTool::options` under this SDK connection name. When replaying provider tool results or encrypted reasoning between steps, pin the public model to the upstream connection that can read that state.
+
 A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.
 
 With the same Key used for generation, call `GET /v1/usage?days=7` using Bearer or `x-api-key` authentication. The response includes today's totals, lifetime totals, and a daily series in UTC for that Key. Set `days` from 1 to 90. Retries count once as a request and separately as attempts. Missing token counts remain `null`.

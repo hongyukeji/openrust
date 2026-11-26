@@ -712,6 +712,8 @@ xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上�
 
 - [固定 Laravel MapsTools](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/Concerns/MapsTools.php) · [xAI 网页搜索](https://docs.x.ai/developers/tools/web-search) · [xAI 集合搜索](https://docs.x.ai/developers/tools/collections-search) · [xAI 混合工具续步](https://docs.x.ai/developers/tools/advanced-usage)
 
+SDK 直连、外部 Responses 和 SDK 经网关的原生 xAI 组合证据见 [GW-04 xAI 原生 Responses 三条链路](gateway.md#xai-原生-responses-三条链路)。
+
 ### Groq 文本与转录
 
 `groq` 连接复用 Chat Completions 的工具与 SSE。SDK 使用 `max_completion_tokens`，传入图片并拒绝文档，普通及流式响应读取推理内容。仅非流式无工具请求使用原生 JSON Schema。有工具或流时在指令内附带 Schema，终态要求结果可解析为 JSON 对象。498 容量不足进入文本故障转移。转录使用 `verbose_json` multipart，返回原文、分段和上游时长。说话人区分请求在出站前返回配置错误。

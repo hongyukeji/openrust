@@ -313,6 +313,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 在 `ai.providers` 中，為連線至自有閘道的 SDK 連線設定 `"forward_usage_context": true`。閘道為每次實際文字請求儲存 `consumer_invocation` 和從零開始的 `model_turn`。執行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相關嘗試，並用 `--invocation-scope=<scope>` 限定發起呼叫的 Key 範圍。各模型回合有獨立的閘道請求 ID。關聯識別碼不影響計費或請求去重。
 
+SDK Agent 透過自有閘道使用 xAI 原生工具時，在 `ai.providers` 新增獨立連線並設定 `driver: "xai"`。URL 填寫以 `/v1` 結尾的閘道位址，憑證使用下游閘道 Key，`models.text.default` 填寫公開模型別名。設定 `store: false`，啟用 `forward_usage_context` 以關聯各模型回合。將 `ProviderTool::options` 傳給該 SDK 連線名稱。需要在回合間重播供應商工具結果或加密推理時，把公開模型固定到能讀取這些狀態的上游連線。
+
 閘道先登記嘗試，再向上游送出請求。正常結束、出錯和取消都會結算。處理程序在結算前結束時，帳本可能留下 `pending` 記錄供核對。
 
 使用發起模型呼叫的 Key，以 Bearer 或 `x-api-key` 驗證身分並請求 `GET /v1/usage?days=7`。回應包含該 Key 當日、累計與依 UTC 日期彙整的用量。`days` 可設為 1 至 90。遞補只算一次請求，並按實際向上游送出的次數統計嘗試。缺少的 Token 數維持 `null`。
