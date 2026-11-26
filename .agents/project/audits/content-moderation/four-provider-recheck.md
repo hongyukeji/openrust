@@ -33,7 +33,7 @@ Rust 1.94.0 全工作区格式检查与 macOS ARM64 的验收应用严格 Clippy
 
 阿里云、腾讯云、Sightengine、Hive 的八组真实 HTTP 和 Artisan 用例通过。每组对比旧版、新版素材的字节，使用同一签名链接读取 `bytes=0-15` 得到 206 和正确的 16 字节。系统 CA 拒绝私有测试证书。无签名、换成另一有效对象版本、修改签名均返回 403。四家点播用例另经独立 SQLite 队列 Worker 查单。Sightengine 与 Hive 的图片上传、OCR 和部分覆盖断言继续通过，腾讯云点播保留取消断言。
 
-全工作区格式检查、macOS ARM64 的应用目标严格 Clippy、Python 夹具加载、三语站点构建与两种挂载路径的浏览器检查通过。Linux 冷构建长时间停留在图像依赖的代码生成阶段，Docker 未在限时内确认停止。八组结果来自原生 macOS 实跑。已回收原生服务、证书、样本和文档产物，保留 Linux 构建仍可能使用的源码快照。执行日志位于 `target/tmp/moderation-provider-media-https/`。本次使用厂商协议夹具和私有测试 CA。正式访问权限、域名、公信证书及实际厂商出站下载继续在目标环境验收。
+全工作区格式检查、macOS ARM64 的应用目标严格 Clippy、Python 夹具加载、三语站点构建与两种挂载路径的浏览器检查通过。Linux 冷构建在 `jixel` 代码生成阶段以 SIGKILL 结束，八组结果来自原生 macOS 实跑。确认 Linux 容器和原生服务退出后，已回收隔离源码、证书、样本和文档产物。执行日志位于 `target/tmp/moderation-provider-media-https/`。本次使用厂商协议夹具和私有测试 CA。正式访问权限、域名、公信证书及实际厂商出站下载继续在目标环境验收。
 
 ## 真实验收的前置条件
 
