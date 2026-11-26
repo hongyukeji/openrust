@@ -16,22 +16,59 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
     Box::pin(async_stream::try_stream! {
         let mut source = upstream.eventsource();
         let mut chat = Chat::default();
+        let mistral = matches!(protocol, OpenAiProtocol::Mistral);
+        let mut thinking = String::new();
+        let mut reasoning_open = false;
+        let mut reasoning_id = 0;
         while let Some(frame) = source.next().await {
             let frame = frame.map_err(|error| match error {
                 EventStreamError::Transport(error) => transport_error(error),
                 _ => AiError::InvalidResponse,
             })?;
-            if frame.data == "[DONE]" && matches!(protocol, OpenAiProtocol::ChatCompletions) {
-                let (response, reason) = chat.finish()?;
+            if frame.data == "[DONE]" && matches!(protocol, OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral) {
+                if reasoning_open {
+                    yield StepEvent::Reasoning(ReasoningPart::End { part: ("thinking".into(), reasoning_id), text: None });
+                }
+                let (mut response, reason) = chat.finish()?;
+                response.reasoning = thinking;
                 yield StepEvent::Finished { response: Box::new(response), reason };
                 return;
             }
             let mut data: Value = serde_json::from_str(&frame.data).map_err(|_| AiError::InvalidResponse)?;
-            if data.get("error").is_some_and(|value| !value.is_null()) || frame.event == "error" {
+            if data.get("error").is_some_and(|value| !value.is_null()) || frame.event == "error" || (mistral && data["object"] == "error") {
                 Err(AiError::InvalidResponse)?;
             }
             match protocol {
-                OpenAiProtocol::ChatCompletions => {
+                OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
+                    if mistral
+                        && let Some(choice) = data.get_mut("choices").and_then(|choices| choices.get_mut(0))
+                    {
+                        if let Some(reason) = choice.get_mut("finish_reason").filter(|reason| *reason == "model_length") {
+                            *reason = "length".into();
+                        }
+                        let delta = choice.get_mut("delta").and_then(Value::as_object_mut);
+                        let Some(delta) = delta else {
+                            chat.consume(&data)?;
+                            continue;
+                        };
+                        let (text, thought) = tool_protocol::mistral_content(delta.get("content").unwrap_or(&Value::Null));
+                        if !thought.is_empty() {
+                            thinking.push_str(&thought);
+                            reasoning_open = true;
+                            yield StepEvent::Reasoning(ReasoningPart::Delta {
+                                part: ("thinking".into(), reasoning_id),
+                                delta: thought,
+                            });
+                        }
+                        if reasoning_open && (!text.is_empty() || delta.get("tool_calls").is_some_and(Value::is_array)) {
+                            yield StepEvent::Reasoning(ReasoningPart::End { part: ("thinking".into(), reasoning_id), text: None });
+                            reasoning_id += 1;
+                            reasoning_open = false;
+                        }
+                        if let Some(content) = delta.get_mut("content").filter(|content| content.is_array()) {
+                            *content = text.into();
+                        }
+                    }
                     if let Some(delta) = chat.consume(&data)? {
                         yield StepEvent::TextDelta(delta);
                     }

@@ -632,6 +632,14 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 - [固定 Laravel OllamaGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Ollama/OllamaGateway.php) · [Ollama Chat](https://docs.ollama.com/api/chat) · [Ollama Embeddings](https://docs.ollama.com/api/embed) · [Ollama 模型目录](https://docs.ollama.com/api/tags)
 - [固定 Laravel Ollama 流式处理](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Ollama/Concerns/HandlesTextStreaming.php) · [Ollama NDJSON 流](https://docs.ollama.com/api/streaming) · [Ollama 流式工具调用](https://docs.ollama.com/capabilities/tool-calling#tool-calling-with-streaming)
 
+### Mistral 原生 SDK
+
+`mistral` 具名连接复用 Chat Completions 的请求、工具步骤和 SSE 解析，保留原生 `document_url`、嵌套推理块和 `model_length` 结束原因。模型目录使用 `/models`。向量使用固定 Laravel 的原生请求字段，按输入索引复原响应顺序，校验指定维度。默认 URL 为 `https://api.mistral.ai/v1`，应用可覆盖 URL 并显式选择文本与向量模型。
+
+独立 Artisan 与真实 HTTP 经本地协议服务验证目录、结构化提示、代理路径、Bearer、工具 ID 和结果、流式推理与答案分离、截断返回错误、PNG 与 Markdown 附件、批量向量及用量。23 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。语音合成与音频转录待实现，官方账户实机结果待验收。
+
+- [固定 Laravel Mistral Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Mistral/MistralGateway.php) · [Mistral Chat](https://docs.mistral.ai/api/endpoint/chat) · [Mistral 推理块](https://docs.mistral.ai/inference/conversations/reasoning) · [Mistral Embeddings](https://docs.mistral.ai/api/endpoint/embeddings)
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。

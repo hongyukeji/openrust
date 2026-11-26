@@ -73,6 +73,7 @@ impl AiManager {
         for (driver, protocol) in [
             ("openai", OpenAiProtocol::Responses),
             ("openai-compatible", OpenAiProtocol::ChatCompletions),
+            ("mistral", OpenAiProtocol::Mistral),
         ] {
             let environment = environment.clone();
             let http = http.clone();

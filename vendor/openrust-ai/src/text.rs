@@ -358,13 +358,14 @@ impl TextEndpoint {
 #[derive(Clone, Copy)]
 pub(crate) enum OpenAiProtocol {
     ChatCompletions,
+    Mistral,
     Responses,
 }
 
 impl OpenAiProtocol {
     fn endpoint(self) -> TextEndpoint {
         match self {
-            Self::ChatCompletions => TextEndpoint::ChatCompletions,
+            Self::ChatCompletions | Self::Mistral => TextEndpoint::ChatCompletions,
             Self::Responses => TextEndpoint::Responses,
         }
     }
@@ -406,6 +407,7 @@ impl OpenAiTextProvider {
     }
 
     fn chat_user_message(
+        &self,
         text: &str,
         attachments: &[Attachment],
     ) -> AiResult<ChatCompletionRequestMessage> {
@@ -431,7 +433,10 @@ impl OpenAiTextProvider {
                             ..Default::default()
                         })
                     }
-                    Attachment::Document(document) if document.is_pdf() => {
+                    Attachment::Document(document)
+                        if document.is_pdf()
+                            || matches!(self.protocol, OpenAiProtocol::Mistral) =>
+                    {
                         File(ChatCompletionRequestMessageContentPartFile {
                             file: FileObject {
                                 filename: Some(document.filename().into()),
@@ -456,7 +461,11 @@ impl OpenAiTextProvider {
 
     // OpenAI 兼容驱动沿用 Chat 兼容端点的 max_tokens 契约。
     #[allow(deprecated)]
-    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<CreateChatCompletionRequest> {
+    fn chat_body(
+        &self,
+        prompt: &AgentPrompt<'_>,
+        stream: bool,
+    ) -> AiResult<CreateChatCompletionRequest> {
         let mut messages = Vec::new();
         if !prompt.text.instructions.is_empty() {
             messages.push(ChatCompletionRequestMessage::System(
@@ -471,10 +480,7 @@ impl OpenAiTextProvider {
         for message in prompt.messages {
             match message.role {
                 MessageRole::User => {
-                    messages.push(Self::chat_user_message(
-                        &message.content,
-                        &message.attachments,
-                    )?);
+                    messages.push(self.chat_user_message(&message.content, &message.attachments)?);
                 }
                 MessageRole::Assistant => {
                     let tools: Vec<_> = message
@@ -517,10 +523,7 @@ impl OpenAiTextProvider {
                 }
             }
         }
-        messages.push(Self::chat_user_message(
-            prompt.text.prompt,
-            prompt.attachments,
-        )?);
+        messages.push(self.chat_user_message(prompt.text.prompt, prompt.attachments)?);
         Ok(CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
@@ -533,10 +536,11 @@ impl OpenAiTextProvider {
                 }
             }),
             stream: stream.then_some(true),
-            stream_options: stream.then_some(ChatCompletionStreamOptions {
-                include_usage: Some(true),
-                ..Default::default()
-            }),
+            stream_options: (stream && !matches!(self.protocol, OpenAiProtocol::Mistral))
+                .then_some(ChatCompletionStreamOptions {
+                    include_usage: Some(true),
+                    ..Default::default()
+                }),
             ..Default::default()
         })
     }
@@ -645,12 +649,15 @@ impl OpenAiTextProvider {
 
     fn request_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Value> {
         let mut body = match self.protocol {
-            OpenAiProtocol::ChatCompletions => {
-                serde_json::to_value(Self::chat_body(prompt, stream)?)
+            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
+                serde_json::to_value(self.chat_body(prompt, stream)?)
             }
             OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
         }
         .map_err(|_| AiError::InvalidSchema)?;
+        if matches!(self.protocol, OpenAiProtocol::Mistral) {
+            mistral_document_parts(&mut body);
+        }
         apply_provider_options(&mut body, prompt.provider_options, false)?;
         if matches!(self.protocol, OpenAiProtocol::Responses) {
             include_encrypted_reasoning(&mut body, prompt.text.model)?;
@@ -667,6 +674,7 @@ impl OpenAiTextProvider {
                 OpenAiProtocol::ChatCompletions => {
                     restore_chat_reasoning(&mut body, prompt, &scope)
                 }
+                OpenAiProtocol::Mistral => {}
                 OpenAiProtocol::Responses => restore_responses_items(&mut body, prompt, &scope)?,
             }
         }
@@ -704,7 +712,10 @@ impl TextProvider for OpenAiTextProvider {
 
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
         self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
-            Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
+            Arc::new(OpenAiEmbeddingProvider::new(
+                self.connection.clone(),
+                matches!(self.protocol, OpenAiProtocol::Mistral),
+            )) as Arc<dyn EmbeddingProvider>
         })
     }
 
@@ -777,8 +788,10 @@ impl TextProvider for OpenAiTextProvider {
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
         match endpoint {
             TextEndpoint::Embeddings => {
-                matches!(self.protocol, OpenAiProtocol::Responses)
-                    || self.connection.embeddings_configured()
+                matches!(
+                    self.protocol,
+                    OpenAiProtocol::Responses | OpenAiProtocol::Mistral
+                ) || self.connection.embeddings_configured()
             }
             TextEndpoint::ImagesGenerations | TextEndpoint::ImagesEdits => {
                 matches!(self.protocol, OpenAiProtocol::Responses)
@@ -845,6 +858,7 @@ impl TextProvider for OpenAiTextProvider {
             let response = self.send_text(&prompt, false).await?;
             let result = match self.protocol {
                 OpenAiProtocol::ChatCompletions => parse_chat(response)?,
+                OpenAiProtocol::Mistral => parse_mistral(response)?,
                 OpenAiProtocol::Responses => parse_responses(response)?,
             };
             Ok(AgentResponse {
@@ -866,6 +880,21 @@ impl TextProvider for OpenAiTextProvider {
         prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
+            if matches!(self.protocol, OpenAiProtocol::Mistral) {
+                let events = self.stream_text_step(&prompt, &[], &[]).await?;
+                let events = crate::StepResult::Stream(events)
+                    .probe()
+                    .await?
+                    .into_stream();
+                return Ok(crate::tool_stream::single_step_response(
+                    Arc::new(Self {
+                        protocol: self.protocol,
+                        connection: self.connection.clone(),
+                    }),
+                    prompt,
+                    events,
+                ));
+            }
             let response = self.send_text(&prompt, true).await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
@@ -890,25 +919,28 @@ impl OpenAiTextProvider {
     ) -> AiResult<Value> {
         let body = self.request_body(prompt, stream)?;
         let mut body = match self.protocol {
-            OpenAiProtocol::ChatCompletions => {
+            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
                 crate::tool_protocol::chat_request(body, tools, history)?
             }
             OpenAiProtocol::Responses => {
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };
-        if stream && tools.is_empty() {
+        if tools.is_empty() && (stream || matches!(self.protocol, OpenAiProtocol::Mistral)) {
             body.as_object_mut()
                 .ok_or(AiError::InvalidResponse)?
                 .remove("tools");
         }
-        if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
+        let choice = prompt
+            .tool_choice
+            .or(matches!(self.protocol, OpenAiProtocol::Mistral).then_some(&ToolChoice::Auto));
+        if let Some(choice) = choice.filter(|_| !tools.is_empty()) {
             body["tool_choice"] = match choice {
                 ToolChoice::Auto => "auto".into(),
                 ToolChoice::None => "none".into(),
                 ToolChoice::Required => "required".into(),
                 ToolChoice::Tool(name) => match self.protocol {
-                    OpenAiProtocol::ChatCompletions => {
+                    OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
                         json!({"type":"function","function":{"name":name}})
                     }
                     OpenAiProtocol::Responses => json!({"type":"function","name":name}),
@@ -923,6 +955,7 @@ impl StepTextGateway for OpenAiTextProvider {
     fn approval_replay_scope(&self) -> AiResult<Option<String>> {
         let protocol = match self.protocol {
             OpenAiProtocol::ChatCompletions => "chat-tool-replay",
+            OpenAiProtocol::Mistral => "mistral-chat-tool-replay",
             OpenAiProtocol::Responses => "responses-tool-replay",
         };
         self.connection.request_namespace(protocol).map(Some)
@@ -950,6 +983,7 @@ impl StepTextGateway for OpenAiTextProvider {
                 .map_err(|_| AiError::InvalidResponse)?;
             match self.protocol {
                 OpenAiProtocol::ChatCompletions => crate::tool_protocol::chat_step(response),
+                OpenAiProtocol::Mistral => crate::tool_protocol::mistral_step(response),
                 OpenAiProtocol::Responses => crate::tool_protocol::responses_step(response),
             }
         })
@@ -1200,6 +1234,36 @@ struct ChatChoice {
 struct ChatMessage {
     content: Option<String>,
     refusal: Option<String>,
+}
+
+fn mistral_document_parts(body: &mut Value) {
+    let Some(messages) = body["messages"].as_array_mut() else {
+        return;
+    };
+    for message in messages {
+        if let Some(parts) = message["content"].as_array_mut() {
+            for part in parts.iter_mut().filter(|part| part["type"] == "file") {
+                *part = json!({
+                    "type": "document_url",
+                    "document_url": part["file"]["file_data"].take(),
+                    "document_name": part["file"]["filename"].take(),
+                });
+            }
+        }
+    }
+}
+
+fn parse_mistral(response: Response) -> AiResult<ParsedText> {
+    let result =
+        crate::tool_protocol::mistral_step(response.json().map_err(|_| AiError::InvalidResponse)?)?;
+    Ok(ParsedText {
+        text: result.text.ok_or(AiError::InvalidResponse)?,
+        reasoning: result.reasoning,
+        usage: result.usage,
+        model: result.model,
+        citations: result.citations,
+        finish_reason: result.finish_reason,
+    })
 }
 
 fn parse_chat(response: Response) -> AiResult<ParsedText> {

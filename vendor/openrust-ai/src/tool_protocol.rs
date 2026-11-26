@@ -119,6 +119,64 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
     })
 }
 
+pub(crate) fn mistral_step(mut data: Value) -> AiResult<StepResponse> {
+    if data["object"] == "error" || !data["error"].is_null() {
+        return Err(AiError::InvalidResponse);
+    }
+    let choice = data
+        .get_mut("choices")
+        .and_then(|choices| choices.get_mut(0))
+        .and_then(Value::as_object_mut)
+        .ok_or(AiError::InvalidResponse)?;
+    if choice
+        .get("finish_reason")
+        .is_some_and(|reason| reason == "error")
+    {
+        return Err(AiError::InvalidResponse);
+    }
+    if let Some(reason) = choice
+        .get_mut("finish_reason")
+        .filter(|reason| *reason == "model_length")
+    {
+        *reason = "length".into();
+    }
+    let mut reasoning = String::new();
+    if let Some(content) = choice
+        .get_mut("message")
+        .and_then(|message| message.get_mut("content"))
+        .filter(|content| content.is_array())
+    {
+        let (text, thought) = mistral_content(content);
+        *content = text.into();
+        reasoning = thought;
+    }
+    let mut response = chat_step(data)?;
+    response.reasoning = reasoning;
+    Ok(response)
+}
+
+pub(crate) fn mistral_content(content: &Value) -> (String, String) {
+    let Some(parts) = content.as_array() else {
+        return (content.as_str().unwrap_or_default().into(), String::new());
+    };
+    let mut text = String::new();
+    let mut reasoning = String::new();
+    for part in parts {
+        if part["type"] == "thinking" {
+            if let Some(thinking) = part["thinking"].as_array() {
+                for chunk in thinking {
+                    if let Some(value) = chunk["text"].as_str().or_else(|| chunk.as_str()) {
+                        reasoning.push_str(value);
+                    }
+                }
+            }
+        } else if let Some(value) = part["text"].as_str().or_else(|| part.as_str()) {
+            text.push_str(value);
+        }
+    }
+    (text, reasoning)
+}
+
 pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     if data["status"]
         .as_str()

@@ -229,6 +229,68 @@ async fn ollama_truncated_stream_never_executes_tools() -> TestResult {
     Ok(())
 }
 
+#[tokio::test]
+async fn mistral_stream_separates_nested_reasoning_from_answer_text() -> TestResult {
+    let frames = [
+        json!({"choices":[{"delta":{"content":[
+            {"type":"thinking","thinking":[{"type":"text","text":"inspect"}]},
+            {"type":"text","text":"available"}
+        ]}}]}),
+        json!({"choices":[{"delta":{},"finish_reason":"model_length"}],
+            "usage":{"prompt_tokens":4,"completion_tokens":2}}),
+    ];
+    let mut body: String = frames
+        .iter()
+        .map(|frame| format!("data: {frame}\n\n"))
+        .collect();
+    body.push_str("data: [DONE]\n\n");
+    let (url, requests) = http_fixture(
+        "proxy",
+        "chat/completions",
+        "authorization",
+        "Bearer fixture-key",
+        vec![("text/event-stream", body)],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/mistral", || async {
+                    Ok::<_, HttpError>(agent("").stream("Check demo.").await.unwrap().to_response())
+                })?;
+                Ok(())
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=mistral\nMISTRAL_URL={url}\nMISTRAL_API_KEY=fixture-key\nMISTRAL_MODEL=fixture\n"
+        ),
+    )?;
+    let response = app.get("/mistral").await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let events: Vec<Value> = std::str::from_utf8(response.streamed_content())?
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .take_while(|data| *data != "[DONE]")
+        .map(serde_json::from_str)
+        .collect::<Result<_, _>>()?;
+    for (kind, expected) in [("reasoning_delta", "inspect"), ("text_delta", "available")] {
+        let deltas: Vec<_> = events
+            .iter()
+            .filter(|event| event["type"] == kind)
+            .filter_map(|event| event["delta"].as_str())
+            .collect();
+        assert_eq!(deltas, [expected]);
+    }
+    assert_eq!(events.last().unwrap()["reason"], "length");
+    let requests = requests.await?;
+    assert_eq!(requests[0]["stream"], true);
+    assert!(requests[0].get("stream_options").is_none());
+    Ok(())
+}
+
 async fn http_fixture(
     version: &'static str,
     path: &'static str,

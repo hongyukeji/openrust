@@ -228,23 +228,40 @@ pub trait EmbeddingProvider: Send + Sync {
     ) -> HttpFuture<'a, AiResult<EmbeddingsResponse>>;
 }
 
-pub(crate) struct OpenAiEmbeddingProvider(pub(crate) Arc<Connection>);
+pub(crate) struct OpenAiEmbeddingProvider {
+    connection: Arc<Connection>,
+    mistral: bool,
+}
+
+impl OpenAiEmbeddingProvider {
+    pub(crate) fn new(connection: Arc<Connection>, mistral: bool) -> Self {
+        Self {
+            connection,
+            mistral,
+        }
+    }
+}
 
 impl EmbeddingProvider for OpenAiEmbeddingProvider {
     fn name(&self) -> &str {
-        self.0.name()
+        self.connection.name()
     }
 
     fn default_embeddings_model(&self) -> AiResult<&str> {
-        self.0.default_embeddings_model()
+        self.connection.default_embeddings_model()
     }
 
     fn default_embeddings_dimensions(&self) -> Option<usize> {
-        self.0.default_embeddings_dimensions()
+        self.connection.default_embeddings_dimensions()
     }
 
     fn embeddings_cache_namespace(&self) -> AiResult<Option<String>> {
-        self.0.request_namespace("openai-embeddings").map(Some)
+        let namespace = if self.mistral {
+            "mistral-embeddings"
+        } else {
+            "openai-embeddings"
+        };
+        self.connection.request_namespace(namespace).map(Some)
     }
 
     fn embeddings<'a>(
@@ -256,20 +273,25 @@ impl EmbeddingProvider for OpenAiEmbeddingProvider {
             {
                 return Err(AiError::InvalidPrompt);
             }
-            let dimensions = prompt
-                .dimensions
-                .map(u32::try_from)
-                .transpose()
-                .map_err(|_| AiError::InvalidConfiguration("embeddings.dimensions"))?;
-            let body = CreateEmbeddingRequest {
-                model: prompt.model.into(),
-                input: EmbeddingInput::StringArray(prompt.inputs.to_vec()),
-                encoding_format: Some(EncodingFormat::Float),
-                dimensions,
-                ..Default::default()
+            let body = if self.mistral {
+                serde_json::json!({"model": prompt.model, "input": prompt.inputs})
+            } else {
+                let dimensions = prompt
+                    .dimensions
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|_| AiError::InvalidConfiguration("embeddings.dimensions"))?;
+                serde_json::to_value(CreateEmbeddingRequest {
+                    model: prompt.model.into(),
+                    input: EmbeddingInput::StringArray(prompt.inputs.to_vec()),
+                    encoding_format: Some(EncodingFormat::Float),
+                    dimensions,
+                    ..Default::default()
+                })
+                .map_err(|_| AiError::InvalidPrompt)?
             };
             let response = self
-                .0
+                .connection
                 .send(TextEndpoint::Embeddings, &body, false, Some(prompt.timeout))
                 .await?;
             parse_embeddings(validate(Ok(response))?, self.name(), prompt)

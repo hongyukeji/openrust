@@ -30,6 +30,14 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "OPENAI_API_KEY",
         "OPENAI_MODEL",
     )?;
+    let mut mistral = provider(
+        "mistral",
+        "MISTRAL_URL",
+        "https://api.mistral.ai/v1",
+        "MISTRAL_API_KEY",
+        "MISTRAL_MODEL",
+    )?;
+    mistral["models"]["embeddings"] = json!({"default": env.get_utf8("MISTRAL_EMBEDDING_MODEL")?});
     let mut ollama = provider(
         "ollama",
         "OLLAMA_URL",
@@ -154,6 +162,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
             "ollama": ollama,
+            "mistral": mistral,
             "azure": azure,
             "openrouter": openrouter,
             "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,

@@ -817,6 +817,8 @@ let vectors = response.embeddings;
 
 使用 Gemini 原生 API 時，設定 `AI_EMBEDDINGS_PROVIDER=gemini` 與 `GEMINI_EMBEDDING_MODEL`。SDK 透過 `batchEmbedContents` 傳送文字，單筆也使用同一入口。模型 ID 可帶或省略 `models/` 前綴。結果依輸入順序回傳，指定的維度會傳給上游，Token 數量以 Gemini 實際回報為準。
 
+使用 Mistral 原生 API 時，設定 `MISTRAL_API_KEY`、`AI_PROVIDER=mistral` 和 `MISTRAL_MODEL`。基礎 URL 預設為 `https://api.mistral.ai/v1`，可用 `MISTRAL_URL` 覆寫。執行 `./artisan ai:models mistral` 查看模型。原生聊天支援一般與 SSE 回應、結構化輸出、工具續步、圖片和文件。SDK 分別傳送推理區塊和答案文字。產生向量時設定 `AI_EMBEDDINGS_PROVIDER=mistral` 和 `MISTRAL_EMBEDDING_MODEL`。SDK 使用模型原生維度，並驗證呼叫端明確指定的維度。
+
 選擇 Ollama 原生 SDK 連線時，設定 `AI_PROVIDER=ollama` 和 `OLLAMA_MODEL`。預設連線為 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆寫。使用需要驗證的代理時可設定 `OLLAMA_API_KEY`。模型目錄使用 `/api/tags`，一般聊天、結構化輸出與工具續步使用 `/api/chat`，支援非串流回應和原生 NDJSON 串流。SDK 逐步傳送文字和推理內容，收到上游步驟終止訊框後才執行該步驟的工具。向量入口使用 `AI_EMBEDDINGS_PROVIDER=ollama` 和 `OLLAMA_EMBEDDING_MODEL` 呼叫 `/api/embed`。
 
 發布 Gemini 原生向量模型時，將模型映射指向 Gemini 連線，並明確設定 `"endpoints": ["embedContent", "batchEmbedContents"]`。已授權的模型會顯示在 `/v1beta/models`。透過 `x-goog-api-key` 呼叫 `POST /v1beta/models/{alias}:embedContent` 或 `POST /v1beta/models/{alias}:batchEmbedContents`，採用 Google 請求格式。正文中的模型名稱必須與發布別名相符。閘道會替換為上游模型，輸入可直接內嵌。
