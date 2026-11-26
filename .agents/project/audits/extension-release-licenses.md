@@ -216,3 +216,6 @@ Docker Desktop 恢复后，使用上文冻结源码 `7dd141aac49bafa452f35293d68
 解包后逐字节对照 11 个许可文件，包括 SHA-256 为 `af70aaabed1b73e872f14f9130db37e09f3f4d73a5f7c598b9173697a5d2729f` 的 Rust 标准库报告。Mach-O 为 ARM64，核对静态 PCRE2、SQLite、AWS-LC、ring 的代表符号及 SQLite source ID。系统动态库依赖检查和链接器 ad-hoc 签名验证通过。Developer ID 签名、公证及发布渠道仍待对应授权。
 
 从解包目录发现九个 Provider，执行 58 项 SQLite 迁移并确认幂等。缓存前后 HTTP `/up`、`/`、`/api` 均为 200，分别以 SIGINT 和 SIGTERM 状态 0 退出。签名 Reverb 投递与独立 Artisan Worker 通过，持久队列为空。隔离 OTLP Collector 解码 206 个 Span 与 12 条指标记录，并核对 HTTP 路由、耗时指标与独立 Artisan Span。证据位于本机 `target/tmp/goal-extension-macos-rust-notices/`。
+### 较新 Linux ARM64 生产 Dockerfile 复验停点
+
+从干净提交 `6a7874a3cb04a5319a9fdfa98d28a82d328a3f26` 使用仓库生产 Dockerfile 构建九扩展 Release。格式检查通过。首次构建触及 32 GB 停线，守卫退出 75。空间恢复后在同一冻结快照续跑，构建进入框架和应用编译阶段。此后 Docker Desktop 引擎持续失去响应，代理日志记录了到 `docker.raw.sock` 的 I/O 超时，守卫终止本批构建并退出 143。本轮未取得可验证的完整镜像，安装版权报告后的新镜像运行验收仍开放。证据位于本机 `target/tmp/goal-extension-linux-current-release/`。
