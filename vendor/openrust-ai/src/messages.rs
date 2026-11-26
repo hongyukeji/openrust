@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::{
     AiError, AiResult, Attachment, ProviderOptions, StructuredOutput, TextGenerationOptions,
-    TextPrompt, ToolChoice,
+    TextPrompt, ToolCall, ToolChoice, ToolResult,
     attachment_storage::{self, StoredFiles},
 };
 
@@ -14,6 +14,7 @@ use crate::{
 pub enum MessageRole {
     User,
     Assistant,
+    ToolResult,
 }
 
 impl MessageRole {
@@ -21,6 +22,7 @@ impl MessageRole {
         match self {
             Self::User => "user",
             Self::Assistant => "assistant",
+            Self::ToolResult => "tool_result",
         }
     }
 }
@@ -31,6 +33,10 @@ pub struct Message {
     pub content: String,
     #[serde(skip)]
     pub attachments: Vec<Attachment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<ToolCall>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_results: Vec<ToolResult>,
 }
 
 impl Message {
@@ -39,6 +45,8 @@ impl Message {
             role,
             content: content.into(),
             attachments: Vec::new(),
+            tool_calls: Vec::new(),
+            tool_results: Vec::new(),
         }
     }
 
@@ -58,6 +66,23 @@ impl Message {
 
     pub fn assistant(content: impl Into<String>) -> Self {
         Self::new(MessageRole::Assistant, content)
+    }
+
+    pub fn assistant_with_tool_calls(
+        content: impl Into<String>,
+        calls: impl IntoIterator<Item = ToolCall>,
+    ) -> Self {
+        Self {
+            tool_calls: calls.into_iter().collect(),
+            ..Self::assistant(content)
+        }
+    }
+
+    pub fn tool_results(results: impl IntoIterator<Item = ToolResult>) -> Self {
+        Self {
+            tool_results: results.into_iter().collect(),
+            ..Self::new(MessageRole::ToolResult, "")
+        }
     }
 }
 
@@ -252,8 +277,8 @@ fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Vec<Message>, D::Error> {
     #[derive(Deserialize)]
     struct OldMessage {
-        role: MessageRole,
-        content: String,
+        #[serde(flatten)]
+        message: Message,
         #[serde(default, deserialize_with = "deserialize_inline_attachments")]
         attachments: Vec<Attachment>,
     }
@@ -261,9 +286,8 @@ fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
     Ok(Vec::<OldMessage>::deserialize(deserializer)?
         .into_iter()
         .map(|message| Message {
-            role: message.role,
-            content: message.content,
             attachments: message.attachments,
+            ..message.message
         })
         .collect())
 }

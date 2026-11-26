@@ -2,18 +2,21 @@ use std::{sync::Arc, time::Duration};
 
 use async_openai::types::{
     chat::{
+        ChatCompletionMessageToolCall, ChatCompletionMessageToolCalls,
         ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
         ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartFile,
         ChatCompletionRequestMessageContentPartImage, ChatCompletionRequestMessageContentPartText,
         ChatCompletionRequestSystemMessage, ChatCompletionRequestSystemMessageContent,
+        ChatCompletionRequestToolMessage, ChatCompletionRequestToolMessageContent,
         ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageContent,
         ChatCompletionRequestUserMessageContentPart, ChatCompletionStreamOptions,
-        CreateChatCompletionRequest, FileObject, ImageUrl, ResponseFormat,
+        CreateChatCompletionRequest, FileObject, FunctionCall, ImageUrl, ResponseFormat,
         ResponseFormatJsonSchema,
     },
     responses::{
-        CreateResponse, EasyInputContent, EasyInputMessage, InputContent, InputFileContent,
-        InputImageContent, InputItem, InputParam, InputTextContent, ResponseTextParam, Role,
+        CreateResponse, EasyInputContent, EasyInputMessage, FunctionCallOutput,
+        FunctionCallOutputItemParam, FunctionToolCall, InputContent, InputFileContent,
+        InputImageContent, InputItem, InputParam, InputTextContent, Item, ResponseTextParam, Role,
         TextResponseFormatConfiguration,
     },
 };
@@ -432,19 +435,53 @@ impl OpenAiTextProvider {
             ));
         }
         for message in prompt.messages {
-            messages.push(match message.role {
+            match message.role {
                 MessageRole::User => {
-                    Self::chat_user_message(&message.content, &message.attachments)?
+                    messages.push(Self::chat_user_message(
+                        &message.content,
+                        &message.attachments,
+                    )?);
                 }
                 MessageRole::Assistant => {
-                    ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
-                        content: Some(ChatCompletionRequestAssistantMessageContent::Text(
-                            message.content.clone(),
-                        )),
-                        ..Default::default()
-                    })
+                    let tools: Vec<_> = message
+                        .tool_calls
+                        .iter()
+                        .map(|call| {
+                            ChatCompletionMessageToolCalls::Function(
+                                ChatCompletionMessageToolCall {
+                                    id: call.id.clone(),
+                                    function: FunctionCall {
+                                        name: call.name.clone(),
+                                        arguments: Value::Object(call.arguments.clone())
+                                            .to_string(),
+                                    },
+                                },
+                            )
+                        })
+                        .collect();
+                    messages.push(ChatCompletionRequestMessage::Assistant(
+                        ChatCompletionRequestAssistantMessage {
+                            content: (tools.is_empty() || !message.content.is_empty()).then(|| {
+                                ChatCompletionRequestAssistantMessageContent::Text(
+                                    message.content.clone(),
+                                )
+                            }),
+                            tool_calls: (!tools.is_empty()).then_some(tools),
+                            ..Default::default()
+                        },
+                    ));
                 }
-            });
+                MessageRole::ToolResult => {
+                    messages.extend(message.tool_results.iter().map(|result| {
+                        ChatCompletionRequestMessage::Tool(ChatCompletionRequestToolMessage {
+                            content: ChatCompletionRequestToolMessageContent::Text(
+                                result.result.clone(),
+                            ),
+                            tool_call_id: result.id.clone(),
+                        })
+                    }));
+                }
+            }
         }
         messages.push(Self::chat_user_message(
             prompt.text.prompt,
@@ -507,20 +544,44 @@ impl OpenAiTextProvider {
                     phase: None,
                 })
             };
-            let mut history: Vec<_> = prompt
-                .messages
-                .iter()
-                .map(|entry| {
-                    let role = match entry.role {
-                        MessageRole::User => Role::User,
-                        MessageRole::Assistant => Role::Assistant,
-                    };
-                    message(
-                        role,
+            let mut history = Vec::new();
+            for entry in prompt.messages {
+                match entry.role {
+                    MessageRole::User => history.push(message(
+                        Role::User,
                         Self::responses_content(&entry.content, &entry.attachments),
-                    )
-                })
-                .collect();
+                    )),
+                    MessageRole::Assistant => {
+                        if entry.tool_calls.is_empty() || !entry.content.is_empty() {
+                            history.push(message(
+                                Role::Assistant,
+                                EasyInputContent::Text(entry.content.clone()),
+                            ));
+                        }
+                        history.extend(entry.tool_calls.iter().map(|call| {
+                            InputItem::Item(Item::FunctionCall(FunctionToolCall {
+                                arguments: Value::Object(call.arguments.clone()).to_string(),
+                                call_id: call.id.clone(),
+                                name: call.name.clone(),
+                                ..Default::default()
+                            }))
+                        }));
+                    }
+                    MessageRole::ToolResult => {
+                        history.extend(entry.tool_results.iter().map(|result| {
+                            InputItem::Item(Item::FunctionCallOutput(FunctionCallOutputItemParam {
+                                call_id: Some(result.id.clone()),
+                                output: FunctionCallOutput::Text(result.result.clone()),
+                                id: None,
+                                status: None,
+                                caller: None,
+                                name: None,
+                                namespace: None,
+                            }))
+                        }))
+                    }
+                }
+            }
             history.push(message(
                 Role::User,
                 Self::responses_content(prompt.text.prompt, prompt.attachments),

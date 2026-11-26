@@ -190,7 +190,7 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `ai.conversations.connection` 沿用框架 Database 连接，可通过 `AI_CONVERSATIONS_CONNECTION` 选择。应用通过 `vendor:publish --tag=ai-migrations` 发布迁移，重新编译后迁移和回滚。无状态 SDK 启动不查询会话表。独立 Artisan 创建、独立 HTTP 恢复对话，使用协议模拟上游和真实 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 验证持久化、大小写不同参与者拒绝访问、游标、用量与回滚。包测试另外覆盖历史裁剪与上一会话。
 
-完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、原始工具历史重建继续核对。
+完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、原始协议块重放继续核对。
 
 `ConversationStore` 接入创建、继续、历史和原子写入。应用使用 `Ai::set_conversation_store` 注册实现。真实 Artisan 与 HTTP 在数据库连接未配置时使用独立内存实现，核对按 Agent 查找最近会话、参与者不符时 404 且无模型请求、历史分页、流式落库及工具需审批时的安全返回。默认数据库实现仍提供持久审批。SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测默认具名连接、落库、截断和迁移回滚，另复验隔离进程审批恢复。SDK 回归 14 项、严格 Clippy 和三语站点通过。
 
@@ -202,9 +202,15 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 沿用 `for_participant` 和 `r#continue` 的归属校验与历史构造。持久会话的 `stream` 与 `stream_structured` 在返回流时提供会话 ID，采用任一已有 SSE 渲染器。流式正文照常交付。最后的完成事件在成功落库后发送，截断或客户端提前丢弃的流不会生成半轮记录。工具流的各步用量按已报告的值合并，结构化调用使用现有 Schema 和 JSON 对象解析后再写入。
 
-包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。附件复验见对应批次，原始工具步骤重放继续核对。
+包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。附件及结构化工具步骤重放见对应批次，原始协议块重放继续核对。
 
 完成的助手消息保存公开的逐步响应。流使用与回调、Worker 一致的汇总，持久化之后才交付终帧。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 Artisan 生成两步工具流，独立 HTTP 进程读到两步模型、结束原因及工具结果，汇总 16 输入／6 输出 Token。旧 SQLite 记录维持原 `steps` 形状，另复验审批快照恢复、结构化入口、截断后无新增消息与迁移回滚。历史记录使用公开元数据和步骤，私有协议重放保留在原审批快照。SDK 回归 13 项、严格 Clippy 和三语站点通过。
+
+- [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
+
+继续会话按固定 Laravel 的存储行限制读取历史，然后逐步展开助手内容、工具调用及按调用 ID 配对的已记录结果。旧记录保留原末轮文本，跳过无法配对的工具调用。历史分页仍返回存储行。应用可用 `Message::assistant_with_tool_calls` 和 `Message::tool_results` 手工构造等价历史。四种连接按原生协议传递公开调用与结果。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 中，独立 Artisan 实际发起两步调用并保存。独立 HTTP 进程恢复时对 OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 核对工具 ID、参数、结果和后续用户输入顺序，跨参与者没有出站请求。旧记录及部分结果回归、SDK 15 项、严格 Clippy、三语站点通过。原供应商签名和私有推理块在后续批次跟踪。
 
 - [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
 

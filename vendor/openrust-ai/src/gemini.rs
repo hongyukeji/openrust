@@ -15,7 +15,7 @@ use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole,
     ModelCatalog, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     TextEndpoint, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition,
-    ToolStep, UrlCitation, Usage,
+    ToolResult, ToolStep, UrlCitation, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -96,19 +96,52 @@ impl GeminiTextProvider {
         parts
     }
 
+    fn function_result(result: &ToolResult, id: Option<Value>) -> Value {
+        let payload = if result.failed {
+            json!({"error":result.result})
+        } else {
+            json!({"output":result.result})
+        };
+        let mut response = json!({"name":result.name,"response":payload});
+        if let Some(id) = id {
+            response["id"] = id;
+        }
+        json!({"functionResponse":response})
+    }
+
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
-        let mut contents: Vec<_> = prompt
-            .messages
-            .iter()
-            .map(|message| {
-                let role = match message.role {
-                    MessageRole::User => "user",
-                    MessageRole::Assistant => "model",
-                };
-                let parts = Self::message_parts(&message.content, &message.attachments);
-                json!({"role":role,"parts":parts})
-            })
-            .collect();
+        let mut contents = Vec::with_capacity(prompt.messages.len() + 1);
+        for message in prompt.messages {
+            let (role, parts) = match message.role {
+                MessageRole::User => (
+                    "user",
+                    Self::message_parts(&message.content, &message.attachments),
+                ),
+                MessageRole::Assistant => {
+                    let mut parts = Vec::new();
+                    if message.tool_calls.is_empty() || !message.content.is_empty() {
+                        parts.push(json!({"text":message.content}));
+                    }
+                    parts.extend(message.tool_calls.iter().map(|call| {
+                        json!({
+                            "functionCall":{"id":call.id,"name":call.name,"args":call.arguments}
+                        })
+                    }));
+                    ("model", parts)
+                }
+                MessageRole::ToolResult => (
+                    "user",
+                    message
+                        .tool_results
+                        .iter()
+                        .map(|result| {
+                            Self::function_result(result, Some(Value::from(result.id.as_str())))
+                        })
+                        .collect(),
+                ),
+            };
+            contents.push(json!({"role":role,"parts":parts}));
+        }
         let parts = Self::message_parts(prompt.text.prompt, prompt.attachments);
         contents.push(json!({"role":"user","parts":parts}));
         let mut body = json!({"contents":contents});
@@ -471,18 +504,7 @@ impl GeminiTextProvider {
             let calls = parts.iter().filter_map(|part| part.get("functionCall"));
             let results = calls
                 .zip(&step.results)
-                .map(|(call, result)| {
-                    let payload = if result.failed {
-                        json!({"error":result.result})
-                    } else {
-                        json!({"output":result.result})
-                    };
-                    let mut response = json!({"name":result.name,"response":payload});
-                    if let Some(id) = call.get("id") {
-                        response["id"] = id.clone();
-                    }
-                    json!({"functionResponse":response})
-                })
+                .map(|(call, result)| Self::function_result(result, call.get("id").cloned()))
                 .collect::<Vec<_>>();
             contents.push(content.clone());
             contents.push(json!({"role":"user","parts":results}));

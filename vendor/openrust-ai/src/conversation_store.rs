@@ -9,13 +9,14 @@ use openrust::{
     pagination::{Cursor, CursorOptions},
     support::Str,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AgentResponse, AiError, AiResult, Message, MessageRole, approval_store::ApprovalScope,
-    approval_turn::ApprovalSession, attachment_storage, attachments::AttachmentBudget,
+    AgentResponse, AiError, AiResult, Message, MessageRole, ToolCall, ToolResult,
+    approval_store::ApprovalScope, approval_turn::ApprovalSession, attachment_storage,
+    attachments::AttachmentBudget,
 };
 
 const CONVERSATIONS: &str = "agent_conversations";
@@ -260,22 +261,25 @@ impl DatabaseConversationStore {
             .connection
             .table(&self.messages)
             .use_write_pdo()
-            .select(["id", "role", "content", "attachments"])
+            .select(["id", "role", "content", "attachments", "steps"])
             .r#where("conversation_id", "=", conversation)
             .order_by_desc("id")
             .limit(limit)
             .cursor();
-        let mut messages = Vec::new();
+        let mut turns = Vec::new();
         let mut budget = AttachmentBudget::default();
         while let Some(row) = rows.try_next().await? {
             let message = message(&row).await?;
             budget
                 .include(&message.attachments)
                 .map_err(|_| DatabaseError::InvalidQuery("AI 会话历史附件超限"))?;
-            messages.push(message);
+            turns.push(if message.role == MessageRole::Assistant {
+                replay_steps(message, text(&row, "steps")?)?
+            } else {
+                vec![message]
+            });
         }
-        messages.reverse();
-        Ok(Some(messages))
+        Ok(Some(turns.into_iter().rev().flatten().collect()))
     }
 
     pub async fn paginate_conversation_messages(
@@ -679,6 +683,46 @@ async fn message(row: &Row) -> DatabaseResult<Message> {
     }
 }
 
+fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> {
+    #[derive(Deserialize)]
+    struct StoredStep {
+        #[serde(default)]
+        text: String,
+        #[serde(default)]
+        tool_calls: Vec<ToolCall>,
+        #[serde(default)]
+        tool_results: Vec<ToolResult>,
+    }
+
+    let steps: Vec<StoredStep> =
+        serde_json::from_str(steps).map_err(|_| DatabaseError::InvalidScalar)?;
+    if steps.iter().all(|step| step.tool_calls.is_empty()) {
+        return Ok(vec![fallback]);
+    }
+    let has_step_text = steps.iter().any(|step| !step.text.is_empty());
+    let mut messages = Vec::new();
+    for step in steps {
+        let mut calls = Vec::new();
+        let mut results = Vec::new();
+        for call in step.tool_calls {
+            if let Some(result) = step.tool_results.iter().find(|result| result.id == call.id) {
+                results.push(result.clone());
+                calls.push(call);
+            }
+        }
+        if !step.text.is_empty() || !calls.is_empty() {
+            messages.push(Message::assistant_with_tool_calls(step.text, calls));
+        }
+        if !results.is_empty() {
+            messages.push(Message::tool_results(results));
+        }
+    }
+    if messages.is_empty() || (!has_step_text && !fallback.content.is_empty()) {
+        messages.push(fallback);
+    }
+    Ok(messages)
+}
+
 async fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
     let json =
         |key| serde_json::from_str(text(row, key)?).map_err(|_| DatabaseError::InvalidScalar);
@@ -735,4 +779,28 @@ fn valid_table_name(name: &str) -> bool {
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
     };
     valid_segment(table) && (!name.contains('.') || valid_segment(schema))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_tool_history_replays_only_answered_calls_before_final_text() {
+        let steps = json!([{
+            "tool_calls":[
+                {"id":"answered","name":"lookup","arguments":{"key":"a"}},
+                {"id":"missing","name":"lookup","arguments":{"key":"b"}}
+            ],
+            "tool_results":[{"id":"answered","name":"lookup","result":"lookup failed","failed":true}]
+        }]);
+        let result =
+            replay_steps(Message::assistant("Use another key"), &steps.to_string()).unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].tool_calls[0].id, "answered");
+        assert_eq!(result[0].tool_calls.len(), 1);
+        assert_eq!(result[1].role, MessageRole::ToolResult);
+        assert!(result[1].tool_results[0].failed);
+        assert_eq!(result[2], Message::assistant("Use another key"));
+    }
 }

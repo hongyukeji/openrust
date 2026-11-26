@@ -12,9 +12,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, ModelCatalog, StepEventStream,
-    StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
-    TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolStep, UrlCitation, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, MessageRole, ModelCatalog,
+    StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint,
+    TextModelTier, TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolResult,
+    ToolStep, UrlCitation, Usage,
     connection::{Authorization, Connection},
     files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
@@ -65,11 +66,38 @@ impl AnthropicTextProvider {
         Ok(Value::Array(blocks))
     }
 
+    fn tool_results_content(results: &[ToolResult]) -> Vec<Value> {
+        results
+            .iter()
+            .map(|result| {
+                json!({
+                    "type":"tool_result","tool_use_id":result.id,
+                    "content":result.result,"is_error":result.failed,
+                })
+            })
+            .collect()
+    }
+
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
         let mut messages = Vec::with_capacity(prompt.messages.len() + 1);
         for message in prompt.messages {
-            let content = Self::message_content(&message.content, &message.attachments)?;
-            messages.push(json!({"role":message.role.as_str(), "content":content}));
+            if message.role == MessageRole::ToolResult {
+                messages.push(json!({"role":"user","content": Self::tool_results_content(&message.tool_results)}));
+            } else if !message.tool_calls.is_empty() {
+                let mut content = Vec::new();
+                if !message.content.is_empty() {
+                    content.push(json!({"type":"text","text":message.content}));
+                }
+                content.extend(message.tool_calls.iter().map(|call| {
+                    json!({
+                        "type":"tool_use","id":call.id,"name":call.name,"input":call.arguments,
+                    })
+                }));
+                messages.push(json!({"role":"assistant","content":content}));
+            } else {
+                let content = Self::message_content(&message.content, &message.attachments)?;
+                messages.push(json!({"role":message.role.as_str(), "content":content}));
+            }
         }
         let content = Self::message_content(prompt.text.prompt, prompt.attachments)?;
         messages.push(json!({"role":"user","content":content}));
@@ -351,16 +379,7 @@ impl AnthropicTextProvider {
                 .as_ref()
                 .ok_or(AiError::InvalidResponse)?;
             messages.push(json!({"role":"assistant","content":content}));
-            let results: Vec<_> = step
-                .results
-                .iter()
-                .map(|result| {
-                    json!({
-                        "type":"tool_result","tool_use_id":result.id,
-                        "content":result.result,"is_error":result.failed,
-                    })
-                })
-                .collect();
+            let results = Self::tool_results_content(&step.results);
             messages.push(json!({"role":"user","content":results}));
         }
         body["tools"] = tools

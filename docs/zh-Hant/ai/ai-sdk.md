@@ -480,7 +480,7 @@ SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示�
 
 執行已發佈的遷移前，可在 `config/ai.rs` 中設定 `conversations.tables.conversations` 和 `conversations.tables.messages`，也可用環境變數 `AI_CONVERSATIONS_TABLE` 和 `AI_CONVERSATION_MESSAGES_TABLE`。預設表名為 `agent_conversations` 和 `agent_conversation_messages`。使用兩個不同的 SQL 識別碼，可含字母、數字和底線，也可使用資料庫支援的 Schema 前綴。遷移、應用程式執行和回復必須使用同一套設定。既有部署要變更表名時，先遷移現有資料表及資料，再切換設定。
 
-已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
+已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。繼續對話時，SDK 依序將助手的工具呼叫及已記錄結果交給模型。`conversations.max_messages` 在展開前限制讀取的儲存列數，歷史分頁仍逐列傳回訊息及其 `steps`。手動建立歷史時，先呼叫 `Message::assistant_with_tool_calls`，再用 `Message::tool_results` 加入結果。
 
 對話訊息和待審批快照在資料庫儲存檔案參照。附件預設寫入 `local` 磁碟，檔案可見性為私人。可在 `config/ai.rs` 設定 `conversations.attachments.disk`，或使用 `AI_CONVERSATION_ATTACHMENTS_DISK` 為多個應用程式程序設定共用的私人磁碟。變更設定時，須保留既有紀錄所參照的磁碟。
 
