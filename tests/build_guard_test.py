@@ -1,6 +1,5 @@
 """使用项目内隔离目录验证停线、进程退出与锁保护；不清理真实构建缓存。"""
 
-import fcntl
 import contextlib
 import io
 import os
@@ -9,10 +8,11 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
-from build_guard import Project, STOP_BYTES, run, main, signal_group
+from build_guard import Project, STOP_BYTES, run, main, signal_group, lock_file
 
 
 class BuildGuardTest(unittest.TestCase):
@@ -58,8 +58,8 @@ class BuildGuardTest(unittest.TestCase):
             self.assertEqual((self.root / path).read_text(), 'keep')
 
     def test_held_cargo_lock_blocks_deletion(self):
-        with self.lock.open('rb') as held:
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with self.lock.open('r+b') as held:
+            lock_file(held, nonblocking=True)
             with self.assertRaises(BlockingIOError):
                 self.project.cleanup()
             self.assertTrue(self.artifact.exists())
@@ -70,6 +70,7 @@ class BuildGuardTest(unittest.TestCase):
             self.project.cleanup()
         self.assertTrue(self.artifact.exists())
 
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_process_scan_tolerates_non_utf8_arguments(self):
         check_output = subprocess.check_output
 
@@ -79,6 +80,7 @@ class BuildGuardTest(unittest.TestCase):
         with patch('build_guard.subprocess.check_output', side_effect=process_list):
             self.assertEqual(Project(self.root).active_builds(), [])
 
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_process_scan_detects_macos_truncated_command(self):
         listing = '123 /Users/Home/.rus /Users/Home/.rustup/toolchains/1.95.0/bin/cargo check\n'
         cwd = subprocess.CompletedProcess([], 0, stdout=f'p123\nfcwd\nn{self.root}\n')
@@ -101,14 +103,24 @@ class BuildGuardTest(unittest.TestCase):
                     low = timing == 'before' or marker.exists()
                     if timing == 'after' and marker.exists():
                         try:
-                            os.kill(int(marker.read_text()), 0)
-                            low = False
+                            pid = int(marker.read_text())
+                            if os.name == 'nt':
+                                from build_guard_windows import open_process, wait_event, close_handle
+                                handle = open_process(0x00100000, False, pid)
+                                if handle:
+                                    try:
+                                        low = wait_event(handle, 0) == 0
+                                    finally:
+                                        close_handle(handle)
+                            else:
+                                os.kill(pid, 0)
+                                low = False
                         except ProcessLookupError:
                             pass
                     return STOP_BYTES if self.artifact.exists() and low else STOP_BYTES + 1024
 
                 self.project.free = free
-                script = 'import os; from pathlib import Path; Path("finished").write_text(str(os.getpid()));'
+                script = 'import os; from pathlib import Path; Path("finished").write_text(str(os.getppid() if os.name == "nt" else os.getpid()));'
                 if timing == 'during':
                     script = 'import signal,time; signal.signal(signal.SIGINT, lambda *_: exit(0));' + script + 'time.sleep(30)'
                 else:
@@ -158,17 +170,38 @@ class BuildGuardTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.project.local(self.root / 'outside')
         shortcut = self.root / 'target/tmp/link'
-        shortcut.symlink_to(self.workspace)
+        try:
+            shortcut.symlink_to(self.workspace, target_is_directory=True)
+        except OSError as error:
+            if getattr(error, 'winerror', None) != 1314:
+                raise
+            subprocess.run(['cmd', '/d', '/c', 'mklink', '/J', str(shortcut), str(self.workspace)],
+                           check=True, capture_output=True)
         with self.assertRaises(ValueError):
             self.project.local(shortcut / 'cargo-target')
 
 
+    @unittest.skipUnless(os.name == 'nt', '验证 Windows Job 的后代清理')
+    def test_windows_job_stops_grandchild_before_cleanup(self):
+        marker = self.root / 'running'
+        late = self.root / 'late'
+        grandchild = 'import time; from pathlib import Path; Path("running").touch(); time.sleep(2); Path("late").touch()'
+        script = f'import subprocess,sys,time; subprocess.Popen([sys.executable,"-c",{grandchild!r}]); time.sleep(30)'
+        self.project.free = lambda: STOP_BYTES if marker.exists() and self.artifact.exists() else STOP_BYTES + 1024
+        self.assertEqual(run(self.project, self.command(script), self.env, interval=.01), 75)
+        self.assertTrue(marker.exists())
+        self.assertFalse(self.artifact.exists())
+        time.sleep(2)
+        self.assertFalse(late.exists())
+
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_retired_group_permission_error_requires_verified_no_live_members(self):
         from types import SimpleNamespace
         for listing in ['', '123 Z\n', '123 Z+\n456 S\n']:
             with self.subTest(listing=listing), patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控权限拒绝')), patch('build_guard.subprocess.check_output', return_value=listing):
                 signal_group(SimpleNamespace(pid=123), signal.SIGTERM)
 
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_permission_error_with_live_group_is_not_suppressed(self):
         from types import SimpleNamespace
         for listing in ['123 S\n', '123 Z\n123 S+\n']:
@@ -176,6 +209,7 @@ class BuildGuardTest(unittest.TestCase):
                 with self.assertRaises(PermissionError):
                     signal_group(SimpleNamespace(pid=123), signal.SIGTERM)
 
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_permission_error_with_failed_group_inspection_is_not_suppressed(self):
         from types import SimpleNamespace
         with patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控权限拒绝')), patch('build_guard.subprocess.check_output', side_effect=OSError('受控进程表失败')):
@@ -201,6 +235,7 @@ class BuildGuardTest(unittest.TestCase):
         finally:
             child.wait(timeout=3)
 
+    @unittest.skipIf(os.name == 'nt', '验证 POSIX 进程行为')
     def test_completed_stop_with_retired_group_still_performs_threshold_cleanup(self):
         import build_guard
         original = build_guard.signal_group

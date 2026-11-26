@@ -1,7 +1,7 @@
 """在项目内运行验收命令，并在磁盘停线时停止构建、持锁清理本项目产物。"""
 
 import argparse
-import fcntl
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -12,6 +12,16 @@ import subprocess
 import sys
 import time
 import traceback
+
+if os.name == 'nt':
+    import build_guard_windows
+    from build_guard_windows import lock_file
+else:
+    import fcntl
+
+    def lock_file(handle, nonblocking=False):
+        fcntl.flock(handle, fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0))
+
 
 STOP_BYTES = 31_250_000 * 1024
 
@@ -29,6 +39,8 @@ class Project:
         return path
 
     def active_builds(self):
+        if os.name == 'nt':
+            return build_guard_windows.active_builds()
         output = subprocess.check_output(['ps', '-axo', 'pid=,comm=,args='], text=True, errors='replace')
         builds = []
         for line in output.splitlines():
@@ -64,7 +76,7 @@ class Project:
         guard = self.root / 'target' / 'tmp' / '.build-cleanup.lock'
         guard.parent.mkdir(parents=True, exist_ok=True)
         with guard.open('a+b') as coordination:
-            fcntl.flock(coordination, fcntl.LOCK_EX)
+            lock_file(coordination)
             active = self.active()
             if active:
                 raise RuntimeError(f'仍有项目构建进程，等待其安全退出后重试：{active}')
@@ -78,9 +90,9 @@ class Project:
                     for name in ['.cargo-lock', '.cargo-build-lock']:
                         path = profile / name
                         if path.exists():
-                            handle = path.open('rb')
+                            handle = path.open('r+b' if os.name == 'nt' else 'rb')
                             handles.append(handle)
-                            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            lock_file(handle, nonblocking=True)
                             inodes[path] = path.stat().st_ino
                 # 获取所有锁后再次检查，防止扫描期间启动了协作构建。
                 if self.active():
@@ -171,28 +183,38 @@ def stop(child, signum):
     signal_group(child, signal.SIGTERM)
 
 
+@contextmanager
+def launch(command, env, cwd):
+    if os.name == 'nt':
+        with build_guard_windows.launch(command, env, cwd) as (child, stop_tree):
+            yield child, lambda _signum: stop_tree()
+        return
+    with subprocess.Popen(command, env=env, cwd=cwd, start_new_session=True) as child:
+        yield child, lambda signum: stop(child, signum)
+
+
 def run(project, command, env, cancelled=lambda: None, interval=0.5):
     if project.free() <= STOP_BYTES:
         project.cleanup()
-    with subprocess.Popen(command, env=env, cwd=project.root, start_new_session=True) as child:
-        triggered = False
+    triggered = False
+    with launch(command, env, project.root) as (child, stop_child):
         while child.poll() is None:
             if cancelled():
-                stop(child, cancelled())
+                stop_child(cancelled())
                 break
             if project.free() <= STOP_BYTES:
                 triggered = True
                 print('磁盘触及32 GB停线，正在安全停止当前验收构建', flush=True)
-                stop(child, signal.SIGINT)
+                stop_child(signal.SIGINT)
                 break
             time.sleep(interval)
         code = child.wait()
-        # 正常、失败与取消退出都复查；短构建也不能漏掉退出瞬间越线。
-        if triggered or project.free() <= STOP_BYTES:
-            project.cleanup()
-        if cancelled():
-            return 128 + cancelled()
-        return 75 if triggered else (code if code >= 0 else 128 - code)
+    # Windows Job 中的后代须先退出，之后才能核对构建占用和获取锁。
+    if triggered or project.free() <= STOP_BYTES:
+        project.cleanup()
+    if cancelled():
+        return 128 + cancelled()
+    return 75 if triggered else (code if code >= 0 else 128 - code)
 
 
 def main():
@@ -214,13 +236,17 @@ def main():
     target.mkdir(parents=True, exist_ok=True)
     temporary.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, TMPDIR=str(temporary), CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN='1.95.0')
+    if os.name == 'nt':
+        env.update(TMP=str(temporary), TEMP=str(temporary))
     received = None
 
     def cancel(signum, _frame):
         nonlocal received
         received = received or signum
 
-    for signum in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+    for signum in [signal.SIGINT, signal.SIGTERM, getattr(signal, 'SIGHUP', None), getattr(signal, 'SIGBREAK', None)]:
+        if signum is None:
+            continue
         signal.signal(signum, cancel)
     try:
         return run(project, command, env, lambda: received)
