@@ -24,14 +24,14 @@ use openrust::{
         client::{self, Factory, Part, Response},
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice, ToolDefinition, ToolResult,
-    ToolStep, Usage,
+    ToolStep, UrlCitation, Usage,
     audio::{AudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
@@ -55,8 +55,44 @@ pub struct AgentResponse {
     pub usage: Usage,
     pub provider: String,
     pub model: String,
+    pub citations: Vec<UrlCitation>,
     pub tool_calls: Vec<ToolCall>,
     pub tool_results: Vec<ToolResult>,
+}
+
+/// 模型响应的来源连接、模型以及引文。
+#[derive(Debug, Serialize)]
+pub struct Meta<'a> {
+    pub provider: &'a str,
+    pub model: &'a str,
+    pub citations: &'a [UrlCitation],
+}
+
+impl AgentResponse {
+    pub fn new(
+        text: impl Into<String>,
+        usage: Usage,
+        provider: impl Into<String>,
+        model: impl Into<String>,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            usage,
+            provider: provider.into(),
+            model: model.into(),
+            citations: Vec::new(),
+            tool_calls: Vec::new(),
+            tool_results: Vec::new(),
+        }
+    }
+
+    pub fn meta(&self) -> Meta<'_> {
+        Meta {
+            provider: &self.provider,
+            model: &self.model,
+            citations: &self.citations,
+        }
+    }
 }
 
 pub struct TextPrompt<'a> {
@@ -670,6 +706,7 @@ impl TextProvider for OpenAiTextProvider {
                 usage: result.usage,
                 provider: self.name().into(),
                 model: result.model.unwrap_or_else(|| prompt.text.model.into()),
+                citations: result.citations,
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
             })
@@ -909,6 +946,7 @@ struct ParsedText {
     text: String,
     usage: Usage,
     model: Option<String>,
+    citations: Vec<UrlCitation>,
 }
 
 #[derive(Deserialize)]
@@ -944,6 +982,7 @@ fn parse_chat(response: Response) -> AiResult<ParsedText> {
         text: message.content.ok_or(AiError::InvalidResponse)?,
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
+        citations: Vec::new(),
     })
 }
 
@@ -970,6 +1009,8 @@ enum ResponsesItem {
 enum ResponsesContent {
     OutputText {
         text: String,
+        #[serde(default)]
+        annotations: Value,
     },
     Refusal,
     #[serde(other)]
@@ -986,12 +1027,21 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
         return Err(AiError::InvalidResponse);
     }
     let mut text = None::<String>;
+    let mut citations = Vec::new();
     for item in response.output {
         if let ResponsesItem::Message { content } = item {
             for part in content {
                 match part {
-                    ResponsesContent::OutputText { text: part } => {
-                        text.get_or_insert_default().push_str(&part)
+                    ResponsesContent::OutputText {
+                        text: part,
+                        annotations,
+                    } => {
+                        text.get_or_insert_default().push_str(&part);
+                        if let Some(annotations) = annotations.as_array() {
+                            citations.extend(
+                                annotations.iter().filter_map(UrlCitation::from_annotation),
+                            );
+                        }
                     }
                     ResponsesContent::Refusal => return Err(AiError::Refused),
                     ResponsesContent::Other => {}
@@ -1003,5 +1053,6 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
         text: text.ok_or(AiError::InvalidResponse)?,
         usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
+        citations,
     })
 }

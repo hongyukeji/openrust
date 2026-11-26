@@ -1,7 +1,7 @@
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 use serde_json::Value;
 
-/// 流式响应中的网页来源及其在输出文本中的位置。
+/// 网页来源以及上游报告的文本位置。
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct UrlCitation {
     pub url: String,

@@ -639,6 +639,14 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 - [固定 Laravel Citation 事件](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/Citation.php) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 
+### AI-02 文本响应 Meta
+
+`AgentResponse::meta()` 提供来源连接、实际模型和网页引文。普通 OpenAI Responses 从文本内容项按上游顺序读取引文，保留分段的原始位置。普通结构化响应通过同一 Rust 接口提供元数据，序列化结果继续遵循应用 Schema。完成的流也可经聚合响应访问已发出的引文。自定义文本驱动可用 `AgentResponse::new` 创建带空引文列表的响应。
+
+真实 Artisan 与 HTTP 通过隔离协议服务核对普通和结构化 Responses、Chat Completions 空引文、Unicode 分段、空缺标题、非法 URL 和文件注解、未知注解结构、实际模型以及计数。文本、工具、UI、会话回归、SDK 严格 Clippy 和三语站点通过。缓冲工具多轮的单步元数据及其他协议引文继续分批验收。
+
+- [固定 Laravel Meta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/Meta.php) · [Laravel Responses 解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/ParsesTextResponses.php) · [OpenAI Responses 注解](https://developers.openai.com/api/reference/resources/responses/methods/create)
+
 ### AI-02 Responses 公开推理摘要
 
 Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_start`、`reasoning_delta`、`reasoning_end`。原生、Vercel 和 AG-UI 分别沿用各自的协议形状。完成回调按首次出现的摘要块顺序合并。增量、直接终帧及工具续轮共用相同解析。SDK 只识别独立的公开摘要帧。

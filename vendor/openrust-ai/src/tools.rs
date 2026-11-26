@@ -405,6 +405,7 @@ impl ToolRun {
                     usage: self.usage.unwrap_or_default(),
                     provider: provider.name().into(),
                     model: model.unwrap_or_else(|| prompt.text.model.into()),
+                    citations: Vec::new(),
                     tool_calls,
                     tool_results,
                 });

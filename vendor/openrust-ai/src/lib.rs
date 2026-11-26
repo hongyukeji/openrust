@@ -137,7 +137,7 @@ pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
 };
 pub use summarize::{SummarizeAgent, Summarizes, SummarizesText};
-pub use text::{AgentResponse, TextEndpoint, TextModelTier, TextPrompt, TextProvider};
+pub use text::{AgentResponse, Meta, TextEndpoint, TextModelTier, TextPrompt, TextProvider};
 pub use tool_choice::ToolChoice;
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,

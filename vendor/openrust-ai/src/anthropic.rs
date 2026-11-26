@@ -223,6 +223,7 @@ impl TextProvider for AnthropicTextProvider {
                     .as_str()
                     .unwrap_or(prompt.text.model)
                     .into(),
+                citations: Vec::new(),
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
             })

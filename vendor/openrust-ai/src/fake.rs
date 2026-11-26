@@ -105,6 +105,7 @@ impl FakeTextGateway {
             usage: Usage::default(),
             provider,
             model,
+            citations: Vec::new(),
             tool_calls: Vec::new(),
             tool_results: Vec::new(),
         })

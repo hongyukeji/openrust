@@ -28,14 +28,7 @@ where
                 yield previous;
             }
             if let StreamEventData::StreamStart { provider, model } = &event.data {
-                let response = response.get_or_insert_with(|| AgentResponse {
-                    text: String::new(),
-                    usage: Usage::default(),
-                    provider: String::new(),
-                    model: String::new(),
-                    tool_calls: Vec::new(),
-                    tool_results: Vec::new(),
-                });
+                let response = response.get_or_insert_with(|| AgentResponse::new("", Usage::default(), "", ""));
                 response.provider.clone_from(provider);
                 response.model.clone_from(model);
                 if structured {
@@ -49,6 +42,7 @@ where
                     return;
                 }
                 StreamEventData::TextDelta { delta, .. } => response.text.push_str(delta),
+                StreamEventData::Citation { citation, .. } => response.citations.push(citation.clone()),
                 StreamEventData::ToolCall { call } => response.tool_calls.push(call.clone()),
                 StreamEventData::ToolResult { result } => response.tool_results.push(result.clone()),
                 StreamEventData::StreamEnd { usage: step, .. } => {

@@ -133,14 +133,7 @@ impl QueuedBroadcast {
             immediate: true,
         };
         let mut events = agent.stream_with(text, options).await?.into_stream();
-        let mut response = AgentResponse {
-            text: String::new(),
-            usage: Usage::default(),
-            provider: String::new(),
-            model: String::new(),
-            tool_calls: Vec::new(),
-            tool_results: Vec::new(),
-        };
+        let mut response = AgentResponse::new("", Usage::default(), "", "");
         let mut completed = false;
         while let Some(event) = events.next().await {
             let mut event = event?;
@@ -152,6 +145,7 @@ impl QueuedBroadcast {
                     response.model = model;
                 }
                 StreamEventData::TextDelta { delta, .. } => response.text.push_str(&delta),
+                StreamEventData::Citation { citation, .. } => response.citations.push(citation),
                 StreamEventData::ToolCall { call } => response.tool_calls.push(call),
                 StreamEventData::ToolResult { result } => response.tool_results.push(result),
                 StreamEventData::StreamEnd { usage, .. } => {

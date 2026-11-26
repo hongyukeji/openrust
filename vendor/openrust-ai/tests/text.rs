@@ -113,7 +113,12 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                 "model": "resolved-responses",
                 "output": [
                     {"type": "reasoning"},
-                    {"type": "message", "content": [{"type": "output_text", "text": "OK"}]}
+                    {"type": "message", "content": [{"type": "output_text", "text": "OK",
+                        "annotations":[
+                            {"type":"url_citation","url":"https://example.test/source",
+                                "title":"Source","start_index":0,"end_index":2},
+                            {"type":"file_citation","file_id":"ignored"}
+                        ]}]}
                 ],
                 "usage": {"input_tokens": 7, "output_tokens": 2}
             }),
@@ -156,7 +161,10 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                     assert_eq!(result.model, "resolved-responses");
                     assert_eq!(result.usage.prompt_tokens, Some(7));
                     assert_eq!(result.usage.completion_tokens, Some(2));
-                    Response::json(StatusCode::OK, json!({"output": result.text}))
+                    Response::json(
+                        StatusCode::OK,
+                        json!({"output": result.text, "meta": result.meta()}),
+                    )
                 })?;
                 Route::get("/error", || async {
                     let error = agent("").prompt("Fail").await.unwrap_err();
@@ -178,7 +186,8 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
     );
     assert_eq!(
         app.get("/responses").await?.json::<Value>()?,
-        json!({"output":"OK"})
+        json!({"output":"OK","meta":{"provider":"openai","model":"resolved-responses",
+            "citations":[{"url":"https://example.test/source","title":"Source","start_index":0,"end_index":2}]}})
     );
     assert_eq!(
         app.get("/error").await?.json::<Value>()?,
