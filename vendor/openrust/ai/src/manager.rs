@@ -19,6 +19,7 @@ use crate::{
     RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextPrompt,
     TextProvider,
     anthropic::AnthropicTextProvider,
+    classification::{DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     gemini::GeminiTextProvider,
     on_demand::{OnDemandProviders, reserved_name},
@@ -98,6 +99,22 @@ impl AiManager {
                 Ok(Arc::new(HttpRerankingProvider {
                     connection,
                     protocol,
+                }))
+            });
+        }
+        {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend("system-one", move |config| {
+                let connection = Arc::new(Connection::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                    Authorization::Bearer,
+                )?);
+                Ok(Arc::new(HttpDecisionsProvider {
+                    connection,
+                    protocol: DecisionsProtocol::SystemOne,
                 }))
             });
         }

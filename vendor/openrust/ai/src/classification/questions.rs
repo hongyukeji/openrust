@@ -176,23 +176,12 @@ impl From<String> for ScoreLevel {
 }
 
 impl Question {
-    pub(super) fn definition(&self, name: &str) -> AiResult<Value> {
+    pub(super) fn validate(&self, name: &str) -> AiResult<()> {
         if name.trim().is_empty() {
             return Err(AiError::InvalidClassification);
         }
         match self {
-            Self::Boolean(question) if !question.instructions.trim().is_empty() => {
-                let mut instructions = question.instructions.clone();
-                for (case, criteria) in ["True", "False"].into_iter().zip(&question.criteria) {
-                    if let Some(criteria) = criteria {
-                        instructions.push_str("\n\n");
-                        instructions.push_str(case);
-                        instructions.push_str(": ");
-                        instructions.push_str(criteria);
-                    }
-                }
-                Ok(json!({"type":"predicate","name":name,"instructions":instructions}))
-            }
+            Self::Boolean(question) if !question.instructions.trim().is_empty() => Ok(()),
             Self::Choice(question)
                 if !question.instructions.trim().is_empty() && question.options.len() >= 2 =>
             {
@@ -204,9 +193,7 @@ impl Question {
                 {
                     return Err(AiError::InvalidClassification);
                 }
-                Ok(
-                    json!({"type":"choice","name":name,"instructions":question.instructions,"choices":question.options}),
-                )
+                Ok(())
             }
             Self::Score(question)
                 if !question.instructions.trim().is_empty()
@@ -216,11 +203,32 @@ impl Question {
                         .iter()
                         .all(|level| !level.label.trim().is_empty()) =>
             {
-                Ok(
-                    json!({"type":"score","name":name,"instructions":question.instructions,"levels":question.levels}),
-                )
+                Ok(())
             }
             _ => Err(AiError::InvalidClassification),
+        }
+    }
+
+    pub(super) fn definition(&self, name: &str) -> Value {
+        match self {
+            Self::Boolean(question) => {
+                let mut instructions = question.instructions.clone();
+                for (case, criteria) in ["True", "False"].into_iter().zip(&question.criteria) {
+                    if let Some(criteria) = criteria {
+                        instructions.push_str("\n\n");
+                        instructions.push_str(case);
+                        instructions.push_str(": ");
+                        instructions.push_str(criteria);
+                    }
+                }
+                json!({"type":"predicate","name":name,"instructions":instructions})
+            }
+            Self::Choice(question) => {
+                json!({"type":"choice","name":name,"instructions":question.instructions,"choices":question.options})
+            }
+            Self::Score(question) => {
+                json!({"type":"score","name":name,"instructions":question.instructions,"levels":question.levels})
+            }
         }
     }
 }

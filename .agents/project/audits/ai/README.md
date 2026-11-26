@@ -208,6 +208,14 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `Classification::of` 接收文本、JSON 对象或数组。提供具名 `Boolean`、`Choice` 和 `Score` 问题、单次覆盖连接和模型、超时及内联图片。使用固定 Laravel 的 OpenAI Decisions 请求形状，布尔标准折入谓词说明。结果保留类型、概率、置信度、分级说明、拒答、来源模型和上游报告的输入、缓存及推理 Token。未声明的答案、重复键和无效概率返回错误。
 
-包测试覆盖全部问题类型、内联 PNG、模型覆盖与异常响应，独立 Artisan 和 HTTP 以默认或显式模型调用正常 SDK 入口。上游为真实 TCP 的 OpenAI 协议模拟，兼容端点可通过连接配置选择。TypeSafe、OpenRouter、Gemini、Stringable／Collection 便利入口、分类 Fake 和供应商实机待后续。
+包测试覆盖全部问题类型、内联 PNG、模型覆盖与异常响应，独立 Artisan 和 HTTP 以默认或显式模型调用正常 SDK 入口。上游为真实 TCP 的 OpenAI 协议模拟，兼容端点可通过连接配置选择。OpenAI 供应商实机验收待正式凭证。
 
 - [Laravel 固定 OpenAI Classification Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiClassificationGateway.php) · [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+
+## AI-05 TypeSafe、OpenRouter 和 Gemini 分类
+
+同一 `Classification` 入口复用问题和答案类型。TypeSafe System One 使用 Bearer、具名问题和图片资产引用，保留实际路由模型。OpenRouter 走连接地址的 `/alpha/decisions`，同一连接保留 Chat、Embeddings 和 Reranking 配置。Gemini Decisions 使用 `x-goog-api-key`、文本或图片内容块及其原生用量字段。三家预设复用 URL 和密钥配置，模型由开发者指定。
+
+独立 Artisan 和 HTTP 通过三个本地 TCP 协议服务逐个验证认证、路径、默认及显式模型、图片和结构化状态、用量、越界分级响应。TypeSafe 一并验证状态键冲突。现阶段图片输入支持 PNG、JPEG，OpenRouter 和 Gemini 另接受 WebP。命名附件、Gemini 远端图片、分类 Fake、Str／Stringable／Collection 消费、分类故障转移和真实账户验收继续单列。
+
+- [固定 Laravel TypeSafe Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TypeSafeGateway.php) · [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiClassificationGateway.php) · [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)

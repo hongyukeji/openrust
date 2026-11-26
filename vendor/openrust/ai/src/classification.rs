@@ -15,9 +15,11 @@ use crate::{
 };
 
 mod answers;
+mod decisions;
 mod questions;
 
 pub use answers::{Answer, BooleanAnswer, ChoiceAnswer, ScoreAnswer};
+pub(crate) use decisions::{DecisionsProtocol, HttpDecisionsProvider};
 pub use questions::{Boolean, Choice, ChoiceOption, Question, Score, ScoreLevel};
 
 pub struct Classification;
@@ -162,21 +164,12 @@ impl ClassificationProvider for OpenAiClassificationProvider {
         prompt: ClassificationPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<ClassificationResponse>> {
         Box::pin(async move {
-            if prompt.model.trim().is_empty() {
-                return Err(AiError::MissingModel);
-            }
-            if !valid_state(prompt.state) || prompt.questions.is_empty() || prompt.timeout.is_zero()
-            {
-                return Err(AiError::InvalidClassification);
-            }
-            let mut definitions = Vec::new();
-            let mut keys = HashSet::new();
-            for (name, question) in prompt.questions {
-                if !keys.insert(name) {
-                    return Err(AiError::InvalidClassification);
-                }
-                definitions.push(question.definition(name)?);
-            }
+            validate_prompt(&prompt)?;
+            let definitions: Vec<_> = prompt
+                .questions
+                .iter()
+                .map(|(name, question)| question.definition(name))
+                .collect();
             let input = decision_input(prompt.state, prompt.attachments);
             let body = json!({"model":prompt.model,"input":input,"questions":definitions});
             let response = self
@@ -207,6 +200,23 @@ impl ClassificationProvider for OpenAiClassificationProvider {
             })
         })
     }
+}
+
+fn validate_prompt(prompt: &ClassificationPrompt<'_>) -> AiResult<()> {
+    if prompt.model.trim().is_empty() {
+        return Err(AiError::MissingModel);
+    }
+    if !valid_state(prompt.state) || prompt.questions.is_empty() || prompt.timeout.is_zero() {
+        return Err(AiError::InvalidClassification);
+    }
+    let mut keys = HashSet::new();
+    for (name, question) in prompt.questions {
+        if !keys.insert(name) {
+            return Err(AiError::InvalidClassification);
+        }
+        question.validate(name)?;
+    }
+    Ok(())
 }
 
 fn valid_state(state: &Value) -> bool {

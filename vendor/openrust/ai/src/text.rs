@@ -28,7 +28,10 @@ use crate::{
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
     audio::{AudioProvider, OpenAiAudioProvider},
-    classification::{ClassificationProvider, OpenAiClassificationProvider},
+    classification::{
+        ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
+        OpenAiClassificationProvider,
+    },
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     image::{ImageProvider, OpenAiImageProvider},
@@ -410,6 +413,13 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {
+        if self.connection.uses_openrouter_decisions() {
+            return Some(Arc::new(HttpDecisionsProvider {
+                connection: self.connection.clone(),
+                protocol: DecisionsProtocol::OpenRouter,
+            }));
+        }
+
         (matches!(self.protocol, OpenAiProtocol::Responses)
             || self.connection.classification_configured())
         .then(|| {

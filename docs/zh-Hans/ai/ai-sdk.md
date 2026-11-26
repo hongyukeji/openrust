@@ -255,7 +255,16 @@ let transcript = Transcription::from_storage(&path, None).await?.language("en").
 
 ## 分类 {#classification}
 
-设置 `AI_CLASSIFICATION_PROVIDER=openai`，并将 `OPENAI_CLASSIFICATION_MODEL` 设为支持 Decisions 的模型。实现同一协议的兼容连接可通过 `models.classification` 启用分类。
+将 `AI_CLASSIFICATION_PROVIDER` 设为连接名，并将该连接的默认模型设为支持对应 Decisions API 的模型 ID。
+
+| 连接 | 默认模型环境变量 |
+| --- | --- |
+| `openai` | `OPENAI_CLASSIFICATION_MODEL` |
+| `typesafe` | `TYPESAFE_CLASSIFICATION_MODEL` |
+| `openrouter` | `OPENROUTER_CLASSIFICATION_MODEL` |
+| `gemini` | `GEMINI_CLASSIFICATION_MODEL` |
+
+各预设沿用自身的密钥和 URL 配置。TypeSafe 使用 `TYPESAFE_API_KEY` 和 `TYPESAFE_URL`。自定义连接可用 `system-one` 驱动接入 TypeSafe 协议，或在 OpenAI 兼容连接上设置 `models.classification.protocol = "openrouter-decisions"`，让分类请求走 OpenRouter 的 `/api/alpha/decisions`。支持 OpenAI Decisions 的兼容连接可通过 `models.classification` 设置默认模型并启用该协议。
 
 ```rust
 use openrust_ai::{Classification, classification::{Boolean, Choice}};
@@ -270,3 +279,5 @@ let category = result.answer("category");
 ```
 
 分类输入可为文本、JSON 对象或 JSON 数组。为问题指定键，使用 `Boolean`、`Choice` 或 `Score` 声明问题类型，也可用 `attachments()` 添加内联图片。返回包含类型化答案、明确的拒答状态，以及上游实际报告的 Token 数。
+
+TypeSafe 支持 PNG 和 JPEG。状态为 JSON 对象时，`images` 用于保存附件引用。OpenRouter 和 Gemini 连接也接受 WebP。实际可用性取决于所选模型和账号。

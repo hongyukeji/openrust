@@ -255,7 +255,16 @@ Use `Transcription::from_storage` for recordings on a disk, or `from_path`, `fro
 
 ## Classification {#classification}
 
-Set `AI_CLASSIFICATION_PROVIDER=openai` and set `OPENAI_CLASSIFICATION_MODEL` to a model that supports Decisions. A compatible connection can enable the same protocol with `models.classification`.
+Set `AI_CLASSIFICATION_PROVIDER` to the connection name and set its default model to an ID that supports the provider's Decisions API.
+
+| Connection | Default model environment variable |
+| --- | --- |
+| `openai` | `OPENAI_CLASSIFICATION_MODEL` |
+| `typesafe` | `TYPESAFE_CLASSIFICATION_MODEL` |
+| `openrouter` | `OPENROUTER_CLASSIFICATION_MODEL` |
+| `gemini` | `GEMINI_CLASSIFICATION_MODEL` |
+
+Each preset uses its own credentials and URL settings. TypeSafe uses `TYPESAFE_API_KEY` and `TYPESAFE_URL`. Custom connections can use the `system-one` driver, or set `models.classification.protocol = "openrouter-decisions"` on an OpenAI-compatible connection to send classification requests to OpenRouter’s `/api/alpha/decisions`. A compatible connection that implements OpenAI Decisions can enable it by setting its default model in `models.classification`.
 
 ```rust
 use openrust_ai::{Classification, classification::{Boolean, Choice}};
@@ -270,3 +279,5 @@ let category = result.answer("category");
 ```
 
 Classification accepts text, a JSON object or a JSON array. Add keyed `Boolean`, `Choice` or `Score` questions. You can supply inline images with `attachments()`. Responses expose typed answers, explicit refusals, and the token counts reported by the provider.
+
+TypeSafe accepts PNG and JPEG attachments. When the state is a JSON object, TypeSafe reserves `images` for the attachment references. The OpenRouter and Gemini connections also accept WebP. Availability depends on the selected model and account.

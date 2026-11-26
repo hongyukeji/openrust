@@ -48,6 +48,21 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     openrouter["models"]["embeddings"] =
         json!({"default": env.get_utf8("OPENROUTER_EMBEDDING_MODEL")?});
 
+    openrouter["models"]["classification"] = json!({
+        "default": env.get_utf8("OPENROUTER_CLASSIFICATION_MODEL")?,
+        "protocol": "openrouter-decisions",
+    });
+
+    let mut gemini = provider(
+        "gemini",
+        "GEMINI_URL",
+        "https://generativelanguage.googleapis.com/v1beta",
+        "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+    )?;
+    gemini["models"]["classification"] =
+        json!({"default": env.get_utf8("GEMINI_CLASSIFICATION_MODEL")?});
+
     Ok(json!({
         "default": env.get_utf8("AI_PROVIDER")?,
         "conversations": {
@@ -80,7 +95,13 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "jina": reranker("jina", "JINA_URL", "https://api.jina.ai/v1", "JINA_API_KEY", "JINA_RERANK_MODEL")?,
             "voyageai": reranker("voyageai", "VOYAGE_URL", "https://api.voyageai.com/v1", "VOYAGE_API_KEY", "VOYAGE_RERANK_MODEL")?,
             "anthropic": provider("anthropic", "ANTHROPIC_URL", "https://api.anthropic.com/v1", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL")?,
-            "gemini": provider("gemini", "GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta", "GEMINI_API_KEY", "GEMINI_MODEL")?
+            "gemini": gemini,
+            "typesafe": {
+                "driver": "system-one",
+                "url": env.get_utf8("TYPESAFE_URL")?.unwrap_or("https://api.typesafe.ai/v1"),
+                "key_env": "TYPESAFE_API_KEY",
+                "models": {"classification": {"default": env.get_utf8("TYPESAFE_CLASSIFICATION_MODEL")?}}
+            },
         }
     }))
 }

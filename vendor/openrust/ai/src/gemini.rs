@@ -15,12 +15,13 @@ use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog, StepEventStream,
     StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider,
     ToolCall, ToolDefinition, ToolStep, Usage,
+    classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     models::ListedModel,
     text::{transport_error, validate},
 };
 
-pub(crate) struct GeminiTextProvider(Connection);
+pub(crate) struct GeminiTextProvider(Arc<Connection>);
 
 impl GeminiTextProvider {
     pub(crate) fn new(
@@ -28,12 +29,12 @@ impl GeminiTextProvider {
         environment: Arc<Environment>,
         http: Arc<Factory>,
     ) -> AiResult<Self> {
-        Ok(Self(Connection::new(
+        Ok(Self(Arc::new(Connection::new(
             config,
             environment,
             http,
             Authorization::Gemini,
-        )?))
+        )?)))
     }
 
     async fn relay_model(
@@ -148,6 +149,13 @@ impl TextProvider for GeminiTextProvider {
 
     fn default_text_model(&self) -> AiResult<&str> {
         self.0.default_text_model()
+    }
+
+    fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {
+        Some(Arc::new(HttpDecisionsProvider {
+            connection: self.0.clone(),
+            protocol: DecisionsProtocol::Gemini,
+        }))
     }
 
     fn generate_text<'a>(

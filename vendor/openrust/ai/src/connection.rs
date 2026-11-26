@@ -21,7 +21,7 @@ struct Models {
     images: Option<DefaultModel>,
     audio: Option<DefaultModel>,
     transcription: Option<DefaultModel>,
-    classification: Option<DefaultModel>,
+    classification: Option<ClassificationModels>,
 }
 
 #[derive(Default, Deserialize)]
@@ -40,6 +40,18 @@ struct EmbeddingModels {
 #[derive(Deserialize)]
 struct DefaultModel {
     default: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ClassificationModels {
+    default: Option<String>,
+    protocol: Option<ClassificationProtocol>,
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum ClassificationProtocol {
+    OpenrouterDecisions,
 }
 
 #[derive(Deserialize)]
@@ -177,6 +189,10 @@ impl Connection {
         Ok(format!("{:x}", Sha256::digest(identity)))
     }
 
+    pub(crate) fn base_url(&self) -> &str {
+        &self.config.url
+    }
+
     pub(crate) fn name(&self) -> &str {
         &self.config.name
     }
@@ -233,6 +249,15 @@ impl Connection {
 
     pub(crate) fn classification_configured(&self) -> bool {
         self.config.models.classification.is_some()
+    }
+
+    pub(crate) fn uses_openrouter_decisions(&self) -> bool {
+        self.config
+            .models
+            .classification
+            .as_ref()
+            .and_then(|model| model.protocol.as_ref())
+            == Some(&ClassificationProtocol::OpenrouterDecisions)
     }
 
     pub(crate) fn default_classification_model(&self) -> AiResult<&str> {
