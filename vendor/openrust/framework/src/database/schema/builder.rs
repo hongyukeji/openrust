@@ -469,7 +469,7 @@ impl<'connection> Builder<'connection> {
             ));
         }
         if self.grammar.mysql() {
-            return connection
+            return self
                 .drop_mysql_schema_objects(drop_tables, drop_views)
                 .await;
         }
@@ -497,6 +497,66 @@ impl<'connection> Builder<'connection> {
             }
             Ok(())
         })).await
+    }
+
+    async fn drop_mysql_schema_objects(
+        &self,
+        drop_tables: bool,
+        drop_views: bool,
+    ) -> DatabaseResult<()> {
+        let mut session = self.session().await?;
+        let database = self.get_current_schema_name().to_owned();
+        let grammar = self.grammar.clone();
+        tokio::spawn(crate::database::events::with_inherited_query_scope(
+            async move {
+                let qualify = |schema, name| {
+                    grammar.qualified(&Table {
+                        schema: Some(schema),
+                        name,
+                    })
+                };
+                let mut schema = session.get_schema_builder();
+                let views = if drop_views {
+                    schema
+                        .get_views(Some(&database))
+                        .await?
+                        .into_iter()
+                        .map(|view| qualify(view.schema, view.name))
+                        .collect::<DatabaseResult<Vec<_>>>()?
+                } else {
+                    Vec::new()
+                };
+                let tables = if drop_tables {
+                    schema
+                        .get_tables(Some(&database))
+                        .await?
+                        .into_iter()
+                        .map(|table| qualify(table.schema, table.name))
+                        .collect::<DatabaseResult<Vec<_>>>()?
+                } else {
+                    Vec::new()
+                };
+                let result = async {
+                    if !views.is_empty() {
+                        session
+                            .execute_database_ddl(&format!("drop view {}", views.join(", ")))
+                            .await?;
+                    }
+                    if !tables.is_empty() {
+                        session.disable_foreign_key_constraints().await?;
+                        session
+                            .execute_database_ddl(&format!("drop table {}", tables.join(", ")))
+                            .await?;
+                    }
+                    Ok(())
+                }
+                .await;
+                let restore = session.close().await;
+                result.and(restore)
+            },
+        ))
+        .await
+        .map_err(|_| DatabaseError::InvalidSchema("MySQL schema task interrupted"))?
     }
 
     query_callers! {

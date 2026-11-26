@@ -127,6 +127,14 @@ Rust 1.94.0 的独立双次轮询探针在含调试信息的构建中可以看�
 
 macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五条 SQL 的精确文件与行号。默认 Watcher 17 项及框架数据库 32 项通过，涵盖事务事件、保存点和取消测试。隔离快照全仓格式及所涉目标严格 Clippy 通过。Linux 7.0.14 ARM64 使用 Rust 1.94.0 的 Release 构建通过 SQLite 上全部 17 项 Watcher 回归，包括同样的事务调用来源测试。其他目标平台继续验收。证据为 `target/tmp/observability-parity/query-transaction-{macos-final,linux-release}.log`。
 
+### MySQL 批量清理的查询来源
+
+固定 PHP 8.5.12 的实际 Laravel Schema Facade 和 Telescope QueryWatcher 使用真实 MySQL 8.4.13。批量删视图记录目录查询和删除。批量删表记录目录查询、停用外键检查、删除以及恢复外键检查。空目录只记录相应的目录查询，每条 SQL 归到实际调用行。探针通过 Laravel 的 UUID 生成覆盖点使用 Symfony UUID，保留固定 QueryWatcher 和 Schema 实现。证据为 `target/tmp/observability-parity/query-mysql-cleanup-upstream.log`。 [固定 MySqlBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/MySqlBuilder.php#L12-L46)
+
+修复前，Rust 通过物理连接直接批量清理，实际 HTTP 回归中缺少这些查询条目。现复用 `SchemaSession`、MySQL 目录读取和 DDL 入口，在同一独占写会话保留外键初始状态。后台任务继承查询来源和有效应用作用域。空结果只查询目录。
+
+最终 macOS 隔离快照使用真实 MySQL 8.4.13，Telescope HTTP 验证四个调用点、八条 SQL 的文件与行号以及清理后约束状态。原生 Schema 回归确认跨库隔离、前缀与无前缀对象、独立视图保留及单写连接外键恢复。SQLite 默认 Watchers、隔离快照全仓格式及相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-mysql-cleanup-{baseline,final}.log`。MySQL 取消路径和目标平台继续验收。
+
 ### 出站响应内容形状与大小限制
 
 固定 PHP 8.5.12 的真实 PSR 响应和 `ClientRequestWatcher::response` 确认，`0` 在 HTML 和 JSON 标量回退时为 `Empty Response`，`text/plain` 保留字符串，302 优先报告目标地址。关联式 JSON 解码会把空对象以及从 0 开始且按顺序排列的数字键对象变成数组。逆序和带前导零的对象键保留。上限按千字符比较，整数、带小数的数字和数值文本均可设置。证据为 `target/tmp/observability-parity/telescope-client-response-shape-upstream.log`。 [固定 ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php)

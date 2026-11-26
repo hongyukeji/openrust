@@ -42,6 +42,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/relationship-load-callers", relationship_load_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
+    Route::get("/mysql-schema-cleanup", mysql_schema_cleanup)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
@@ -965,6 +966,133 @@ async fn query_watcher_attributes_schema_queries_to_the_public_entry() {
         assert_eq!(actual.get(&line), Some(&2));
     }
     assert_eq!(actual.keys().copied().collect::<Vec<_>>(), expected);
+}
+
+fn mysql_schema_cleanup(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::schema::Schema;
+    Box::pin(async {
+        let mut schema = Schema::connection("cleanup").unwrap();
+        let database = schema.get_current_schema_name().to_owned();
+        assert!(database.starts_with("query_cleanup_"));
+        Schema::create_database(&database).await.unwrap();
+        let connection = Db::connection(Some("cleanup")).unwrap();
+        connection
+            .statement("create table parent (id int primary key)", &[])
+            .await
+            .unwrap();
+        connection
+            .statement(
+                "create table child (owner int, foreign key (owner) references parent(id))",
+                &[],
+            )
+            .await
+            .unwrap();
+        connection
+            .statement("create view active_parents as select id from parent", &[])
+            .await
+            .unwrap();
+        let views = line!() + 1;
+        schema.drop_all_views().await.unwrap();
+        let empty_views = line!() + 1;
+        schema.drop_all_views().await.unwrap();
+        let tables = line!() + 1;
+        schema.drop_all_tables().await.unwrap();
+        let empty_tables = line!() + 1;
+        schema.drop_all_tables().await.unwrap();
+        assert!(schema.get_tables(Some(&database)).await.unwrap().is_empty());
+        assert!(schema.get_views(Some(&database)).await.unwrap().is_empty());
+        let checks = connection
+            .scalar("select @@foreign_key_checks", &[])
+            .await
+            .unwrap();
+        assert!(matches!(
+            checks,
+            openrust::database::Value::Integer(1) | openrust::database::Value::Unsigned(1)
+        ));
+        Schema::drop_database_if_exists(&database).await.unwrap();
+        Response::json(
+            http::StatusCode::OK,
+            json!([views, empty_views, tables, empty_tables]),
+        )
+    })
+}
+
+#[tokio::test]
+async fn query_watcher_observes_mysql_bulk_schema_cleanup() {
+    use openrust::contracts::foundation::Application as _;
+    if std::env::var("TELESCOPE_TEST_DRIVER").as_deref() != Ok("mysql") {
+        return;
+    }
+    assert_eq!(std::env::var("OPENRUST_REQUIRE_MYSQL").as_deref(), Ok("1"));
+    let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+    let server = url.strip_suffix("/openrust_acceptance").unwrap();
+    let database = format!("query_cleanup_{}", uuid::Uuid::now_v7().simple());
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .config()
+        .unwrap()
+        .set(
+            "database.connections.cleanup",
+            json!({"driver":"mysql","url":format!("{server}/{database}")}),
+        )
+        .unwrap();
+    QueryWatcher::new(
+        json!({"ignore_packages":false})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
+    let response = app.get("/api/mysql-schema-cleanup").await.unwrap();
+    response.assert_ok();
+    let [views, empty_views, tables, empty_tables] = response.json::<[u64; 4]>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let mut actual = std::collections::BTreeMap::new();
+    for entry in &entries {
+        let content = &entry.content;
+        let line = content["line"].as_u64().unwrap_or_default();
+        if [views, empty_views, tables, empty_tables].contains(&line) {
+            assert_eq!(content["file"], file!());
+            actual
+                .entry(line)
+                .or_insert_with(Vec::new)
+                .push(content["sql"].as_str().unwrap());
+        }
+    }
+    for (line, expected) in [
+        (views, &["information_schema.views", "drop view"][..]),
+        (empty_views, &["information_schema.views"][..]),
+        (
+            tables,
+            &[
+                "information_schema.tables",
+                "foreign_key_checks = 0",
+                "drop table",
+                "foreign_key_checks = 1",
+            ][..],
+        ),
+        (empty_tables, &["information_schema.tables"][..]),
+    ] {
+        let statements = actual
+            .get(&line)
+            .unwrap_or_else(|| panic!("缺少 {line} 的 SQL 采集结果"));
+        assert_eq!(statements.len(), expected.len(), "{statements:?}");
+        for pattern in expected {
+            assert!(
+                statements.iter().any(|sql| sql.contains(pattern)),
+                "{statements:?}"
+            );
+        }
+    }
 }
 
 async fn assert_query_source_lines(path: &str, table: &str, statements: &[&str]) {
