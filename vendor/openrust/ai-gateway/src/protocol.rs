@@ -20,6 +20,7 @@ use crate::{
     compatibility::{Bridge, Translation},
     gateway::{Call, Gateway, Key, Target, UsageAdmission},
     invocation::{CallIdentity, ClientInvocation},
+    localization,
     session_affinity::SessionAffinity,
 };
 
@@ -305,7 +306,7 @@ impl Protocol {
         self.error(
             StatusCode::UNAUTHORIZED,
             "invalid_api_key",
-            "凭证缺失或无效",
+            &localization::error("invalid_api_key", "凭证缺失或无效"),
         )
         .map(|response| {
             if matches!(self, Self::OpenAi) {
@@ -351,13 +352,14 @@ impl Protocol {
     }
 
     fn stream_error(self) -> String {
+        let message = localization::error("stream", "上游流未能完成");
         let error = match self {
-            Self::OpenAi => error_body("upstream_error", "上游流未能完成"),
+            Self::OpenAi => error_body("upstream_error", &message),
             Self::Gemini => {
-                json!({"error":{"code":502,"status":"UNAVAILABLE","message":"上游流未能完成"}})
+                json!({"error":{"code":502,"status":"UNAVAILABLE","message":message}})
             }
             Self::Anthropic => {
-                json!({"type":"error","error":{"type":"api_error","message":"上游流未能完成"}})
+                json!({"type":"error","error":{"type":"api_error","message":message}})
             }
         };
         format!("event: error\ndata: {error}\n\n")
@@ -1195,8 +1197,10 @@ async fn stream(
         header::CONTENT_TYPE,
         HeaderValue::from_static("text/event-stream"),
     );
+    // HTTP 正文可能在请求语言作用域退出后才开始读取。
+    let error_frame = protocol.stream_error();
     if let Some(bridge) = bridge {
-        let stream = bridged_stream(body, bridge.stream(name), call, protocol);
+        let stream = bridged_stream(body, bridge.stream(name), call, error_frame);
         return Ok(Response::stream(status, stream).with_headers(headers));
     }
     let stream = async_stream::stream! {
@@ -1206,18 +1210,18 @@ async fn stream(
             let Ok(event) = event else {
                 call.outcome("stream_error");
                 call.settle().await;
-                yield Ok::<_, Infallible>(protocol.stream_error());
+                yield Ok::<_, Infallible>(error_frame);
                 return;
             };
             if event.data == "[DONE]" {
                 if (endpoint == TextEndpoint::Responses || endpoint.is_image()) && !terminal {
                     call.outcome("incomplete_stream");
                     call.settle().await;
-                    yield Ok(protocol.stream_error());
+                    yield Ok(error_frame);
                     return;
                 }
                 if !call.complete().await {
-                    yield Ok(protocol.stream_error());
+                    yield Ok(error_frame);
                     return;
                 }
                 yield Ok("data: [DONE]\n\n".to_owned());
@@ -1226,13 +1230,13 @@ async fn stream(
             let Ok(mut data) = serde_json::from_str::<Value>(&event.data) else {
                 call.outcome("stream_error");
                 call.settle().await;
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             };
             if matches!(data["type"].as_str(), Some("error" | "response.failed")) || event.event == "error" || data.get("error").is_some_and(|value| !value.is_null()) {
                 call.outcome("upstream_error");
                 call.settle().await;
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             let ended = match endpoint {
@@ -1261,12 +1265,12 @@ async fn stream(
             let final_usage = ended || (matches!(protocol, Protocol::Gemini)
                 && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());
             if final_usage && !call.complete().await {
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             if !final_usage && observed && !call.persist_observation().await {
                 call.outcome("usage_storage_error");
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             let mut frame = String::new();
@@ -1284,12 +1288,12 @@ async fn stream(
         }
         if terminal {
             if !call.complete().await {
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
             }
         } else {
             call.outcome("incomplete_stream");
             call.settle().await;
-            yield Ok(protocol.stream_error());
+            yield Ok(error_frame);
         }
     };
     Ok(Response::stream(status, stream).with_headers(headers))
@@ -1299,7 +1303,7 @@ fn bridged_stream(
     body: client::ResponseStream,
     mut state: crate::compatibility::Stream,
     mut call: Call,
-    protocol: Protocol,
+    error_frame: String,
 ) -> impl futures_util::Stream<Item = Result<String, Infallible>> {
     async_stream::stream! {
         let mut events = body.eventsource();
@@ -1307,13 +1311,13 @@ fn bridged_stream(
             let Ok(event) = event else {
                 call.outcome("stream_error");
                 call.settle().await;
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             };
             if event.event == "error" {
                 call.outcome("upstream_error");
                 call.settle().await;
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             let mut observed = false;
@@ -1323,7 +1327,7 @@ fn bridged_stream(
                 let Ok(data) = serde_json::from_str::<Value>(&event.data) else {
                     call.outcome("stream_error");
                     call.settle().await;
-                    yield Ok(protocol.stream_error());
+                    yield Ok(error_frame);
                     return;
                 };
                 observed |= call.observe_usage(&data);
@@ -1334,16 +1338,16 @@ fn bridged_stream(
             let Some((frames, terminal)) = converted else {
                 call.outcome("invalid_upstream_response");
                 call.settle().await;
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             };
             if terminal && !call.complete().await {
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             if !terminal && observed && !call.persist_observation().await {
                 call.outcome("usage_storage_error");
-                yield Ok(protocol.stream_error());
+                yield Ok(error_frame);
                 return;
             }
             for frame in frames {
@@ -1355,7 +1359,7 @@ fn bridged_stream(
         }
         call.outcome("incomplete_stream");
         call.settle().await;
-        yield Ok(protocol.stream_error());
+        yield Ok(error_frame);
     }
 }
 

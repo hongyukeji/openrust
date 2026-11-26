@@ -551,6 +551,12 @@ Vercel 和 AG-UI 在构造 HTTP 响应时解析当前语言，异步消费正文
 
 实际 Artisan 检查消费应用路由。真实 HTTP 对两个协议并发实测 18 语、法语覆写、未知语言回退、上游错误脱敏及终帧。SDK `ui_stream` 回归、严格 Clippy 和三语文档通过。
 
+### GW-03 鉴权与 SSE 错误文案
+
+OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使用请求语言。流式响应在返回正文前解析提示，原生转发和跨协议转换均保留译文。响应状态、鉴权头、协议错误字段、事件类型和终止行为沿用原契约。
+
+实际 Artisan 核对路由，真实 HTTP 在同一应用并发验证 18 语、语言请求头、法语覆写、默认语言回退、缺凭证和上游中断。覆盖原生 Chat Completions、Anthropic Messages、Gemini 流，以及 Responses 转 Anthropic 流。协议错误体精确比较，上游诊断未出现在客户端响应。网关包测试、严格 Clippy 与三语文档通过。其他运维错误和协议校验文案继续按计划核对。
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。

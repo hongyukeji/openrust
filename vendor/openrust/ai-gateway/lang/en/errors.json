@@ -1,0 +1,4 @@
+{
+  "invalid_api_key": "The API credential is missing or invalid.",
+  "stream": "The upstream stream did not complete."
+}
