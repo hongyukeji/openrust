@@ -214,6 +214,10 @@ impl FileResponse {
         self.provider.name()
     }
 
+    pub(crate) fn uses_provider(&self, provider: &dyn FileProvider) -> bool {
+        same_resource_scope(self.provider.as_ref(), provider)
+    }
+
     pub async fn refresh(&self) -> AiResult<Self> {
         let file = self.provider.get_file(self.id()).await?;
         if file.id != self.id() {
@@ -263,6 +267,10 @@ pub struct ProviderFilePage {
 
 pub trait FileProvider: Send + Sync {
     fn name(&self) -> &str;
+    fn resource_scope(&self) -> Option<&Arc<()>> {
+        None
+    }
+
     fn get_file<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<FileInfo>>;
     fn put_file(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>>;
     fn delete_file<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<bool>>;
@@ -283,6 +291,10 @@ pub(crate) struct OpenAiFileProvider(pub(crate) Arc<Connection>);
 impl FileProvider for OpenAiFileProvider {
     fn name(&self) -> &str {
         self.0.name()
+    }
+
+    fn resource_scope(&self) -> Option<&Arc<()>> {
+        Some(self.0.resource_scope())
     }
 
     fn get_file<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<FileInfo>> {
@@ -360,29 +372,51 @@ impl FileProvider for OpenAiFileProvider {
                 .with_query_parameters(query)
                 .get("files")
                 .await;
-            let page: OpenAiFilePage = validate(response)?
+            let page: OpenAiPage<FileInfo> = validate(response)?
                 .json()
                 .map_err(|_| AiError::InvalidResponse)?;
-            if page.data.len() > usize::from(limit)
-                || page.has_more && page.data.last().map(|file| &file.id) != page.last_id.as_ref()
-                || page.has_more && page.last_id.is_none()
-            {
-                return Err(AiError::InvalidResponse);
-            }
-            let next_cursor = if page.has_more { page.last_id } else { None };
-            Ok(ProviderFilePage {
-                data: page.data,
-                next_cursor,
-            })
+            let (data, next_cursor) = page.decode(after, limit, |file| &file.id)?;
+            Ok(ProviderFilePage { data, next_cursor })
         })
     }
 }
 
 #[derive(Deserialize)]
-struct OpenAiFilePage {
-    data: Vec<FileInfo>,
+pub(crate) struct OpenAiPage<T> {
+    data: Vec<T>,
     has_more: bool,
     last_id: Option<String>,
+}
+
+impl<T> OpenAiPage<T> {
+    pub(crate) fn decode(
+        self,
+        after: Option<&str>,
+        limit: u16,
+        id: impl Fn(&T) -> &str,
+    ) -> AiResult<(Vec<T>, Option<String>)> {
+        if self.data.len() > usize::from(limit) {
+            return Err(AiError::InvalidResponse);
+        }
+        let cursor = if self.has_more {
+            let cursor = self.last_id.ok_or(AiError::InvalidResponse)?;
+            validate_id(&cursor).map_err(|_| AiError::InvalidResponse)?;
+            if self.data.last().map(id) != Some(&cursor) || after == Some(&cursor) {
+                return Err(AiError::InvalidResponse);
+            }
+            Some(cursor)
+        } else {
+            None
+        };
+        Ok((self.data, cursor))
+    }
+}
+
+pub(crate) fn same_resource_scope(first: &dyn FileProvider, second: &dyn FileProvider) -> bool {
+    first
+        .resource_scope()
+        .zip(second.resource_scope())
+        .is_some_and(|(first, second)| Arc::ptr_eq(first, second))
 }
 
 #[derive(Deserialize)]

@@ -41,6 +41,7 @@ mod models;
 mod native_tool_stream;
 mod on_demand;
 mod reranking;
+mod stores;
 mod streaming;
 mod structured;
 mod text;
@@ -90,6 +91,10 @@ pub use models::{ModelCatalog, ModelInfo};
 pub use reranking::{
     PendingReranking, RankedDocument, Reranking, RerankingOptions, RerankingPrompt,
     RerankingProvider, RerankingResponse, Reranks,
+};
+pub use stores::{
+    ProviderStoreFilePage, ProviderStorePage, Store, StoreFile, StoreFileCounts, StoreFileInfo,
+    StoreFilePage, StoreInfo, StoreOptions, StorePage, StoreProvider, Stores,
 };
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,

@@ -351,3 +351,20 @@ let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 HTTP 上傳使用 `FileUpload::from_upload`，記憶體位元組使用 `from_bytes`，已設定磁碟上的檔案可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆寫名稱、MIME 類型及上傳用途，預設用途是 `user_data`。
 
 `Files::get` 讀取中繼資料，`Files::list` 依游標分頁。傳回的檔案物件沿用原連線下載、重新整理和刪除。`store_as` 將內容存入私有磁碟路徑。使用者提供檔案 ID 時，先在應用程式中查驗檔案歸屬。
+
+## 向量儲存庫 {#vector-stores}
+
+用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。
+
+```rust
+use openrust_ai::{Files, Stores};
+
+let store = Stores::create("Support policies", None).await?;
+let file = Files::get("file-policy", Some(store.provider())).await?;
+let member = store.add(&file, &Default::default()).await?;
+let ready = store.refresh().await?.is_ready();
+```
+
+`StoreOptions` 可指定描述、已查驗的初始檔案 ID 和閒置到期天數。`refresh()` 可讀取索引進度及是否就緒。`Stores::list` 與 `Store::files` 支援游標分頁。
+
+儲存庫與檔案須來自同一連線。`Store::remove(&member, false)` 移除成員並保留原檔案。傳入 `true` 會繼續刪除原檔案。移除後刪除失敗時，`DetachedFileDeletionFailed` 會傳回原檔案 ID 供個別處理。使用 `add_file_id` 前先在應用程式中查驗檔案 ID 的歸屬。

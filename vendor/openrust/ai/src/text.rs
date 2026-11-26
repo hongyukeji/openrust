@@ -38,6 +38,7 @@ use crate::{
     image::{ImageProvider, OpenAiImageProvider},
     models::ListedModel,
     reranking::{HttpRerankingProvider, RerankingProtocol},
+    stores::StoreProvider,
     transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
 };
 
@@ -145,6 +146,10 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
+        None
+    }
+
+    fn store_provider(&self) -> Option<Arc<dyn StoreProvider>> {
         None
     }
 
@@ -420,6 +425,13 @@ impl TextProvider for OpenAiTextProvider {
     fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
         (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.files_configured())
             .then(|| Arc::new(OpenAiFileProvider(self.connection.clone())) as Arc<dyn FileProvider>)
+    }
+
+    fn store_provider(&self) -> Option<Arc<dyn StoreProvider>> {
+        (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.stores_configured())
+            .then(|| {
+                Arc::new(OpenAiFileProvider(self.connection.clone())) as Arc<dyn StoreProvider>
+            })
     }
 
     fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {

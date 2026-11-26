@@ -362,6 +362,13 @@ impl AiManager {
             .ok_or(AiError::FilesNotSupported)
     }
 
+    pub fn store_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::StoreProvider>> {
+        let name = self.provider_name_for(name, "default_for_stores")?;
+        self.text_provider(Some(&name))?
+            .store_provider()
+            .ok_or(AiError::StoresNotSupported)
+    }
+
     pub fn classification_provider(
         &self,
         name: Option<&str>,

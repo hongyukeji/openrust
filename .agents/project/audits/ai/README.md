@@ -251,3 +251,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 独立 Artisan 把本地文本上传到协议服务。独立 HTTP 进程随后验证元数据、私有存盘回读、真实字节、游标分页、删除及删除后 404。验证拒绝非法路径式 ID，检查认证与实际 multipart。`openai` 原生支持，自定义兼容连接通过 `files: true` 开启。真实供应商凭证、其他 Files 驱动、Fake 及向量仓库继续单列。三语构建、AI 页面十二组浏览器及完整导航检查通过。
 
 - [固定 Laravel OpenAI File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiFileGateway.php) · [OpenAI Files API](https://developers.openai.com/api/reference/resources/files/methods/create)
+
+## AI-06 OpenAI 向量仓库
+
+`Stores` 支持创建、获取、分页和删除。`Store` 支持索引状态刷新、增加文件、成员分页与移除。仓库成员 ID 和源文件 ID 分别保留。命名连接的实例包含资源归属标记，阻止不同连接的文件、不同仓库的成员误用。移除后可选择继续删除原文件。若第二步失败，错误携带原文件 ID，便于单独处理。兼容连接可显式配置 `stores: true`。
+
+独立 Artisan 建立仓库，独立 HTTP 通过 TCP 协议服务验证描述、空闲过期、索引计数、属性、双重分页和归属拒绝。实测保留源文件、删除源文件、移除成功但删除上游 503、仓库删除后 404。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器和全站导航渲染通过。正式服务商凭证、文件与仓库 Fake、Gemini 和 Azure 驱动及其他资源路径继续验收。
+
+- [固定 Laravel Store Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiStoreGateway.php) · [OpenAI Vector Stores](https://developers.openai.com/api/reference/resources/vector_stores/methods/create)

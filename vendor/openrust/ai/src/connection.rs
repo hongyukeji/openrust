@@ -64,6 +64,8 @@ struct Configuration {
     models: Models,
     #[serde(default)]
     files: bool,
+    #[serde(default)]
+    stores: bool,
     #[serde(default = "default_store")]
     store: bool,
     #[serde(default = "anthropic_version")]
@@ -90,6 +92,7 @@ pub(crate) struct Connection {
     environment: Arc<Environment>,
     http: Arc<Factory>,
     authorization: Authorization,
+    resource_scope: Arc<()>,
 }
 
 impl Connection {
@@ -125,6 +128,7 @@ impl Connection {
         }
         Ok(Self {
             authorization,
+            resource_scope: Arc::new(()),
             config,
             environment,
             http,
@@ -308,6 +312,14 @@ impl Connection {
             .embeddings
             .as_ref()
             .and_then(|models| models.dimensions)
+    }
+
+    pub(crate) fn resource_scope(&self) -> &Arc<()> {
+        &self.resource_scope
+    }
+
+    pub(crate) fn stores_configured(&self) -> bool {
+        self.config.stores
     }
 
     pub(crate) fn files_configured(&self) -> bool {

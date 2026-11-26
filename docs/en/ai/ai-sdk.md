@@ -351,3 +351,20 @@ let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory data, or `Files::put_from_storage` for a configured disk. Change the upload filename, MIME type, or purpose on `FileUpload`. The default purpose is `user_data`.
 
 `Files::get` retrieves metadata and `Files::list` supplies a cursor with each page. Handles retain their original connection for downloading, refreshing, and deleting. `store_as` writes the downloaded file to a private disk location. Before accepting a file ID from a user, check that the file belongs to that user in the application.
+
+## Vector stores {#vector-stores}
+
+Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI supports them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
+
+```rust
+use openrust_ai::{Files, Stores};
+
+let store = Stores::create("Support policies", None).await?;
+let file = Files::get("file-policy", Some(store.provider())).await?;
+let member = store.add(&file, &Default::default()).await?;
+let ready = store.refresh().await?.is_ready();
+```
+
+Use `StoreOptions` to set a description, trusted initial file IDs, and an idle expiry in days. `refresh()` reports indexing counts and readiness. Use `Stores::list` and `Store::files` for cursor pagination.
+
+The store and file must come from the same connection. `Store::remove(&member, false)` detaches a member while retaining the source file. Passing `true` also deletes that source. If deletion fails after the detach, `DetachedFileDeletionFailed` reports the original file ID so it can be handled separately. Use `add_file_id` only with IDs already authorized by your application.

@@ -39,6 +39,14 @@ pub enum AiError {
     InvalidAudio,
     FilesNotSupported,
     InvalidFile,
+    StoresNotSupported,
+    InvalidStore,
+    ResourceScopeMismatch,
+    DetachedFileDeletionFailed {
+        file_id: String,
+        source: Box<AiError>,
+    },
+
     MediaTooLarge,
     MediaStorageUnavailable,
     EmbeddingCacheUnavailable,
@@ -91,6 +99,13 @@ impl fmt::Display for AiError {
             Self::InvalidAudio => formatter.write_str("AI 音频格式或大小无效"),
             Self::FilesNotSupported => formatter.write_str("该 AI 连接不支持文件操作"),
             Self::InvalidFile => formatter.write_str("AI 文件名称、标识或内容无效"),
+            Self::StoresNotSupported => formatter.write_str("该 AI 连接不支持向量仓库"),
+            Self::InvalidStore => formatter.write_str("AI 向量仓库配置无效"),
+            Self::ResourceScopeMismatch => formatter.write_str("AI 资源不属于当前连接或仓库"),
+            Self::DetachedFileDeletionFailed { source, .. } => {
+                write!(formatter, "文件已移出向量仓库，删除原文件失败：{source}")
+            }
+
             Self::MediaTooLarge => formatter.write_str("AI 媒体超出大小限制"),
             Self::MediaStorageUnavailable => formatter.write_str("AI 媒体存储暂不可用"),
             Self::EmbeddingCacheUnavailable => formatter.write_str("Embeddings 缓存暂不可用"),
@@ -104,4 +119,11 @@ impl fmt::Display for AiError {
     }
 }
 
-impl std::error::Error for AiError {}
+impl std::error::Error for AiError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::DetachedFileDeletionFailed { source, .. } => Some(source.as_ref()),
+            _ => None,
+        }
+    }
+}
