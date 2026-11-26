@@ -105,6 +105,12 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 本节关闭公开Watcher、框架事件开关及已知缓冲响应／路由字段的实现缺口。原生UI布局与PHP反射、调用源码过滤、multipart元数据及CLI装饰仍按上节明确支持边界描述，不冒充完整Laravel逐API或像素级等价。没有联系其他对话，没有替代性通用事件／观测内核。
 
+### 暂停采集时的任务状态更新
+
+固定 PHP 8.5.12 验证 `recordUpdate` 在 `withoutRecording`、`afterRecording` 回调以及显式暂停期间不入队，恢复后写入正常状态。Rust 前态关于暂停回调的判断遗漏更新队列，`after_storing` 能把更新推入下一次存储。修复复用既有采集状态，涵盖抑制范围和储存作用域。 [固定 Telescope::recordUpdate](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Telescope.php#L349-L362)
+
+实际 SQLite、PostgreSQL 18.7、MySQL 8.4.13 写入同一 Job，抑制回调、录制与存储回调均保留待处理状态，恢复后更新为已处理。Telescope Provider 35 项、存储 8 项、快照格式及相关严格 Clippy 通过。独立 Redis Provider 用例按环境跳过。证据为 `target/tmp/observability-parity/telescope-suppressed-update-{upstream,macos-baseline}.log` 和 `pulse-server-sort-telescope-updates-macos-verified.log`。
+
 ## prune 命令的截止时间
 
 固定 Telescope `PruneCommand::handle` 通过应用时钟计算截止时间。PHP 8.5.12 实际调用该命令、使用固定时钟和可观察的 PrunableRepository，确认默认 24 小时、半小时、小数、负值、可转换的科学计数法和微秒舍入。`--keep-exceptions` 原样传给仓储。非数值和无法转换成 Carbon 区间的值在调用仓储前失败。证据为 `target/tmp/observability-parity/telescope-prune-{hour-options-upstream,fraction-precision-upstream}.log`。 [固定 PruneCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/PruneCommand.php)

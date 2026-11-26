@@ -423,7 +423,7 @@ impl Telescope {
         if self.protect_sensitive_request().is_some() {
             return;
         }
-        if self.enabled.load(Ordering::Acquire) {
+        if self.is_recording() {
             self.pending
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())

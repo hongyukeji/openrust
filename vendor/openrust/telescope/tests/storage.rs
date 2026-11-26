@@ -520,6 +520,56 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
     f.close().await;
 }
 
+#[tokio::test]
+async fn telescope_recording_suppression_drops_job_updates_from_wrappers_and_hooks() {
+    let fixture = Fixture::new(1000).await;
+    let repository = Arc::new(DatabaseEntriesRepository::new(
+        fixture.connection.clone(),
+        None,
+    ));
+    let telescope = openrust_telescope::Telescope::new(repository.clone(), true);
+    let job = entry(EntryType::Job, Uuid::now_v7(), json!({"status": "pending"}));
+    let uuid = job.uuid;
+    let update = move |status: &str| {
+        EntryUpdate::make(
+            uuid,
+            EntryType::Job,
+            [("status".into(), json!(status))].into_iter().collect(),
+        )
+    };
+    telescope.after_recording(move |scope, _| scope.record_update(update("recording-hook")));
+    telescope.after_storing(move |scope, entries| {
+        if !entries.is_empty() {
+            scope.record_update(update("storage-hook"));
+        }
+    });
+
+    telescope.record_job(job);
+    telescope
+        .without_recording(async {
+            telescope.record_update(update("suppressed"));
+        })
+        .await;
+    telescope.store().await.unwrap();
+    telescope.store().await.unwrap();
+    telescope.stop_recording();
+    telescope.record_update(update("stopped"));
+    telescope.store().await.unwrap();
+    assert_eq!(
+        repository.find(&uuid.to_string()).await.unwrap().content["status"],
+        "pending"
+    );
+
+    telescope.start_recording(false).await;
+    telescope.record_update(update("processed"));
+    telescope.store().await.unwrap();
+    assert_eq!(
+        repository.find(&uuid.to_string()).await.unwrap().content["status"],
+        "processed"
+    );
+    fixture.close().await;
+}
+
 #[test]
 fn native_update_fields_read_and_write_existing_queue_payloads() {
     let update = EntryUpdate::make(Uuid::nil(), EntryType::Request, Default::default())
