@@ -196,4 +196,15 @@ Windows 两个已验收的九扩展 EXE 按原 SHA-256 重新打包到独立 ZIP
 
 Linux ARM64 九扩展重试的源码快照经逐文件核对，对应 `e0ede71580465f9f08f8a67e9b59b194b81c1e89` 加本批 Docker 和三语部署文档改动。重试在扩展编译时再次达到 32 GB 停线。磁盘恢复后 Docker Desktop 的本地 `/_ping` 仍超时，探查已有镜像和缓存的进程均已停止。完整镜像和其运行复验尚待完成，前述默认镜像打包对照有效。
 
+### 两种 Linux 九扩展候选的打包复验
+
+Docker Desktop 恢复后，使用上文冻结源码 `7dd141aac49bafa452f35293d68b45375b36d4ff`、对应根发行声明及原审计 Dockerfile，从 BuildKit 缓存恢复 ARM64 与 AMD64 架构清单。架构摘要均与首次验收一致。另从同一缓存恢复运行层，将仓库 Dockerfile 的报告复制步骤和现行根发行声明应用于两份运行镜像。最终镜像未包含审计专用的 `/provenance`。本次复用原可执行文件的 SHA-256，未完成较新源码的整条 Docker 冷构建。
+
+| 架构 | 随附报告后镜像的架构清单 SHA-256 | 可执行文件 SHA-256 |
+| --- | --- | --- |
+| Linux ARM64 | `3229c164b825fee88179e8b704fc55a11cbac85f8c1a87728c5e97bac94212ce` | `693ea9b410b202adf34ed09beceb841eef6c83da7a69ab94232967af44663142` |
+| Linux AMD64 | `6cfe73acecb581c6e5535280702b524a8512aae28c6ce480ced2130d64cae47b` | `6bb64f8a29d9d3427a4894c8a3a7c5a2efc46b20bdb993359b5a8a4fa2bab082` |
+
+两个镜像均以 UID/GID 10001 在只读容器中读取 11 份许可并对照原件。九个 Provider、58 项 SQLite 迁移及幂等重跑通过，配置和路由缓存前后 `/up`、`/`、`/api` 均为 200。缓存后签名 Reverb 投递、独立 Artisan Worker、空队列与 SIGTERM 状态 0 均通过。两个隔离 OTLP Collectors 各解码 206 个 Span 和 12 条指标记录，核对 HTTP 路由、耗时指标和独立 Artisan Span。AMD64 在 ARM64 宿主的仿真环境运行。证据位于本机 `target/tmp/goal-extension-rust-notices-linux-recovery/`。
+
 证据位于本机 `target/tmp/goal-extension-rust-notices/`。
