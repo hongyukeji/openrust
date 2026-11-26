@@ -2258,6 +2258,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eventsource-stream"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74fef4569247a5f429d9156b9d0a2599914385dd189c539334c625d8099d90ab"
+dependencies = [
+ "futures-core",
+ "nom 7.1.3",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "fake"
 version = "5.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4580,6 +4591,9 @@ name = "openrust-ai"
 version = "0.0.0"
 dependencies = [
  "async-openai",
+ "async-stream",
+ "eventsource-stream",
+ "futures-util",
  "openrust-framework",
  "serde",
  "serde_json",

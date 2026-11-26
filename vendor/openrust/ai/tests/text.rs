@@ -1,5 +1,6 @@
 use std::{error::Error, fs, sync::Arc, time::Duration};
 
+use futures_util::StreamExt;
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     foundation::configuration::Routing,
@@ -7,11 +8,14 @@ use openrust::{
     support::facades::Route,
     testing::TestApp,
 };
-use openrust_ai::{Agent, Ai, AiError, AiManager, PromptOptions, agent, openrust_providers};
+use openrust_ai::{
+    Agent, Ai, AiError, AiManager, PromptOptions, StreamEventData, agent, openrust_providers,
+};
 use serde_json::{Value, json};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
+    sync::oneshot,
     task::JoinHandle,
     time::timeout,
 };
@@ -32,32 +36,8 @@ async fn upstream(
                 .await
                 .unwrap()
                 .unwrap();
-            let mut socket = BufReader::new(socket);
-            let mut line = String::new();
-            socket.read_line(&mut line).await.unwrap();
-            assert_eq!(line.trim_end(), format!("{method} {path} HTTP/1.1"));
-            let mut length = None;
-            let mut authorized = false;
-            loop {
-                line.clear();
-                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
-                if line == "\r\n" {
-                    break;
-                }
-                let (key, value) = line.split_once(':').unwrap();
-                if key.eq_ignore_ascii_case("content-length") {
-                    length = Some(value.trim().parse().unwrap());
-                }
-                if key.eq_ignore_ascii_case("authorization") {
-                    authorized = value.trim() == "Bearer local-fixture-key";
-                }
-            }
-            assert!(authorized);
-            if let Some(length) = length.filter(|length| *length > 0) {
-                let mut body = vec![0; length];
-                socket.read_exact(&mut body).await.unwrap();
-                bodies.push(serde_json::from_slice(&body).unwrap());
-            }
+            let (mut socket, body) = read_request(socket, method, path).await;
+            bodies.extend(body);
             let response = response.to_string();
             let wire = format!(
                 "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",
@@ -68,6 +48,40 @@ async fn upstream(
         bodies
     });
     (url, server)
+}
+
+async fn read_request(
+    socket: TcpStream,
+    method: &str,
+    path: &str,
+) -> (BufReader<TcpStream>, Option<Value>) {
+    let mut socket = BufReader::new(socket);
+    let mut line = String::new();
+    socket.read_line(&mut line).await.unwrap();
+    assert_eq!(line.trim_end(), format!("{method} {path} HTTP/1.1"));
+    let mut length = None;
+    let mut authorized = false;
+    loop {
+        line.clear();
+        assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+        if line == "\r\n" {
+            break;
+        }
+        let (key, value) = line.split_once(':').unwrap();
+        if key.eq_ignore_ascii_case("content-length") {
+            length = Some(value.trim().parse().unwrap());
+        }
+        if key.eq_ignore_ascii_case("authorization") {
+            authorized = value.trim() == "Bearer local-fixture-key";
+        }
+    }
+    assert!(authorized);
+    if let Some(length) = length.filter(|length| *length > 0) {
+        let mut body = vec![0; length];
+        socket.read_exact(&mut body).await.unwrap();
+        return (socket, Some(serde_json::from_slice(&body).unwrap()));
+    }
+    (socket, None)
 }
 
 #[tokio::test]
@@ -309,6 +323,134 @@ async fn artisan_catalog_merges_config_and_survives_missing_upstream_listing() -
             .unwrap()
             .contains("private path")
     );
+    server.await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sdk_text_stream_reads_before_eof_and_keeps_upstream_usage() -> TestResult {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("http://{}/private/v1", listener.local_addr()?);
+    let (received_delta, finish) = oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let (mut socket, request) =
+            read_request(socket, "POST", "/private/v1/chat/completions").await;
+        let request = request.unwrap();
+        assert_eq!(request["model"], "fixture-model");
+        assert_eq!(request["stream"], true);
+        assert_eq!(request["stream_options"]["include_usage"], true);
+        socket
+            .get_mut()
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
+            )
+            .await
+            .unwrap();
+        let frame = "data: {\"model\":\"fixture-model\",\"choices\":[{\"delta\":{\"content\":\"你好\"}}]}\r\n\r\n";
+        let split = frame.find('你').unwrap() + 1;
+        let bytes = frame.as_bytes();
+        socket.get_mut().write_all(&bytes[..split]).await.unwrap();
+        tokio::task::yield_now().await;
+        socket.get_mut().write_all(&bytes[split..]).await.unwrap();
+        finish.await.unwrap();
+        socket.get_mut().write_all(b"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2}}\n\ndata: [DONE]\n\n").await.unwrap();
+    });
+    let mut app = TestApp::create(|builder| builder.with_providers(openrust_providers()))?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=deepseek\nDEEPSEEK_URL={url}\nDEEPSEEK_API_KEY=local-fixture-key\nDEEPSEEK_MODEL=fixture-model\n"
+        ),
+    )?;
+    app.boot().await?;
+    let manager = app.app().container().make::<AiManager>()?;
+    let mut stream = manager
+        .stream(
+            &Support,
+            "验证",
+            PromptOptions {
+                timeout: Some(Duration::from_secs(5)),
+                ..Default::default()
+            },
+        )
+        .await?
+        .into_stream();
+    assert!(matches!(
+        stream.next().await.transpose()?.unwrap().data,
+        StreamEventData::StreamStart { .. }
+    ));
+    assert!(matches!(
+        stream.next().await.transpose()?.unwrap().data,
+        StreamEventData::TextStart { .. }
+    ));
+    let part = stream.next().await.transpose()?.unwrap();
+    assert!(matches!(part.data, StreamEventData::TextDelta { delta, .. } if delta == "你好"));
+    received_delta.send(()).unwrap();
+    assert!(matches!(
+        stream.next().await.transpose()?.unwrap().data,
+        StreamEventData::TextEnd { .. }
+    ));
+    let end = stream.next().await.transpose()?.unwrap();
+    assert!(
+        matches!(end.data, StreamEventData::StreamEnd { reason, usage }
+        if reason == "stop" && usage.prompt_tokens == Some(4) && usage.completion_tokens == Some(2))
+    );
+    assert!(stream.next().await.is_none());
+    server.await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn responses_stream_is_exposed_as_laravel_sse() -> TestResult {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("http://{}/private/v1", listener.local_addr()?);
+    let server = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let (mut socket, request) = read_request(socket, "POST", "/private/v1/responses").await;
+        assert_eq!(request.unwrap()["stream"], true);
+        let response = concat!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
+            "data: {\"type\":\"response.created\",\"response\":{\"model\":\"local\"}}\n\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"one\"}\n\n",
+            "data: {\"type\":\"response.output_text.done\"}\n\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":2,\"output_tokens\":3}}}\n\n"
+        );
+        socket
+            .get_mut()
+            .write_all(response.as_bytes())
+            .await
+            .unwrap();
+    });
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/stream", || async {
+                    agent("").stream("test").await.unwrap().to_response()
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=openai\nOPENAI_URL={url}\nOPENAI_API_KEY=local-fixture-key\nOPENAI_MODEL=local\n"
+        ),
+    )?;
+    let response = app.get("/stream").await?;
+    response.assert_ok();
+    let body = std::str::from_utf8(response.body())?;
+    let event = body
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .take_while(|line| *line != "[DONE]")
+        .map(serde_json::from_str::<Value>)
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(event.len(), 5);
+    assert_eq!(event[2]["type"], "text_delta");
+    assert_eq!(event[2]["delta"], "one");
+    assert_eq!(event[4]["usage"]["prompt_tokens"], 2);
+    assert!(body.ends_with("data: [DONE]\n\n"));
     server.await?;
     Ok(())
 }

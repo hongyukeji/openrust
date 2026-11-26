@@ -19,6 +19,7 @@ mod facade;
 mod fake;
 mod manager;
 mod models;
+mod streaming;
 mod text;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
@@ -28,6 +29,7 @@ pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use manager::AiManager;
 pub use models::{ModelCatalog, ModelInfo};
+pub use streaming::{AgentEventStream, StreamEvent, StreamEventData, StreamableAgentResponse};
 pub use text::{AgentResponse, TextPrompt, TextProvider, Usage};
 
 pub struct AiServiceProvider;

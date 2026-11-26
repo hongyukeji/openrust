@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use openrust::http::HttpFuture;
 
-use crate::{AgentResponse, Ai, AiResult, FakeTextGateway};
+use crate::{AgentResponse, Ai, AiResult, FakeTextGateway, StreamableAgentResponse};
 
 #[derive(Clone, Copy, Default)]
 pub struct PromptOptions<'a> {
@@ -53,6 +53,23 @@ pub trait Agent: Send + Sync + 'static {
         Self: Sized,
     {
         Box::pin(async move { Ai::manager()?.prompt(self, prompt, options).await })
+    }
+    fn stream<'a>(&'a self, prompt: &'a str) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
+    where
+        Self: Sized,
+    {
+        self.stream_with(prompt, PromptOptions::default())
+    }
+
+    fn stream_with<'a>(
+        &'a self,
+        prompt: &'a str,
+        options: PromptOptions<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>>
+    where
+        Self: Sized,
+    {
+        Box::pin(async move { Ai::manager()?.stream(self, prompt, options).await })
     }
 }
 

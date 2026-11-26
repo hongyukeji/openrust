@@ -8,8 +8,8 @@ use openrust::{config::Environment, contracts::config::Repository, http::client:
 use serde_json::Value;
 
 use crate::{
-    Agent, AgentResponse, AiError, AiResult, FakeTextGateway, PromptOptions, TextPrompt,
-    TextProvider,
+    Agent, AgentResponse, AiError, AiResult, FakeTextGateway, PromptOptions,
+    StreamableAgentResponse, TextPrompt, TextProvider,
     text::{OpenAiTextProvider, TextProtocol},
 };
 
@@ -193,11 +193,7 @@ impl AiManager {
             return fake.respond(prompt, provider, model);
         }
         let provider = self.text_provider_for(agent, options.provider)?;
-        let model = match options.model.or_else(|| agent.model()) {
-            Some(model) if !model.trim().is_empty() => model,
-            Some(_) => return Err(AiError::MissingModel),
-            None => provider.default_text_model()?,
-        };
+        let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
         provider
             .generate_text(TextPrompt {
                 instructions: agent.instructions(),
@@ -206,5 +202,40 @@ impl AiManager {
                 timeout: options.timeout,
             })
             .await
+    }
+
+    pub async fn stream<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+    ) -> AiResult<StreamableAgentResponse> {
+        if prompt.trim().is_empty() {
+            return Err(AiError::InvalidPrompt);
+        }
+        if self.text_fake::<A>().is_some() {
+            return self
+                .prompt(agent, prompt, options)
+                .await
+                .map(StreamableAgentResponse::from_text);
+        }
+        let provider = self.text_provider_for(agent, options.provider)?;
+        let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
+        provider
+            .stream_text(TextPrompt {
+                instructions: agent.instructions(),
+                prompt,
+                model,
+                timeout: options.timeout,
+            })
+            .await
+    }
+}
+
+fn resolve_model<'a>(provider: &'a dyn TextProvider, model: Option<&'a str>) -> AiResult<&'a str> {
+    match model {
+        Some(model) if !model.trim().is_empty() => Ok(model),
+        Some(_) => Err(AiError::MissingModel),
+        None => provider.default_text_model(),
     }
 }

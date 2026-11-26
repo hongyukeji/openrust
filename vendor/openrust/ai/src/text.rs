@@ -4,7 +4,8 @@ use async_openai::types::{
     chat::{
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
         ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageContent, CreateChatCompletionRequest,
+        ChatCompletionRequestUserMessageContent, ChatCompletionStreamOptions,
+        CreateChatCompletionRequest,
     },
     responses::{CreateResponse, InputParam},
 };
@@ -15,12 +16,12 @@ use openrust::{
         client::{self, Factory, PendingRequest, Response},
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{AiError, AiResult, ModelCatalog, models::ListedModel};
+use crate::{AiError, AiResult, ModelCatalog, StreamableAgentResponse, models::ListedModel};
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Usage {
     pub prompt_tokens: Option<u64>,
     pub completion_tokens: Option<u64>,
@@ -48,6 +49,13 @@ pub trait TextProvider: Send + Sync {
         &'a self,
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>>;
+
+    fn stream_text<'a>(
+        &'a self,
+        _prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        Box::pin(async { Err(AiError::StreamingNotSupported) })
+    }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async {
@@ -157,7 +165,7 @@ impl OpenAiTextProvider {
         Ok(response.data)
     }
 
-    async fn chat(&self, request: PendingRequest, prompt: &TextPrompt<'_>) -> AiResult<ParsedText> {
+    fn chat_body(prompt: &TextPrompt<'_>, stream: bool) -> CreateChatCompletionRequest {
         let mut messages = Vec::new();
         if !prompt.instructions.is_empty() {
             messages.push(ChatCompletionRequestMessage::System(
@@ -175,27 +183,47 @@ impl OpenAiTextProvider {
                 name: None,
             },
         ));
-        let body = CreateChatCompletionRequest {
+        CreateChatCompletionRequest {
             model: prompt.model.into(),
             messages,
+            stream: stream.then_some(true),
+            stream_options: stream.then_some(ChatCompletionStreamOptions {
+                include_usage: Some(true),
+                ..Default::default()
+            }),
             ..Default::default()
-        };
-        parse_chat(validate(request.post("chat/completions", &body).await)?)
+        }
     }
 
-    async fn responses(
-        &self,
-        request: PendingRequest,
-        prompt: &TextPrompt<'_>,
-    ) -> AiResult<ParsedText> {
-        let body = CreateResponse {
+    fn responses_body(&self, prompt: &TextPrompt<'_>, stream: bool) -> CreateResponse {
+        CreateResponse {
             instructions: (!prompt.instructions.is_empty()).then(|| prompt.instructions.into()),
             input: InputParam::Text(prompt.prompt.into()),
             model: Some(prompt.model.into()),
             store: Some(self.config.store),
+            stream: stream.then_some(true),
             ..Default::default()
+        }
+    }
+
+    async fn send_text(&self, prompt: &TextPrompt<'_>, stream: bool) -> AiResult<Response> {
+        let mut request = self.request(prompt.timeout)?;
+        if stream {
+            request = request.stream();
+        }
+        let response = match self.protocol {
+            TextProtocol::ChatCompletions => {
+                request
+                    .post("chat/completions", &Self::chat_body(prompt, stream))
+                    .await
+            }
+            TextProtocol::Responses => {
+                request
+                    .post("responses", &self.responses_body(prompt, stream))
+                    .await
+            }
         };
-        parse_responses(validate(request.post("responses", &body).await)?)
+        validate(response)
     }
 }
 
@@ -229,10 +257,10 @@ impl TextProvider for OpenAiTextProvider {
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
-            let request = self.request(prompt.timeout)?;
+            let response = self.send_text(&prompt, false).await?;
             let result = match self.protocol {
-                TextProtocol::ChatCompletions => self.chat(request, &prompt).await?,
-                TextProtocol::Responses => self.responses(request, &prompt).await?,
+                TextProtocol::ChatCompletions => parse_chat(response)?,
+                TextProtocol::Responses => parse_responses(response)?,
             };
             Ok(AgentResponse {
                 text: result.text,
@@ -242,14 +270,46 @@ impl TextProvider for OpenAiTextProvider {
             })
         })
     }
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        Box::pin(async move {
+            let response = self.send_text(&prompt, true).await?;
+            if !response
+                .header("content-type")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|content_type| {
+                    content_type.split(';').next() == Some("text/event-stream")
+                })
+            {
+                return Err(AiError::InvalidResponse);
+            }
+            Ok(StreamableAgentResponse::from_upstream(
+                self.protocol,
+                response.into_stream().map_err(transport_error)?,
+                self.config.name.clone(),
+                prompt.model.to_owned(),
+            ))
+        })
+    }
 }
 
 fn validate(response: client::Result<Response>) -> AiResult<Response> {
     match response {
         Ok(response) if response.successful() => Ok(response),
         Ok(response) => Err(AiError::ProviderStatus(response.status().as_u16())),
-        Err(client::Error::Timeout) => Err(AiError::Timeout),
-        Err(_) => Err(AiError::Transport),
+        Err(error) => Err(transport_error(error)),
+    }
+}
+
+pub(crate) fn transport_error(error: client::Error) -> AiError {
+    match error {
+        client::Error::Timeout => AiError::Timeout,
+        client::Error::RequestFailed(response) => {
+            AiError::ProviderStatus(response.status().as_u16())
+        }
+        _ => AiError::Transport,
     }
 }
 

@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `ai` feature provides Laravel-style `Ai`, `AiManager`, `Agent`, and a text fake. The SDK supports non-streaming text via OpenAI Responses and OpenAI-compatible Chat Completions.
+The optional `ai` feature provides Laravel-style `Ai`, `AiManager`, `Agent`, and a text fake. The SDK supports text and text SSE via OpenAI Responses and OpenAI-compatible Chat Completions.
 
 ## Available entry points {#available-entry-points}
 
@@ -27,6 +27,8 @@ With the SDK enabled, run `artisan vendor:publish --tag=ai-config` to publish th
 
 Run `artisan ai:models deepseek` to list models, or add `--json` to distinguish discovered and configured entries. Add manual model IDs under the connection’s `models.text.ids`. The listing merges IDs and keeps manual entries when discovery fails. Run `artisan ai:prompt "Reply briefly" --provider=deepseek --model=deepseek-flash` to test the selected model.
 
+In an HTTP route, return the default SDK SSE events with `agent(instructions).stream(prompt).await?.to_response()`. Use `into_stream()` to consume the events directly.
+
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. The preset endpoints for native Anthropic and Gemini are for future support. Streaming, tools, conversations, embeddings, and the public compatibility gateway are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. The preset endpoints for native Anthropic and Gemini are for future support. Vercel and AG-UI, tools, conversations, embeddings, and the public compatibility gateway are pending.

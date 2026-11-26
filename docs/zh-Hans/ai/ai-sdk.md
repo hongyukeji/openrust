@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选 `ai` feature 提供 Laravel 风格的 `Ai`、`AiManager`、`Agent` 和文本 Fake。当前支持 OpenAI Responses 和 OpenAI 兼容 Chat Completions 的非流式文本调用。
+可选 `ai` feature 提供 Laravel 风格的 `Ai`、`AiManager`、`Agent` 和文本 Fake。当前支持 OpenAI Responses 和 OpenAI 兼容 Chat Completions 的普通文本与文本 SSE。
 
 ## 可用入口 {#available-entry-points}
 
@@ -27,6 +27,8 @@ let answer = response.text;
 
 运行 `artisan ai:models deepseek` 查看模型，或加 `--json` 区分上游发现和本地配置。手填模型放在连接的 `models.text.ids`，列表会按原始 ID 合并并保留手填项。用 `artisan ai:prompt "请简单回答" --provider=deepseek --model=deepseek-flash` 试调用所选模型。
 
+在 HTTP 路由中，可使用 `agent(instructions).stream(prompt).await?.to_response()` 返回 SDK 的默认 SSE 事件。也可以通过 `into_stream()` 消费事件。
+
 ## 范围 {#scope}
 
-当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。已包含预设地址的供应商中，使用 Anthropic 和 Gemini 原生协议的连接待后续支持。流式输出、工具、会话、Embeddings 和对外兼容网关也待实现。
+当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。已包含预设地址的供应商中，使用 Anthropic 和 Gemini 原生协议的连接待后续支持。Vercel／AG-UI、工具、会话、Embeddings 和对外兼容网关也待实现。
