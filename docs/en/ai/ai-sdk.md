@@ -916,6 +916,8 @@ OpenAI and OpenAI-compatible connections that implement the Images API can retur
 
 For Gemini image generation and edits, set `AI_IMAGE_PROVIDER=gemini` and `GEMINI_IMAGE_MODEL` to an image-capable model. The connection uses `GEMINI_API_KEY` and accepts a `GEMINI_URL` override. The SDK calls the Interactions API. Set an aspect ratio with `size("16:9")`, or use `square()`, `portrait()` or `landscape()`. Quality values `low`, `medium` and `high` map to `1K`, `2K` and `4K`, subject to model support. The response includes each returned image and any reported image token counts.
 
+For xAI, set `AI_IMAGE_PROVIDER=xai`, `XAI_API_KEY`, and `XAI_IMAGE_MODEL`. The connection accepts a `XAI_URL` override. Use the same `Image` entry point for generation and edits with up to five reference images. Set an aspect ratio with `size("16:9")`. Quality values `low`, `medium`, and `high` request `1k`, `2k`, and `2k` resolution respectively.
+
 Use `Image::fake([])?` to return placeholder bytes, or supply an `ImageResponse` with valid images when a test reads or stores the result. Use `Image::fake_with` to build the response from the recorded prompt, reference images, size, quality and selected connection. Call `assert_generated` or `assert_queued` for the corresponding step. Enable `prevent_stray_images(true)` to catch an exhausted response sequence.
 
 To queue a generation or edit, use `queue()` or `queue_with(provider, model)`, configure the job and call `dispatch().await`. Load queued reference images with `ImageAttachment::from_storage` or `from_path` so the Worker can reopen them. The queue stores file references in attachment order. Register named callbacks during application boot with `Image::register_queue_then` and `Image::register_queue_catch`.

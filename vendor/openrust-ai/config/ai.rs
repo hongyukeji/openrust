@@ -179,6 +179,12 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "qianfan": provider("openai-compatible", "QIANFAN_URL", "https://qianfan.baidubce.com/v2", "QIANFAN_API_KEY", "QIANFAN_MODEL")?,
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
+            "xai": {
+                "driver": "xai",
+                "url": env.get_utf8("XAI_URL")?.unwrap_or("https://api.x.ai/v1"),
+                "key_env": "XAI_API_KEY",
+                "models": {"images": {"default": env.get_utf8("XAI_IMAGE_MODEL")?}},
+            },
             "ollama": ollama,
             "eleven": {
                 "driver": "eleven",

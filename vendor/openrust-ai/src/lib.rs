@@ -77,6 +77,7 @@ mod tool_stream_protocol;
 mod tools;
 mod transcription;
 mod usage;
+mod xai;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, ProviderTarget, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};

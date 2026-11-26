@@ -290,7 +290,7 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Image::of`、`PendingImageGeneration` 和 `ImageProvider` 接入默认或显式连接及模型。OpenAI Images API 经框架 HTTP 客户端发送 JSON 生图，带参考图时发送 multipart 编辑请求。支持标准比例、显式尺寸、质量和超时。兼容连接由 `models.images` 显式启用。输入可来自本地字节或已配置 Storage 磁盘。只接收受支持的内联位图，返回原始字节、MIME、模型、修订提示和上游报告的用量。
 
-包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。xAI、Bedrock、广播及供应商实机仍留在后续验收范围。
+包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Bedrock、广播及供应商实机仍留在后续验收范围。
 
 - [OpenAI Images 生图](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI Images 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
 
@@ -309,6 +309,14 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 独立 Artisan 与 HTTP 经本地协议服务验证鉴权、带前缀 URL、默认及显式模型、生成后私有落盘、两张 PNG 在编辑请求中的顺序、多张输出、用量和异常响应。20 项 SDK 回归、严格 Clippy 和三语文档站点通过。Google 官方账户实机仍待验收。
 
 - [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php) · [Google Gemini 图像生成与编辑](https://ai.google.dev/gemini-api/docs/image-generation)
+
+### xAI 原生图像
+
+`Image` 通过 `xai` 连接接入 `/images/generations`，沿用固定 Laravel 的宽高比、画质到分辨率的映射和默认 120 秒请求超时。按 xAI 原生接口补齐 `/images/edits`，单图用 `image`，多图用有序的 `images`，最多五张。生成与编辑均请求 Base64 响应，通过共享解析器按实际内容识别图像类型，保留模型和可用 Token 数据。
+
+独立 Artisan 与 HTTP 经本地协议服务验证 Bearer 鉴权、URL 覆盖、默认及显式模型、生成、单图和双图编辑、双图顺序和多张输出、私有落盘、六张图提前拒绝、非法 Base64、非图像字节、空输出及 403。缺省 Token 保持未知。20 项 SDK 回归、严格 Clippy 与三语文档站点通过。xAI 官方账户实机、文本工具及图像费用字段 `cost_in_usd_ticks` 的归集仍待验收。
+
+- [固定 Laravel XaiImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiImageGateway.php) · [xAI Images REST](https://docs.x.ai/developers/rest-api-reference/inference/images) · [xAI 多图编辑](https://docs.x.ai/developers/model-capabilities/images/multi-image-editing)
 
 ## AI-06 OpenAI 文本转语音与录音转录
 

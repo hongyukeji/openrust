@@ -621,38 +621,46 @@ impl ImageProvider for OpenAiImageProvider {
             let data: Value = validate(Ok(response))?
                 .json()
                 .map_err(|_| AiError::InvalidResponse)?;
-            let images = data["data"]
-                .as_array()
-                .filter(|images| !images.is_empty())
-                .ok_or(AiError::InvalidResponse)?;
-            let images = images
-                .iter()
-                .map(|encoded| {
-                    let raw = encoded["b64_json"]
-                        .as_str()
-                        .ok_or(AiError::InvalidResponse)?;
-                    let bytes = Str::from_base64(raw).map_err(|_| AiError::InvalidResponse)?;
-                    let mut image =
-                        GeneratedImage::from_bytes(bytes).map_err(|_| AiError::InvalidResponse)?;
-                    image.revised_prompt = encoded["revised_prompt"].as_str().map(str::to_owned);
-                    Ok(image)
-                })
-                .collect::<AiResult<Vec<_>>>()?;
-            let usage = &data["usage"];
-            Ok(ImageResponse {
-                images,
-                provider: self.name().into(),
-                model: data["model"].as_str().unwrap_or(prompt.model).into(),
-                usage: ImageUsage {
-                    tokens: Usage {
-                        prompt_tokens: usage["input_tokens"].as_u64(),
-                        completion_tokens: usage["output_tokens"].as_u64(),
-                        ..Usage::default()
-                    },
-                    image_input_tokens: usage["input_tokens_details"]["image_tokens"].as_u64(),
-                    image_output_tokens: usage["output_tokens_details"]["image_tokens"].as_u64(),
-                },
-            })
+            parse_base64_image_response(&data, self.name(), prompt.model)
         })
     }
+}
+
+pub(crate) fn parse_base64_image_response(
+    data: &Value,
+    provider: &str,
+    model: &str,
+) -> AiResult<ImageResponse> {
+    let images = data["data"]
+        .as_array()
+        .filter(|images| !images.is_empty())
+        .ok_or(AiError::InvalidResponse)?;
+    let images = images
+        .iter()
+        .map(|encoded| {
+            let raw = encoded["b64_json"]
+                .as_str()
+                .ok_or(AiError::InvalidResponse)?;
+            let bytes = Str::from_base64(raw).map_err(|_| AiError::InvalidResponse)?;
+            let mut image =
+                GeneratedImage::from_bytes(bytes).map_err(|_| AiError::InvalidResponse)?;
+            image.revised_prompt = encoded["revised_prompt"].as_str().map(str::to_owned);
+            Ok(image)
+        })
+        .collect::<AiResult<Vec<_>>>()?;
+    let usage = &data["usage"];
+    Ok(ImageResponse {
+        images,
+        provider: provider.into(),
+        model: data["model"].as_str().unwrap_or(model).into(),
+        usage: ImageUsage {
+            tokens: Usage {
+                prompt_tokens: usage["input_tokens"].as_u64(),
+                completion_tokens: usage["output_tokens"].as_u64(),
+                ..Usage::default()
+            },
+            image_input_tokens: usage["input_tokens_details"]["image_tokens"].as_u64(),
+            image_output_tokens: usage["output_tokens_details"]["image_tokens"].as_u64(),
+        },
+    })
 }
