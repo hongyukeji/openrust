@@ -1,0 +1,37 @@
+{
+  "base": "9382a40fd15ea39998ef14a8507880778d423434",
+  "contract": "artisan-call-arguments-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.40s",
+    "test result: ok. 237 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s"
+  ],
+  "runtime": {
+    "source_command_argument_cases": 19,
+    "test_targets": 7,
+    "framework_parent_tests": 22,
+    "new_artisan_processes": 3,
+    "new_http_requests": 3,
+    "formal_document_consumers": 237,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-call-arguments-syntax.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-call-arguments-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-call-arguments-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-call-arguments-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-call-arguments-source.json"
+  ],
+  "unaccepted_attempts": [
+    "初次定位测试夹具括号和正则转义错误，修订后复验真实入口。"
+  ],
+  "remaining": [
+    "程序调用第三参数的可选输出、任意输出和分区、嵌套命令助手继续逐项验收。",
+    "CLI 定义无法表达的布尔默认值覆盖及中间缺省位置拒绝，原始 OsString 继续支持平台原生输入。"
+  ],
+  "pushed": false
+}

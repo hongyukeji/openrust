@@ -158,7 +158,39 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 }
 ```
 
-Pass a separate `OsString` for each positional argument or option. Values that contain spaces stay in one token. Include a switch for a true Boolean flag, and repeat options that take multiple values. Use `Artisan::call_silently(name, arguments).await` to discard both streams and keep the exit code.
+Token arguments preserve literal boundaries, including spaces and empty values. For a complete command string, use `Artisan::call_line`. It parses quotes and escapes in the string and invokes the registered command in the application. Use `Artisan::call_silently(name, arguments).await` to discard both streams and keep the exit code.
+
+#### Passing Array Values {#passing-array-values}
+
+Use `Artisan::call_named` with argument names and option flags. Give an array to an option defined to accept multiple values. The registered command definition still validates the values.
+
+#### Passing Boolean Values {#passing-boolean-values}
+
+Pass `true` or `false` to a Boolean flag. The named API encodes the flag according to its declared action. Unknown or repeated argument keys return an error.
+
+```rust
+use openrust::{console::{ConsoleError, Output}, support::facades::Artisan};
+use serde_json::json;
+
+async fn send_reports(output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_named(
+        "reports:deliver",
+        &[
+            ("user", json!("Ada Lovelace")),
+            ("--id", json!([5, 13])),
+            ("--urgent", json!(false)),
+        ],
+        output,
+    ).await
+}
+
+async fn send_from_line(output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_line(
+        r#"reports:deliver "Ada Lovelace" --id=5 --id=13 --urgent"#,
+        output,
+    ).await
+}
+```
 
 ### Queueing Artisan Commands {#queueing-artisan-commands}
 

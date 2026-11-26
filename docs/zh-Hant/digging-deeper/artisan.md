@@ -158,7 +158,39 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 }
 ```
 
-每個位置引數或選項各傳一個 `OsString`。含空格的值放在同一個引數中。布林開關為真時傳入開關選項，多值選項可重複傳入。用 `Artisan::call_silently(name, arguments).await` 捨棄兩個輸出串流並保留結束代碼。
+權杖入口保留參數邊界，包括空格與空值。完整命令字串可用 `Artisan::call_line`，它解析字串的引號與跳脫，再呼叫應用程式內已註冊的命令。 用 `Artisan::call_silently(name, arguments).await` 捨棄兩個輸出串流並保留結束代碼。
+
+#### 傳遞陣列值 {#passing-array-values}
+
+使用 `Artisan::call_named` 傳入參數名稱與選項標識。選項宣告支援多個值時可傳陣列，命令定義仍負責驗證。
+
+#### 傳遞布林值 {#passing-boolean-values}
+
+布林開關可傳入 `true` 或 `false`。具名入口依據宣告的選項動作編碼開關。未知或重複的參數鍵會回傳錯誤。
+
+```rust
+use openrust::{console::{ConsoleError, Output}, support::facades::Artisan};
+use serde_json::json;
+
+async fn send_reports(output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_named(
+        "reports:deliver",
+        &[
+            ("user", json!("Ada Lovelace")),
+            ("--id", json!([5, 13])),
+            ("--urgent", json!(false)),
+        ],
+        output,
+    ).await
+}
+
+async fn send_from_line(output: &mut Output) -> Result<i32, ConsoleError> {
+    Artisan::call_line(
+        r#"reports:deliver "Ada Lovelace" --id=5 --id=13 --urgent"#,
+        output,
+    ).await
+}
+```
 
 ### 將 Artisan 命令加入佇列 {#queueing-artisan-commands}
 

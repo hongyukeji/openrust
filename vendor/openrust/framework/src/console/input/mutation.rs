@@ -2,7 +2,7 @@ use crate::console::{ConsoleError, Input};
 use clap::{Arg, ArgAction, ArgMatches, parser::ValueSource};
 use serde_json::Value;
 use std::ffi::OsString;
-type Groups = Vec<Vec<OsString>>;
+pub(in crate::console) type Groups = Vec<Vec<OsString>>;
 enum Edit {
     Argument(Vec<OsString>),
     Option(Value),
@@ -141,7 +141,7 @@ impl Input {
         Ok(())
     }
 }
-fn option(arg: &Arg) -> bool {
+pub(in crate::console) fn option(arg: &Arg) -> bool {
     arg.get_long().is_some() || arg.get_short().is_some()
 }
 fn groups(matches: &ArgMatches, key: &str) -> Groups {
@@ -156,14 +156,14 @@ fn groups(matches: &ArgMatches, key: &str) -> Groups {
         })
         .unwrap_or_default()
 }
-fn scalar(value: &Value) -> Result<OsString, ConsoleError> {
+pub(in crate::console) fn scalar(value: &Value) -> Result<OsString, ConsoleError> {
     match value {
         Value::String(value) => Ok(value.into()),
         Value::Number(_) | Value::Bool(_) => Ok(value.to_string().into()),
         _ => Err(ConsoleError::new("选项值必须是CLI标量")),
     }
 }
-fn option_groups(arg: &Arg, value: &Value) -> Result<Groups, ConsoleError> {
+pub(in crate::console) fn option_groups(arg: &Arg, value: &Value) -> Result<Groups, ConsoleError> {
     match arg.get_action() {
         ArgAction::SetTrue | ArgAction::SetFalse => value
             .as_bool()
@@ -191,7 +191,11 @@ fn option_groups(arg: &Arg, value: &Value) -> Result<Groups, ConsoleError> {
         },
     }
 }
-fn emit_option(tokens: &mut Vec<OsString>, arg: &Arg, groups: &Groups) -> Result<(), ConsoleError> {
+pub(in crate::console) fn emit_option(
+    tokens: &mut Vec<OsString>,
+    arg: &Arg,
+    groups: &Groups,
+) -> Result<(), ConsoleError> {
     if groups.is_empty() {
         return Ok(());
     }

@@ -1,7 +1,7 @@
 use serde_json::{Map, Value};
 
 use super::{ConsoleError, Input};
-mod mutation;
+pub(super) mod mutation;
 
 impl Input {
     /// 手动结束命令。调用方用 `?` 或直接返回此结果。

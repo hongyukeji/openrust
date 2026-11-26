@@ -2263,7 +2263,8 @@
     "75: Bind and construct command component dispatch once per execution, preserve its original output and verify dynamic/sync customization.",
     "76: Command manual failure renders a component and reports code 1; explicit codes and ordinary errors preserve their established paths.",
     "77: Verified the four tutorial sections for command I/O, output, tables and progress against their documented methods and actual consumers.",
-    "79: Explicit command type resolution, native definition and provider dependencies, and type/name lifecycle are verified. Programmatic argument and output edges remain open."
+    "79: Explicit command type resolution, native definition and provider dependencies, and type/name lifecycle are verified. Programmatic argument and output edges remain open.",
+    "80: Named array/Boolean input and the full command-line string are verified. Existing token dispatch and native shell-independent parsing are retained."
   ],
   "native_adaptations": [
     {
@@ -3093,6 +3094,14 @@
     ],
     "Artisan": [
       "call_type::<C>"
+    ]
+  },
+  "artisan_call_arguments": {
+    "Artisan": [
+      "call_named",
+      "call_line",
+      "call",
+      "call_type"
     ]
   }
 }

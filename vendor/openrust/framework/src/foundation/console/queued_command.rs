@@ -82,7 +82,7 @@ impl JobHandler for QueuedCommand {
             // the framework acknowledges a returned status and retries only on an execution error.
             super::call_in_application(
                 super::CommandTarget::Name(&data.command),
-                &arguments,
+                crate::console::command_arguments::CommandArguments::Tokens(&arguments),
                 &mut Output::default(),
             )
             .await

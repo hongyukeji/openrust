@@ -1,0 +1,274 @@
+[
+    {
+        "kind": "basic",
+        "type": "named",
+        "input": {
+            "user": "Ada",
+            "--queue": "critical"
+        },
+        "status": 0,
+        "out": {
+            "user": "Ada",
+            "urgent": false,
+            "id": [],
+            "queue": "critical"
+        },
+        "error": null
+    },
+    {
+        "kind": "array-flag",
+        "type": "named",
+        "input": {
+            "--id": [
+                5,
+                13
+            ],
+            "--urgent": true,
+            "user": "Ada"
+        },
+        "status": 0,
+        "out": {
+            "user": "Ada",
+            "urgent": true,
+            "id": [
+                "5",
+                "13"
+            ],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "false-flag",
+        "type": "named",
+        "input": {
+            "--urgent": false,
+            "user": "Ada"
+        },
+        "status": 0,
+        "out": {
+            "user": "Ada",
+            "urgent": false,
+            "id": [],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "empty-array",
+        "type": "named",
+        "input": {
+            "user": "José",
+            "--id": []
+        },
+        "status": 0,
+        "out": {
+            "user": "José",
+            "urgent": false,
+            "id": [],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "short-alias",
+        "type": "named",
+        "input": {
+            "user": "Ada",
+            "-U": true
+        },
+        "status": 0,
+        "out": {
+            "user": "Ada",
+            "urgent": true,
+            "id": [],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "unknown-option",
+        "type": "named",
+        "input": {
+            "user": "Ada",
+            "--other": true
+        },
+        "status": null,
+        "out": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidOptionException:The \"--other\" option does not exist."
+    },
+    {
+        "kind": "unknown-positional",
+        "type": "named",
+        "input": {
+            "missing": "Ada"
+        },
+        "status": null,
+        "out": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException:The \"missing\" argument does not exist."
+    },
+    {
+        "kind": "missing-positional",
+        "type": "named",
+        "input": {
+            "--id": [
+                3
+            ]
+        },
+        "status": null,
+        "out": null,
+        "error": "Symfony\\Component\\Console\\Exception\\RuntimeException:Not enough arguments (missing: \"user\")."
+    },
+    {
+        "kind": "empty-string",
+        "type": "named",
+        "input": {
+            "user": "",
+            "--queue": ""
+        },
+        "status": 0,
+        "out": {
+            "user": "",
+            "urgent": false,
+            "id": [],
+            "queue": ""
+        },
+        "error": null
+    },
+    {
+        "kind": "looks-like-option",
+        "type": "named",
+        "input": {
+            "user": "--urgent",
+            "--queue": "--other"
+        },
+        "status": 0,
+        "out": {
+            "user": "--urgent",
+            "urgent": false,
+            "id": [],
+            "queue": "--other"
+        },
+        "error": null
+    },
+    {
+        "kind": "straight-line",
+        "type": "line",
+        "input": "dispatch:report Ada --queue=critical",
+        "status": 0,
+        "out": {
+            "user": "Ada",
+            "urgent": false,
+            "id": [],
+            "queue": "critical"
+        },
+        "error": null
+    },
+    {
+        "kind": "quoted-line",
+        "type": "line",
+        "input": "dispatch:report \"Ada Lovelace\" --id=5 --id=13 --urgent",
+        "status": 0,
+        "out": {
+            "user": "Ada Lovelace",
+            "urgent": true,
+            "id": [
+                "5",
+                "13"
+            ],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "single-quote",
+        "type": "line",
+        "input": "dispatch:report 'Li Hua' -U --queue='batch jobs'",
+        "status": 0,
+        "out": {
+            "user": "Li Hua",
+            "urgent": true,
+            "id": [],
+            "queue": "batch jobs"
+        },
+        "error": null
+    },
+    {
+        "kind": "literal-escape",
+        "type": "line",
+        "input": "dispatch:report Ada\\ Lovelace --queue=批次",
+        "status": 0,
+        "out": {
+            "user": "Ada Lovelace",
+            "urgent": false,
+            "id": [],
+            "queue": "批次"
+        },
+        "error": null
+    },
+    {
+        "kind": "empty-quote-line",
+        "type": "line",
+        "input": "dispatch:report \"\" --queue=\"\"",
+        "status": 0,
+        "out": {
+            "user": "",
+            "urgent": false,
+            "id": [],
+            "queue": ""
+        },
+        "error": null
+    },
+    {
+        "kind": "literal-hash",
+        "type": "line",
+        "input": "dispatch:report \"#a\" --queue=#batch",
+        "status": 0,
+        "out": {
+            "user": "#a",
+            "urgent": false,
+            "id": [],
+            "queue": "#batch"
+        },
+        "error": null
+    },
+    {
+        "kind": "literal-hash-bare",
+        "type": "line",
+        "input": "dispatch:report #a --queue=bulk",
+        "status": 0,
+        "out": {
+            "user": "#a",
+            "urgent": false,
+            "id": [],
+            "queue": "bulk"
+        },
+        "error": null
+    },
+    {
+        "kind": "unclosed-quote",
+        "type": "line",
+        "input": "dispatch:report \"Ada",
+        "status": 0,
+        "out": {
+            "user": "\"Ada",
+            "urgent": false,
+            "id": [],
+            "queue": "default"
+        },
+        "error": null
+    },
+    {
+        "kind": "dash-argument",
+        "type": "line",
+        "input": "dispatch:report -- --option-looking",
+        "status": 0,
+        "out": {
+            "user": "--option-looking",
+            "urgent": false,
+            "id": [],
+            "queue": "default"
+        },
+        "error": null
+    }
+]

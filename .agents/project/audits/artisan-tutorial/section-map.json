@@ -480,21 +480,32 @@
       "anchor": "programmatically-executing-commands",
       "status": "pending_public_contract_review",
       "evidence": [
-        "artisan-command-type-contracts.json"
+        "artisan-command-type-contracts.json",
+        "artisan-call-arguments-contracts.json"
       ],
       "remaining": [
-        "核对Artisan.call输出缓冲参数的任意OutputInterface／分区实际消费者；不要用Raw Output现有签名假定已实现。"
+        "命令类型、命令行字符串与具名参数已经验证。继续输出缓冲参数的实际自定义／分区消费者，以及可选输出消费。"
       ]
     },
     {
       "anchor": "passing-array-values",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-call-arguments-contracts.json",
+        "accepted-artisan-call-arguments.json",
+        "console_artisan_call_arguments",
+        "formal_named_call_arguments_example"
+      ]
     },
     {
       "anchor": "passing-boolean-values",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-call-arguments-contracts.json",
+        "accepted-artisan-call-arguments.json",
+        "console_artisan_call_arguments",
+        "formal_named_call_arguments_example"
+      ]
     },
     {
       "anchor": "queueing-artisan-commands",
@@ -832,6 +843,14 @@
     "remaining": [
       "程序调用的完整命令字符串、具名数组和布尔参数、输出接口及嵌套子命令仍按后续各节验收。",
       "默认目录发现保持构建期模块清单。应用需要利用具体类型的代码通过显式定义模块和容器绑定登记。"
+    ]
+  },
+  "artisan_call_arguments": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-call-arguments-contracts.json",
+    "remaining": [
+      "程序调用第三参数的可选输出、任意输出和分区、嵌套命令助手继续逐项验收。",
+      "CLI 定义无法表达的布尔默认值覆盖及中间缺省位置拒绝，原始 OsString 继续支持平台原生输入。"
     ]
   }
 }

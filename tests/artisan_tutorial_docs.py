@@ -463,6 +463,46 @@ async fn formal_command_type_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_command_type{\n'+command_type_snippet+command_type_checks+'}\n')
 
+    call_args_snippet=re.search(r'```rust\n(.*?)```',text.split('{#passing-boolean-values}',1)[1],re.S).group(1)
+    call_args_checks=r'''
+fn register() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "reports:deliver {user} {--id=*} {--urgent}",
+        |input: &openrust::console::Input, output: &mut Output| {
+            input.io(output).line(&json!({
+                "user":input.argument("user"),
+                "id":input.option("id"),
+                "urgent":input.option("urgent"),
+            }).to_string())?;
+            Ok(0)
+        },
+    )?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn formal_named_call_arguments_example() {
+    use openrust::foundation::{Application, configuration::Routing};
+    use openrust::support::facades::{App, Facade as _};
+    let root = std::env::temp_dir().join(format!("artisan-call-args-{}-{}", std::process::id(), module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = Application::configure(root.clone()).with_routing(Routing::default().commands(register)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let mut named = Output::default();
+        let mut line = Output::default();
+        assert_eq!(send_reports(&mut named).await.unwrap(), 0);
+        assert_eq!(send_from_line(&mut line).await.unwrap(), 0);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&named.stdout).unwrap(),
+            json!({"user":"Ada Lovelace","id":["5","13"],"urgent":false}));
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&line.stdout).unwrap(),
+            json!({"user":"Ada Lovelace","id":["5","13"],"urgent":true}));
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_call_arguments{\n'+call_args_snippet+call_args_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

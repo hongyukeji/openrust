@@ -613,10 +613,21 @@ impl Application {
         &self,
         application: &FoundationApplication,
         command: &str,
-        arguments: &[OsString],
+        arguments: super::command_arguments::CommandArguments<'_>,
         output: &mut Output,
     ) -> Result<i32, ConsoleError> {
         let name = self.resolve(command)?;
+        let prepared: Vec<OsString>;
+        let arguments = match arguments {
+            super::command_arguments::CommandArguments::Tokens(tokens) => tokens,
+            super::command_arguments::CommandArguments::Named(values) => {
+                let mut parser = self.parsing_syntax(application.version());
+                parser.build();
+                let definition = parser.find_subcommand(name).expect("已解析的命令存在");
+                prepared = super::command_arguments::named_arguments(definition, values)?;
+                &prepared
+            }
+        };
         let mut syntax = self.syntax(application.version());
         syntax.build();
         let parsed = self

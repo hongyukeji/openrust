@@ -99,7 +99,7 @@ pub(crate) enum CommandTarget<'a> {
 
 pub(crate) async fn call_in_application(
     command: CommandTarget<'_>,
-    arguments: &[OsString],
+    arguments: crate::console::command_arguments::CommandArguments<'_>,
     output: &mut Output,
 ) -> Result<i32, ConsoleError> {
     let shared = facades::current_container()

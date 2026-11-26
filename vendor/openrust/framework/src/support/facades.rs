@@ -757,7 +757,7 @@ impl Artisan {
     ) -> Result<i32, ConsoleError> {
         Box::pin(foundation::console::call_in_application(
             foundation::console::CommandTarget::Name(command),
-            arguments,
+            crate::console::command_arguments::CommandArguments::Tokens(arguments),
             output,
         ))
         .await
@@ -773,10 +773,30 @@ impl Artisan {
                 std::any::TypeId::of::<C>(),
                 std::any::type_name::<C>(),
             ),
-            arguments,
+            crate::console::command_arguments::CommandArguments::Tokens(arguments),
             output,
         ))
         .await
+    }
+
+    /// 由当前命令定义解析具名位置参数、数组参数及布尔开关。
+    pub async fn call_named(
+        command: &str,
+        arguments: &[(&str, serde_json::Value)],
+        output: &mut Output,
+    ) -> Result<i32, ConsoleError> {
+        Box::pin(foundation::console::call_in_application(
+            foundation::console::CommandTarget::Name(command),
+            crate::console::command_arguments::CommandArguments::Named(arguments),
+            output,
+        ))
+        .await
+    }
+
+    /// 解析完整命令字符串并在本应用内执行；不会调用 Shell。
+    pub async fn call_line(command_line: &str, output: &mut Output) -> Result<i32, ConsoleError> {
+        let (command, arguments) = crate::console::command_arguments::line_arguments(command_line)?;
+        Self::call(&command, &arguments, output).await
     }
 
     /// Runs a registered command and discards its console output.
