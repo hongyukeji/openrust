@@ -80,6 +80,10 @@ OpenRust 经实际 HTTP、Eloquent 关系、SQL 和 Telescope 仓储在 SQLite�
 
 OpenRust 的 Dumps 打开时刷新四秒采集租约，以两秒列表探测更新状态，发现新记录后重新读取列表。离开页面取消计时及在途请求。真实桌面与移动浏览器在原生 HTTP 上验证 Debug 内容作为文本显示、授权拒绝停止轮询、手动刷新恢复及离开页面后无后续轮询。数组缓存的具名别名在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的授权入口复验。Telescope Provider 35 项、Watchers 20 项、Pulse Provider 30 项、Telescope 全目标严格 Clippy、隔离快照格式及三语文档桌面与移动六组通过。证据为 `target/tmp/observability-parity/telescope-http-reference/dump-{status,browser}.log` 与 `target/tmp/observability-parity/telescope-dumps-{baseline,macos-retry,browser-macos,docs}.log`。
 
+### 普通列表的新条目加载
+
+固定 Telescope 页面以 2.5 秒检查普通列表。空列表自动展示首条记录。已有条目时，默认保留当前列表并提示加载新条目。启用自动加载后，新条目直接进入列表，偏好保存在浏览器。固定 PHP 8.5.12、Laravel 13.40.0、SQLite 和实际发布页面验证事件列表的手动加载及重新打开页面后的自动加载。OpenRust 的老版本经过浏览器仍无加载提示，新版本在真实原生 HTTP 的桌面与手机浏览器通过新记录、手动加载、自动加载、偏好保留和 Dumps 切换回归。快照格式、Telescope 全目标严格 Clippy 和三语文档六组通过。任务列表现有待处理记录的单独状态刷新与错误族分组仍待核对。证据为 `target/tmp/observability-parity/telescope-http-reference/index-refresh-browser.log` 与 `target/tmp/observability-parity/telescope-list-refresh-{baseline,macos,docs}.log`。 [固定 IndexScreen](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/resources/js/components/IndexScreen.vue)
+
 
 ## 公开 Watcher 与缓冲响应补齐（2026-11-21）
 

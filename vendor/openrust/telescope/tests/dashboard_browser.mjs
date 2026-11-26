@@ -62,9 +62,30 @@ try {
   const leftAt=dumpPolls;
   await page.waitForTimeout(2200);
   assert.equal(dumpPolls,leftAt);
+
+  const firstEntry=page.locator('#entries button').first();
+  await firstEntry.waitFor();
+  const beforeManual=await firstEntry.getAttribute('aria-label');
+  const emitEvent=()=>context.request.get(new URL('/api/probe',endpoint).href);
+  assert.equal((await emitEvent()).status(),200);
+  const newEntries=page.getByRole('button',{name:'Load new entries',exact:true});
+  await newEntries.waitFor({timeout:8000});
+  assert.equal(await firstEntry.getAttribute('aria-label'),beforeManual);
+  await newEntries.click();
+  await page.waitForFunction(id=>{const current=document.querySelector('#entries button')?.getAttribute('aria-label');return current&&current!==id},beforeManual);
+  assert(!(await newEntries.isVisible()));
+  await page.getByRole('button',{name:'Auto load entries',exact:true}).click();
+  await page.reload();
+  const autoLoad=page.getByRole('button',{name:'Auto load entries',exact:true});
+  assert.equal(await autoLoad.getAttribute('aria-pressed'),'true');
+  await firstEntry.waitFor();
+  const beforeAutomatic=await firstEntry.getAttribute('aria-label');
+  assert.equal((await emitEvent()).status(),200);
+  await page.waitForFunction(id=>{const current=document.querySelector('#entries button')?.getAttribute('aria-label');return current&&current!==id},beforeAutomatic);
+  assert(!(await newEntries.isVisible()));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(errors,[]);
-  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup and layout`);
+  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup, new entries, auto-load preference and layout`);
   await context.close();
  }
 } finally { await browser.close(); }
