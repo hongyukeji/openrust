@@ -81,6 +81,35 @@ async fn provider_is_lazy_scoped_and_keeps_credential_references_out_of_configur
         })
         .await;
     let env = first.make::<openrust::config::Environment>().await.unwrap();
+    let unlimited = WebhookConfig::from_config(
+        &json!({"name":"verified","verified_requests_per_minute":null}),
+        &env,
+    )
+    .unwrap();
+    assert_eq!(unlimited.verified_requests_per_minute().unwrap(), None);
+    let scoped = unlimited
+        .with_scope("test-scope")
+        .unwrap()
+        .with_verified_requests_per_minute(3)
+        .unwrap();
+    assert_eq!(scoped.verified_requests_per_minute().unwrap(), Some(3));
+    assert!(scoped.with_verified_requests_per_minute(0).is_err());
+    for policy in [
+        json!(0),
+        json!(-1),
+        json!(false),
+        json!("3"),
+        json!(u64::MAX),
+    ] {
+        assert!(WebhookConfig::from_config(&json!({"name":"verified","scope":"test-scope","verified_requests_per_minute":policy}), &env).is_err());
+    }
+    assert!(
+        WebhookConfig::from_config(
+            &json!({"name":"verified","verified_requests_per_minute":3}),
+            &env
+        )
+        .is_err()
+    );
     for (policy, enabled) in [
         (json!(null), true),
         (json!(true), true),

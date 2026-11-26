@@ -188,6 +188,11 @@ impl WebhookRuntime {
         let events = container
             .get::<openrust::events::Dispatcher>("events")
             .map_err(Error::binding)?;
+        let verified_limiter = if config.verified_requests_per_minute()?.is_some() {
+            Some(container.make::<openrust::cache::RateLimiter>()?)
+        } else {
+            None
+        };
         let hint = match config.options().get("unverified_hint_receiver") {
             None | Some(serde_json::Value::Null) => None,
             Some(serde_json::Value::String(name)) => {
@@ -244,6 +249,9 @@ impl WebhookRuntime {
         }
         if let Some((audit, validator)) = audit {
             runtime = runtime.with_verification_audit(audit, &validator)?;
+        }
+        if let Some(limiter) = verified_limiter {
+            runtime = runtime.with_verified_rate_limiter(limiter);
         }
         runtime.application = Some(owner);
         Ok(runtime)

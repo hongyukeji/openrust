@@ -155,6 +155,12 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
 
+### 限制已验签的接收流量 {#verified-rate-limit}
+
+在已有 `scope` 的 profile 上将 `verified_requests_per_minute` 设为正整数。请求通过验签和 Profile 筛选后、写入接收记录或排队前消耗一次额度。验签失败和被忽略的请求保留原额度。已验签的重试也消耗额度，包括此前已接收的事件。额度用尽时返回 HTTP 429 和 `Retry-After`。
+
+同一范围和 profile 跨配置修订共用额度。集群节点应使用相同的数据库或 Redis 缓存及缓存前缀。缓存服务失联时，请求在写入前被拒绝。手动装配 Processor 时用 `with_verified_requests_per_minute` 设置额度，并用 `with_verified_rate_limiter` 将限流器提供给 Runtime。配置缺失或为 `null` 时停用此额度。
+
 ### 同事务保存接收记录与数据库队列任务 {#atomic-database-queue}
 
 在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。签名协议提供已认证事件 ID 时，可启用事件去重。

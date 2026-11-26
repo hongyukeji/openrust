@@ -68,12 +68,8 @@ impl RateLimiter {
         }
     }
 
-    pub(crate) async fn reserve(
-        &self,
-        key: &str,
-        max: u64,
-        decay: u64,
-    ) -> CacheResult<Option<u64>> {
+    /// 原子扣减一次额度。达到限额时返回距离下次可用的秒数。
+    pub async fn reserve(&self, key: &str, max: u64, decay: u64) -> CacheResult<Option<u64>> {
         let quota = Quota {
             key: counters::key("manual", "", key),
             max,

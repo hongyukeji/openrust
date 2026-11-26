@@ -82,6 +82,37 @@ impl WebhookConfig {
     pub fn max_body_bytes(&self) -> usize {
         self.max_body_bytes
     }
+
+    pub fn verified_requests_per_minute(&self) -> Result<Option<u32>> {
+        match self.options.get("verified_requests_per_minute") {
+            None | Some(Value::Null) => Ok(None),
+            Some(value) => value
+                .as_u64()
+                .and_then(|value| u32::try_from(value).ok())
+                .filter(|value| *value > 0)
+                .map(Some)
+                .ok_or(Error::InvalidConfig("verified_requests_per_minute")),
+        }
+    }
+
+    /// 对当前范围及 profile 内已经验签且通过筛选的请求设置每分钟额度。
+    pub fn with_verified_requests_per_minute(mut self, limit: u32) -> Result<Self> {
+        if limit == 0 {
+            return Err(Error::InvalidConfig("verified_requests_per_minute"));
+        }
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["verified_requests_per_minute"] = Value::from(limit);
+        Ok(self)
+    }
+
+    pub(crate) fn verified_rate_scope(&self) -> Result<&str> {
+        self.options["scope"]
+            .as_str()
+            .filter(|scope| valid_scope(scope))
+            .ok_or(Error::InvalidConfig("verified_requests_per_minute.scope"))
+    }
     /// 是否为持久附件读取保存 multipart 元数据。
     pub fn store_attachments(&self) -> Result<bool> {
         match self.options.get("store_attachments") {
@@ -305,7 +336,7 @@ impl WebhookConfig {
     }
     pub fn with_scope(mut self, scope: impl Into<String>) -> Result<Self> {
         let scope = scope.into();
-        if scope.is_empty() || scope.len() > 128 || scope.chars().any(char::is_control) {
+        if !valid_scope(&scope) {
             return Err(Error::InvalidConfig("scope"));
         }
         if self.options.is_null() {
@@ -431,6 +462,9 @@ impl WebhookConfig {
             )?;
         }
         config.options = value.clone();
+        if config.verified_requests_per_minute()?.is_some() {
+            config.verified_rate_scope()?;
+        }
         config.store_attachments()?;
         config.attachment_disk()?;
         config.atomic_database_queue()?;
@@ -457,6 +491,10 @@ impl WebhookConfig {
         }
         Ok(config)
     }
+}
+
+fn valid_scope(scope: &str) -> bool {
+    !scope.is_empty() && scope.len() <= 128 && !scope.chars().any(char::is_control)
 }
 
 /// 当前应用的具名配置；替换不改变已取得的 Arc 快照。

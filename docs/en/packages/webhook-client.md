@@ -155,6 +155,12 @@ Implement `jobs::ProcessWebhookJob` to process a saved receipt. Optionally overr
 
 Set connection and queue on the dispatcher. The native `JobOptions` controls attempts, backoff and timeout. Assign business policy in your handler. The queued data contains the receipt identifiers. Workers open the saved record without using the receiver’s verification secret. Failed handler attempts save a generic receipt exception, and a subsequent attempt clears the previous diagnostic. Choose a Worker-backed connection. The dispatcher rejects built-in sync, null, deferred and background connections and requires the queue to return an enqueue result.
 
+### Limit accepted callback traffic {#verified-rate-limit}
+
+Set `verified_requests_per_minute` to a positive integer on a profile with a configured `scope`. A request uses one slot after signature verification and profile acceptance, before receipt storage or queue dispatch. Invalid signatures and ignored requests leave this quota untouched. Verified retries consume slots, including retries of an event already received. Once the quota is exhausted, the receiver sends HTTP 429 with `Retry-After`.
+
+The same scope and profile share a quota across configuration revisions. Point all replicas at the same database or Redis cache and cache prefix. A cache failure rejects the request before storage. For a manually assembled processor use `with_verified_requests_per_minute` on the configuration and `with_verified_rate_limiter` on its runtime. An omitted or null setting disables this quota.
+
 ### Commit the receipt with its database queue task {#atomic-database-queue}
 
 Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. Use verified event deduplication when the signing protocol supplies an authenticated event ID.

@@ -11,6 +11,7 @@ pub fn load(_: &Environment) -> Result<Value, ConfigError> {
             "webhook_model":"database", "scope":null, "connection":null, "process_webhook_job":"",
             "atomic_database_queue":false, "recover_dispatch":false, "recover_processing":null, "deduplicate_verified_events":false, "deduplicate_body_seconds":null, "store_headers":[], "store_attachments":true,
             "max_body_bytes":1048576,
+            "verified_requests_per_minute":null,
             "verification_secrets":[]
         }],
         "delete_after_days":30,

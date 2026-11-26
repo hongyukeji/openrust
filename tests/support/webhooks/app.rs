@@ -116,6 +116,16 @@ impl openrust_webhook_client::WebhookProfile for Ignore {
         Ok(false)
     }
 }
+struct FixtureRateFilter;
+impl openrust_webhook_client::WebhookProfile for FixtureRateFilter {
+    fn should_process(
+        &self,
+        request: &WebhookRequest,
+        _: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<bool> {
+        Ok(request.body() != b"ignore-for-quota")
+    }
+}
 fn receive(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let name = request.route("profile").unwrap_or_default().to_owned();
@@ -157,6 +167,11 @@ fn receive(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         if name == "ignored" {
             runtime = runtime.with_webhook_profile(std::sync::Arc::new(Ignore));
         }
+        if name == "verified-other" {
+            runtime = runtime.with_verified_rate_limiter(
+                openrust::support::facades::RateLimiter::get_facade_root().map_err(internal)?,
+            );
+        }
         let config = config
             .as_ref()
             .clone()
@@ -169,6 +184,7 @@ fn receive(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             Err(openrust_webhook_client::Error::InvalidSignature) => {
                 Response::json(StatusCode::FORBIDDEN, json!({"verified":false}))
             }
+            Err(openrust_webhook_client::Error::Http(error)) => Err(error),
             other => other.map_err(internal),
         }
     })
@@ -883,6 +899,11 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                 "ignored",
                 |_, _| Ok(std::sync::Arc::new(Ignore)),
             )?;
+            WebhookRuntime::register_webhook_profile(
+                openrust::contracts::foundation::Application::container(app),
+                "fixture-rate-filter",
+                |_, _| Ok(std::sync::Arc::new(FixtureRateFilter)),
+            )?;
             WebhookRuntime::register_signature_validator(
                 openrust::contracts::foundation::Application::container(app),
                 "custom",
@@ -1176,6 +1197,8 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "recovery-failover",
         "leased",
         "deferred",
+        "verified-quota",
+        "verified-other",
         "event-dedup",
         "event-other",
         "event-unsigned",
@@ -1529,6 +1552,9 @@ async fn main() -> ExitCode {
             let mut config=config::load(root,env)?;
             let database=config["database"]["default"].as_str().unwrap().to_owned();
             let attachment_disk = env.get_utf8("FIXTURE_ATTACHMENT_DISK")?.unwrap_or("local");
+            let rate_scope = env.get_utf8("FIXTURE_VERIFIED_RATE_SCOPE")?.unwrap_or("webhook-acceptance");
+            let rate_revision = env.get_utf8("FIXTURE_VERIFIED_RATE_REVISION")?.unwrap_or("one");
+            let rate_job = if rate_scope == "webhook-custom" { "fixture-custom" } else { "fixture" };
             let alias=config["database"]["connections"][&database].clone();
             config.get_mut("database").unwrap()["connections"]["fixture-foreign"]=alias;
             // 原子派发须覆盖普通连接的提交后派发默认值。
@@ -1542,6 +1568,8 @@ async fn main() -> ExitCode {
                 {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"default","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"custom","webhook_model":"database","scope":"webhook-custom"},
+                {"name":"verified-quota","revision":rate_revision,"signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":rate_scope,"process_webhook_job":rate_job,"signature_validator":"default","webhook_profile":"fixture-rate-filter","webhook_model":"database","verified_requests_per_minute":3},
+                {"name":"verified-other","revision":rate_revision,"signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":rate_scope,"process_webhook_job":rate_job,"signature_validator":"default","webhook_profile":"fixture-rate-filter","webhook_model":"database","verified_requests_per_minute":1},
                 {"name":"custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"signature_header_name":"X-Webhook","scope":"webhook-custom","process_webhook_job":"fixture-custom","signature_validator":"custom","webhook_model":"custom","webhook_response":"custom","webhook_profile":"process-everything"},
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
                 {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},

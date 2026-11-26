@@ -65,6 +65,7 @@ pub struct WebhookRuntime {
     response: Arc<dyn RespondsToWebhook>,
     hint: Option<Arc<dyn crate::hints::ReceivesUnverifiedHint>>,
     verification_audit: Option<(DatabaseVerificationAudit, String)>,
+    verified_limiter: Option<Arc<openrust::cache::RateLimiter>>,
     events: Arc<dyn Dispatcher>,
 }
 impl WebhookRuntime {
@@ -80,6 +81,7 @@ impl WebhookRuntime {
             events,
             hint: None,
             verification_audit: None,
+            verified_limiter: None,
             validator: Arc::new(DefaultSignatureValidator),
             profile: Arc::new(ProcessEverythingWebhookProfile),
             response: Arc::new(DefaultRespondsTo),
@@ -105,6 +107,15 @@ impl WebhookRuntime {
 
     pub fn with_signature_validator(mut self, validator: Arc<dyn SignatureValidator>) -> Self {
         self.validator = validator;
+        self
+    }
+
+    /// 手动装配 Processor 时为接收配额提供当前应用的共享限流器。
+    pub fn with_verified_rate_limiter(
+        mut self,
+        limiter: Arc<openrust::cache::RateLimiter>,
+    ) -> Self {
+        self.verified_limiter = Some(limiter);
         self
     }
     pub fn with_webhook_profile(mut self, profile: Arc<dyn WebhookProfile>) -> Self {
@@ -235,6 +246,7 @@ impl<'a> WebhookProcessor<'a> {
         } else {
             None
         };
+        self.reserve_verified_request().await?;
         let verified = VerifiedWebhook {
             request: self.request,
             config: self.config,
@@ -274,6 +286,44 @@ impl<'a> WebhookProcessor<'a> {
         }
         self.create_response()
     }
+
+    async fn reserve_verified_request(&self) -> Result<()> {
+        let Some(limit) = self.config.verified_requests_per_minute()? else {
+            return Ok(());
+        };
+        let scope = self.config.verified_rate_scope()?;
+        let limiter = self
+            .runtime
+            .verified_limiter
+            .as_ref()
+            .ok_or(Error::InvalidConfig("verified_requests_per_minute.limiter"))?;
+        let key = format!(
+            "openrust-webhook-client:verified:{}:{}",
+            crate::storage::scope_key(scope),
+            crate::storage::scope_key(self.config.name())
+        );
+        if let Some(wait) = limiter
+            .reserve(&key, u64::from(limit), 60)
+            .await
+            .map_err(|source| Error::Runtime {
+                source: Box::new(source),
+            })?
+        {
+            let mut headers = http::HeaderMap::new();
+            headers.insert(
+                http::header::RETRY_AFTER,
+                http::HeaderValue::from(wait.max(1)),
+            );
+            return Err(openrust::http::abort(
+                openrust::http::StatusCode::TOO_MANY_REQUESTS,
+                "Webhook 已验签接收超过限额",
+                headers,
+            )
+            .into());
+        }
+        Ok(())
+    }
+
     async fn record_verification(&self, decision: VerificationDecision) -> Result<()> {
         let Some((audit, validator)) = &self.runtime.verification_audit else {
             return Ok(());
