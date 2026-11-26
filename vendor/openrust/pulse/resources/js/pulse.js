@@ -515,4 +515,11 @@ window.addEventListener('popstate', () => {
     refresh();
 });
 document.querySelector('#refresh').addEventListener('click', () => refresh());
-setInterval(() => { if (!activeRefresh) refresh(true); }, 5000);
+const polling = setInterval(() => {
+    if (!main.isConnected) {
+        clearInterval(polling);
+        return;
+    }
+    if (activeRefresh || !navigator.onLine || (document.hidden && Math.random() < 0.95)) return;
+    refresh(true);
+}, 5000);

@@ -179,8 +179,35 @@ try{
  assert.match(await reading.textContent(), /25%$/);
  await graph.press('Escape');
  assert(await reading.isHidden());
+ await polling.evaluate(()=>{
+  Object.defineProperty(document,'hidden',{configurable:true,value:true});
+  Math.random=()=>0.94;
+ });
+ const beforeBackground=polls;
+ await polling.clock.runFor(5000);
+ assert.equal(polls,beforeBackground);
+ await polling.evaluate(()=>{Math.random=()=>0.95});
+ const background=polling.waitForResponse(r=>r.url().includes('/api/metrics'));
+ await polling.clock.runFor(5000);
+ assert.equal((await background).status(),200);
+ assert.equal(polls,beforeBackground+1);
+
+ await polling.evaluate(()=>{delete document.hidden});
+ await context.setOffline(true);
+ assert.equal(await polling.evaluate(()=>navigator.onLine),false);
+ await polling.clock.runFor(10000);
+ assert.equal(polls,beforeBackground+1);
+ await context.setOffline(false);
+ const online=polling.waitForResponse(r=>r.url().includes('/api/metrics'));
+ await polling.clock.runFor(5000);
+ assert.equal((await online).status(),200);
+ assert.equal(polls,beforeBackground+2);
+ await polling.locator('#cards').evaluate(main=>main.remove());
+ await polling.clock.runFor(10000);
+ assert.equal(polls,beforeBackground+2);
  console.log('native Pulse dashboard: initial request and five-second automatic refresh PASS');
  console.log('native Pulse dashboard: keyboard explanation and focus survive refresh PASS');
+ console.log('native Pulse dashboard: background throttle, offline pause and detached stop PASS');
  await polling.close();
  await context.close();
 

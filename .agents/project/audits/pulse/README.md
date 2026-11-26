@@ -130,6 +130,12 @@ Chrome 前态的首个全量指标请求挂起时卡片容器为空，返回 500
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13、具名 Redis 8.10.3 的授权 HTTP 验证卡片选择、无效值、未选查询的隔离和完整 JSON。真实 SQLite 看板及 Chrome 桌面、手机验证独立加载、延迟与错误隔离、恢复、周期、手动和定时刷新、焦点与触控，未授权的部分响应返回 403。首轮浏览器检查发现卡片节点替换时滚动目标失效，保留卡片容器后复验通过。Pulse Provider 27 项、Telescope Provider 30 项、快照格式、Pulse 严格 Clippy、三语文档与六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-card-lazy-{browser-baseline-retry,macos,macos-browser-retry,docs}.log`。
 
+### 后台、离线和页面移除的轮询
+
+按固定 Pulse 模板的五秒轮询配置，直接执行 Livewire 3.6.4 与 4.0.0 的指令源码，确认后台抽样值 0.94 跳过、0.95 请求，离线暂停、恢复在线后继续，组件移除后结束轮询。原生面板按同一阈值处理后台自动请求，并在离线和面板移除时停止相应轮询。 [Livewire 3.6.4 轮询](https://github.com/livewire/livewire/blob/v3.6.4/js/directives/wire-poll.js) [Livewire 4.0.0 轮询](https://github.com/livewire/livewire/blob/v4.0.0/js/directives/wire-poll.js)
+
+受控 Chrome 复现后台仍发请求，修复后通过可控时钟和采样值验证两侧边界。真实 SQLite 看板在 Chrome 测试客户端离线、恢复和移除容器时的 HTTP 请求数，并通过已有桌面、手机、定时刷新及图表焦点回归。三语构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-poll-pauses-{upstream,browser-baseline,browser,macos,docs}.log`。
+
 ### 慢操作、异常和用量的采样计数
 
 固定 PHP 8.5.12 使用实际 Blade 编译器渲染四类慢操作、异常和用量计数。采样率 0.4 时原始计数 3 显示为 `~8`，提示包含采样率与原始值。全量计数按千位分隔。用量的请求、慢请求、任务分别读 UserRequests、SlowRequests、UserJobs。Rust 的 `sample_rates` 随当前配置返回，卡片原始行及五秒缓存仍保留数据库计数。面板识别数据库返回的数值和数字文本。采样率为零时保留历史原始计数。 [固定卡片模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)
