@@ -62,6 +62,10 @@ impl Ai {
         Ok(Self::manager()?.reranking_fake().is_some())
     }
 
+    pub fn image_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
+        Self::manager()?.image_provider(name)
+    }
+
     pub fn reranking_provider(name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
         Self::manager()?.reranking_provider(name)
     }

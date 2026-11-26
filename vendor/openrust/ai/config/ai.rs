@@ -27,6 +27,8 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     )?;
     openai["models"]["embeddings"] = json!({"default": env.get_utf8("OPENAI_EMBEDDING_MODEL")?});
 
+    openai["models"]["images"] = json!({"default": env.get_utf8("OPENAI_IMAGE_MODEL")?});
+
     let mut openrouter = provider(
         "openai-compatible",
         "OPENROUTER_URL",
@@ -45,7 +47,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "connection": env.get_utf8("AI_CONVERSATIONS_CONNECTION")?,
             "max_messages": 100,
         },
-        "default_for_images": null,
+        "default_for_images": env.get_utf8("AI_IMAGE_PROVIDER")?,
         "default_for_audio": null,
         "default_for_transcription": null,
         "default_for_embeddings": env.get_utf8("AI_EMBEDDINGS_PROVIDER")?,

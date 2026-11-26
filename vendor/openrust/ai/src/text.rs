@@ -29,6 +29,7 @@ use crate::{
     StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
+    image::{ImageProvider, OpenAiImageProvider},
     models::ListedModel,
     reranking::{HttpRerankingProvider, RerankingProtocol},
 };
@@ -121,6 +122,10 @@ pub trait TextProvider: Send + Sync {
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        None
+    }
+
+    fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {
         None
     }
 
@@ -355,6 +360,13 @@ impl TextProvider for OpenAiTextProvider {
         self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
             Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
         })
+    }
+
+    fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {
+        (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.images_configured())
+            .then(|| {
+                Arc::new(OpenAiImageProvider(self.connection.clone())) as Arc<dyn ImageProvider>
+            })
     }
 
     fn reranking_provider(&self) -> Option<Arc<dyn RerankingProvider>> {

@@ -17,7 +17,8 @@ struct Models {
     #[serde(default)]
     text: TextModels,
     embeddings: Option<EmbeddingModels>,
-    reranking: Option<RerankingModels>,
+    reranking: Option<DefaultModel>,
+    images: Option<DefaultModel>,
 }
 
 #[derive(Default, Deserialize)]
@@ -34,7 +35,7 @@ struct EmbeddingModels {
 }
 
 #[derive(Deserialize)]
-struct RerankingModels {
+struct DefaultModel {
     default: Option<String>,
 }
 
@@ -193,6 +194,20 @@ impl Connection {
 
     pub(crate) fn reranking_configured(&self) -> bool {
         self.config.models.reranking.is_some()
+    }
+
+    pub(crate) fn images_configured(&self) -> bool {
+        self.config.models.images.is_some()
+    }
+
+    pub(crate) fn default_image_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .images
+            .as_ref()
+            .and_then(|models| models.default.as_deref())
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
     }
 
     pub(crate) fn default_reranking_model(&self) -> AiResult<&str> {

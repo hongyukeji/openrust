@@ -206,3 +206,22 @@ Import `Reranks` to call `collection.rerank(|item| item.title.clone(), query).aw
 
 Use `Reranking::fake([])?` to generate a fake ranking without an outbound request. Supply scripted results or use `Reranking::fake_with` for a callback. Assert calls with `assert_reranked`, `assert_not_reranked`, or `assert_nothing_reranked`. Call `prevent_stray_rerankings(true)` on the fake to reject unconfigured responses.
 
+## Image generation {#images}
+
+Select a connection and an image model. For OpenAI, use the existing `OPENAI_API_KEY` and optional `OPENAI_URL` override.
+
+```dotenv
+AI_IMAGE_PROVIDER=openai
+OPENAI_IMAGE_MODEL=gpt-image-1.5
+```
+
+```rust
+use openrust_ai::Image;
+
+let response = Image::of("A watercolor pear")?.square().quality("high").generate().await?;
+let path = response.store_as("generated", "pear.png", None).await?;
+```
+
+Use `square()`, `portrait()` or `landscape()` for standard sizes. Use `size()`, `quality()` or `timeout()` to set request options. To edit an image, pass `ImageAttachment::from_bytes` or load one from a Storage disk with `ImageAttachment::from_storage`, then call `attachments()` before `generate()`.
+
+OpenAI and OpenAI-compatible connections that implement the Images API can return inline PNG, JPEG, or WebP. Add `models.images` to enable this capability on a compatible connection. Read MIME type and bytes through `first_image()`, or save them with `store` and `store_as`. Use `store_publicly` or `store_publicly_as` to request public visibility from the selected disk.

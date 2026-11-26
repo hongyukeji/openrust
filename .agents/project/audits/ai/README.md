@@ -183,3 +183,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 `Reranks` 为框架 Collection 提供 `rerank` 与 `rerank_with`，应用用闭包选择条目中的文本，返回原始条目和上游排名顺序。独立 HTTP 通过 TCP 模拟 Voyage 验证条目关联，独立 Artisan 验证 Fake 拦截、记录和耗尽。固定 Laravel 的字段路径及多字段提取、Bedrock 和供应商专用选项继续保留为待核对项。
 
 - [Laravel 固定 Collection 与 Reranking 注册逻辑](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php)
+
+## AI-06 OpenAI 原生图像生成、编辑与存储
+
+`Image::of`、`PendingImageGeneration` 和 `ImageProvider` 接入默认或显式连接及模型。OpenAI Images API 经框架 HTTP 客户端发送 JSON 生图，带参考图时发送 multipart 编辑请求。支持标准比例、显式尺寸、质量和超时。兼容连接由 `models.images` 显式启用。输入可来自本地字节或已配置 Storage 磁盘。只接收受支持的内联位图，返回原始字节、MIME、模型、修订提示和上游报告的用量。
+
+包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Gemini、xAI、Bedrock、图像 Fake、队列、广播及供应商实机仍留在后续验收范围。
+
+- [OpenAI Images 生图](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI Images 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)

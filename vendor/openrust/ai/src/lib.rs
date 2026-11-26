@@ -27,6 +27,7 @@ mod fake;
 mod fake_embedding_gateway;
 mod fake_reranking_gateway;
 mod gemini;
+mod image;
 mod manager;
 mod messages;
 mod middleware;
@@ -57,6 +58,10 @@ pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
+pub use image::{
+    GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,
+    ImageUsage, PendingImageGeneration,
+};
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};

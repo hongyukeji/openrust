@@ -298,6 +298,21 @@ impl AiManager {
         self.embeddings_fake.read().unwrap().clone()
     }
 
+    pub fn image_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
+        let configured = if name.is_none() {
+            match self.config.get("ai.default_for_images") {
+                Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
+                None | Some(Value::Null) => None,
+                _ => return Err(AiError::InvalidConfiguration("default_for_images")),
+            }
+        } else {
+            None
+        };
+        self.text_provider(name.or(configured.as_deref()))?
+            .image_provider()
+            .ok_or(AiError::ImagesNotSupported)
+    }
+
     pub fn reranking_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
         let name = self.reranking_provider_name(name)?;
         self.text_provider(Some(&name))?

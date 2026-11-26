@@ -206,3 +206,22 @@ let result = Reranking::of(["配送", "換貨", "退貨"])?
 
 用 `Reranking::fake([])?` 產生測試排名，呼叫不會連線到供應商。也可預設結果，或用 `Reranking::fake_with` 撰寫回呼。透過 `assert_reranked`、`assert_not_reranked` 和 `assert_nothing_reranked` 驗證呼叫。替身的 `prevent_stray_rerankings(true)` 會拒絕未設定回應的呼叫。
 
+## 圖像生成 {#images}
+
+選擇圖像連線及模型。OpenAI 沿用 `OPENAI_API_KEY`，可用 `OPENAI_URL` 覆寫服務位址。
+
+```dotenv
+AI_IMAGE_PROVIDER=openai
+OPENAI_IMAGE_MODEL=gpt-image-1.5
+```
+
+```rust
+use openrust_ai::Image;
+
+let response = Image::of("A watercolor pear")?.square().quality("high").generate().await?;
+let path = response.store_as("generated", "pear.png", None).await?;
+```
+
+透過 `square()`、`portrait()` 或 `landscape()` 選擇標準尺寸，也可用 `size()`、`quality()` 或 `timeout()` 設定請求參數。編輯圖像時，用 `ImageAttachment::from_bytes` 或 `ImageAttachment::from_storage` 建立參考圖，呼叫 `attachments()` 後再生成。
+
+支援 Images API 的 OpenAI 及 OpenAI 相容連線可回傳內嵌的 PNG、JPEG 或 WebP。相容連線透過 `models.images` 啟用圖像功能。用 `first_image()` 讀取 MIME 類型與位元組，或用 `store` 與 `store_as` 寫入磁碟。需要公開可見時，呼叫 `store_publicly` 或 `store_publicly_as`。
