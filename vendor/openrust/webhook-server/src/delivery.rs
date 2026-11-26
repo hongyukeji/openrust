@@ -196,12 +196,17 @@ impl DeliveryService {
                     .transpose()
             })
             .await;
-        let (claim, handler) = match claimed {
-            Ok(Some(claim)) => claim,
-            Ok(None) | Err(Error::EndpointPaused) => {
+        let claim_result = match claimed {
+            Ok(outcome) => outcome,
+            Err(Error::EndpointPaused) => {
                 return Ok((DeliveryProgress::Unavailable, false));
             }
             Err(error) => return Err(error),
+        };
+        let unknown_attempt = claim_result.unknown_attempt;
+        let Some((claim, handler)) = claim_result.claimed else {
+            events::reconciled_unknown(self.store.scope(), id, unknown_attempt).await;
+            return Ok((DeliveryProgress::Unavailable, false));
         };
         let remaining = u64::try_from(claim.deadline - claim.timestamp).unwrap_or(0);
         let duration = Duration::from_secs(remaining.min(u64::from(claim.snapshot.timeout)));
@@ -215,7 +220,9 @@ impl DeliveryService {
             Err(_) => TransportAttempt::failed(WebhookTransportFailure::DeadlineExceeded),
         };
         if attempt.outcome == "paused" || retry_at.is_some() {
-            self.store.defer_claim(id, &claim, retry_at).await?;
+            let deferred = self.store.defer_claim(id, &claim, retry_at).await;
+            events::reconciled_unknown(self.store.scope(), id, unknown_attempt).await;
+            deferred?;
             return Ok((DeliveryProgress::Pending, false));
         }
         let status = attempt.status;
@@ -241,7 +248,9 @@ impl DeliveryService {
             None
         };
         let elapsed = started.elapsed();
-        let progress = self.store.finish(id, &claim, attempt, backoff).await?;
+        let progress = self.store.finish(id, &claim, attempt, backoff).await;
+        events::reconciled_unknown(self.store.scope(), id, unknown_attempt).await;
+        let progress = progress?;
         let throw = claim.snapshot.throws_on_failure;
         let event = WebhookCallEvent::new(
             self.store.scope(),

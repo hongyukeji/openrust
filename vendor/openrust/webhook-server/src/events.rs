@@ -134,6 +134,30 @@ delivery_event!(WebhookCallSucceededEvent);
 delivery_event!(WebhookCallFailedEvent);
 delivery_event!(FinalWebhookCallFailedEvent);
 
+/// 恢复事务已将未结束的上次尝试确认记录为结果不确定。
+pub struct WebhookCallUnknownEvent {
+    pub scope: String,
+    pub delivery_id: String,
+    pub attempt_number: u32,
+}
+
+impl Event for WebhookCallUnknownEvent {
+    fn name(&self) -> &str {
+        "openrust_webhook_server::events::WebhookCallUnknownEvent"
+    }
+}
+
+pub(crate) async fn reconciled_unknown(scope: &str, id: &str, attempt_number: Option<u32>) {
+    if let Some(attempt_number) = attempt_number {
+        publish(WebhookCallUnknownEvent {
+            scope: scope.into(),
+            delivery_id: id.into(),
+            attempt_number,
+        })
+        .await;
+    }
+}
+
 pub(crate) async fn dispatching(scope: &str, id: &str, snapshot: Snapshot) -> Result<()> {
     let event = WebhookCallEvent::new(scope, id, snapshot, None, None, None);
     Events::dispatch(DispatchingWebhookCallEvent(event))

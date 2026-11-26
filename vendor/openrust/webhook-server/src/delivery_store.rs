@@ -28,8 +28,17 @@ const WAKE_COOLDOWN_SECONDS: u32 = 60;
 
 pub(crate) enum WakeClaim {
     Ready,
-    Retired,
+    Retired(Retirement),
     Unavailable,
+}
+
+pub(crate) struct Retirement {
+    pub unknown_attempt: Option<u32>,
+}
+
+pub(crate) struct ClaimResult<T> {
+    pub claimed: Option<(Claim, T)>,
+    pub unknown_attempt: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -486,11 +495,9 @@ impl DeliveryStore {
         }
         let mut tx = self.connection.begin_transaction().await?;
         let result = self.retire_unavailable(&mut tx, id).await;
-        Ok(if settle(tx, result).await? {
-            WakeClaim::Retired
-        } else {
-            WakeClaim::Unavailable
-        })
+        Ok(settle(tx, result)
+            .await?
+            .map_or(WakeClaim::Unavailable, WakeClaim::Retired))
     }
 
     pub(crate) async fn defer_recovery(&self, id: &str) -> Result<()> {
@@ -512,7 +519,7 @@ impl DeliveryStore {
         &self,
         id: &str,
         resolve: impl FnOnce(&Snapshot) -> Result<T> + Send,
-    ) -> Result<Option<(Claim, T)>> {
+    ) -> Result<ClaimResult<T>> {
         check_id(id)?;
         let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
         let clock = self.clock();
@@ -538,8 +545,11 @@ impl DeliveryStore {
                 )
                 .await?;
             if changed != 1 {
-                self.retire_unavailable(&mut tx, id).await?;
-                return Ok(None);
+                let retired = self.retire_unavailable(&mut tx, id).await?;
+                return Ok(ClaimResult {
+                    claimed: None,
+                    unknown_attempt: retired.and_then(|retired| retired.unknown_attempt),
+                });
             }
             let row = self
                 .owned_row(tx.table(DELIVERIES), id)
@@ -557,9 +567,11 @@ impl DeliveryStore {
             }
             let handler = resolve(&snapshot)?;
             let attempt_number = number(&row, "attempts")?;
-            if attempt_number > 1 {
-                self.mark_unknown(&mut tx, id, attempt_number - 1).await?;
-            }
+            let unknown_attempt = if attempt_number > 1 {
+                self.mark_unknown(&mut tx, id, attempt_number - 1).await?
+            } else {
+                None
+            };
             let timestamp = self.time_in(&mut tx).await?;
             tx.table(ATTEMPTS)
                 .insert(&[[
@@ -572,16 +584,19 @@ impl DeliveryStore {
                 .into_iter()
                 .collect()])
                 .await?;
-            Ok(Some((
-                Claim {
-                    token,
-                    number: u32::try_from(attempt_number).map_err(|_| Error::InvalidRecord)?,
-                    timestamp,
-                    deadline: number(&row, "deadline")?,
-                    snapshot,
-                },
-                handler,
-            )))
+            Ok(ClaimResult {
+                claimed: Some((
+                    Claim {
+                        token,
+                        number: u32::try_from(attempt_number).map_err(|_| Error::InvalidRecord)?,
+                        timestamp,
+                        deadline: number(&row, "deadline")?,
+                        snapshot,
+                    },
+                    handler,
+                )),
+                unknown_attempt,
+            })
         }
         .await;
         settle(tx, result).await
@@ -806,7 +821,11 @@ impl DeliveryStore {
         settle(tx, result).await
     }
 
-    async fn retire_unavailable(&self, tx: &mut Transaction, id: &str) -> Result<bool> {
+    async fn retire_unavailable(
+        &self,
+        tx: &mut Transaction,
+        id: &str,
+    ) -> Result<Option<Retirement>> {
         let clock = self.clock();
         let updated = self
             .reclaimable(self.owned_row(tx.table(DELIVERIES), id))
@@ -830,23 +849,32 @@ impl DeliveryStore {
                 .collect(),
             )
             .await?;
-        if updated == 1 {
-            let row = self
-                .owned_row(tx.table(DELIVERIES), id)
-                .select(["attempts"])
-                .first()
-                .await?
-                .ok_or(Error::InvalidRecord)?;
-            let attempt = number(&row, "attempts")?;
-            if attempt > 0 {
-                self.mark_unknown(tx, id, attempt).await?;
-            }
+        if updated != 1 {
+            return Ok(None);
         }
-        Ok(updated == 1)
+        let row = self
+            .owned_row(tx.table(DELIVERIES), id)
+            .select(["attempts"])
+            .first()
+            .await?
+            .ok_or(Error::InvalidRecord)?;
+        let attempt = number(&row, "attempts")?;
+        let unknown_attempt = if attempt > 0 {
+            self.mark_unknown(tx, id, attempt).await?
+        } else {
+            None
+        };
+        Ok(Some(Retirement { unknown_attempt }))
     }
 
-    async fn mark_unknown(&self, tx: &mut Transaction, id: &str, attempt: i64) -> Result<()> {
-        tx.table(ATTEMPTS)
+    async fn mark_unknown(
+        &self,
+        tx: &mut Transaction,
+        id: &str,
+        attempt: i64,
+    ) -> Result<Option<u32>> {
+        let changed = tx
+            .table(ATTEMPTS)
             .r#where("delivery_id", "=", id)
             .r#where("number", "=", attempt)
             .where_null("finished_at")
@@ -859,7 +887,12 @@ impl DeliveryStore {
                 .collect(),
             )
             .await?;
-        Ok(())
+        if changed == 1 {
+            return Ok(Some(
+                u32::try_from(attempt).map_err(|_| Error::InvalidRecord)?,
+            ));
+        }
+        Ok(None)
     }
 
     fn claimed_row<'a>(&self, builder: Builder<'a>, id: &str, claim: &Claim) -> Builder<'a> {

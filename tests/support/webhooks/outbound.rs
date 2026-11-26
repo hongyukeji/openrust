@@ -25,7 +25,7 @@ use openrust_webhook_server::{
     WebhookJobAttempt,
     events::{
         DispatchingWebhookCallEvent, FinalWebhookCallFailedEvent, WebhookCallEvent,
-        WebhookCallFailedEvent, WebhookCallSucceededEvent,
+        WebhookCallFailedEvent, WebhookCallSucceededEvent, WebhookCallUnknownEvent,
     },
     register_backoff_strategy, register_call_webhook_job, register_delivery_policy,
     register_replay_policy,
@@ -226,6 +226,20 @@ impl BackoffStrategy for FixtureBackoff {
 
 struct RecordDeliveryEvent(std::path::PathBuf);
 
+impl RecordDeliveryEvent {
+    async fn append(&self, row: serde_json::Value) -> EventResult<()> {
+        use tokio::io::AsyncWriteExt as _;
+        let line = format!("{row}\n");
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.0)
+            .await
+            .map_err(event_error)?;
+        file.write_all(line.as_bytes()).await.map_err(event_error)
+    }
+}
+
 fn event_error(error: impl std::error::Error + Send + Sync + 'static) -> EventError {
     EventError::Listener {
         source: Box::new(error),
@@ -239,7 +253,31 @@ impl Listener for RecordDeliveryEvent {
         _: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            use tokio::io::AsyncWriteExt as _;
+            if let Some(unknown) = event.downcast_ref::<WebhookCallUnknownEvent>() {
+                assert!(event.properties().is_none());
+                let manager = super::Databases::get_facade_root().map_err(event_error)?;
+                let connection = manager.connection(None).map_err(event_error)?;
+                let store = DeliveryStore::new(connection, &unknown.scope).map_err(event_error)?;
+                let page = store
+                    .inspect_attempts(&unknown.delivery_id, unknown.attempt_number - 1, 1)
+                    .await
+                    .map_err(event_error)?;
+                let committed = page.data.first().is_some_and(|attempt| {
+                    attempt.number == unknown.attempt_number
+                        && attempt.outcome == "unknown"
+                        && attempt.finished_at.is_some()
+                        && attempt.http_status.is_none()
+                });
+                self.append(json!({
+                    "kind": "WebhookCallUnknownEvent",
+                    "id": unknown.delivery_id,
+                    "scope": unknown.scope,
+                    "attempt_number": unknown.attempt_number,
+                    "committed": committed,
+                }))
+                .await?;
+                return Ok(None);
+            }
             let Some(payload) = event_payload(event) else {
                 return Ok(None);
             };
@@ -284,14 +322,7 @@ impl Listener for RecordDeliveryEvent {
             {
                 std::process::exit(82);
             }
-            let line = format!("{row}\n");
-            let mut file = tokio::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&self.0)
-                .await
-                .map_err(event_error)?;
-            file.write_all(line.as_bytes()).await.map_err(event_error)?;
+            self.append(row).await?;
             if (payload.message_id() == "dispatch-listener-error" && payload.attempt.is_none())
                 || (payload.message_id() == "attempt-listener-error" && payload.attempt.is_some())
             {

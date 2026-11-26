@@ -279,6 +279,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 在 `openrust_webhook_server::events` 下註冊同步監聽器。`DispatchingWebhookCallEvent` 在投遞記錄提交後、入佇列前觸發。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在嘗試結果提交後觸發，最終失敗隨後還會派發 `FinalWebhookCallFailedEvent`。共用載荷提供訊息與投遞 ID、請求方法、URL 路徑、本文和中繼資料的存取方法，以及嘗試狀態。事件省略 URL 查詢字串、請求標頭的值和回應內容。入佇列前監聽器失敗時可從持久記錄繼續投遞，結果監聽器失敗時以已提交的結果為準。可用 `transfer_stats()` 查看收到回應時的 HTTP 傳輸時間，並用 `transport_failure()` 區分逾時、連線失敗、回應超過大小限制等去識別化類別。自訂 Job 鉤子也可讀取同一失敗類別。
 
+復原交易將未完成的舊嘗試記為 `unknown` 後，會派發 `WebhookCallUnknownEvent`。事件只包含範圍、投遞 ID 和嘗試序號。Worker 重新領取時，在處理新嘗試後報告舊嘗試，避免同步監聽器占用新嘗試的傳輸時間。Artisan 在收尾交易提交後發出事件。程序若在通知前退出，仍可透過投遞嘗試查詢讀取持久結果。
+
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing
 ./artisan webhook-server:send <delivery-id> --scope=billing --queue

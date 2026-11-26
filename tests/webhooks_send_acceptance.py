@@ -46,7 +46,7 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             if isinstance(self.connection, ssl.SSLSocket):
                 owner.client_certificates[key] = self.connection.getpeercert(binary_form=True)
             attempt = len(deliveries)
-        if (key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight")
+        if (key in ("concurrent", "crash", "crash-expired", "stale", "timeout", "endpoint-inflight")
                 or key.startswith("slot-hold-")) and attempt == 1:
             owner.entered[key].set()
             if not owner.release[key].wait(timeout=12):
@@ -95,6 +95,18 @@ class Receiver(http.server.BaseHTTPRequestHandler):
 
 
 def exercise(binary, env, log, receiver, driver, sql):
+    def unknown_observations(identifier):
+        path = Path(env["FIXTURE_SEND_EVENTS"])
+        events = (json.loads(line) for line in path.read_text().splitlines()) if path.exists() else ()
+        return [event for event in events
+                if event["kind"] == "WebhookCallUnknownEvent" and event["id"] == identifier]
+
+    def assert_unknown_observation(identifier):
+        assert unknown_observations(identifier) == [{
+            "kind": "WebhookCallUnknownEvent", "id": identifier, "scope": SCOPE,
+            "attempt_number": 1, "committed": True,
+        }]
+
     def command(*tokens, current=env, success=True):
         result = subprocess.run(
             [str(binary), "artisan", *tokens], env=current,
@@ -1716,11 +1728,37 @@ def exercise(binary, env, log, receiver, driver, sql):
             update(crash, "lease_until=0")
             assert recover()["queued"] == 1
             assert read(crash) == "running\t1"
+            assert unknown_observations(crash) == []
             command(*worker)
             assert attempts(crash) == "1\tunknown\t0\n2\tsucceeded\t204"
+            assert_unknown_observation(crash)
             captured("crash", 2)
         finally:
             receiver.release["crash"].set()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=10)
+
+        expired = submit("crash-expired")
+        assert recover()["queued"] == 1
+        process = subprocess.Popen([str(binary), "artisan", *worker], env=env, stdout=log, stderr=log)
+        try:
+            assert receiver.entered["crash-expired"].wait(timeout=10)
+            process.kill()
+            process.wait(timeout=10)
+            update(expired, "lease_until=0, deadline=0")
+            assert recover("--pretend")["candidates"] == 1
+            assert unknown_observations(expired) == []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                scans = [executor.submit(recover) for _ in range(2)]
+                assert sum(scan.result()["retired"] for scan in scans) == 1
+            assert read(expired) == "expired\t1"
+            assert attempts(expired) == "1\tunknown\t0"
+            assert recover()["candidates"] == 0
+            assert_unknown_observation(expired)
+            captured("crash-expired")
+        finally:
+            receiver.release["crash-expired"].set()
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=10)
@@ -1904,6 +1942,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         receiver.release["stale"].set()
         assert process.wait(timeout=10) != 0
         assert attempts(stale) == "1\tunknown\t0\n2\tsucceeded\t204"
+        assert_unknown_observation(stale)
         assert inspect_transport(stale, 1) == {"transfer_time_micros": None, "transport_failure": None}
         assert inspect_transport(stale, 2)["transfer_time_micros"] > 0
         captured("stale", 2)
@@ -1925,6 +1964,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         update(crash, "lease_until=0")
         assert '"succeeded"' in send(crash)
         assert attempts(crash) == "1\tunknown\t0\n2\tsucceeded\t204"
+        assert_unknown_observation(crash)
         captured("crash", 2)
     finally:
         receiver.release["crash"].set()
@@ -2056,7 +2096,7 @@ def exercise(binary, env, log, receiver, driver, sql):
     assert SECRET.decode() not in recorded and "fixture-sensitive-listener-sentinel" not in recorded
     events = [json.loads(line) for line in recorded.splitlines()]
     def activity(key):
-        return [event for event in events if event["message_id"] == key]
+        return [event for event in events if event.get("message_id") == key]
 
     queued = activity("supported-async-if")
     assert [event["kind"] for event in queued] == ["DispatchingWebhookCallEvent", "WebhookCallSucceededEvent"], queued
@@ -2097,7 +2137,7 @@ def exercise(binary, env, log, receiver, driver, sql):
                 assert observation["transport_failure"] in expected, observation
                 assert observation["attempt"]["number"] == 1 and observation["attempt"]["status"] is None
     assert [event["kind"] for event in activity("stale")] == ["WebhookCallSucceededEvent"]
-    assert not [event for event in events if event["message_id"].startswith("skip-")]
+    assert not [event for event in events if event.get("message_id", "").startswith("skip-")]
     assert "fixture-private-response" not in recorded and "fixture-remote-response" not in recorded
     log.flush()
     logs = [Path(log.name), *(Path(env["APP_BASE_PATH"]) / "storage/logs").glob("*.log")]
@@ -2277,7 +2317,7 @@ def main():
     receiver.unexpected = []
     receiver.client_certificates = {}
     receiver.entered = {name: threading.Event() for name in (
-        "crash", "concurrent", "stale", "timeout", "endpoint-inflight",
+        "crash", "crash-expired", "concurrent", "stale", "timeout", "endpoint-inflight",
         "slot-hold-one", "slot-hold-two", "slot-hold-race-one", "slot-hold-race-two",
     )}
     receiver.release = {name: threading.Event() for name in receiver.entered}

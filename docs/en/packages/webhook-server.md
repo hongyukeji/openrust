@@ -279,6 +279,8 @@ When retrying a synchronous call after a successful delivery, reuse the same sco
 
 Register synchronous listeners for these events under `openrust_webhook_server::events`. `DispatchingWebhookCallEvent` runs after the delivery record commits and before the queue push. `WebhookCallSucceededEvent` and `WebhookCallFailedEvent` report committed attempts. A terminal failure also emits `FinalWebhookCallFailedEvent` after the attempt failure. The shared payload exposes message and delivery IDs, request method, URL path, body and metadata accessors, and the attempt’s status. Request header values and response contents stay out of the event, and the URL omits its query string. Dispatch-time listener errors leave a recoverable record. A result listener error leaves the recorded result intact. Use `transfer_stats()` for HTTP Client timing when a response was obtained and `transport_failure()` for a redacted failure category such as a timeout, connection failure, or oversized response. The same failure category is available to custom Job hooks.
 
+Recovery emits `WebhookCallUnknownEvent` for an unfinished attempt that it commits as `unknown`. The event carries the scope, delivery ID, and attempt number. A Worker that reclaims a delivery sends the notification after handling its new attempt so a synchronous listener cannot consume the new attempt’s transport time. Artisan emits it after committing the retirement. Use the delivery attempts query for the durable result if a process exits before notifying listeners.
+
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing
 ./artisan webhook-server:send <delivery-id> --scope=billing --queue

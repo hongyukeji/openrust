@@ -279,6 +279,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 在 `openrust_webhook_server::events` 下注册同步监听器。`DispatchingWebhookCallEvent` 在投递记录提交后、入队前触发。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在尝试结果提交后触发，最终失败随后还会派发 `FinalWebhookCallFailedEvent`。共享载荷提供消息与投递 ID、请求方法、URL 路径、正文和元数据的访问器，以及尝试状态。事件省略 URL 查询串、请求头的值和响应内容。入队前监听器失败时可从持久记录继续投递，结果监听器失败时以已提交的结果为准。可用 `transfer_stats()` 查看收到响应时的 HTTP 传输耗时，用 `transport_failure()` 区分超时、连接失败、响应超限等脱敏类别。自定义 Job 钩子也可读取同一失败类别。
 
+恢复事务把未完成的旧尝试记为 `unknown` 后，会派发 `WebhookCallUnknownEvent`。事件只携带范围、投递 ID 和尝试序号。Worker 重新领取时，在处理新尝试后报告旧尝试，避免同步监听器占用新尝试的传输时间。Artisan 在收尾事务提交后发出事件。进程若在通知前退出，仍可通过投递尝试查询读取持久结果。
+
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing
 ./artisan webhook-server:send <delivery-id> --scope=billing --queue
