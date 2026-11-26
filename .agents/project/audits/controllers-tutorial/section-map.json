@@ -32,8 +32,11 @@
     },
     {
       "anchor": "controller-middleware",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "controller-middleware-oracle.json",
+        "accepted-controller-middleware.json"
+      ]
     },
     {
       "anchor": "middleware-attributes",

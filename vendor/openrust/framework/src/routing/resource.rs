@@ -8,8 +8,9 @@ use crate::{
 };
 
 use super::{
-    ControllerDispatcher, Route, Router, RoutingError,
+    ControllerDispatcher, ControllerMiddleware, HasMiddleware, Route, Router, RoutingError,
     controller_dispatcher::{Action, FormAction},
+    controller_middleware::for_action,
 };
 
 /// An action in a framework resource controller.
@@ -148,6 +149,7 @@ pub struct ResourceController<C> {
     singleton_lifecycle: SingletonLifecycle,
     middleware: ResourceMiddleware,
     configure: Option<Box<Configure>>,
+    controller_middleware: Option<fn() -> Vec<ControllerMiddleware>>,
 }
 
 impl<C> Default for ResourceController<C> {
@@ -166,6 +168,7 @@ impl<C> Default for ResourceController<C> {
             singleton_lifecycle: SingletonLifecycle::default(),
             middleware: ResourceMiddleware::default(),
             configure: None,
+            controller_middleware: None,
         }
     }
 }
@@ -329,6 +332,15 @@ impl<C> ResourceController<C> {
                 .excluded_actions
                 .insert(action, names.clone());
         }
+        self
+    }
+
+    /// 为该资源的各个动作加载控制器的静态中间件声明。
+    pub fn with_controller_middleware(mut self) -> Self
+    where
+        C: HasMiddleware,
+    {
+        self.controller_middleware = Some(C::middleware);
         self
     }
 
@@ -559,6 +571,11 @@ impl Router {
             controller.middleware.apply(action, &mut route);
             if let Some(configure) = &controller.configure {
                 configure(action, &mut route)?;
+            }
+            if let Some(middleware) = controller.controller_middleware {
+                route
+                    .middleware
+                    .extend(for_action(middleware(), action.name()));
             }
             prepared.push((action, route));
         }

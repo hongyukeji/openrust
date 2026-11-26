@@ -1,0 +1,70 @@
+[
+    {
+        "methods": "GET|HEAD",
+        "uri": "direct",
+        "name": "direct.index",
+        "middleware": [
+            "group",
+            "auth",
+            "route",
+            "audit",
+            "log",
+            "Closure"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "direct\/{id}",
+        "name": "direct.show",
+        "middleware": [
+            "group",
+            "auth",
+            "verified",
+            "Closure"
+        ]
+    },
+    {
+        "methods": "POST",
+        "uri": "direct",
+        "name": "direct.store",
+        "middleware": [
+            "group",
+            "Closure"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "entries",
+        "name": "entries.index",
+        "middleware": [
+            "group",
+            "auth",
+            "route",
+            "audit",
+            "log",
+            "Closure"
+        ]
+    },
+    {
+        "methods": "POST",
+        "uri": "entries",
+        "name": "entries.store",
+        "middleware": [
+            "group",
+            "route",
+            "Closure"
+        ]
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "entries\/{entry}",
+        "name": "entries.show",
+        "middleware": [
+            "group",
+            "auth",
+            "route",
+            "verified",
+            "Closure"
+        ]
+    }
+]

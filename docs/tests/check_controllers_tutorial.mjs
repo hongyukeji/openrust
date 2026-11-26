@@ -42,6 +42,9 @@ try {
                     for (const method of ['middleware_for', 'without_middleware_for']) {
                         assert(text.includes(`.${method}(`));
                     }
+                    assert.equal(await page.locator('#controller-middleware').count(),1);
+                    assert(text.includes('impl HasMiddleware for PhotosController'));
+                    assert(text.includes('.with_middleware("index")'));
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();

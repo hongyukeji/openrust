@@ -46,6 +46,36 @@ fn register() -> Result<(), RoutingError> {
 
 Include `Box::new(TeamProvider)` in the application providers and use `register` as the web route callback.
 
+## Controller Middleware {#controller-middleware}
+
+Implement `HasMiddleware` to declare route middleware on a controller. Named entries are resolved through the application’s aliases and groups. Use `only` and `except` to filter actions, or `from_fn` to add an inline asynchronous middleware.
+
+```rust
+use openrust::routing::{ControllerMiddleware, HasMiddleware};
+
+impl HasMiddleware for PhotosController {
+    fn middleware() -> Vec<ControllerMiddleware> {
+        vec![
+            ControllerMiddleware::named("auth"),
+            ControllerMiddleware::named("audit").only(&["index"]),
+            ControllerMiddleware::named("verified").except(&["store"]),
+            ControllerMiddleware::from_fn(|request, next| {
+                Box::pin(async move { Ok(next.run(request).await) })
+            }),
+        ]
+    }
+}
+```
+
+Select the action when registering a typed dispatcher. Rust uses the supplied action name to filter the declaration. For a resource descriptor, call `with_controller_middleware()` to use the registered resource action names. The controller stack follows route and group middleware, and normal route exclusions and middleware priority still apply.
+
+```rust
+Route::get(
+    "/photos",
+    ControllerDispatcher::new(PhotosController::index).with_middleware("index"),
+)?;
+```
+
 ## Resource Controllers
 
 Register conventional routes with `Route::resource("photos", controller)` or `Route::api_resource("photos", controller)`. Create the `ResourceController` descriptor with typed method pointers such as `.action(ResourceAction::Index, PhotosController::index)`. Supply each selected action. The resource route names follow `photos.index` and `photos.show`, and the collection and member URLs follow conventions. API resources omit the create and edit form routes by default. An explicit `only` can select those actions.

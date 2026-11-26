@@ -147,6 +147,12 @@ impl Route {
         (!self.name.is_empty()).then_some(&self.name)
     }
 
+    pub(super) fn middleware_entries(&self) -> impl Iterator<Item = &MiddlewareEntry> {
+        self.middleware
+            .iter()
+            .chain(self.handler.controller_middleware())
+    }
+
     pub fn middleware(&mut self, middleware: Arc<dyn Middleware>) -> &mut Self {
         self.middleware.push(MiddlewareEntry::Instance(middleware));
         self.resolved_middleware = None;

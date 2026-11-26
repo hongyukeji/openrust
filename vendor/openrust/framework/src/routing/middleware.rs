@@ -164,9 +164,9 @@ impl MiddlewareRegistry {
         Some(middleware)
     }
 
-    fn expand(
+    fn expand<'a>(
         &self,
-        entries: &[MiddlewareEntry],
+        entries: impl IntoIterator<Item = &'a MiddlewareEntry>,
         groups: &HashMap<String, MiddlewareStack>,
     ) -> Result<MiddlewareStack, RoutingError> {
         let mut stack = Vec::new();
@@ -210,9 +210,9 @@ impl MiddlewareRegistry {
             .collect()
     }
 
-    pub(crate) fn resolve_stack(
+    pub(crate) fn resolve_stack<'a>(
         &self,
-        entries: &[MiddlewareEntry],
+        entries: impl IntoIterator<Item = &'a MiddlewareEntry>,
         excluded: &[String],
         groups: &HashMap<String, MiddlewareStack>,
     ) -> Result<MiddlewareStack, RoutingError> {

@@ -46,6 +46,36 @@ fn register() -> Result<(), RoutingError> {
 
 將 `Box::new(TeamProvider)` 加入應用程式服務提供者，並將 `register` 設為 Web 路由註冊回呼。
 
+## 控制器中介層 {#controller-middleware}
+
+實作 `HasMiddleware` 可在控制器內宣告路由中介層。名稱透過目前應用程式的別名和群組解析。用 `only`、`except` 依動作篩選，也可用 `from_fn` 加入內嵌非同步中介層。
+
+```rust
+use openrust::routing::{ControllerMiddleware, HasMiddleware};
+
+impl HasMiddleware for PhotosController {
+    fn middleware() -> Vec<ControllerMiddleware> {
+        vec![
+            ControllerMiddleware::named("auth"),
+            ControllerMiddleware::named("audit").only(&["index"]),
+            ControllerMiddleware::named("verified").except(&["store"]),
+            ControllerMiddleware::from_fn(|request, next| {
+                Box::pin(async move { Ok(next.run(request).await) })
+            }),
+        ]
+    }
+}
+```
+
+註冊型別化分派器時指定動作名稱，Rust 用這個名稱篩選宣告。資源描述元可呼叫 `with_controller_middleware()`，框架會使用資源動作名稱。控制器中介層接在路由與路由群組之後，仍參與正常的路由排除和優先順序處理。
+
+```rust
+Route::get(
+    "/photos",
+    ControllerDispatcher::new(PhotosController::index).with_middleware("index"),
+)?;
+```
+
 ## 資源控制器
 
 使用 `Route::resource("photos", controller)` 或 `Route::api_resource("photos", controller)` 註冊慣例路由。建立 `ResourceController` 時，用 `.action(ResourceAction::Index, PhotosController::index)` 這類型別化方法指標提供所選動作。路由名稱採用 `photos.index`、`photos.show` 等框架慣例，集合及成員的 URL 也依同樣慣例。API 資源預設省略建立和編輯表單路由，也可用 `only` 明確選取這些動作。

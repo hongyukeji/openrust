@@ -196,7 +196,7 @@ impl Router {
         self.routes_with_info()
             .map(|(route, mut info)| {
                 let stack = registry.resolve_stack(
-                    &route.middleware,
+                    route.middleware_entries(),
                     &route.excluded_middleware,
                     &groups,
                 )?;
@@ -250,8 +250,7 @@ impl Router {
                         path: format!("{file}:{}", route.definition.line()),
                         vendor,
                         middleware: route
-                            .middleware
-                            .iter()
+                            .middleware_entries()
                             .map(|middleware| match middleware {
                                 MiddlewareEntry::Named(name) => name.clone(),
                                 MiddlewareEntry::Instance(_) => "Closure".to_owned(),
@@ -512,8 +511,11 @@ impl Router {
         let active_routes: HashSet<_> = self.by_method.values().flatten().copied().collect();
         for index in active_routes {
             let route = &mut self.routes[index];
-            let mut stack =
-                registry.resolve_stack(&route.middleware, &route.excluded_middleware, &groups)?;
+            let mut stack = registry.resolve_stack(
+                route.middleware_entries(),
+                &route.excluded_middleware,
+                &groups,
+            )?;
             // 同一默认实例在路由管线选择一次语言，Web 必须先完成 Cookie 解密与队列装配。
             let position = stack.iter().rposition(|item| {
                 #[cfg(feature = "sanctum")]
@@ -754,7 +756,7 @@ impl Router {
         } else {
             resolved = MiddlewareRegistry::default()
                 .resolve_stack(
-                    &route.middleware,
+                    route.middleware_entries(),
                     &route.excluded_middleware,
                     &HashMap::new(),
                 )

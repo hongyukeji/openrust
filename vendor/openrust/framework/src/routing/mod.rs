@@ -3,6 +3,7 @@
 pub(crate) mod binding;
 pub(crate) mod console;
 mod controller_dispatcher;
+mod controller_middleware;
 mod error;
 mod form_request_handler;
 pub mod middleware;
@@ -22,6 +23,7 @@ mod view_controller;
 
 pub use binding::BindingContext;
 pub use controller_dispatcher::ControllerDispatcher;
+pub use controller_middleware::{ControllerMiddleware, HasMiddleware};
 pub use error::RoutingError;
 pub use middleware::MiddlewareEntry;
 #[doc(hidden)]

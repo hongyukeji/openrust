@@ -29,3 +29,9 @@ Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，
 固定 PHP Router 复验普通、API、单例和 API 单例的 11 条路径。Rust 直接使用资源描述符的 middleware、middleware_for、without_middleware 和 without_middleware_for。复用原有路由中间件解析器。逐动作重复配置覆盖该动作的旧值，晚设通用中间件追加到已配置动作，过滤路由中间件后仍执行全局中间件。
 
 实际 HTTP 验证 11 个执行序列与固定注册器一致。实际 Artisan route:list 查看生效的中间件，独立二进制也通过列表和 inspire。三语正文直接提取并实际运行各 2 次请求。浏览器、路由和中间件生命周期回归、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-middleware.json)。
+
+## 94. 控制器声明式中间件
+
+固定 PHP Router 执行 HasMiddleware 静态声明、动作过滤、组与路由合并、闭包和排除。Rust 在控制器分发器上指定动作名，资源描述符使用约定的动作名，两个公开入口共享同一过滤器。编译后保留实际中间件实例，与路由中间件交同一管线解析。只有全局中间件在路由排除范围外。
+
+真实 TCP 核对普通控制器和资源动作共 6 条执行顺序，包含空 only、only 和 except 交集、同名中间件去重、内联闭包、路由级排除。三语正文的 6 个 Rust 片段套入正式公开入口，执行 3 次真实请求。实际 Artisan、56 项路由／请求及生命周期回归、三语站点、12 组浏览器、格式和隔离仓严格 Clippy 通过。其余控制器属性和授权另按对应锚点跟踪。见[验收记录](accepted-controller-middleware.json)。

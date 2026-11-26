@@ -13,10 +13,13 @@ pub(super) type Action<C, T = Response> =
 type Dispatch<C, T> =
     dyn for<'a> Fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<T, HttpError>> + Send + Sync;
 
+use super::{HasMiddleware, MiddlewareEntry, controller_middleware::for_action};
+
 /// Dispatches a typed controller action through the current application's container.
 pub struct ControllerDispatcher<C, T = Response> {
     action: Box<Dispatch<C, T>>,
     form_request: bool,
+    middleware: Vec<MiddlewareEntry>,
 }
 
 impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
@@ -24,7 +27,17 @@ impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
         Self {
             action: Box::new(action),
             form_request: false,
+            middleware: Vec::new(),
         }
+    }
+
+    /// 为指定动作加载控制器的静态中间件声明。
+    pub fn with_middleware(mut self, action: &str) -> Self
+    where
+        C: HasMiddleware,
+    {
+        self.middleware = for_action(C::middleware(), action);
+        self
     }
 }
 
@@ -49,6 +62,7 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
                 })
             }),
             form_request: false,
+            middleware: Vec::new(),
         }
     }
 
@@ -64,11 +78,16 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
                 })
             }),
             form_request: true,
+            middleware: Vec::new(),
         }
     }
 }
 
 impl<C: Send + Sync + 'static, T: Responsable + 'static> Handler for ControllerDispatcher<C, T> {
+    fn controller_middleware(&self) -> &[MiddlewareEntry] {
+        &self.middleware
+    }
+
     fn handle<'a>(
         &'a self,
         request: &'a mut Request,

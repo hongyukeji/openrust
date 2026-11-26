@@ -15,6 +15,12 @@ pub trait Handler: Send + Sync {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>>;
 
+    /// 控制器声明的中间件在路由中间件之后进入同一管线。
+    #[doc(hidden)]
+    fn controller_middleware(&self) -> &[crate::routing::MiddlewareEntry] {
+        &[]
+    }
+
     /// Route dispatch hook; parameter-aware adapters resolve dependencies first.
     #[doc(hidden)]
     fn handle_precognitive<'a>(
