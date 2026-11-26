@@ -692,7 +692,7 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `bedrock` 命名连接复用项目 AWS SDK 依赖风格，新增官方 Bedrock Runtime Rust SDK 1.151.0。客户端按需初始化，支持应用环境中的 Bearer、SigV4 静态凭证和会话令牌、AWS 默认凭证链、STS AssumeRole、区域及可覆盖的运行时端点。Converse 按固定 Laravel 映射系统指令、消息历史、内联图片和文档、采样选项及用量。输入总量含缓存读取和写入并保留两个子项。Typed SDK 负责模型路径编码和签名，单次请求关闭 SDK 自动重试，错误交给既有 SDK 处理。
 
-独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。结构化输出、远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
+独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
 
 - [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) · [AWS Rust SDK 1.151.0](https://docs.rs/aws-sdk-bedrockruntime/1.151.0/aws_sdk_bedrockruntime/)
 
@@ -707,6 +707,12 @@ Bedrock 普通与流式请求接入 `StepTextGateway`。本地函数映射为 AW
 独立 Artisan 与 HTTP 通过本地 AWS 协议服务验证两个模型回合、指定工具和续步自动选择、JSON 与二进制流参数、原始工具 ID、签名与不透明字节的顺序回放、缓存用量及公开 SSE 隔离。缺用量终帧时未执行本地函数。普通和流式 Converse 前批用例同步复验，19 项 SDK 回归、严格 Clippy 和三语站点通过。
 
 - [AWS Bedrock 客户端工具](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html) · [AWS Converse 签名推理与事件](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
+
+普通与流式 `with_schema` 按固定 Laravel 将嵌套封闭 Schema 映射成 `structured_output`。前置回合允许本地函数，末步选择结构化工具并公开其 JSON 对象。指定业务工具的前置回合只发送业务工具定义。固定基线识别的 Claude 模型使用系统 JSON 指令，终帧检查完整 JSON 对象。同一个响应同时提交业务调用与结构化结果时拒绝该响应，避免执行不完整的工具轮。
+
+独立 HTTP 和 Artisan 通过本地 AWS 协议服务验证两种结构化输出方式、嵌套 Schema、多轮工具及普通和流式终帧。复验签名推理、无效 JSON、混合工具拒绝和原生流；19 项 SDK 回归、严格 Clippy 与三语站点通过。正式 AWS 账户的模型支持范围仍待验收。
+
+- [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Bedrock 客户端工具](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html)
 
 ### xAI 原生 Responses
 

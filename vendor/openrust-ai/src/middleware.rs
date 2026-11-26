@@ -514,7 +514,12 @@ pub(crate) async fn generate_step(
                 let mut response = crate::request_context::in_invocation(
                     step.invocation_id,
                     step.number,
-                    gateway.generate_text_step(&request, &step.tools, step.steps),
+                    gateway.generate_text_step_with_context(
+                        &request,
+                        &step.tools,
+                        step.steps,
+                        step.is_final_step,
+                    ),
                 )
                 .await?;
                 if let Some(choice) = choice {

@@ -277,6 +277,27 @@ pub trait StepTextGateway: Send + Sync {
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async { Err(AiError::ToolsNotSupported) })
     }
+
+    /// 提供 Agent 的停止边界，供需要终步协议选项的供应商使用。
+    fn generate_text_step_with_context<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+        _final_step: bool,
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        self.generate_text_step(prompt, tools, history)
+    }
+
+    fn stream_text_step_with_context<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+        _final_step: bool,
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        self.stream_text_step(prompt, tools, history)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

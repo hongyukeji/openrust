@@ -1,3 +1,4 @@
+mod structured;
 mod tools;
 
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -286,9 +287,20 @@ impl StepTextGateway for BedrockProvider {
         definitions: &'a [ToolDefinition],
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        self.generate_text_step_with_context(prompt, definitions, history, false)
+    }
+
+    fn generate_text_step_with_context<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        definitions: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+        final_step: bool,
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
             let scope = self.approval_replay_scope()?;
-            let input = ConverseInput::prepare(prompt, definitions, history, scope.as_deref())?;
+            let input =
+                ConverseInput::prepare(prompt, definitions, history, scope.as_deref(), final_step)?;
             let allow_tools = input.tool_config.is_some();
             let request = self
                 .client()
@@ -327,7 +339,7 @@ impl StepTextGateway for BedrockProvider {
             }
             let reason = finish_reason(response.stop_reason().as_str());
             validate_tool_stop(reason, &calls)?;
-            Ok(StepResponse {
+            input.mode.finish(StepResponse {
                 model: None,
                 text: (!text.is_empty()).then_some(text),
                 reasoning: reasoning.join("\n\n"),
@@ -346,9 +358,20 @@ impl StepTextGateway for BedrockProvider {
         definitions: &'a [ToolDefinition],
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        self.stream_text_step_with_context(prompt, definitions, history, false)
+    }
+
+    fn stream_text_step_with_context<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        definitions: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+        final_step: bool,
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
             let scope = self.approval_replay_scope()?;
-            let input = ConverseInput::prepare(prompt, definitions, history, scope.as_deref())?;
+            let input =
+                ConverseInput::prepare(prompt, definitions, history, scope.as_deref(), final_step)?;
             let allow_tools = input.tool_config.is_some();
             let client = self.client().await?;
             let deadline = tokio::time::Instant::now()
@@ -366,7 +389,7 @@ impl StepTextGateway for BedrockProvider {
                 .send()
                 .await
                 .map_err(converse_error)?;
-            Ok(stream_events(response, deadline, allow_tools))
+            Ok(stream_events(response, deadline, allow_tools, input.mode))
         })
     }
 }
@@ -376,6 +399,7 @@ struct ConverseInput {
     system: Option<Vec<SystemContentBlock>>,
     inference: Option<InferenceConfiguration>,
     tool_config: Option<ToolConfiguration>,
+    mode: structured::OutputMode,
     duration: Duration,
     timeout: aws_sdk_bedrockruntime::config::Builder,
 }
@@ -386,10 +410,8 @@ impl ConverseInput {
         definitions: &[ToolDefinition],
         history: &[ToolStep],
         scope: Option<&str>,
+        final_step: bool,
     ) -> AiResult<Self> {
-        if prompt.structured_output.is_some() {
-            return Err(AiError::StructuredOutputNotSupported);
-        }
         if prompt
             .provider_options
             .is_some_and(|options| !options.is_empty())
@@ -425,7 +447,7 @@ impl ConverseInput {
             prompt.attachments,
         )?);
         messages.extend(tools::messages(history)?);
-        let tool_config = tools::configuration(definitions, prompt.tool_choice)?;
+        let output = structured::prepare(prompt, definitions, final_step)?;
         let options = prompt.options;
         let max_tokens = options
             .max_tokens
@@ -439,8 +461,14 @@ impl ConverseInput {
                 .set_top_p(options.top_p)
                 .build()
         });
-        let system = (!prompt.text.instructions.is_empty())
-            .then(|| vec![SystemContentBlock::Text(prompt.text.instructions.into())]);
+        let mut system = Vec::with_capacity(2);
+        if !prompt.text.instructions.is_empty() {
+            system.push(SystemContentBlock::Text(prompt.text.instructions.into()));
+        }
+        if let Some(instruction) = output.instruction {
+            system.push(SystemContentBlock::Text(instruction));
+        }
+        let system = (!system.is_empty()).then_some(system);
         let duration = prompt.text.timeout.unwrap_or(Duration::from_secs(60));
         let timeout = aws_sdk_bedrockruntime::config::Builder::new()
             .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build());
@@ -448,7 +476,8 @@ impl ConverseInput {
             messages,
             system,
             inference,
-            tool_config,
+            tool_config: output.tool_config,
+            mode: output.mode,
             duration,
             timeout,
         })
@@ -469,6 +498,7 @@ fn stream_events(
     mut response: StreamOutput,
     deadline: tokio::time::Instant,
     allow_tools: bool,
+    mode: structured::OutputMode,
 ) -> StepEventStream {
     Box::pin(async_stream::try_stream! {
         let mut started = false;
@@ -503,7 +533,9 @@ fn stream_events(
                     match event.delta().ok_or(AiError::InvalidResponse)? {
                         ContentBlockDelta::Text(delta) if !delta.is_empty() => {
                             block.text.push_str(delta);
-                            yield StepEvent::TextPartDelta { part, delta: delta.clone() };
+                            if !mode.buffers_text() {
+                                yield StepEvent::TextPartDelta { part, delta: delta.clone() };
+                            }
                         }
                         ContentBlockDelta::ReasoningContent(ReasoningContentBlockDelta::Text(delta)) if !delta.is_empty() => {
                             block.reasoning.push_str(delta);
@@ -529,7 +561,7 @@ fn stream_events(
                         Err(AiError::InvalidResponse)?;
                     }
                     block.closed = true;
-                    if !block.text.is_empty() {
+                    if !mode.buffers_text() && !block.text.is_empty() {
                         yield StepEvent::TextPartEnd { part: ("bedrock".into(), index) };
                     }
                     if !block.reasoning.is_empty() {
@@ -551,7 +583,7 @@ fn stream_events(
                     let replay = blocks.into_values().filter_map(stream_block).collect::<AiResult<Vec<_>>>()?;
                     let (calls, replay) = tools::output_state(&replay)?;
                     validate_tool_stop(reason, &calls)?;
-                    let response = StepResponse {
+                    let response = mode.finish(StepResponse {
                         model: None,
                         text: (!text.is_empty()).then_some(text),
                         reasoning,
@@ -560,8 +592,9 @@ fn stream_events(
                         citations: Vec::new(),
                         tool_calls: calls,
                         provider_content: replay,
-                    };
-                    yield StepEvent::Finished { response: Box::new(response), reason: reason.as_str().into() };
+                    })?;
+                    let reason = response.finish_reason.as_str().into();
+                    yield StepEvent::Finished { response: Box::new(response), reason };
                     return;
                 }
                 event if event.is_unknown() => {}

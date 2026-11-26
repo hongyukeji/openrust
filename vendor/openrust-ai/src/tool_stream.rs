@@ -322,7 +322,10 @@ pub(crate) async fn stream_step(
         .ok_or(AiError::ToolsNotSupported)?;
     let observation =
         StepObservation::start(provider.name(), prompt, history, history.len(), final_step).await;
-    let mut events = match gateway.stream_text_step(prompt, definitions, history).await {
+    let mut events = match gateway
+        .stream_text_step_with_context(prompt, definitions, history, final_step)
+        .await
+    {
         Ok(events) => events,
         Err(error) => {
             if let Some(observation) = observation {
