@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 const require=createRequire(import.meta.url);
+const run=promisify(execFile);
 const {chromium}=require(process.env.DOCS_PLAYWRIGHT_MODULE);
 const browser=await chromium.launch({executablePath:process.env.DOCS_BROWSER_PATH});
 try {
@@ -111,9 +114,26 @@ try {
   await page.goto(endpoint+'/jobs?tag='+familyTag);
   await summaries.filter({hasText:'job-second'}).waitFor();
   assert(await summaries.filter({hasText:'job-first'}).isVisible());
+  const jobName=mobile?'TelescopePendingMobile':'TelescopePendingDesktop';
+  assert.equal((await context.request.get(new URL('/api/pending/'+familySample,endpoint).href)).status(),200);
+  await page.goto(endpoint+'/jobs');
+  const pendingRow=page.locator('#entries tr').filter({hasText:jobName}).first();
+  await pendingRow.filter({hasText:'[pending]'}).waitFor();
+  const jobId=(await pendingRow.locator('button').getAttribute('aria-label')).replace('Open entry ','');
+  await pendingRow.evaluate(node=>{window.acceptancePendingRow=node});
+  const changed=page.waitForResponse(response=>{
+   const request=response.request();
+   return new URL(request.url()).pathname.endsWith('/telescope-api/jobs')&&
+       request.method()==='POST'&&request.postDataJSON()?.uuids?.includes(jobId)&&response.ok();
+  });
+  await run(process.argv[3],['artisan','queue:work','async','--once','--sleep=0','--timeout=0','--tries=1'],{timeout:15000});
+  await changed;
+  await pendingRow.filter({hasText:'[processed]'}).waitFor();
+  assert(await pendingRow.evaluate(node=>node===window.acceptancePendingRow));
+  assert.equal(await pendingRow.locator('button').getAttribute('aria-label'),'Open entry '+jobId);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(errors,[]);
-  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup, new entries, auto-load preference, family navigation and layout`);
+  console.log(`PASS Telescope ${mobile?'mobile':'desktop'} authorization, CSRF, XSS, details, monitoring, pause/resume, live dumps, polling cleanup, new entries, auto-load preference, family navigation, in-place worker status and layout`);
   await context.close();
  }
 } finally { await browser.close(); }

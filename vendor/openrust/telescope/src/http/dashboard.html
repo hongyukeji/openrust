@@ -31,6 +31,7 @@ function sectionFromLocation(){
 }
 let section=sectionFromLocation(),entries=[],before=null,busy=false,selected=null;
 let activeRequest=null,listTimer=null,newEntries=false;
+let jobsRequest=null,jobsTimer=null;
 let appliedFilters={tag:null,family_hash:null};
 const autoLoadKey='telescopeAutoLoadsNewEntries';
 let autoLoad=localStorage.getItem(autoLoadKey)==='1';
@@ -79,8 +80,11 @@ function updateStatus(status){
 }
 function cancelListUpdate(){
     clearTimeout(listTimer);
+    clearTimeout(jobsTimer);
     activeRequest?.abort();
+    jobsRequest?.abort();
     activeRequest=null;
+    jobsRequest=null;
 }
 function scheduleListPoll(){
     if(!newEntries)listTimer=setTimeout(pollList,section==='dumps'?2000:2500);
@@ -147,6 +151,40 @@ async function pollList(){
         }
     }
 }
+function scheduleJobsUpdate(){
+    if(section==='jobs')jobsTimer=setTimeout(updatePendingJobs,2500);
+}
+async function updatePendingJobs(){
+    const pending=new Set(entries.filter(entry=>entry.content.status==='pending').map(entry=>entry.id));
+    if(!pending.size){
+        scheduleJobsUpdate();
+        return;
+    }
+    const request=new AbortController();
+    jobsRequest=request;
+    let retry=true;
+    try{
+        const data=await api('jobs','POST',{uuids:[...pending]},request.signal);
+        if(request.signal.aborted)return;
+        updateStatus(data.status);
+        const updates=new Map(data.entries.filter(entry=>pending.has(entry.id)).map(entry=>[entry.id,entry]));
+        entries=entries.map((entry,index)=>{
+            const updated=updates.get(entry.id);
+            if(!updated)return entry;
+            const content=$('entries').children[index]?.querySelector('.summary');
+            if(content)content.textContent=summary(updated);
+            return updated;
+        });
+    }catch(error){
+        retry=!error.status;
+        if(!request.signal.aborted)notice(error.message,true);
+    }finally{
+        if(jobsRequest===request){
+            jobsRequest=null;
+            if(retry)scheduleJobsUpdate();
+        }
+    }
+}
 async function load(append=false){
     cancelListUpdate();
     const request=new AbortController();
@@ -174,7 +212,10 @@ async function load(append=false){
             busy=false;
             $('refresh').disabled=false;
             render();
-            if(retry)scheduleListPoll();
+            if(retry){
+                scheduleListPoll();
+                scheduleJobsUpdate();
+            }
         }
     }
 }

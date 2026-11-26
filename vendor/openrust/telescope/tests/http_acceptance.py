@@ -17,7 +17,12 @@ def main():
     for disabled in [False, True]:
         with tempfile.TemporaryDirectory(prefix='openrust-telescope-http-') as directory:
             root = Path(directory)
-            sqlite3.connect(root / 'database.sqlite').close()
+            with sqlite3.connect(root / 'database.sqlite') as database:
+                database.execute(
+                    'CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, queue TEXT NOT NULL,'
+                    ' payload TEXT NOT NULL, attempts INTEGER NOT NULL, reserved_at INTEGER,'
+                    ' available_at INTEGER NOT NULL, created_at INTEGER NOT NULL)'
+                )
             (root / 'sessions').mkdir()
             env = dict(os.environ, APP_BASE_PATH=directory, LOG_CHANNEL='null', TELESCOPE_PROBE_DISABLED='1' if disabled else '0')
             migrated = subprocess.run([binary, 'artisan', 'migrate', '--force'], env=env, capture_output=True, text=True, timeout=30)
@@ -51,7 +56,7 @@ def main():
                         assert database.execute('SELECT COUNT(*) FROM telescope_entries').fetchone()[0] == 0
                     print('PASS: disabled Telescope stores no HTTP entries')
                 else:
-                    subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=75)
+                    subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint, binary], env=env, check=True, timeout=75)
             finally:
                 server.terminate()
                 try:
