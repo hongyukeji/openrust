@@ -65,6 +65,16 @@
 
 本机日志保存在 `target/tmp/goal-extension-combined-amd64/`。历史 Ubuntu 实机证明已有部署链路，当前组合仍需可确认的隔离主机 SSH 入口、登录用户和非交互 Docker 权限复验。完整静态依赖溯源、目标发布渠道和外部测试租户仍按各自条件核验。[历史原生 Ubuntu 验收](08-04/docker.md#原生-ubuntu-x86_64-发布复验)
 
+### Linux AMD64 原生归档链接溯源
+
+沿用 Linux ARM64 溯源使用的冻结源码、根发行声明及链接映射方法。在本机 ARM64 Docker Desktop 上以 GNU x86_64 交叉工具链生成 `linux/amd64` 镜像，Rust 1.94.0 锁定 Release 与九项扩展通过。首次触及宿主磁盘停线，持锁清理后复用独占 Docker 缓存，以单作业续跑成功。
+
+- OCI 索引摘要为 `sha256:96991536d587aef6827dfe6d68fa1fa27e7e8e77a584fa5a4900d4c1aa317ba3`，AMD64 镜像清单摘要为 `sha256:8d07ee01b73b1fc8e55a1227fca666972afad62664a59701b946c47bcc9378c1`。ELF SHA-256 为 `6bb64f8a29d9d3427a4894c8a3a7c5a2efc46b20bdb993359b5a8a4fa2bab082`，链接映射 SHA-256 为 `5c5f2350ccc56996054e68c813bdca07175e8c9a985e96db974a576a12271a05`。
+- 对照实际 ELF 的 `.text` 节地址与长度，按归档成员计得 AWS-LC 1,854,651 字节、SQLite 1,607,438 字节、PCRE2 441,398 字节及 ring 生产归档 261,393 字节。BLAKE3 两个 x64 汇编归档和 ring 测试归档无正长度 `.text` 贡献。ELF 使用静态 PCRE2，镜像内另有 Debian PCRE2 包，`ldd` 显示此 ELF 的动态依赖为 glibc、libm、libgcc 与加载器。
+- 在 AMD64 仿真容器内，从 UID/GID 10001 的只读镜像读回 10 份许可，与源码及新根声明逐字节一致。九包发现、58 项迁移、幂等重跑、配置和路由缓存前后 HTTP、Reverb 签名投递、独立 Worker 和 SIGTERM 退出均通过。隔离 OTLP 收集器解码 206 个 Span、12 条指标记录，核对 HTTP 路由、请求耗时指标及独立 Artisan Span。
+
+本机证据位于 `target/tmp/goal-extension-linux-elf-provenance/amd64/`。范围为此 ELF 的 Cargo 归档 `.text`。原生 x86_64 主机、其他节、工具链和发布渠道仍按各自验收口径跟踪。
+
 ## Windows ARM64 组合预检
 
 在现有 Windows 11 ARM64 虚机上核对 `ab1d2b4c8` 归档和 Rust 1.94.0。首次离线解析缺少 `mago-syntax`，按锁文件补齐公开依赖后，用 `cargo tree --locked --offline --target aarch64-pc-windows-msvc --edges normal --depth 1` 复验，九个扩展依赖均出现，联网与离线树输出逐字节一致。专用验收盘有 34,179,629,056 字节可用，虚机未检测到 Docker CLI。组合 PE、运行与许可随附仍需实际构建验收。
