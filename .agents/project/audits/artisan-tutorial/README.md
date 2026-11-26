@@ -930,3 +930,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 固定 2.3.3 的实际对象履历和25个附着元素属性向量通过。旧元素渲染自己的内容，隐式长度及内宽读取最近关联对象。属性和样式共有，设置、合并、输出及报错均经正常入口。Rust 通过只保留存活节点的弱关联避免保留环，固定 PHP 会保留最后关联的已释放节点，此差异已在三语说明和测试中登记。
 
 53 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、213 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续显式样式继承及其他终端契约。见 attached-terminal-style-contracts.json 与 accepted-attached-terminal-style.json。
+
+
+## 71. 显式终端样式继承
+
+独立样式与关联元素的64个固定继承场景逐项比较颜色、粗细、祖先布局快照、内宽、空属性以及分数宽度错误。新增独立查询用例验证内宽只依赖边距和间距。祖先顺序沿用现有宽度计算。真实 CLI 和 HTTP 使用标准元素渲染入口。
+
+56 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、216 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续自定义修饰器等其余入口。见 terminal-style-inheritance-contracts.json 与 accepted-terminal-style-inheritance.json。

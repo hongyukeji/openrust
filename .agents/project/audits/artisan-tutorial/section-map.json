@@ -365,7 +365,8 @@
       "terminal_element": "terminal-element-contracts.json",
       "standalone_terminal_styles": "standalone-terminal-styles-contracts.json",
       "terminal_style_properties": "terminal-style-properties-contracts.json",
-      "attached_terminal_style": "attached-terminal-style-contracts.json"
+      "attached_terminal_style": "attached-terminal-style-contracts.json",
+      "terminal_style_inheritance": "terminal-style-inheritance-contracts.json"
     },
     {
       "anchor": "tables",
@@ -743,6 +744,14 @@
     "remaining": [
       "显式继承与祖先属性传递、完整自定义修饰器及动态方法转发。",
       "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
+    ]
+  },
+  "terminal_style_inheritance": {
+    "status": "verified_explicit_terminal_style_inheritance",
+    "contract": "terminal-style-inheritance-contracts.json",
+    "remaining": [
+      "自定义文本与样式修饰器、动态方法转发及一般 HTML 恢复。",
+      "Factory 容器构造和其他 Artisan 文档锚点。"
     ]
   }
 }

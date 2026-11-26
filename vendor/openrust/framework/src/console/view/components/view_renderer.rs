@@ -4,6 +4,7 @@ mod dimensions;
 pub use dimensions::TerminalDimensions;
 mod dom;
 mod element;
+mod inheritance;
 pub use element::{TerminalChild, TerminalContent, TerminalElement, TerminalElementKind};
 mod layout;
 mod lists;

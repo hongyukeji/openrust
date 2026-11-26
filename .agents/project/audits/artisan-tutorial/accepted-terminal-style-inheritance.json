@@ -1,0 +1,44 @@
+{
+  "base": "cee82760c374fd7d900f2d2dca0356b119dfbc06",
+  "contract": "terminal-style-inheritance-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.51s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.36s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.47s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.25s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+    "test result: ok. 5 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 216 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s"
+  ],
+  "runtime": {
+    "source_inheritance_cases": 64,
+    "source_query_only_cases": 1,
+    "framework_targets": 15,
+    "framework_parent_tests": 56,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 216,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/terminal-style-inheritance-first.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-style-inheritance-gates.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-style-inheritance-site.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-style-inheritance-source.json"
+  ],
+  "unaccepted_attempts": [],
+  "remaining": [
+    "自定义文本与样式修饰器、动态方法转发及一般 HTML 恢复。",
+    "Factory 容器构造和其他 Artisan 文档锚点。"
+  ],
+  "pushed": false
+}

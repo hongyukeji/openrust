@@ -237,6 +237,22 @@ impl TerminalElement {
         Ok(self)
     }
 
+    pub fn inherit_from_styles(
+        &mut self,
+        parent: &TerminalStyles<'static>,
+    ) -> Result<&mut Self, ConsoleError> {
+        let mut style = self.styles.style.try_write().ok_or_else(style_busy)?;
+        let mut properties = style
+            .properties
+            .as_deref()
+            .expect("终端元素始终拥有属性")
+            .clone();
+        super::inheritance::inherit(&mut properties, parent.get_properties());
+        properties::set(&mut style, properties)?;
+        drop(style);
+        Ok(self)
+    }
+
     /// 对指定文本或最近关联的存活元素测量显示列数。
     pub fn get_length(&self, text: Option<&str>) -> Result<i64, ConsoleError> {
         if let Some(text) = text {
@@ -250,7 +266,10 @@ impl TerminalElement {
     pub fn get_inner_width(&self) -> Result<i64, ConsoleError> {
         let content_length = self.get_length(None)?;
         let style = self.styles.style.try_read().ok_or_else(style_busy)?;
-        let [_, right, _, left] = style.margins(false, [0; 2]);
+        let properties = style.properties.as_deref().expect("终端元素始终拥有属性");
+        let first = properties::format_first(properties)?;
+        let layout = super::inheritance::layout(properties)?;
+        let [_, right, _, left] = style.margins(first, layout.spacing);
         Ok(content_length - (right + left) as i64)
     }
 
@@ -315,8 +334,9 @@ impl TerminalElement {
             return Ok(raw(value));
         }
         let style = self.styles.style.try_read().ok_or_else(style_busy)?.clone();
-        let first =
-            properties::format_first(style.properties.as_deref().expect("终端元素始终拥有属性"))?;
+        let properties = style.properties.as_deref().expect("终端元素始终拥有属性");
+        let first = properties::format_first(properties)?;
+        let layout = super::inheritance::layout(properties)?;
         let mut children = vec![];
         let markup = if let Some(prepared) = &content.formatted_children {
             Some(prepared.clone())
@@ -342,8 +362,8 @@ impl TerminalElement {
             raw_element: false,
             children,
             content: markup,
-            parent: None,
-            spacing: [0; 2],
+            parent: layout.parent,
+            spacing: layout.spacing,
             first,
             br: self.kind == TerminalElementKind::BreakLine,
         })

@@ -2658,3 +2658,33 @@ fn register_attached_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Explicit style inheritance {#terminal-style-inheritance}
+
+`inherit_from_styles` applies ancestor values to a standalone style or a terminal element. The child keeps its own assigned colors and bold setting. Missing values come from the parent.
+
+Ancestor widths, margins, and padding are retained in order when computing fractional widths. Parent spacing applies to an element after the first child. The first child keeps its own margins.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{StyleArgument, TerminalElement, TerminalElementKind, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_inherited_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:inherited-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut parent = TerminalStyles::new();
+            parent.text("cyan")?.w(StyleArgument::Integer(24))?.px(1)?;
+            parent.font_bold();
+
+            let mut element = TerminalElement::new(TerminalElementKind::Span, "Inherited ready");
+            element.inherit_from_styles(&parent)?;
+            element.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

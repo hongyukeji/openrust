@@ -2658,3 +2658,33 @@ fn register_attached_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 明確樣式繼承 {#terminal-style-inheritance}
+
+`inherit_from_styles` 將祖先屬性套用到獨立樣式或終端機元素。子項保留已設定的色彩和粗體選項，缺少的值由父項補齊。
+
+計算分數寬度時依祖先順序使用其寬度、外距和內距。父層間距作用於第一項之後的元素，第一項保留自己的外距。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{StyleArgument, TerminalElement, TerminalElementKind, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_inherited_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:inherited-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut parent = TerminalStyles::new();
+            parent.text("cyan")?.w(StyleArgument::Integer(24))?.px(1)?;
+            parent.font_bold();
+
+            let mut element = TerminalElement::new(TerminalElementKind::Span, "Inherited ready");
+            element.inherit_from_styles(&parent)?;
+            element.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

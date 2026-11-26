@@ -424,14 +424,23 @@ impl TerminalStyles<'static> {
         self.set_properties(current)
     }
 
+    pub fn inherit_from_styles(&mut self, parent: &Self) -> Result<&mut Self, ConsoleError> {
+        let mut properties = self.get_properties().clone();
+        super::inheritance::inherit(&mut properties, parent.get_properties());
+        self.set_properties(properties)
+    }
+
     pub fn format(&self, content: &str) -> Result<String, ConsoleError> {
+        let properties = self.get_properties();
+        let first = super::properties::format_first(properties)?;
+        let layout = super::inheritance::layout(properties)?;
         style::format(
             content.to_owned(),
             self.state.get(),
-            &None,
+            &layout.parent,
             Terminal::new().get_width(),
-            super::properties::format_first(self.get_properties())?,
-            [0; 2],
+            first,
+            layout.spacing,
         )
     }
 
@@ -447,7 +456,12 @@ impl TerminalStyles<'static> {
 
     pub fn get_inner_width(&self) -> i64 {
         let style = self.state.get();
-        let [_, right, _, left] = style.margins(false, [0; 2]);
+        let properties = self.get_properties();
+        let first = properties
+            .get("isFirstChild")
+            .is_some_and(crate::support::php_value_truthy);
+        let spacing = super::inheritance::spacing(properties).unwrap_or_default();
+        let [_, right, _, left] = style.margins(first, spacing);
         self.get_length(None) - (left + right) as i64
     }
 }

@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_explicit_terminal_style_inheritance",
+  "bindings": {
+    "TerminalStyles": [
+      "inherit_from_styles"
+    ],
+    "TerminalElement": [
+      "inherit_from_styles"
+    ]
+  },
+  "source_oracle": "terminal-style-inheritance-oracle.json",
+  "runtime": {
+    "source_inheritance_cases": 64,
+    "source_query_only_cases": 1,
+    "framework_targets": 15,
+    "framework_parent_tests": 56,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 216,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "独立样式与当前元素共用属性继承：按序传入祖先宽度和间距，保留子项已有颜色与显式粗细。",
+    "原生布局读祖先约束并沿用既有宽度计算。处于首项时使用自身间距，其余项读取最近祖先的正间距。",
+    "只查询内宽时不要求完整的祖先宽度参数。格式化时，祖先分母、宽度内容及深度错误显式返回。",
+    "实际验证显式属性继承。默认HTML仍走此前已验的树内继承，未将显式继承外的动态入口计为已交付。"
+  ],
+  "remaining": [
+    "自定义文本与样式修饰器、动态方法转发及一般 HTML 恢复。",
+    "Factory 容器构造和其他 Artisan 文档锚点。"
+  ]
+}

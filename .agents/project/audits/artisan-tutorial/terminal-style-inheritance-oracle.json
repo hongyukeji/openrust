@@ -1,0 +1,4417 @@
+[
+    {
+        "case": "bare",
+        "width": 20,
+        "own": [],
+        "parent": [],
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "payload",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "bare",
+        "width": 20,
+        "own": [],
+        "parent": [],
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "payload",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "colors",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<bg=blue;fg=cyan>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "blue",
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "colors",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<bg=blue;fg=cyan>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "blue",
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "private-colors",
+        "width": 20,
+        "own": {
+            "colors": {
+                "fg": "green"
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=green;bg=blue>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "green",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "private-colors",
+        "width": 20,
+        "own": {
+            "colors": {
+                "fg": "green"
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=green;bg=blue>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "green",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "empty-colors",
+        "width": 20,
+        "own": {
+            "colors": {
+                "fg": []
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=cyan>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "empty-colors",
+        "width": 20,
+        "own": {
+            "colors": {
+                "fg": []
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=cyan>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "color-array",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=green>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "color-array",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=green>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-bold",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": true,
+                "underscore": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=bold>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-bold",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": true,
+                "underscore": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=bold>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-normal",
+        "width": 20,
+        "own": {
+            "options": {
+                "bold": false
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=,>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-normal",
+        "width": 20,
+        "own": {
+            "options": {
+                "bold": false
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=,>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-bold",
+        "width": 20,
+        "own": {
+            "options": {
+                "bold": true
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=bold>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-bold",
+        "width": 20,
+        "own": {
+            "options": {
+                "bold": true
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=bold>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-font-normal",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=,>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-font-normal",
+        "width": 20,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=,>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "attached": false,
+        "markup": "payloa",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    2
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    24
+                ],
+                "minWidth": [
+                    5
+                ],
+                "maxWidth": [
+                    20
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "attached": true,
+        "markup": "payloa",
+        "length": 6,
+        "inner": 6,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    2
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    24
+                ],
+                "minWidth": [
+                    5
+                ],
+                "maxWidth": [
+                    20
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout-limit",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "attached": false,
+        "markup": "paylo",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            },
+            "parentStyles": {
+                "ml": [
+                    1
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    38
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout-limit",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "attached": true,
+        "markup": "paylo",
+        "length": 5,
+        "inner": 5,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            },
+            "parentStyles": {
+                "ml": [
+                    1
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    38
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "nested-layout",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/1"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    38
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            },
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "attached": false,
+        "markup": "<bg=red>payload   <\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1"
+            },
+            "parentStyles": {
+                "ml": [
+                    0,
+                    1
+                ],
+                "mr": [
+                    0,
+                    3
+                ],
+                "pl": [
+                    1,
+                    1
+                ],
+                "pr": [
+                    2,
+                    2
+                ],
+                "width": [
+                    38,
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0,
+                    0
+                ],
+                "maxWidth": [
+                    0,
+                    0
+                ],
+                "spaceY": [
+                    0,
+                    0
+                ],
+                "spaceX": [
+                    0,
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "nested-layout",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/1"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    38
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            },
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "attached": true,
+        "markup": "<bg=red>payload   <\/>",
+        "length": 10,
+        "inner": 10,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1"
+            },
+            "parentStyles": {
+                "ml": [
+                    0,
+                    1
+                ],
+                "mr": [
+                    0,
+                    3
+                ],
+                "pl": [
+                    1,
+                    1
+                ],
+                "pr": [
+                    2,
+                    2
+                ],
+                "width": [
+                    38,
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0,
+                    0
+                ],
+                "maxWidth": [
+                    0,
+                    0
+                ],
+                "spaceY": [
+                    0,
+                    0
+                ],
+                "spaceX": [
+                    0,
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "spaces",
+        "width": 20,
+        "own": {
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": false,
+        "markup": "\n  payload",
+        "length": 0,
+        "inner": -2,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "spaces",
+        "width": 20,
+        "own": {
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": true,
+        "markup": "\n  payload",
+        "length": 10,
+        "inner": 8,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "first-spaces",
+        "width": 20,
+        "own": {
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": false,
+        "markup": "\n\n\n   payload",
+        "length": 0,
+        "inner": -3,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "first-spaces",
+        "width": 20,
+        "own": {
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": true,
+        "markup": "\n\n\n   payload",
+        "length": 13,
+        "inner": 10,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "justify-parent",
+        "width": 20,
+        "own": {
+            "styles": {
+                "justifyContent": "center"
+            }
+        },
+        "parent": {
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "attached": false,
+        "markup": "payload",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "center"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": "between"
+            }
+        }
+    },
+    {
+        "case": "justify-parent",
+        "width": 20,
+        "own": {
+            "styles": {
+                "justifyContent": "center"
+            }
+        },
+        "parent": {
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "attached": true,
+        "markup": "payload",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "center"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": "between"
+            }
+        }
+    },
+    {
+        "case": "bad-parent-fraction",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "attached": false,
+        "markup": null,
+        "length": null,
+        "inner": null,
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    "1\/0"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "bad-parent-fraction",
+        "width": 20,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "attached": true,
+        "markup": null,
+        "length": null,
+        "inner": null,
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    "1\/0"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "bare",
+        "width": 40,
+        "own": [],
+        "parent": [],
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "payload",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "bare",
+        "width": 40,
+        "own": [],
+        "parent": [],
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "payload",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "colors",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<bg=blue;fg=cyan>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "blue",
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "colors",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<bg=blue;fg=cyan>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "blue",
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "private-colors",
+        "width": 40,
+        "own": {
+            "colors": {
+                "fg": "green"
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=green;bg=blue>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "green",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "private-colors",
+        "width": 40,
+        "own": {
+            "colors": {
+                "fg": "green"
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=green;bg=blue>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "green",
+                "bg": "blue"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "empty-colors",
+        "width": 40,
+        "own": {
+            "colors": {
+                "fg": []
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=cyan>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "empty-colors",
+        "width": 40,
+        "own": {
+            "colors": {
+                "fg": []
+            }
+        },
+        "parent": {
+            "colors": {
+                "fg": "cyan"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=cyan>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": "cyan"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "color-array",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<fg=green>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "color-array",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<fg=green>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": {
+                "fg": [
+                    "red",
+                    "green"
+                ]
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-bold",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": true,
+                "underscore": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=bold>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-bold",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": true,
+                "underscore": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true,
+                "underscore": true
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=bold>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-normal",
+        "width": 40,
+        "own": {
+            "options": {
+                "bold": false
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=,>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-normal",
+        "width": 40,
+        "own": {
+            "options": {
+                "bold": false
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": true
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=,>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-bold",
+        "width": 40,
+        "own": {
+            "options": {
+                "bold": true
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=bold>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "child-font-bold",
+        "width": 40,
+        "own": {
+            "options": {
+                "bold": true
+            }
+        },
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=bold>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-font-normal",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": false,
+        "markup": "<options=,>payload<\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "parent-font-normal",
+        "width": 40,
+        "own": [],
+        "parent": {
+            "options": {
+                "bold": false
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false
+        },
+        "attached": true,
+        "markup": "<options=,>payload<\/>",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "attached": false,
+        "markup": "payloa",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    2
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    24
+                ],
+                "minWidth": [
+                    5
+                ],
+                "maxWidth": [
+                    20
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": 24,
+                "ml": 2,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "minWidth": 5,
+                "maxWidth": 20
+            }
+        },
+        "attached": true,
+        "markup": "payloa",
+        "length": 6,
+        "inner": 6,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    2
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    24
+                ],
+                "minWidth": [
+                    5
+                ],
+                "maxWidth": [
+                    20
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout-limit",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "attached": false,
+        "markup": "paylo",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            },
+            "parentStyles": {
+                "ml": [
+                    1
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    38
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "layout-limit",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "maxWidth": 38
+            }
+        },
+        "attached": true,
+        "markup": "paylo",
+        "length": 5,
+        "inner": 5,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1",
+                "minWidth": 5,
+                "maxWidth": 9
+            },
+            "parentStyles": {
+                "ml": [
+                    1
+                ],
+                "mr": [
+                    3
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    38
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "nested-layout",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/1"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    38
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            },
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "attached": false,
+        "markup": "<bg=red>payload   <\/>",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1"
+            },
+            "parentStyles": {
+                "ml": [
+                    0,
+                    1
+                ],
+                "mr": [
+                    0,
+                    3
+                ],
+                "pl": [
+                    1,
+                    1
+                ],
+                "pr": [
+                    2,
+                    2
+                ],
+                "width": [
+                    38,
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0,
+                    0
+                ],
+                "maxWidth": [
+                    0,
+                    0
+                ],
+                "spaceY": [
+                    0,
+                    0
+                ],
+                "spaceX": [
+                    0,
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "nested-layout",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/1"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "applied_parent": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    1
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    38
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            },
+            "styles": {
+                "width": "1\/2",
+                "ml": 1,
+                "mr": 3,
+                "pl": 1,
+                "pr": 2,
+                "justification": "around"
+            }
+        },
+        "attached": true,
+        "markup": "<bg=red>payload   <\/>",
+        "length": 10,
+        "inner": 10,
+        "error": null,
+        "properties": {
+            "colors": {
+                "bg": "red"
+            },
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/1"
+            },
+            "parentStyles": {
+                "ml": [
+                    0,
+                    1
+                ],
+                "mr": [
+                    0,
+                    3
+                ],
+                "pl": [
+                    1,
+                    1
+                ],
+                "pr": [
+                    2,
+                    2
+                ],
+                "width": [
+                    38,
+                    "1\/2"
+                ],
+                "minWidth": [
+                    0,
+                    0
+                ],
+                "maxWidth": [
+                    0,
+                    0
+                ],
+                "spaceY": [
+                    0,
+                    0
+                ],
+                "spaceX": [
+                    0,
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "spaces",
+        "width": 40,
+        "own": {
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": false,
+        "markup": "\n  payload",
+        "length": 0,
+        "inner": -2,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "spaces",
+        "width": 40,
+        "own": {
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": true,
+        "markup": "\n  payload",
+        "length": 10,
+        "inner": 8,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "first-spaces",
+        "width": 40,
+        "own": {
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": false,
+        "markup": "\n\n\n   payload",
+        "length": 0,
+        "inner": -3,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "first-spaces",
+        "width": 40,
+        "own": {
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            }
+        },
+        "parent": {
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "spaceY": 1,
+                "spaceX": 2
+            }
+        },
+        "attached": true,
+        "markup": "\n\n\n   payload",
+        "length": 13,
+        "inner": 10,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "ml": 3,
+                "mt": 3
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    1
+                ],
+                "spaceX": [
+                    2
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "justify-parent",
+        "width": 40,
+        "own": {
+            "styles": {
+                "justifyContent": "center"
+            }
+        },
+        "parent": {
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "attached": false,
+        "markup": "payload",
+        "length": 0,
+        "inner": 0,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "center"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": "between"
+            }
+        }
+    },
+    {
+        "case": "justify-parent",
+        "width": 40,
+        "own": {
+            "styles": {
+                "justifyContent": "center"
+            }
+        },
+        "parent": {
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "between"
+            }
+        },
+        "attached": true,
+        "markup": "payload",
+        "length": 7,
+        "inner": 7,
+        "error": null,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "justifyContent": "center"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    0
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": "between"
+            }
+        }
+    },
+    {
+        "case": "bad-parent-fraction",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "attached": false,
+        "markup": null,
+        "length": null,
+        "inner": null,
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    "1\/0"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "bad-parent-fraction",
+        "width": 40,
+        "own": {
+            "styles": {
+                "width": "1\/2"
+            }
+        },
+        "parent": {
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "applied_parent": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "attached": true,
+        "markup": null,
+        "length": null,
+        "inner": null,
+        "error": "DivisionByZeroError:Division by zero",
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/2"
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    0
+                ],
+                "width": [
+                    "1\/0"
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "case": "inner-width-only",
+        "width": 20,
+        "query_only": true,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "parentStyles": {
+                "width": [
+                    "1\/2"
+                ],
+                "spaceX": [
+                    2
+                ]
+            }
+        },
+        "inner": -2
+    }
+]
