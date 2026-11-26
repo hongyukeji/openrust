@@ -53,25 +53,33 @@ impl DatabaseEntriesRepository {
         if let Some(batch) = options.batch_id {
             query = query.where_exact_text("batch_id", &batch.to_string());
         }
-        if let Some(tag) = options.tag.as_ref().filter(|value| !value.is_empty()) {
+        let tag = options
+            .tag
+            .as_deref()
+            .filter(|value| super::has_string_filter(value));
+        if let Some(tag) = tag {
             let mut tags = self
                 .connection
                 .table("telescope_entries_tags")
                 .select(["entry_uuid"])
                 .where_in(
                     "tag",
-                    tag.split(',').map(|tag| Value::from(tag.trim())).collect(),
+                    tag.split(',')
+                        .map(|tag| {
+                            Value::from(tag.trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b']))
+                        })
+                        .collect(),
                 );
             query = query.where_in_sub("uuid", &mut tags)?;
         }
-        if let Some(hash) = options
+        let family = options
             .family_hash
-            .as_ref()
-            .filter(|value| !value.is_empty())
-        {
+            .as_deref()
+            .filter(|value| super::has_string_filter(value));
+        if let Some(hash) = family {
             query = query.where_exact_text("family_hash", hash);
         }
-        if let Some(before) = options.before_sequence.filter(|value| *value != 0) {
+        if let Some(before) = options.before_sequence {
             query = query.r#where("sequence", "<", before);
         }
         if let Some(ids) = options.uuids {
@@ -80,10 +88,7 @@ impl DatabaseEntriesRepository {
                 ids.iter().map(|id| Value::from(id.to_string())).collect(),
             );
         }
-        if options.batch_id.is_none()
-            && options.tag.as_ref().is_none_or(String::is_empty)
-            && options.family_hash.as_ref().is_none_or(String::is_empty)
-        {
+        if options.batch_id.is_none() && tag.is_none() && family.is_none() {
             query = query.r#where("should_display_on_index", "=", true);
         }
         query = query.order_by_desc("sequence");

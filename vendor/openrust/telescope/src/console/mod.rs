@@ -3,7 +3,7 @@ mod install;
 use crate::{
     EntryType,
     contracts::{ClearableRepository, EntriesRepository, PrunableRepository},
-    storage::EntryQueryOptions,
+    storage::{EntryQueryOptions, has_string_filter},
 };
 use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
@@ -205,7 +205,7 @@ impl Command for TelescopeCommand {
                 }
                 "telescope:list" => {
                     let repository = app.make::<dyn EntriesRepository>().await.map_err(error)?;
-                    let kind = if let Some(kind) = value("type").filter(|s| !s.is_empty()) {
+                    let kind = if let Some(kind) = value("type").filter(|s| has_string_filter(s)) {
                         let Some(kind) = valid_type(kind, output) else {
                             return Ok(1);
                         };
@@ -214,18 +214,20 @@ impl Command for TelescopeCommand {
                         None
                     };
                     let Some(limit) = value("limit")
-                        .filter(|v| v.bytes().all(|v| v.is_ascii_digit()))
-                        .and_then(|v| v.parse::<u64>().ok())
+                        .filter(|v| !v.is_empty() && v.bytes().all(|v| v.is_ascii_digit()))
+                        .map(|v| v.parse::<i64>().unwrap_or(i64::MAX) as u64)
                         .filter(|v| *v > 0)
                     else {
                         output.error("The --limit option must be a positive integer.");
                         return Ok(1);
                     };
                     let batch = value("batch")
+                        .filter(|s| has_string_filter(s))
                         .map(Uuid::parse_str)
                         .transpose()
                         .map_err(error)?;
                     let before = value("before")
+                        .filter(|s| has_string_filter(s))
                         .map(str::parse::<i64>)
                         .transpose()
                         .map_err(error)?;
@@ -237,7 +239,7 @@ impl Command for TelescopeCommand {
                                 .tag(value("tag").map(str::to_owned))
                                 .batch_id(batch)
                                 .family_hash(value("family").map(str::to_owned))
-                                .before_sequence(before),
+                                .with_cursor(before),
                         )
                         .await
                         .map_err(error)?;

@@ -1,8 +1,14 @@
-use crate::{EntryType, EntryUpdate, Error, Telescope, facades, storage::EntryQueryOptions};
+use crate::{
+    EntryType, EntryUpdate, Error, Telescope, facades,
+    storage::{EntryQueryOptions, has_string_filter},
+};
 use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
-    support::facades::{Config, Facade, Route},
+    support::{
+        facades::{Config, Facade, Route},
+        php_value_truthy,
+    },
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -336,6 +342,7 @@ impl EntryQueryOptions {
             }
         };
         let batch = string("batch_id")?
+            .filter(|value| has_string_filter(value))
             .map(|value| Uuid::parse_str(&value))
             .transpose()
             .map_err(|_| HttpError::InvalidRequest)?;
@@ -358,25 +365,29 @@ impl EntryQueryOptions {
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
-        let number = |key: &str| -> Result<Option<i64>, HttpError> {
-            values
-                .get(key)
-                .filter(|value| !value.is_null())
-                .map(|value| {
-                    value
-                        .as_i64()
-                        .or_else(|| value.as_str()?.parse().ok())
-                        .ok_or(HttpError::InvalidRequest)
-                })
-                .transpose()
+        let number = |value: &Value| {
+            value
+                .as_i64()
+                .or_else(|| value.as_str()?.parse().ok())
+                .ok_or(HttpError::InvalidRequest)
         };
-        let take = number("take")?.unwrap_or(50);
+        let before = values
+            .get("before")
+            .filter(|value| php_value_truthy(value))
+            .map(number)
+            .transpose()?;
+        let take = values
+            .get("take")
+            .filter(|value| !value.is_null())
+            .map(number)
+            .transpose()?
+            .unwrap_or(50);
         Ok(Self::default()
             .batch_id(batch)
             .tag(string("tag")?)
             .family_hash(string("family_hash")?)
             .uuids(uuids)
-            .before_sequence(number("before")?)
+            .with_cursor(before)
             .limit(if take < 0 { u64::MAX } else { take as u64 }))
     }
 }

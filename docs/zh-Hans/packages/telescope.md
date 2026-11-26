@@ -73,4 +73,6 @@ Blade 响应的请求记录包含实际模板路径和显式绑定数据，包�
 
 `list` 支持 `--tag`、`--batch`、`--family` 和 `--before` 序列游标。`show` 接受 UUID、无歧义 UUID 前缀、`latest`、`latest:<type>`，可用 `--type` 过滤同批次记录。批次摘要显示查询总耗时、慢查询、重复查询组和缓存命中率。请求详情显示已记录的控制器、中间件和用户信息。异常与失败任务详情显示已记录的错误消息和调用栈。详情按条目类型展示字段，查询 SQL 和日志消息完整显示。正文区块和批次列按显示宽度截断，`--full` 可展开。JSON 始终保留捕获内容。列表显示每条记录的相对时间。详情同时显示相对时间和记录的 UTC 时间戳。启用 ANSI 输出时，列表和详情用颜色区分状态、严重级别和查询标记。
 
+列表将空筛选值或单独的 `0` 视为未指定。逗号分隔的标签列表仍可包含 `0`。游标文本 `00` 会筛选序号小于零的条目。超过有符号 64 位整数上限的纯数字 `--limit` 使用该上限。
+
 `prune` 以应用时钟计算截止时间，默认保留 24 小时。`--hours=0.5` 将截止时间设在当前时间之前 30 分钟。负数将截止时间移到未来。`--keep-exceptions` 保留异常记录。`clear` 删除所有 Telescope 记录、标签及监控行。保留策略由应用调度器执行。`telescope:publish` 发布配置，`--force` 覆盖该文件。独立代码可用 `EntriesRepository` 实现构造 `Telescope` 并显式调用 `store().await`；应用 Provider 可在首次解析 Telescope 前替换此契约。Provider 可为 `telescope:clear` 单独绑定 `ClearableRepository`，并为 `telescope:prune` 单独绑定 `PrunableRepository`。两个命令默认使用配置的 `EntriesRepository`。

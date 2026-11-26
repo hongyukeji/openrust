@@ -1,5 +1,9 @@
 use uuid::Uuid;
 
+pub(crate) fn has_string_filter(value: &str) -> bool {
+    !matches!(value, "" | "0")
+}
+
 #[derive(Clone, Debug)]
 pub struct EntryQueryOptions {
     pub batch_id: Option<Uuid>,
@@ -37,7 +41,11 @@ impl EntryQueryOptions {
         self.family_hash = hash;
         self
     }
-    pub fn before_sequence(mut self, sequence: Option<i64>) -> Self {
+    /// 整数零和 `None` 均表示不筛选。
+    pub fn before_sequence(self, sequence: Option<i64>) -> Self {
+        self.with_cursor(sequence.filter(|sequence| *sequence != 0))
+    }
+    pub(crate) fn with_cursor(mut self, sequence: Option<i64>) -> Self {
         self.before_sequence = sequence;
         self
     }

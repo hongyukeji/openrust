@@ -103,6 +103,12 @@ Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会
 
 Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
 
+### 列表筛选与游标
+
+PHP 8.5.12 以固定 Telescope Artisan、EntryModel 和 SQLite 验证，空筛选值和单独的文本 `0` 会略过，逗号标签列表仍可查找标签 `0`。游标文本 `00` 会实际应用序号小于零的条件。超大纯数字 `--limit` 在整数上限处饱和。命令标签只去除 PHP `trim` 默认字符，默认 HTTP `TrimStrings` 会先将标签两侧的非换行空格去除。证据为 `target/tmp/observability-parity/telescope-list-filter-options-upstream.log`。 [固定 ListCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ListCommand.php) [固定 EntryModel](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Storage/EntryModel.php)
+
+旧实现实际执行 `telescope:list 0 --json` 返回状态 1。当前列表、授权 JSON 入口和 SQL 仓储共享有效筛选条件，正确保留普通索引的隐藏标志。原生整数游标构建器仍将零视为无游标，Artisan 和 HTTP 入口保留解析后文本 `00` 的显式零上界。真实 Artisan 和 HTTP 在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过正向和边界条件。Telescope Provider 33 项、Pulse Provider 27 项、快照格式、Telescope 全目标严格 Clippy、三语文档桌面和移动 6 组通过。Telescope 独立 Redis 项按环境条件跳过。证据为 `target/tmp/observability-parity/telescope-list-filter-options-{baseline,verified-final,docs-retry}.log`。非数值游标与畸形批次 UUID 仍需和各数据库的原始输入行为逐项核对。
+
 ### 调度条目的默认时区
 
 PHP 8.5.12 使用固定 Laravel Kernel 及 Schedule 构造任务。任务显式时区优先，其余任务读 `app.schedule_timezone`，缺少配置时继承 `app.timezone`，显式为 `null` 时保留空值。Telescope 固定 `ScheduleWatcher` 读取任务的 `timezone` 字段。原生前态只记录任务显式时区。框架现将调度时确定的字段传给完成事件，并在手动与后台任务的执行入口取得对应配置。 [固定 Laravel Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L294-L311) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)

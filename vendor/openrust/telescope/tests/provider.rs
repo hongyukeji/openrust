@@ -947,6 +947,117 @@ async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors()
 }
 
 #[tokio::test]
+async fn list_filters_preserve_fixed_zero_values_cursor_text_and_tag_whitespace() {
+    use std::collections::BTreeMap;
+
+    fn names(rows: &serde_json::Value) -> Vec<&str> {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["content"]["name"].as_str().unwrap())
+            .collect()
+    }
+
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let application = app.app();
+    let repository = application
+        .make::<DatabaseEntriesRepository>()
+        .await
+        .unwrap();
+    repository.clear().await.unwrap();
+    let batch = uuid::Uuid::now_v7();
+    let spaced = "\u{a0}edge\u{a0}";
+    let entries = [
+        ("visible", "0", "0"),
+        ("hidden", "0", "0"),
+        ("plain", "probe", "edge"),
+        ("spaced", "probe", spaced),
+    ]
+    .map(|(name, family, tag)| {
+        IncomingEntry::make(json!({"name":name}).as_object().unwrap().clone())
+            .unwrap()
+            .r#type(EntryType::Log)
+            .batch_id(batch)
+            .with_family_hash(Some(family.into()))
+            .tags([tag])
+    });
+    repository.store(&entries).await.unwrap();
+    application
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(Some("testing"))
+        .unwrap()
+        .table("telescope_entries")
+        .where_exact_text("uuid", &entries[1].uuid.to_string())
+        .update(BTreeMap::from([(
+            "should_display_on_index".into(),
+            false.into(),
+        )]))
+        .await
+        .unwrap();
+
+    let visible = ["spaced", "plain", "visible"];
+    let rows = repository
+        .get(
+            Some(EntryType::Log),
+            EntryQueryOptions::default().before_sequence(Some(0)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(names(&json!(rows)), visible);
+    let spaced_tag = format!("--tag={spaced}");
+    for (options, expected) in [
+        (vec!["0"], &visible[..]),
+        (
+            vec!["--batch=0", "--before=", "--tag=0", "--family=0"],
+            &visible[..],
+        ),
+        (vec!["--before=0"], &visible[..]),
+        (vec!["--before=00"], &[][..]),
+        (vec!["--limit=999999999999999999999999999999"], &visible[..]),
+        (vec!["--tag=  0 , missing "], &["hidden", "visible"][..]),
+        (vec![spaced_tag.as_str()], &["spaced"][..]),
+    ] {
+        let mut args = vec!["telescope:list", "--json"];
+        args.extend(options.iter().copied());
+        let result = app.artisan(args).await;
+        result.assert_successful();
+        let payload: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(names(&payload), expected, "{options:?}");
+    }
+
+    app.app()
+        .make::<Telescope>()
+        .await
+        .unwrap()
+        .auth(|_| Box::pin(async { Ok(true) }));
+    for (input, expected) in [
+        (
+            json!({"batch_id":"0","before":"","tag":"0","family_hash":"0"}),
+            &visible[..],
+        ),
+        (json!({"before":0}), &visible[..]),
+        (json!({"before":"00"}), &[][..]),
+        (json!({"tag":spaced}), &["plain"][..]),
+    ] {
+        let api = api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/logs",
+            input.clone(),
+        )
+        .await;
+        api.assert_ok();
+        let payload: serde_json::Value = api.json().unwrap();
+        assert_eq!(names(&payload["entries"]), expected, "{input}");
+    }
+}
+
+#[tokio::test]
 async fn management_commands_validate_types_preserve_json_and_pause_across_scopes() {
     let mut app = application();
     app.artisan(["migrate", "--force"])
