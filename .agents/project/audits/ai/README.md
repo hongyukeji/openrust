@@ -290,7 +290,7 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Image::of`、`PendingImageGeneration` 和 `ImageProvider` 接入默认或显式连接及模型。OpenAI Images API 经框架 HTTP 客户端发送 JSON 生图，带参考图时发送 multipart 编辑请求。支持标准比例、显式尺寸、质量和超时。兼容连接由 `models.images` 显式启用。输入可来自本地字节或已配置 Storage 磁盘。只接收受支持的内联位图，返回原始字节、MIME、模型、修订提示和上游报告的用量。
 
-包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Bedrock、广播及供应商实机仍留在后续验收范围。
+包测试验证 JSON、多个 multipart 参考图、损坏 Base64、实际 PNG 解码与磁盘读写。独立 Artisan 生成并写入私有磁盘，独立 HTTP 进程读取同一图片发起编辑并写入命名公开磁盘。两条链路经 TCP 协议模拟，校对认证、字段和原始 PNG 字节。本批覆盖 OpenAI 和实现同一 Images API 的连接。Bedrock 文生图见下文，广播及供应商实机仍留在后续验收范围。
 
 - [OpenAI Images 生图](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI Images 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
 
@@ -692,7 +692,7 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `bedrock` 命名连接复用项目 AWS SDK 依赖风格，新增官方 Bedrock Runtime Rust SDK 1.151.0。客户端按需初始化，支持应用环境中的 Bearer、SigV4 静态凭证和会话令牌、AWS 默认凭证链、STS AssumeRole、区域及可覆盖的运行时端点。Converse 按固定 Laravel 映射系统指令、消息历史、内联图片和文档、采样选项及用量。输入总量含缓存读取和写入并保留两个子项。Typed SDK 负责模型路径编码和签名，单次请求关闭 SDK 自动重试，错误交给既有 SDK 处理。
 
-独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
+独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。远程目录仍待实施。IAM 实机和权限范围待正式账户验收。
 
 - [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) · [AWS Rust SDK 1.151.0](https://docs.rs/aws-sdk-bedrockruntime/1.151.0/aws_sdk_bedrockruntime/)
 
@@ -725,6 +725,12 @@ Bedrock `RerankingProvider` 复用同一 AWS Runtime `InvokeModel` 实现，按�
 本地 AWS 协议服务通过独立 Artisan 验证默认与显式模型、Bearer、入站字段、可选上限、结果顺序、重复或超量结果和 AWS 鉴权错误。独立 HTTP 通过 SigV4 验证 `Reranks` 根据索引返回原始 Collection 条目。复验向量、Converse 和 ConverseStream，23 项 SDK 回归、严格 Clippy 和三语站点通过。正式 AWS 账户仍待验收。
 
 - [固定 Laravel BedrockRerankingGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockRerankingGateway.php) · [Cohere Bedrock 接入文档](https://docs.cohere.com/docs/amazon-bedrock)
+
+Bedrock `ImageProvider` 按固定 Laravel 为 Nova Canvas、Titan Image Generator 和 Stability Stable Image 构造文生图请求，并复用 Runtime `InvokeModel`、凭证及错误分类。Nova 和 Titan 发送尺寸、质量与图片数，Titan 另发送 `cfgScale`；Stability 发送比例与 PNG 输出格式。驱动从 `images` 解码字节并检测 MIME。模型通过调用或 `BEDROCK_IMAGE_MODEL` 显式选择。未支持的模型族或参考图在请求前报告错误。供应商选项仍待与媒体公开契约一起核对。
+
+本地 AWS 协议服务通过独立 Artisan 验证 Nova、Titan、Bearer、尺寸和质量映射及存盘。独立 HTTP 验证 Stability 的模型 ARN、SigV4、再次存盘和私有磁盘逐字节回读，且无图片、损坏 Base64、非法内容与权限错误均被拒绝。普通／流式 Converse、向量与重排序同步复验；23 项 SDK 回归、严格 Clippy 和三语站点通过。正式 AWS 账户仍待验收。
+
+- [固定 Laravel BedrockImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockImageGateway.php) · [Nova Canvas 请求与响应](https://docs.aws.amazon.com/nova/latest/userguide/image-gen-req-resp-structure.html) · [Titan Image Generator](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-image.html) · [Stability Stable Image Core](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-diffusion-stable-image-core-text-image-request-response.html)
 
 ### xAI 原生 Responses
 
