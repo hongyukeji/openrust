@@ -5,7 +5,10 @@ use super::{
     lists, pre, style, table,
     tree::Prepared,
 };
-use crate::console::{ConsoleError, Terminal};
+use crate::{
+    console::{ConsoleError, Terminal},
+    support::Str,
+};
 use regex::Regex;
 use std::sync::LazyLock;
 fn normalized(text: &str, first: bool, last: bool) -> String {
@@ -102,33 +105,28 @@ fn prepare(
     })
 }
 pub(super) fn render(html: &str, styles: Option<&StyleRepository>) -> Result<String, ConsoleError> {
-    static TAG: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"<[/!a-zA-Z]").expect("合法标签起始表达式"));
-    if !TAG.is_match(html) {
+    if !html.contains('<') || Str::of(html).strip_tags(&[]).value() == html {
         return Ok(html.to_owned());
     }
-    let mut nodes = dom::parse(html.trim());
-    dom::recover_lists(&mut nodes);
-    let body = nodes
-        .iter()
-        .position(|n| n.tag() == "body")
-        .ok_or_else(|| ConsoleError::new("控制台组件缺少HTML主体"))?;
-    let mut children = vec![];
-    let (first_meaningful, last_meaningful) = boundaries(&nodes, &nodes[body].children);
-    for (index, id) in nodes[body].children.iter().enumerate() {
+    let html = html.trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}']);
+    let nodes = dom::parse(html);
+    let children = &nodes[0].children;
+    let (first_meaningful, last_meaningful) = boundaries(&nodes, children);
+    let mut first_child = None;
+    for (index, id) in children.iter().enumerate() {
         let first = first_meaningful.is_none_or(|first| first >= index);
         let last = last_meaningful.is_none_or(|last| last <= index);
         let child = prepare(&nodes, *id, first, last, 0, styles)?;
-        if child.style.is_some()
-            || child.raw_element
-            || child.content.as_ref().is_some_and(|text| !text.is_empty())
+        if index == 0
+            && (child.style.is_some()
+                || child.raw_element
+                || child.content.as_ref().is_some_and(|text| !text.is_empty()))
         {
-            children.push(child);
+            first_child = Some(child);
         }
     }
-    let first = children
-        .first_mut()
-        .ok_or_else(|| ConsoleError::new("控制台组件HTML没有可渲染的首元素"))?;
+    let mut first =
+        first_child.ok_or_else(|| ConsoleError::new("控制台组件HTML没有可渲染的首元素"))?;
     let viewport = Terminal::new().get_width();
     if !(0..=1_000_000).contains(&viewport) {
         return Err(ConsoleError::new("组件终端宽度超出安全范围"));

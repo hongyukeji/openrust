@@ -2751,3 +2751,41 @@ fn register_element_dispatch() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Recover terminal HTML fragments {#terminal-html-recovery}
+
+The built-in renderer follows HTML4 fragment recovery for terminal views. A self-closing styled span remains empty, and following text keeps its own style. The examples also cover mismatched tags and standard HTML4 entity references.
+
+A fragment with markup must have a renderable first body child. If preparing the fragment fails, the renderer returns a `ConsoleError` to the command.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError,
+    view::components::{Component, ComponentContext, ComponentViewCompiler},
+};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+
+struct Markup;
+impl ComponentViewCompiler for Markup {
+    fn compile(
+        &mut self, html: &str, _: Value, _: &mut ComponentContext<'_>,
+    ) -> Result<String, ConsoleError> {
+        Ok(html.to_owned())
+    }
+}
+
+fn register_html_recovery() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:html-recovery", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(Markup)));
+            component.render_view(
+                r#"<div><span class="text-red"/>Result: ready</div>"#, json!({}),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

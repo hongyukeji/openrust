@@ -1,0 +1,49 @@
+{
+  "base": "bc1496e554fc24beaf05988b3f99832e2a1a3f62",
+  "contract": "terminal-html-recovery-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.56s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.24s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.40s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.45s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.27s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.30s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 5 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 225 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s"
+  ],
+  "runtime": {
+    "source_html4_cases": 252,
+    "framework_targets": 18,
+    "framework_parent_tests": 67,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 225,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/terminal-html-recovery-baseline.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-html-recovery-tree.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-html-recovery-gates.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-html-recovery-site.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-html-recovery-extra2.json"
+  ],
+  "unaccepted_attempts": [
+    "原 HTML5 树构造与固定源码不一致。首次移植缺少规则装配和借用修正，已复验。"
+  ],
+  "remaining": [
+    "Factory 容器构造和覆盖。",
+    "Artisan 其余教程锚点继续逐项核对。"
+  ],
+  "pushed": false
+}

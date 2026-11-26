@@ -1,0 +1,38 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_terminal_html4_fragment_recovery",
+  "bindings": {
+    "BuiltinComponentViewRenderer": [
+      "render with HTML4 fragment recovery"
+    ],
+    "Component": [
+      "render_view",
+      "render_view_with"
+    ]
+  },
+  "source_oracle": "terminal-html-recovery-oracle.json",
+  "runtime": {
+    "source_html4_cases": 252,
+    "framework_targets": 18,
+    "framework_parent_tests": 67,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 225,
+    "browser_checks": 12
+  },
+  "libxml2_version": "2.13.9",
+  "pin_license": "vendor/openrust/framework/src/console/view/components/LICENSE.html4",
+  "decisions": [
+    "复用原生 tokenizer，将 HTML4 关闭规则作用到片段节点栈，保持表格、代码、列表、预格式化和样式下游入口。",
+    "按固定片段预处理与当前首子节点索引保留普通文本、空根错误、注释和处理指令行为。",
+    "使用现有 HTML401 名称表并按片段解析规则处理 apos、数值实体和无效引用。保留脚本、样式文本以及属性语义。",
+    "移植 HTML4 起止规则并保留来源许可。继续只需纯 Rust 构建，无额外系统库。",
+    "252 项覆盖 63 组片段、两种宽度和两种装饰模式，检验原始标记以及终端输出，不宣称是任意浏览器 HTML 的通用实现。"
+  ],
+  "remaining": [
+    "Factory 容器构造和覆盖。",
+    "Artisan 其余教程锚点继续逐项核对。"
+  ]
+}

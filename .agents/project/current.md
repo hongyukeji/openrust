@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第74簇 HTML4 片段恢复已验，继续组件工厂容器覆盖。见[验收契约](audits/artisan-tutorial/terminal-html-recovery-contracts.json)。
+
 - Artisan 第73簇元素动态调用已验，继续 HTML 恢复。见[验收契约](audits/artisan-tutorial/terminal-element-dispatch-contracts.json)。
 
 - Artisan 第72簇自定义文本及样式修饰器已验，继续元素动态转发。见[验收契约](audits/artisan-tutorial/terminal-style-modifiers-contracts.json)。

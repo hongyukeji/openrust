@@ -1,0 +1,2270 @@
+[
+  {
+    "kind": "broken-style",
+    "html": "<span class=\"text-red\"",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style",
+    "html": "<span class=\"text-red\"",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style",
+    "html": "<span class=\"text-red\"",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style",
+    "html": "<span class=\"text-red\"",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style-next",
+    "html": "<span class=\"text-red\" title=\"unfinished",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style-next",
+    "html": "<span class=\"text-red\" title=\"unfinished",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style-next",
+    "html": "<span class=\"text-red\" title=\"unfinished",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-style-next",
+    "html": "<span class=\"text-red\" title=\"unfinished",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-strong",
+    "html": "<div>first<strong",
+    "width": 20,
+    "ansi": false,
+    "markup": "first\u001b[1m\u001b[0m",
+    "out": "first\u001b[1m\u001b[0m\n",
+    "error": null
+  },
+  {
+    "kind": "broken-strong",
+    "html": "<div>first<strong",
+    "width": 20,
+    "ansi": true,
+    "markup": "first\u001b[1m\u001b[0m",
+    "out": "first\u001b[1m\u001b[0m\n",
+    "error": null
+  },
+  {
+    "kind": "broken-strong",
+    "html": "<div>first<strong",
+    "width": 80,
+    "ansi": false,
+    "markup": "first\u001b[1m\u001b[0m",
+    "out": "first\u001b[1m\u001b[0m\n",
+    "error": null
+  },
+  {
+    "kind": "broken-strong",
+    "html": "<div>first<strong",
+    "width": 80,
+    "ansi": true,
+    "markup": "first\u001b[1m\u001b[0m",
+    "out": "first\u001b[1m\u001b[0m\n",
+    "error": null
+  },
+  {
+    "kind": "broken-paragraph",
+    "html": "<div>first<p",
+    "width": 20,
+    "ansi": false,
+    "markup": "first\n\n\n",
+    "out": "first\n\n\n\n",
+    "error": null
+  },
+  {
+    "kind": "broken-paragraph",
+    "html": "<div>first<p",
+    "width": 20,
+    "ansi": true,
+    "markup": "first\n\n\n",
+    "out": "first\n\n\n\n",
+    "error": null
+  },
+  {
+    "kind": "broken-paragraph",
+    "html": "<div>first<p",
+    "width": 80,
+    "ansi": false,
+    "markup": "first\n\n\n",
+    "out": "first\n\n\n\n",
+    "error": null
+  },
+  {
+    "kind": "broken-paragraph",
+    "html": "<div>first<p",
+    "width": 80,
+    "ansi": true,
+    "markup": "first\n\n\n",
+    "out": "first\n\n\n\n",
+    "error": null
+  },
+  {
+    "kind": "broken-div",
+    "html": "<div class=\"text-red\"",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-div",
+    "html": "<div class=\"text-red\"",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-div",
+    "html": "<div class=\"text-red\"",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-div",
+    "html": "<div class=\"text-red\"",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-inside",
+    "html": "<div>text <span title=\"a < b",
+    "width": 20,
+    "ansi": false,
+    "markup": "text ",
+    "out": "text \n",
+    "error": null
+  },
+  {
+    "kind": "broken-inside",
+    "html": "<div>text <span title=\"a < b",
+    "width": 20,
+    "ansi": true,
+    "markup": "text ",
+    "out": "text \n",
+    "error": null
+  },
+  {
+    "kind": "broken-inside",
+    "html": "<div>text <span title=\"a < b",
+    "width": 80,
+    "ansi": false,
+    "markup": "text ",
+    "out": "text \n",
+    "error": null
+  },
+  {
+    "kind": "broken-inside",
+    "html": "<div>text <span title=\"a < b",
+    "width": 80,
+    "ansi": true,
+    "markup": "text ",
+    "out": "text \n",
+    "error": null
+  },
+  {
+    "kind": "broken-end",
+    "html": "<div class=\"text-red\">text </div",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red>text</>",
+    "out": "text\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end",
+    "html": "<div class=\"text-red\">text </div",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red>text</>",
+    "out": "\u001b[31mtext\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end",
+    "html": "<div class=\"text-red\">text </div",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red>text</>",
+    "out": "text\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end",
+    "html": "<div class=\"text-red\">text </div",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red>text</>",
+    "out": "\u001b[31mtext\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "blank-bogus-end",
+    "html": "</:span>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "blank-bogus-end",
+    "html": "</:span>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "blank-bogus-end",
+    "html": "</:span>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "blank-bogus-end",
+    "html": "</:span>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-space",
+    "html": "<!-- before --> <span>next</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-space",
+    "html": "<!-- before --> <span>next</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-space",
+    "html": "<!-- before --> <span>next</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-space",
+    "html": "<!-- before --> <span>next</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "processing-before",
+    "html": "<?probe data?><span>next</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "processing-before",
+    "html": "<?probe data?><span>next</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "processing-before",
+    "html": "<?probe data?><span>next</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "processing-before",
+    "html": "<?probe data?><span>next</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-before",
+    "html": "<?xml alt?><span>next</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-before",
+    "html": "<?xml alt?><span>next</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-before",
+    "html": "<?xml alt?><span>next</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-before",
+    "html": "<?xml alt?><span>next</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "literal-question-comment",
+    "html": "<!--? literal --><span>next</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "literal-question-comment",
+    "html": "<!--? literal --><span>next</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "literal-question-comment",
+    "html": "<!--? literal --><span>next</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "literal-question-comment",
+    "html": "<!--? literal --><span>next</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "text-before-broken-tag",
+    "html": "<div>before <span",
+    "width": 20,
+    "ansi": false,
+    "markup": "before ",
+    "out": "before \n",
+    "error": null
+  },
+  {
+    "kind": "text-before-broken-tag",
+    "html": "<div>before <span",
+    "width": 20,
+    "ansi": true,
+    "markup": "before ",
+    "out": "before \n",
+    "error": null
+  },
+  {
+    "kind": "text-before-broken-tag",
+    "html": "<div>before <span",
+    "width": 80,
+    "ansi": false,
+    "markup": "before ",
+    "out": "before \n",
+    "error": null
+  },
+  {
+    "kind": "text-before-broken-tag",
+    "html": "<div>before <span",
+    "width": 80,
+    "ansi": true,
+    "markup": "before ",
+    "out": "before \n",
+    "error": null
+  },
+  {
+    "kind": "quoted-before-eof",
+    "html": "<span title=\"left right",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "quoted-before-eof",
+    "html": "<span title=\"left right",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "quoted-before-eof",
+    "html": "<span title=\"left right",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "quoted-before-eof",
+    "html": "<span title=\"left right",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end-following-text",
+    "html": "<span>before </span",
+    "width": 20,
+    "ansi": false,
+    "markup": "before",
+    "out": "before\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end-following-text",
+    "html": "<span>before </span",
+    "width": 20,
+    "ansi": true,
+    "markup": "before",
+    "out": "before\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end-following-text",
+    "html": "<span>before </span",
+    "width": 80,
+    "ansi": false,
+    "markup": "before",
+    "out": "before\n",
+    "error": null
+  },
+  {
+    "kind": "broken-end-following-text",
+    "html": "<span>before </span",
+    "width": 80,
+    "ansi": true,
+    "markup": "before",
+    "out": "before\n",
+    "error": null
+  },
+  {
+    "kind": "no-space-before-eof",
+    "html": "left<span",
+    "width": 20,
+    "ansi": false,
+    "markup": "left",
+    "out": "left\n",
+    "error": null
+  },
+  {
+    "kind": "no-space-before-eof",
+    "html": "left<span",
+    "width": 20,
+    "ansi": true,
+    "markup": "left",
+    "out": "left\n",
+    "error": null
+  },
+  {
+    "kind": "no-space-before-eof",
+    "html": "left<span",
+    "width": 80,
+    "ansi": false,
+    "markup": "left",
+    "out": "left\n",
+    "error": null
+  },
+  {
+    "kind": "no-space-before-eof",
+    "html": "left<span",
+    "width": 80,
+    "ansi": true,
+    "markup": "left",
+    "out": "left\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-numeric-many",
+    "html": "<span>&#0;|&#1;|&#128;|&#xD800;|&#x1F;|&#xFFFF;|&#38amp;|&#x41A|&#65|&#x41|&#X41;</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "||||||&amp;|К|A|A|A",
+    "out": "||||||&amp;|К|A|A|A\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-numeric-many",
+    "html": "<span>&#0;|&#1;|&#128;|&#xD800;|&#x1F;|&#xFFFF;|&#38amp;|&#x41A|&#65|&#x41|&#X41;</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "||||||&amp;|К|A|A|A",
+    "out": "||||||&amp;|К|A|A|A\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-numeric-many",
+    "html": "<span>&#0;|&#1;|&#128;|&#xD800;|&#x1F;|&#xFFFF;|&#38amp;|&#x41A|&#65|&#x41|&#X41;</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "||||||&amp;|К|A|A|A",
+    "out": "||||||&amp;|К|A|A|A\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-numeric-many",
+    "html": "<span>&#0;|&#1;|&#128;|&#xD800;|&#x1F;|&#xFFFF;|&#38amp;|&#x41A|&#65|&#x41|&#X41;</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "||||||&amp;|К|A|A|A",
+    "out": "||||||&amp;|К|A|A|A\n",
+    "error": null
+  },
+  {
+    "kind": "nested-entity",
+    "html": "<span>&amp;lt; &copy &not &lt &lang; &rang;</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "&lt; &copy &not &lt 〈 〉",
+    "out": "&lt; &copy &not &lt 〈 〉\n",
+    "error": null
+  },
+  {
+    "kind": "nested-entity",
+    "html": "<span>&amp;lt; &copy &not &lt &lang; &rang;</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "&lt; &copy &not &lt 〈 〉",
+    "out": "&lt; &copy &not &lt 〈 〉\n",
+    "error": null
+  },
+  {
+    "kind": "nested-entity",
+    "html": "<span>&amp;lt; &copy &not &lt &lang; &rang;</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "&lt; &copy &not &lt 〈 〉",
+    "out": "&lt; &copy &not &lt 〈 〉\n",
+    "error": null
+  },
+  {
+    "kind": "nested-entity",
+    "html": "<span>&amp;lt; &copy &not &lt &lang; &rang;</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "&lt; &copy &not &lt 〈 〉",
+    "out": "&lt; &copy &not &lt 〈 〉\n",
+    "error": null
+  },
+  {
+    "kind": "raw-contents",
+    "html": "<div><style>&amp; &notareal; .foo { color: red; }</style><textarea>&copy;<b>bold</b></textarea></div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "&amp; &notareal; .foo { color: red; }\n©<options=bold>bold</>",
+    "out": "&amp; &notareal; .foo { color: red; }\n©bold\n",
+    "error": null
+  },
+  {
+    "kind": "raw-contents",
+    "html": "<div><style>&amp; &notareal; .foo { color: red; }</style><textarea>&copy;<b>bold</b></textarea></div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "&amp; &notareal; .foo { color: red; }\n©<options=bold>bold</>",
+    "out": "&amp; &notareal; .foo { color: red; }\n©\u001b[1mbold\u001b[22m\n",
+    "error": null
+  },
+  {
+    "kind": "raw-contents",
+    "html": "<div><style>&amp; &notareal; .foo { color: red; }</style><textarea>&copy;<b>bold</b></textarea></div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "&amp; &notareal; .foo { color: red; }\n©<options=bold>bold</>",
+    "out": "&amp; &notareal; .foo { color: red; }\n©bold\n",
+    "error": null
+  },
+  {
+    "kind": "raw-contents",
+    "html": "<div><style>&amp; &notareal; .foo { color: red; }</style><textarea>&copy;<b>bold</b></textarea></div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "&amp; &notareal; .foo { color: red; }\n©<options=bold>bold</>",
+    "out": "&amp; &notareal; .foo { color: red; }\n©\u001b[1mbold\u001b[22m\n",
+    "error": null
+  },
+  {
+    "kind": "explicit-body-before",
+    "html": "<body><span>inside</span></body><span>tail</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "inside",
+    "out": "inside\n",
+    "error": null
+  },
+  {
+    "kind": "explicit-body-before",
+    "html": "<body><span>inside</span></body><span>tail</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "inside",
+    "out": "inside\n",
+    "error": null
+  },
+  {
+    "kind": "explicit-body-before",
+    "html": "<body><span>inside</span></body><span>tail</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "inside",
+    "out": "inside\n",
+    "error": null
+  },
+  {
+    "kind": "explicit-body-before",
+    "html": "<body><span>inside</span></body><span>tail</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "inside",
+    "out": "inside\n",
+    "error": null
+  },
+  {
+    "kind": "doctypes-comments-before",
+    "html": "<!doctype html><!-- before --><span>first</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctypes-comments-before",
+    "html": "<!doctype html><!-- before --><span>first</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctypes-comments-before",
+    "html": "<!doctype html><!-- before --><span>first</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctypes-comments-before",
+    "html": "<!doctype html><!-- before --><span>first</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "body-whitespace",
+    "html": "<span>first</span> <span>second</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "body-whitespace",
+    "html": "<span>first</span> <span>second</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "body-whitespace",
+    "html": "<span>first</span> <span>second</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "body-whitespace",
+    "html": "<span>first</span> <span>second</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "bare-html5",
+    "html": "<article>one<details>two</details>three</article>",
+    "width": 20,
+    "ansi": false,
+    "markup": "one\ntwothree",
+    "out": "one\ntwothree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-html5",
+    "html": "<article>one<details>two</details>three</article>",
+    "width": 20,
+    "ansi": true,
+    "markup": "one\ntwothree",
+    "out": "one\ntwothree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-html5",
+    "html": "<article>one<details>two</details>three</article>",
+    "width": 80,
+    "ansi": false,
+    "markup": "one\ntwothree",
+    "out": "one\ntwothree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-html5",
+    "html": "<article>one<details>two</details>three</article>",
+    "width": 80,
+    "ansi": true,
+    "markup": "one\ntwothree",
+    "out": "one\ntwothree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-void-html4",
+    "html": "<div>one<area>two<keygen>three</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "one\ntwo\nthree",
+    "out": "one\ntwo\nthree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-void-html4",
+    "html": "<div>one<area>two<keygen>three</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "one\ntwo\nthree",
+    "out": "one\ntwo\nthree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-void-html4",
+    "html": "<div>one<area>two<keygen>three</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "one\ntwo\nthree",
+    "out": "one\ntwo\nthree\n",
+    "error": null
+  },
+  {
+    "kind": "bare-void-html4",
+    "html": "<div>one<area>two<keygen>three</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "one\ntwo\nthree",
+    "out": "one\ntwo\nthree\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-end-before",
+    "html": "</:span>after",
+    "width": 20,
+    "ansi": false,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-end-before",
+    "html": "</:span>after",
+    "width": 20,
+    "ansi": true,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-end-before",
+    "html": "</:span>after",
+    "width": 80,
+    "ansi": false,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-end-before",
+    "html": "</:span>after",
+    "width": 80,
+    "ansi": true,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "plain",
+    "html": "   a < b > c   ",
+    "width": 20,
+    "ansi": false,
+    "markup": "   a < b > c   ",
+    "out": "   a < b > c   \n",
+    "error": null
+  },
+  {
+    "kind": "plain",
+    "html": "   a < b > c   ",
+    "width": 20,
+    "ansi": true,
+    "markup": "   a < b > c   ",
+    "out": "   a < b > c   \n",
+    "error": null
+  },
+  {
+    "kind": "plain",
+    "html": "   a < b > c   ",
+    "width": 80,
+    "ansi": false,
+    "markup": "   a < b > c   ",
+    "out": "   a < b > c   \n",
+    "error": null
+  },
+  {
+    "kind": "plain",
+    "html": "   a < b > c   ",
+    "width": 80,
+    "ansi": true,
+    "markup": "   a < b > c   ",
+    "out": "   a < b > c   \n",
+    "error": null
+  },
+  {
+    "kind": "plain-numeric",
+    "html": " a <3x> b ",
+    "width": 20,
+    "ansi": false,
+    "markup": "a <3x> b",
+    "out": "a <3x> b\n",
+    "error": null
+  },
+  {
+    "kind": "plain-numeric",
+    "html": " a <3x> b ",
+    "width": 20,
+    "ansi": true,
+    "markup": "a <3x> b",
+    "out": "a <3x> b\n",
+    "error": null
+  },
+  {
+    "kind": "plain-numeric",
+    "html": " a <3x> b ",
+    "width": 80,
+    "ansi": false,
+    "markup": "a <3x> b",
+    "out": "a <3x> b\n",
+    "error": null
+  },
+  {
+    "kind": "plain-numeric",
+    "html": " a <3x> b ",
+    "width": 80,
+    "ansi": true,
+    "markup": "a <3x> b",
+    "out": "a <3x> b\n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-tag",
+    "html": "left <span",
+    "width": 20,
+    "ansi": false,
+    "markup": "left ",
+    "out": "left \n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-tag",
+    "html": "left <span",
+    "width": 20,
+    "ansi": true,
+    "markup": "left ",
+    "out": "left \n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-tag",
+    "html": "left <span",
+    "width": 80,
+    "ansi": false,
+    "markup": "left ",
+    "out": "left \n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-tag",
+    "html": "left <span",
+    "width": 80,
+    "ansi": true,
+    "markup": "left ",
+    "out": "left \n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-open",
+    "html": "<span",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-open",
+    "html": "<span",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-open",
+    "html": "<span",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "incomplete-open",
+    "html": "<span",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-close",
+    "html": "</:span>after",
+    "width": 20,
+    "ansi": false,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-close",
+    "html": "</:span>after",
+    "width": 20,
+    "ansi": true,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-close",
+    "html": "</:span>after",
+    "width": 80,
+    "ansi": false,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "invalid-close",
+    "html": "</:span>after",
+    "width": 80,
+    "ansi": true,
+    "markup": "after",
+    "out": "after\n",
+    "error": null
+  },
+  {
+    "kind": "comment-only",
+    "html": "<!-- only -->",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-only",
+    "html": "<!-- only -->",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-only",
+    "html": "<!-- only -->",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-only",
+    "html": "<!-- only -->",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "declaration-only",
+    "html": "<?xml alt?>",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-only",
+    "html": "<?xml alt?>",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-only",
+    "html": "<?xml alt?>",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "declaration-only",
+    "html": "<?xml alt?>",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "doctype-only",
+    "html": "<!DOCTYPE html>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctype-only",
+    "html": "<!DOCTYPE html>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctype-only",
+    "html": "<!DOCTYPE html>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "doctype-only",
+    "html": "<!DOCTYPE html>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-before",
+    "html": "<!-- comment --><span>first</span><span>ignored</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-before",
+    "html": "<!-- comment --><span>first</span><span>ignored</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-before",
+    "html": "<!-- comment --><span>first</span><span>ignored</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-before",
+    "html": "<!-- comment --><span>first</span><span>ignored</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": null,
+    "out": "",
+    "error": "ErrorException:Undefined array key 0"
+  },
+  {
+    "kind": "comment-between",
+    "html": "<span>first<!-- comment --> second</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "first second",
+    "out": "first second\n",
+    "error": null
+  },
+  {
+    "kind": "comment-between",
+    "html": "<span>first<!-- comment --> second</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "first second",
+    "out": "first second\n",
+    "error": null
+  },
+  {
+    "kind": "comment-between",
+    "html": "<span>first<!-- comment --> second</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "first second",
+    "out": "first second\n",
+    "error": null
+  },
+  {
+    "kind": "comment-between",
+    "html": "<span>first<!-- comment --> second</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "first second",
+    "out": "first second\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-span",
+    "html": "<div><span class=\"text-red\"/>second</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red></>second",
+    "out": "second\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-span",
+    "html": "<div><span class=\"text-red\"/>second</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red></>second",
+    "out": "second\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-span",
+    "html": "<div><span class=\"text-red\"/>second</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red></>second",
+    "out": "second\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-span",
+    "html": "<div><span class=\"text-red\"/>second</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red></>second",
+    "out": "second\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-div",
+    "html": "<div class=\"text-red\"/>second",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-div",
+    "html": "<div class=\"text-red\"/>second",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-div",
+    "html": "<div class=\"text-red\"/>second",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-div",
+    "html": "<div class=\"text-red\"/>second",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red></>",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-p",
+    "html": "<div><p class=\"text-red\"/>second<span>third</span></div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "\n<fg=red></>\nsecondthird",
+    "out": "\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-p",
+    "html": "<div><p class=\"text-red\"/>second<span>third</span></div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "\n<fg=red></>\nsecondthird",
+    "out": "\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-p",
+    "html": "<div><p class=\"text-red\"/>second<span>third</span></div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "\n<fg=red></>\nsecondthird",
+    "out": "\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "self-close-p",
+    "html": "<div><p class=\"text-red\"/>second<span>third</span></div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "\n<fg=red></>\nsecondthird",
+    "out": "\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-end",
+    "html": "<div>a</p>b</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-end",
+    "html": "<div>a</p>b</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-end",
+    "html": "<div>a</p>b</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-end",
+    "html": "<div>a</p>b</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-void-close",
+    "html": "<div>a</br>b</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-void-close",
+    "html": "<div>a</br>b</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-void-close",
+    "html": "<div>a</br>b</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "unexpected-void-close",
+    "html": "<div>a</br>b</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "ab",
+    "out": "ab\n",
+    "error": null
+  },
+  {
+    "kind": "self-closed-nonvoid",
+    "html": "<div><strong/>text<em/>other</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother",
+    "out": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother\n",
+    "error": null
+  },
+  {
+    "kind": "self-closed-nonvoid",
+    "html": "<div><strong/>text<em/>other</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother",
+    "out": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother\n",
+    "error": null
+  },
+  {
+    "kind": "self-closed-nonvoid",
+    "html": "<div><strong/>text<em/>other</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother",
+    "out": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother\n",
+    "error": null
+  },
+  {
+    "kind": "self-closed-nonvoid",
+    "html": "<div><strong/>text<em/>other</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother",
+    "out": "\u001b[1m\u001b[0mtext\u001b[3m\u001b[0mother\n",
+    "error": null
+  },
+  {
+    "kind": "p-block",
+    "html": "<div><p>first<div>second</div>third</p></div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "\nfirst\n\nsecondthird",
+    "out": "\nfirst\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "p-block",
+    "html": "<div><p>first<div>second</div>third</p></div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "\nfirst\n\nsecondthird",
+    "out": "\nfirst\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "p-block",
+    "html": "<div><p>first<div>second</div>third</p></div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "\nfirst\n\nsecondthird",
+    "out": "\nfirst\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "p-block",
+    "html": "<div><p>first<div>second</div>third</p></div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "\nfirst\n\nsecondthird",
+    "out": "\nfirst\n\nsecondthird\n",
+    "error": null
+  },
+  {
+    "kind": "p-list",
+    "html": "<p>first<ul><li>second</li></ul>third",
+    "width": 20,
+    "ansi": false,
+    "markup": "\nfirst\n",
+    "out": "\nfirst\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-list",
+    "html": "<p>first<ul><li>second</li></ul>third",
+    "width": 20,
+    "ansi": true,
+    "markup": "\nfirst\n",
+    "out": "\nfirst\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-list",
+    "html": "<p>first<ul><li>second</li></ul>third",
+    "width": 80,
+    "ansi": false,
+    "markup": "\nfirst\n",
+    "out": "\nfirst\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-list",
+    "html": "<p>first<ul><li>second</li></ul>third",
+    "width": 80,
+    "ansi": true,
+    "markup": "\nfirst\n",
+    "out": "\nfirst\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-legacy",
+    "html": "<p>first<article>widget</article>third",
+    "width": 20,
+    "ansi": false,
+    "markup": "\nfirst\nwidgetthird\n",
+    "out": "\nfirst\nwidgetthird\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-legacy",
+    "html": "<p>first<article>widget</article>third",
+    "width": 20,
+    "ansi": true,
+    "markup": "\nfirst\nwidgetthird\n",
+    "out": "\nfirst\nwidgetthird\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-legacy",
+    "html": "<p>first<article>widget</article>third",
+    "width": 80,
+    "ansi": false,
+    "markup": "\nfirst\nwidgetthird\n",
+    "out": "\nfirst\nwidgetthird\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-legacy",
+    "html": "<p>first<article>widget</article>third",
+    "width": 80,
+    "ansi": true,
+    "markup": "\nfirst\nwidgetthird\n",
+    "out": "\nfirst\nwidgetthird\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-repair",
+    "html": "<p>first<small>second<div>third</div>tail</small>end",
+    "width": 20,
+    "ansi": false,
+    "markup": "\nfirst\nsecond\nthirdtailend\n",
+    "out": "\nfirst\nsecond\nthirdtailend\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-repair",
+    "html": "<p>first<small>second<div>third</div>tail</small>end",
+    "width": 20,
+    "ansi": true,
+    "markup": "\nfirst\nsecond\nthirdtailend\n",
+    "out": "\nfirst\nsecond\nthirdtailend\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-repair",
+    "html": "<p>first<small>second<div>third</div>tail</small>end",
+    "width": 80,
+    "ansi": false,
+    "markup": "\nfirst\nsecond\nthirdtailend\n",
+    "out": "\nfirst\nsecond\nthirdtailend\n\n",
+    "error": null
+  },
+  {
+    "kind": "p-repair",
+    "html": "<p>first<small>second<div>third</div>tail</small>end",
+    "width": 80,
+    "ansi": true,
+    "markup": "\nfirst\nsecond\nthirdtailend\n",
+    "out": "\nfirst\nsecond\nthirdtailend\n\n",
+    "error": null
+  },
+  {
+    "kind": "formatting-adoption",
+    "html": "<div><b>first<i>second</b>third</i>end</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "<options=bold>first<options=bold>\u001b[3msecond\u001b[0m</></>thirdend",
+    "out": "first\u001b[3msecond\u001b[0mthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "formatting-adoption",
+    "html": "<div><b>first<i>second</b>third</i>end</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "<options=bold>first<options=bold>\u001b[3msecond\u001b[0m</></>thirdend",
+    "out": "\u001b[1mfirst\u001b[22m\u001b[1m\u001b[3msecond\u001b[0m\u001b[22mthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "formatting-adoption",
+    "html": "<div><b>first<i>second</b>third</i>end</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "<options=bold>first<options=bold>\u001b[3msecond\u001b[0m</></>thirdend",
+    "out": "first\u001b[3msecond\u001b[0mthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "formatting-adoption",
+    "html": "<div><b>first<i>second</b>third</i>end</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "<options=bold>first<options=bold>\u001b[3msecond\u001b[0m</></>thirdend",
+    "out": "\u001b[1mfirst\u001b[22m\u001b[1m\u001b[3msecond\u001b[0m\u001b[22mthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "hidden-cdata",
+    "html": "<div><svg><text>vector</text></svg> tail</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "vector tail",
+    "out": "vector tail\n",
+    "error": null
+  },
+  {
+    "kind": "hidden-cdata",
+    "html": "<div><svg><text>vector</text></svg> tail</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "vector tail",
+    "out": "vector tail\n",
+    "error": null
+  },
+  {
+    "kind": "hidden-cdata",
+    "html": "<div><svg><text>vector</text></svg> tail</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "vector tail",
+    "out": "vector tail\n",
+    "error": null
+  },
+  {
+    "kind": "hidden-cdata",
+    "html": "<div><svg><text>vector</text></svg> tail</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "vector tail",
+    "out": "vector tail\n",
+    "error": null
+  },
+  {
+    "kind": "nested-anchor",
+    "html": "<div><a href=\"/one\">first<a href=\"/two\">second</a>third</a>end</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "<href=/one>first</><href=/two>second</>thirdend",
+    "out": "firstsecondthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "nested-anchor",
+    "html": "<div><a href=\"/one\">first<a href=\"/two\">second</a>third</a>end</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "<href=/one>first</><href=/two>second</>thirdend",
+    "out": "\u001b]8;;/one\u001b\\first\u001b]8;;\u001b\\\u001b]8;;/two\u001b\\second\u001b]8;;\u001b\\thirdend\n",
+    "error": null
+  },
+  {
+    "kind": "nested-anchor",
+    "html": "<div><a href=\"/one\">first<a href=\"/two\">second</a>third</a>end</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "<href=/one>first</><href=/two>second</>thirdend",
+    "out": "firstsecondthirdend\n",
+    "error": null
+  },
+  {
+    "kind": "nested-anchor",
+    "html": "<div><a href=\"/one\">first<a href=\"/two\">second</a>third</a>end</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "<href=/one>first</><href=/two>second</>thirdend",
+    "out": "\u001b]8;;/one\u001b\\first\u001b]8;;\u001b\\\u001b]8;;/two\u001b\\second\u001b]8;;\u001b\\thirdend\n",
+    "error": null
+  },
+  {
+    "kind": "ordered-list-omission",
+    "html": "<ol><li>a<li>b</ol>",
+    "width": 20,
+    "ansi": false,
+    "markup": "1. a\n2. b",
+    "out": "1. a\n2. b\n",
+    "error": null
+  },
+  {
+    "kind": "ordered-list-omission",
+    "html": "<ol><li>a<li>b</ol>",
+    "width": 20,
+    "ansi": true,
+    "markup": "1. a\n2. b",
+    "out": "1. a\n2. b\n",
+    "error": null
+  },
+  {
+    "kind": "ordered-list-omission",
+    "html": "<ol><li>a<li>b</ol>",
+    "width": 80,
+    "ansi": false,
+    "markup": "1. a\n2. b",
+    "out": "1. a\n2. b\n",
+    "error": null
+  },
+  {
+    "kind": "ordered-list-omission",
+    "html": "<ol><li>a<li>b</ol>",
+    "width": 80,
+    "ansi": true,
+    "markup": "1. a\n2. b",
+    "out": "1. a\n2. b\n",
+    "error": null
+  },
+  {
+    "kind": "select-child",
+    "html": "<div><select><option>first<b>bold</b><option>next</select></div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "first<options=bold>bold</>\nnext",
+    "out": "firstbold\nnext\n",
+    "error": null
+  },
+  {
+    "kind": "select-child",
+    "html": "<div><select><option>first<b>bold</b><option>next</select></div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "first<options=bold>bold</>\nnext",
+    "out": "first\u001b[1mbold\u001b[22m\nnext\n",
+    "error": null
+  },
+  {
+    "kind": "select-child",
+    "html": "<div><select><option>first<b>bold</b><option>next</select></div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "first<options=bold>bold</>\nnext",
+    "out": "firstbold\nnext\n",
+    "error": null
+  },
+  {
+    "kind": "select-child",
+    "html": "<div><select><option>first<b>bold</b><option>next</select></div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "first<options=bold>bold</>\nnext",
+    "out": "first\u001b[1mbold\u001b[22m\nnext\n",
+    "error": null
+  },
+  {
+    "kind": "table-orphan",
+    "html": "<div><tr><td>row</td></tr>end</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "rowend",
+    "out": "rowend\n",
+    "error": null
+  },
+  {
+    "kind": "table-orphan",
+    "html": "<div><tr><td>row</td></tr>end</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "rowend",
+    "out": "rowend\n",
+    "error": null
+  },
+  {
+    "kind": "table-orphan",
+    "html": "<div><tr><td>row</td></tr>end</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "rowend",
+    "out": "rowend\n",
+    "error": null
+  },
+  {
+    "kind": "table-orphan",
+    "html": "<div><tr><td>row</td></tr>end</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "rowend",
+    "out": "rowend\n",
+    "error": null
+  },
+  {
+    "kind": "table-foster",
+    "html": "<div><table>outside<tr><td>inside</td></tr>tail</table>end</div>",
+    "width": 20,
+    "ansi": false,
+    "markup": "+--------+\n| inside |\n+--------+end",
+    "out": "+--------+\n| inside |\n+--------+end\n",
+    "error": null
+  },
+  {
+    "kind": "table-foster",
+    "html": "<div><table>outside<tr><td>inside</td></tr>tail</table>end</div>",
+    "width": 20,
+    "ansi": true,
+    "markup": "+--------+\n| inside |\n+--------+end",
+    "out": "+--------+\n| inside |\n+--------+end\n",
+    "error": null
+  },
+  {
+    "kind": "table-foster",
+    "html": "<div><table>outside<tr><td>inside</td></tr>tail</table>end</div>",
+    "width": 80,
+    "ansi": false,
+    "markup": "+--------+\n| inside |\n+--------+end",
+    "out": "+--------+\n| inside |\n+--------+end\n",
+    "error": null
+  },
+  {
+    "kind": "table-foster",
+    "html": "<div><table>outside<tr><td>inside</td></tr>tail</table>end</div>",
+    "width": 80,
+    "ansi": true,
+    "markup": "+--------+\n| inside |\n+--------+end",
+    "out": "+--------+\n| inside |\n+--------+end\n",
+    "error": null
+  },
+  {
+    "kind": "table-order",
+    "html": "<table><td>first</td><td>second</td></table>",
+    "width": 20,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "table-order",
+    "html": "<table><td>first</td><td>second</td></table>",
+    "width": 20,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "table-order",
+    "html": "<table><td>first</td><td>second</td></table>",
+    "width": 80,
+    "ansi": false,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "table-order",
+    "html": "<table><td>first</td><td>second</td></table>",
+    "width": 80,
+    "ansi": true,
+    "markup": "",
+    "out": "\n",
+    "error": null
+  },
+  {
+    "kind": "named-and-numeric",
+    "html": "<span>&copy;&nbsp;&euro;&#x1F980;&#0;</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "© €🦀",
+    "out": "© €🦀\n",
+    "error": null
+  },
+  {
+    "kind": "named-and-numeric",
+    "html": "<span>&copy;&nbsp;&euro;&#x1F980;&#0;</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "© €🦀",
+    "out": "© €🦀\n",
+    "error": null
+  },
+  {
+    "kind": "named-and-numeric",
+    "html": "<span>&copy;&nbsp;&euro;&#x1F980;&#0;</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "© €🦀",
+    "out": "© €🦀\n",
+    "error": null
+  },
+  {
+    "kind": "named-and-numeric",
+    "html": "<span>&copy;&nbsp;&euro;&#x1F980;&#0;</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "© €🦀",
+    "out": "© €🦀\n",
+    "error": null
+  },
+  {
+    "kind": "unknown-entity",
+    "html": "<span>&notareal; &amp; &lt; &apos; &youtube; </span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "&notareal; & < ' &youtube;",
+    "out": "&notareal; & < ' &youtube;\n",
+    "error": null
+  },
+  {
+    "kind": "unknown-entity",
+    "html": "<span>&notareal; &amp; &lt; &apos; &youtube; </span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "&notareal; & < ' &youtube;",
+    "out": "&notareal; & < ' &youtube;\n",
+    "error": null
+  },
+  {
+    "kind": "unknown-entity",
+    "html": "<span>&notareal; &amp; &lt; &apos; &youtube; </span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "&notareal; & < ' &youtube;",
+    "out": "&notareal; & < ' &youtube;\n",
+    "error": null
+  },
+  {
+    "kind": "unknown-entity",
+    "html": "<span>&notareal; &amp; &lt; &apos; &youtube; </span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "&notareal; & < ' &youtube;",
+    "out": "&notareal; & < ' &youtube;\n",
+    "error": null
+  },
+  {
+    "kind": "html5-only-entity",
+    "html": "<span>&hopf;&apos;&CounterClockwiseContourIntegral;</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "&hopf;'&CounterClockwiseContourIntegral;",
+    "out": "&hopf;'&CounterClockwiseContourIntegral;\n",
+    "error": null
+  },
+  {
+    "kind": "html5-only-entity",
+    "html": "<span>&hopf;&apos;&CounterClockwiseContourIntegral;</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "&hopf;'&CounterClockwiseContourIntegral;",
+    "out": "&hopf;'&CounterClockwiseContourIntegral;\n",
+    "error": null
+  },
+  {
+    "kind": "html5-only-entity",
+    "html": "<span>&hopf;&apos;&CounterClockwiseContourIntegral;</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "&hopf;'&CounterClockwiseContourIntegral;",
+    "out": "&hopf;'&CounterClockwiseContourIntegral;\n",
+    "error": null
+  },
+  {
+    "kind": "html5-only-entity",
+    "html": "<span>&hopf;&apos;&CounterClockwiseContourIntegral;</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "&hopf;'&CounterClockwiseContourIntegral;",
+    "out": "&hopf;'&CounterClockwiseContourIntegral;\n",
+    "error": null
+  },
+  {
+    "kind": "ignored-body-tail",
+    "html": "<span>first</span> text <span>third</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "ignored-body-tail",
+    "html": "<span>first</span> text <span>third</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "ignored-body-tail",
+    "html": "<span>first</span> text <span>third</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "ignored-body-tail",
+    "html": "<span>first</span> text <span>third</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "doctype-before",
+    "html": "<!doctype html><span>first</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "doctype-before",
+    "html": "<!doctype html><span>first</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "doctype-before",
+    "html": "<!doctype html><span>first</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "doctype-before",
+    "html": "<!doctype html><span>first</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "first",
+    "out": "first\n",
+    "error": null
+  },
+  {
+    "kind": "literal-entities",
+    "html": "&lt;span&gt;plain",
+    "width": 20,
+    "ansi": false,
+    "markup": "&lt;span&gt;plain",
+    "out": "&lt;span&gt;plain\n",
+    "error": null
+  },
+  {
+    "kind": "literal-entities",
+    "html": "&lt;span&gt;plain",
+    "width": 20,
+    "ansi": true,
+    "markup": "&lt;span&gt;plain",
+    "out": "&lt;span&gt;plain\n",
+    "error": null
+  },
+  {
+    "kind": "literal-entities",
+    "html": "&lt;span&gt;plain",
+    "width": 80,
+    "ansi": false,
+    "markup": "&lt;span&gt;plain",
+    "out": "&lt;span&gt;plain\n",
+    "error": null
+  },
+  {
+    "kind": "literal-entities",
+    "html": "&lt;span&gt;plain",
+    "width": 80,
+    "ansi": true,
+    "markup": "&lt;span&gt;plain",
+    "out": "&lt;span&gt;plain\n",
+    "error": null
+  },
+  {
+    "kind": "uppercase",
+    "html": "<DIV CLASS=\"TEXT-RED\">A</DIV>",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red>A</>",
+    "out": "A\n",
+    "error": null
+  },
+  {
+    "kind": "uppercase",
+    "html": "<DIV CLASS=\"TEXT-RED\">A</DIV>",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red>A</>",
+    "out": "\u001b[31mA\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "uppercase",
+    "html": "<DIV CLASS=\"TEXT-RED\">A</DIV>",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red>A</>",
+    "out": "A\n",
+    "error": null
+  },
+  {
+    "kind": "uppercase",
+    "html": "<DIV CLASS=\"TEXT-RED\">A</DIV>",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red>A</>",
+    "out": "\u001b[31mA\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "duplicate-attributes",
+    "html": "<span class=\"text-red\" class=\"text-green\">A</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "<fg=red>A</>",
+    "out": "A\n",
+    "error": null
+  },
+  {
+    "kind": "duplicate-attributes",
+    "html": "<span class=\"text-red\" class=\"text-green\">A</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "<fg=red>A</>",
+    "out": "\u001b[31mA\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "duplicate-attributes",
+    "html": "<span class=\"text-red\" class=\"text-green\">A</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "<fg=red>A</>",
+    "out": "A\n",
+    "error": null
+  },
+  {
+    "kind": "duplicate-attributes",
+    "html": "<span class=\"text-red\" class=\"text-green\">A</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "<fg=red>A</>",
+    "out": "\u001b[31mA\u001b[39m\n",
+    "error": null
+  },
+  {
+    "kind": "text-nodes",
+    "html": "<span> A  \\n <!-- x --> B </span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "A \\n  B",
+    "out": "A \\n  B\n",
+    "error": null
+  },
+  {
+    "kind": "text-nodes",
+    "html": "<span> A  \\n <!-- x --> B </span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "A \\n  B",
+    "out": "A \\n  B\n",
+    "error": null
+  },
+  {
+    "kind": "text-nodes",
+    "html": "<span> A  \\n <!-- x --> B </span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "A \\n  B",
+    "out": "A \\n  B\n",
+    "error": null
+  },
+  {
+    "kind": "text-nodes",
+    "html": "<span> A  \\n <!-- x --> B </span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "A \\n  B",
+    "out": "A \\n  B\n",
+    "error": null
+  },
+  {
+    "kind": "crlf",
+    "html": "<span>A\r\nB</span>",
+    "width": 20,
+    "ansi": false,
+    "markup": "A B",
+    "out": "A B\n",
+    "error": null
+  },
+  {
+    "kind": "crlf",
+    "html": "<span>A\r\nB</span>",
+    "width": 20,
+    "ansi": true,
+    "markup": "A B",
+    "out": "A B\n",
+    "error": null
+  },
+  {
+    "kind": "crlf",
+    "html": "<span>A\r\nB</span>",
+    "width": 80,
+    "ansi": false,
+    "markup": "A B",
+    "out": "A B\n",
+    "error": null
+  },
+  {
+    "kind": "crlf",
+    "html": "<span>A\r\nB</span>",
+    "width": 80,
+    "ansi": true,
+    "markup": "A B",
+    "out": "A B\n",
+    "error": null
+  }
+]

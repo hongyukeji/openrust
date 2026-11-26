@@ -387,6 +387,10 @@ async fn formal_progress_example(){
     dispatch_checks=style_modifiers_checks.replace('formal_terminal_style_modifiers_example','formal_terminal_element_dispatch_example').replace('register_style_modifiers)','register_element_dispatch)').replace('"tools:style-modifiers"','"tools:element-dispatch"').replace('"Result: ready!"','"Result: ready"')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_element_dispatch{\n'+dispatch_snippet+dispatch_checks+'}\n')
 
+    html_recovery_snippet=re.search(r'```rust\n(.*?)```',text.split('{#terminal-html-recovery}',1)[1],re.S).group(1)
+    html_recovery_checks=dispatch_checks.replace('formal_terminal_element_dispatch_example','formal_terminal_html_recovery_example').replace('register_element_dispatch)','register_html_recovery)').replace('"tools:element-dispatch"','"tools:html-recovery"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_terminal_html_recovery{\n'+html_recovery_snippet+html_recovery_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

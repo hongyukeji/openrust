@@ -2751,3 +2751,41 @@ fn register_element_dispatch() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 终端 HTML 片段恢复 {#terminal-html-recovery}
+
+内置终端视图渲染器按 HTML4 规则恢复片段。自闭合的样式 span 保持为空，后续文本保留自己的样式。框架也处理错配标签和标准 HTML4 实体引用。
+
+含标记的片段需要有可渲染的正文首子节点。片段准备失败时，渲染器向命令返回 `ConsoleError`。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError,
+    view::components::{Component, ComponentContext, ComponentViewCompiler},
+};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+
+struct Markup;
+impl ComponentViewCompiler for Markup {
+    fn compile(
+        &mut self, html: &str, _: Value, _: &mut ComponentContext<'_>,
+    ) -> Result<String, ConsoleError> {
+        Ok(html.to_owned())
+    }
+}
+
+fn register_html_recovery() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:html-recovery", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(Markup)));
+            component.render_view(
+                r#"<div><span class="text-red"/>Result: ready</div>"#, json!({}),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

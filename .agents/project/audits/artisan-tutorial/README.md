@@ -951,3 +951,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 34 个固定源码场景验证方法查找、查询返回值、同一元素身份、持久的修改及真实错误。Rust 调用接收 JSON 形态的参数并返回查询值或原元素借用，样式关联与构造继续走类型化入口。
 
 64 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、222 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续 HTML 恢复。见 terminal-element-dispatch-contracts.json 与 accepted-terminal-element-dispatch.json。
+
+
+## 74. 终端 HTML4 片段恢复
+
+252 个固定源码场景验证原始与终端输出，覆盖自闭合非空类型、匹配优先级、错配格式、不完整标签、表格重排、HTML4 引用、原始文本和空正文。保留现有纯 Rust tokenizer 与输出管线，补齐固定 HTML4 的节点构造规则，附来源许可。
+
+67 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、225 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续 Factory 容器构造和覆盖。见 terminal-html-recovery-contracts.json 与 accepted-terminal-html-recovery.json。
