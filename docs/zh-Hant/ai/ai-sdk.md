@@ -846,6 +846,8 @@ Cohere 讀取原生浮點向量和計費輸入 Token，Jina 使用 `retrieval.pa
 
 使用 Amazon Bedrock Converse 時，設定 `AI_PROVIDER=bedrock` 和 `BEDROCK_MODEL`，並用 `AWS_REGION` 或 `AWS_DEFAULT_REGION` 指定 AWS 區域。可用 `BEDROCK_URL` 覆寫執行階段位址。憑證可使用 `AWS_BEARER_TOKEN_BEDROCK`、明確的 AWS 憑證及選用的 `AWS_SESSION_TOKEN`，或 AWS 憑證鏈。SDK 支援一般文字、會話歷程及內嵌 PNG、JPEG、WebP、PDF、純文字和 Markdown。用 `BEDROCK_MODEL_CHEAPEST` 或 `BEDROCK_MODEL_SMARTEST` 設定獨立模型級別。 如需代入 IAM 角色，在具名連線設定 `assume_role.arn`。可在 `assume_role` 中設定 `session_name`、`duration_seconds` 和 `external_id`，暫時憑證由 AWS SDK 取得和重新整理。
 
+用 `Agent::stream` 呼叫 Bedrock ConverseStream。SDK 讀取 AWS 原生事件串流，並透過 SSE 傳回增量文字和可見推理。結束原因和 Token 用量隨最終中繼資料傳回。串流截斷或 AWS 事件無效會產生串流錯誤，請求逾時也適用於讀取事件。
+
 使用 xAI 文字模型時，設定 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆寫預設位址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 設定模型級別。連線使用原生 Responses，支援 SSE、結構化輸出、本機函式工具，以及受支援模型的影像輸入。上游傳回加密推理時，本機工具續步會將它隨請求送回。執行 `./artisan ai:models xai` 查看探索到的模型及已設定的模型。
 
 使用 xAI 原生連線時，SDK 用量和閘道帳本將推理 Token 計入輸出總量一次，並另外記錄推理子項。上游同時回報總量時，依總量判斷輸出欄位是否已經包含推理。閘道原生轉發保留上游回應中的用量欄位。

@@ -692,9 +692,15 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `bedrock` 命名连接复用项目 AWS SDK 依赖风格，新增官方 Bedrock Runtime Rust SDK 1.151.0。客户端按需初始化，支持应用环境中的 Bearer、SigV4 静态凭证和会话令牌、AWS 默认凭证链、STS AssumeRole、区域及可覆盖的运行时端点。Converse 按固定 Laravel 映射系统指令、消息历史、内联图片和文档、采样选项及用量。输入总量含缓存读取和写入并保留两个子项。Typed SDK 负责模型路径编码和签名，单次请求关闭 SDK 自动重试，错误交给既有 SDK 处理。
 
-独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。ConverseStream、工具、结构化输出、签名推理续步、远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
+独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。工具、结构化输出、签名推理续步、远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
 
 - [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) · [AWS Rust SDK 1.151.0](https://docs.rs/aws-sdk-bedrockruntime/1.151.0/aws_sdk_bedrockruntime/)
+
+Bedrock `Agent::stream` 走 ConverseStream，复用 Converse 的请求映射与凭证装配。AWS Rust SDK 解码并校验原生二进制事件，SDK 按内容块索引向 SSE 提供文本和可见推理，收到消息结束及用量元数据后结束。整体超时覆盖读取事件，流中 AWS 异常沿用供应商错误分类。
+
+独立 HTTP 与真实协议模拟上游用事件同步验证早期文本、推理文本、签名隔离、正常停止原因与缓存用量。独立 Artisan 验证缺用量终帧、CRC 损坏、AWS 过载异常、途中超时均产生错误。普通 Converse 的签名、凭证链、附件和模型 ARN 同步复验。19 项 SDK 回归、严格 Clippy 和三语站点通过。
+
+- [AWS ConverseStream API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html) · [AWS Converse 原生响应事件](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
 
 ### xAI 原生 Responses
 
