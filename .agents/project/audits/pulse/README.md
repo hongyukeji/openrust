@@ -122,6 +122,12 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 首屏卡片的延迟加载与隔离（待闭环）
+
+固定 Pulse 的九类指标卡片声明 `#[Lazy]`。支持范围内的 Livewire 3.6.4 与 4.0.0 会为默认惰性组件生成占位框，在进入可视范围时启动加载，首轮使用独立更新。常规轮询更新可合并。 [固定 Pulse 组件](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire) [Livewire 3.6.4](https://github.com/livewire/livewire/blob/v3.6.4/src/Features/SupportLazyLoading/SupportLazyLoading.php) [Livewire 4.0.0](https://github.com/livewire/livewire/blob/v4.0.0/src/Features/SupportLazyLoading/SupportLazyLoading.php)
+
+当前 Chrome 前态捕获首个全量指标请求。响应被挂起时卡片容器为空，500 响应后整页面无卡片。证据为 `target/tmp/observability-parity/pulse-card-lazy-browser-baseline-retry.log`。接续以现有授权入口和卡片缓存为基础，验收可视卡片独立装载、失败隔离、已装载卡片轮询与原有完整 JSON；仍需通过实际浏览器及数据库消费者。
+
 ### 慢操作、异常和用量的采样计数
 
 固定 PHP 8.5.12 使用实际 Blade 编译器渲染四类慢操作、异常和用量计数。采样率 0.4 时原始计数 3 显示为 `~8`，提示包含采样率与原始值。全量计数按千位分隔。用量的请求、慢请求、任务分别读 UserRequests、SlowRequests、UserJobs。Rust 的 `sample_rates` 随当前配置返回，卡片原始行及五秒缓存仍保留数据库计数。面板识别数据库返回的数值和数字文本。采样率为零时保留历史原始计数。 [固定卡片模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)
