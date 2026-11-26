@@ -40,5 +40,15 @@
     "name": "Nom du type",
     "force": "Écraser le fichier existant",
     "structured": "Utiliser le modèle de sortie structurée"
+  },
+  "make": {
+    "name": "Nom du type",
+    "name_required": "Indiquez le nom du type à créer.",
+    "structured": "L’agent doit-il produire une sortie structurée ?",
+    "module_exists": "Un module portant ce nom est déjà défini.",
+    "created": "[:path] a été créé.",
+    "declare_module": "Déclarez ce module dans son module parent, puis recompilez.",
+    "file_exists": "Le fichier source existe déjà.",
+    "invalid_name": "Utilisez un nom de type en PascalCase, comme CatalogAgent."
   }
 }

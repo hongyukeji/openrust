@@ -40,5 +40,15 @@
     "name": "Nombre del tipo",
     "force": "Sobrescribir el archivo existente",
     "structured": "Usar la plantilla de salida estructurada"
+  },
+  "make": {
+    "name": "Nombre del tipo",
+    "name_required": "Indica el nombre del tipo que quieres crear.",
+    "structured": "¿El agente generará una salida estructurada?",
+    "module_exists": "Ya existe un módulo con este nombre.",
+    "created": "Se ha creado [:path].",
+    "declare_module": "Declara este módulo en el módulo padre y vuelve a compilar.",
+    "file_exists": "El archivo fuente ya existe.",
+    "invalid_name": "Usa un nombre de tipo en PascalCase, como CatalogAgent."
   }
 }

@@ -40,5 +40,15 @@
     "name": "Tên kiểu",
     "force": "Ghi đè tệp hiện có",
     "structured": "Dùng mẫu đầu ra có cấu trúc"
+  },
+  "make": {
+    "name": "Tên kiểu",
+    "name_required": "Hãy chỉ định tên kiểu cần tạo.",
+    "structured": "Tác tử có tạo đầu ra có cấu trúc không?",
+    "module_exists": "Mô-đun cùng tên đã được định nghĩa.",
+    "created": "Đã tạo [:path].",
+    "declare_module": "Khai báo mô-đun này trong mô-đun cha rồi biên dịch lại.",
+    "file_exists": "Tệp nguồn đã tồn tại.",
+    "invalid_name": "Hãy dùng tên kiểu theo PascalCase, chẳng hạn CatalogAgent."
   }
 }

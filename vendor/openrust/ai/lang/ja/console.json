@@ -40,5 +40,15 @@
     "name": "型名",
     "force": "既存ファイルを上書き",
     "structured": "構造化出力テンプレートを使用"
+  },
+  "make": {
+    "name": "型名",
+    "name_required": "作成する型の名前を指定してください。",
+    "structured": "エージェントは構造化出力を生成しますか？",
+    "module_exists": "同名のモジュールがすでに定義されています。",
+    "created": "[:path] を作成しました。",
+    "declare_module": "親モジュールでこのモジュールを宣言してから、再コンパイルしてください。",
+    "file_exists": "ソースファイルはすでに存在します。",
+    "invalid_name": "CatalogAgent のような PascalCase の型名を使用してください。"
   }
 }

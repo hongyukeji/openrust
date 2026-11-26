@@ -40,5 +40,15 @@
     "name": "型別名稱",
     "force": "覆寫現有檔案",
     "structured": "使用結構化輸出範本"
+  },
+  "make": {
+    "name": "型別名稱",
+    "name_required": "請指定要建立的型別名稱",
+    "structured": "Agent 是否傳回結構化輸出？",
+    "module_exists": "已定義同名模組",
+    "created": "已建立 [:path]。",
+    "declare_module": "請在父模組中宣告此模組，再重新編譯。",
+    "file_exists": "原始碼檔案已存在。",
+    "invalid_name": "請使用 PascalCase 型別名稱，例如 CatalogAgent。"
   }
 }

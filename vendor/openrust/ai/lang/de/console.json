@@ -40,5 +40,15 @@
     "name": "Name des Typs",
     "force": "Eine vorhandene Datei überschreiben",
     "structured": "Die Vorlage für strukturierte Ausgaben verwenden"
+  },
+  "make": {
+    "name": "Typname",
+    "name_required": "Geben Sie den Namen des zu erstellenden Typs an.",
+    "structured": "Soll der Agent strukturierte Ausgaben liefern?",
+    "module_exists": "Ein Modul mit diesem Namen ist bereits definiert.",
+    "created": "[:path] wurde erstellt.",
+    "declare_module": "Deklarieren Sie dieses Modul im übergeordneten Modul und kompilieren Sie erneut.",
+    "file_exists": "Die Quelldatei ist bereits vorhanden.",
+    "invalid_name": "Verwenden Sie einen Typnamen in PascalCase, etwa CatalogAgent."
   }
 }

@@ -40,5 +40,15 @@
     "name": "Typenaam",
     "force": "Overschrijf het bestaande bestand",
     "structured": "Gebruik de sjabloon voor gestructureerde uitvoer"
+  },
+  "make": {
+    "name": "Typenaam",
+    "name_required": "Geef de naam op van het type dat u wilt maken.",
+    "structured": "Genereert de agent gestructureerde uitvoer?",
+    "module_exists": "Er is al een module met deze naam gedefinieerd.",
+    "created": "[:path] is aangemaakt.",
+    "declare_module": "Declareer deze module in de bovenliggende module en compileer opnieuw.",
+    "file_exists": "Het bronbestand bestaat al.",
+    "invalid_name": "Gebruik een typenaam in PascalCase, zoals CatalogAgent."
   }
 }

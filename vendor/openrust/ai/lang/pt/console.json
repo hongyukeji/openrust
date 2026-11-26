@@ -40,5 +40,15 @@
     "name": "Nome do tipo",
     "force": "Substituir o ficheiro existente",
     "structured": "Usar o modelo de saída estruturada"
+  },
+  "make": {
+    "name": "Nome do tipo",
+    "name_required": "Informe o nome do tipo a ser criado.",
+    "structured": "O agente produzirá uma saída estruturada?",
+    "module_exists": "Já existe um módulo definido com esse nome.",
+    "created": "[:path] foi criado.",
+    "declare_module": "Declare este módulo no módulo pai e compile novamente.",
+    "file_exists": "O arquivo-fonte já existe.",
+    "invalid_name": "Use um nome de tipo em PascalCase, como CatalogAgent."
   }
 }

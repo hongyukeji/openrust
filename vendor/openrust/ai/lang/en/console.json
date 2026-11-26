@@ -40,5 +40,15 @@
     "name": "Type name",
     "force": "Overwrite an existing file",
     "structured": "Use the structured output template"
+  },
+  "make": {
+    "name": "Type name",
+    "name_required": "Specify the name of the type to create.",
+    "structured": "Will your agent generate structured output?",
+    "module_exists": "A module with this name is already defined.",
+    "created": "Created [:path].",
+    "declare_module": "Declare this module in its parent module and compile again.",
+    "file_exists": "The source file already exists.",
+    "invalid_name": "Use a PascalCase type name such as CatalogAgent."
   }
 }

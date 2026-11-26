@@ -40,5 +40,15 @@
     "name": "Nama tipe",
     "force": "Timpa berkas yang ada",
     "structured": "Gunakan templat keluaran terstruktur"
+  },
+  "make": {
+    "name": "Nama tipe",
+    "name_required": "Tentukan nama tipe yang akan dibuat.",
+    "structured": "Apakah agen akan menghasilkan keluaran terstruktur?",
+    "module_exists": "Modul dengan nama ini sudah didefinisikan.",
+    "created": "[:path] telah dibuat.",
+    "declare_module": "Deklarasikan modul ini di modul induknya, lalu kompilasi ulang.",
+    "file_exists": "Berkas sumber sudah ada.",
+    "invalid_name": "Gunakan nama tipe PascalCase seperti CatalogAgent."
   }
 }

@@ -40,5 +40,15 @@
     "name": "类型名称",
     "force": "覆盖已有文件",
     "structured": "使用结构化输出模板"
+  },
+  "make": {
+    "name": "类型名称",
+    "name_required": "请指定要创建的类型名称",
+    "structured": "Agent 是否返回结构化输出？",
+    "module_exists": "已定义同名模块",
+    "created": "已创建 [:path]。",
+    "declare_module": "请在父模块中声明此模块，然后重新编译。",
+    "file_exists": "源文件已存在。",
+    "invalid_name": "请使用 PascalCase 类型名称，例如 CatalogAgent。"
   }
 }

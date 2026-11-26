@@ -35,6 +35,8 @@ let answer = response.text;
 
 AI 命令帮助使用应用当前语言。运行 `./artisan help ai:select-model` 或 `./artisan ai:prompt --help` 可查看本地化说明。可在 `lang/vendor/ai/<locale>/console.json` 中通过 `commands.<命令>.description` 覆写命令说明，通过 `commands.<命令>.arguments.<参数>` 覆写单个命令的参数说明。
 
+`make:agent`、`make:tool` 和 `make:agent-middleware` 的交互、生成结果与名称验证文案使用应用当前语言。可在 `lang/vendor/ai/<locale>/console.json` 的 `make` 下覆写文案，`created` 中的 `:path` 会替换为生成的文件路径。
+
 交互式连接和模型选择使用应用当前语言。数字选项和最终输出的模型 ID 在各语言下保持一致。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆写交互提示。
 
 通过 `agent(instructions).with_messages(history)` 带上历史对话。按顺序使用 `Message::user(text)` 和 `Message::assistant(text)` 构建历史消息，`prompt` 和 `stream` 会先发送历史，再发送本次提示词。Artisan 的 `--messages` 接受由 `role` 和 `content` 组成的 JSON 消息数组。

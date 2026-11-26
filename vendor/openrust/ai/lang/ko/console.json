@@ -40,5 +40,15 @@
     "name": "타입 이름",
     "force": "기존 파일 덮어쓰기",
     "structured": "구조화된 출력 템플릿 사용"
+  },
+  "make": {
+    "name": "타입 이름",
+    "name_required": "생성할 타입의 이름을 지정하세요.",
+    "structured": "에이전트가 구조화된 출력을 생성하나요?",
+    "module_exists": "같은 이름의 모듈이 이미 정의되어 있습니다.",
+    "created": "[:path]을(를) 생성했습니다.",
+    "declare_module": "상위 모듈에서 이 모듈을 선언한 후 다시 컴파일하세요.",
+    "file_exists": "소스 파일이 이미 존재합니다.",
+    "invalid_name": "CatalogAgent와 같은 PascalCase 타입 이름을 사용하세요."
   }
 }

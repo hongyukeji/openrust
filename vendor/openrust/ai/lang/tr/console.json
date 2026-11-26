@@ -40,5 +40,15 @@
     "name": "Tür adı",
     "force": "Var olan dosyanın üzerine yaz",
     "structured": "Yapılandırılmış çıktı şablonunu kullan"
+  },
+  "make": {
+    "name": "Tür adı",
+    "name_required": "Oluşturulacak türün adını belirtin.",
+    "structured": "Ajan yapılandırılmış çıktı oluşturacak mı?",
+    "module_exists": "Bu ada sahip bir modül zaten tanımlı.",
+    "created": "[:path] oluşturuldu.",
+    "declare_module": "Bu modülü üst modülde bildirin, ardından yeniden derleyin.",
+    "file_exists": "Kaynak dosyası zaten var.",
+    "invalid_name": "CatalogAgent gibi bir PascalCase tür adı kullanın."
   }
 }

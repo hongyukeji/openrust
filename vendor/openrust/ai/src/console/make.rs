@@ -11,6 +11,8 @@ use openrust::{
 };
 use serde_json::Value;
 
+use crate::localization;
+
 const AGENT: (&str, &str) = (
     "stubs/agent.rs.stub",
     include_str!("../../stubs/agent.rs.stub"),
@@ -90,17 +92,27 @@ impl Command for Make {
             let name = match input.matches().get_one::<String>("name") {
                 Some(name) => name.clone(),
                 None if input.option("no-interaction") == Some(Value::Bool(true)) => {
-                    return Err(ConsoleError::new("请指定要创建的类型名称"));
+                    return Err(ConsoleError::new(message(
+                        "name_required",
+                        "请指定要创建的类型名称",
+                    )));
                 }
                 None => {
                     let mut io = input.io(output);
                     let name = io
-                        .ask("类型名称")
+                        .ask(&message("name", "类型名称"))
                         .await?
                         .filter(|name| !name.trim().is_empty())
-                        .ok_or_else(|| ConsoleError::new("请指定要创建的类型名称"))?;
+                        .ok_or_else(|| {
+                            ConsoleError::new(message("name_required", "请指定要创建的类型名称"))
+                        })?;
                     if matches!(self.kind, Kind::Agent) && !structured && !force {
-                        structured = io.confirm_with("Agent 是否返回结构化输出？", false).await?;
+                        structured = io
+                            .confirm_with(
+                                &message("structured", "Agent 是否返回结构化输出？"),
+                                false,
+                            )
+                            .await?;
                     }
                     name
                 }
@@ -123,17 +135,31 @@ impl Command for Make {
                 .try_exists()
                 .map_err(ConsoleError::from_source)?
             {
-                return Err(ConsoleError::new("已定义同名模块"));
+                return Err(ConsoleError::new(message(
+                    "module_exists",
+                    "已定义同名模块",
+                )));
             }
             match write_generated(&path, template.as_bytes(), force) {
                 Ok(()) => {
-                    output.info(&format!("已创建 [{}]。", relative.display()));
-                    output
-                        .stdout
-                        .push_str("请在父模块中声明此模块，然后重新编译。\n");
+                    let path = relative.display().to_string();
+                    let fallback = format!("已创建 [{path}]。");
+                    output.info(&localization::text(
+                        "ai::console.make.created",
+                        &[("path".to_owned(), path)].into(),
+                        &fallback,
+                    ));
+                    output.stdout.push_str(&message(
+                        "declare_module",
+                        "请在父模块中声明此模块，然后重新编译。",
+                    ));
+                    output.stdout.push('\n');
                 }
                 Err(error) if !force && error.kind() == ErrorKind::AlreadyExists => {
-                    output.stderr.push_str("源文件已存在。\n");
+                    output
+                        .stderr
+                        .push_str(&message("file_exists", "源文件已存在。"));
+                    output.stderr.push('\n');
                 }
                 Err(error) => return Err(ConsoleError::from_source(error)),
             }
@@ -189,7 +215,20 @@ fn location(kind: Kind, name: &str) -> (&'static str, &str) {
 }
 
 fn parts(name: &str) -> Result<impl Iterator<Item = &str>, ConsoleError> {
-    source_name_parts(name, "请使用 PascalCase 类型名称，例如 CatalogAgent。")
+    source_name_parts(name, "请使用 PascalCase 类型名称，例如 CatalogAgent。").map_err(|_| {
+        ConsoleError::new(message(
+            "invalid_name",
+            "请使用 PascalCase 类型名称，例如 CatalogAgent。",
+        ))
+    })
+}
+
+fn message(key: &str, fallback: &str) -> String {
+    localization::text(
+        &format!("ai::console.make.{key}"),
+        &Default::default(),
+        fallback,
+    )
 }
 
 fn load(
