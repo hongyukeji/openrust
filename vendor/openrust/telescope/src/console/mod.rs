@@ -1,6 +1,10 @@
 mod formats_output;
 mod install;
-use crate::{EntryType, storage::EntryQueryOptions};
+use crate::{
+    EntryType,
+    contracts::{ClearableRepository, EntriesRepository, PrunableRepository},
+    storage::EntryQueryOptions,
+};
 use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
@@ -158,16 +162,14 @@ impl Command for TelescopeCommand {
                 }
                 _ => {}
             }
-            let repository = app
-                .make::<dyn crate::contracts::EntriesRepository>()
-                .await
-                .map_err(error)?;
             match self.name {
                 "telescope:clear" => {
+                    let repository = app.make::<dyn ClearableRepository>().await.map_err(error)?;
                     repository.clear().await.map_err(error)?;
                     output.info("Telescope entries cleared!");
                 }
                 "telescope:prune" => {
+                    let repository = app.make::<dyn PrunableRepository>().await.map_err(error)?;
                     let Some(retention) = value("hours")
                         .and_then(|raw| raw.trim_ascii().parse::<f64>().ok())
                         .filter(|hours| hours.is_finite())
@@ -202,6 +204,7 @@ impl Command for TelescopeCommand {
                     output.info(&format!("{pruned} entries pruned."));
                 }
                 "telescope:list" => {
+                    let repository = app.make::<dyn EntriesRepository>().await.map_err(error)?;
                     let kind = if let Some(kind) = value("type").filter(|s| !s.is_empty()) {
                         let Some(kind) = valid_type(kind, output) else {
                             return Ok(1);
@@ -264,6 +267,7 @@ impl Command for TelescopeCommand {
                     }
                 }
                 "telescope:show" => {
+                    let repository = app.make::<dyn EntriesRepository>().await.map_err(error)?;
                     let id = value("id").expect("required");
                     let entry = if id == "latest" || id.starts_with("latest:") {
                         let kind = if let Some(kind) =

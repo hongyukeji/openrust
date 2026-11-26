@@ -1,4 +1,7 @@
-use crate::storage::DatabaseEntriesRepository;
+use crate::{
+    contracts::{ClearableRepository, EntriesRepository, PrunableRepository},
+    storage::DatabaseEntriesRepository,
+};
 use openrust::{
     contracts::{
         container::{BindingResolutionError, Container as _},
@@ -72,9 +75,19 @@ impl ServiceProvider for TelescopeServiceProvider {
                     )))
                 })?;
             app.container()
-                .scoped_if::<dyn crate::contracts::EntriesRepository, _>(|container| {
-                    Ok(container.make::<DatabaseEntriesRepository>()?
-                        as Arc<dyn crate::contracts::EntriesRepository>)
+                .scoped_if::<dyn EntriesRepository, _>(|container| {
+                    Ok(
+                        container.make::<DatabaseEntriesRepository>()?
+                            as Arc<dyn EntriesRepository>,
+                    )
+                })?;
+            app.container()
+                .scoped_if::<dyn ClearableRepository, _>(|container| {
+                    Ok(container.make::<dyn EntriesRepository>()? as Arc<dyn ClearableRepository>)
+                })?;
+            app.container()
+                .scoped_if::<dyn PrunableRepository, _>(|container| {
+                    Ok(container.make::<dyn EntriesRepository>()? as Arc<dyn PrunableRepository>)
                 })?;
             app.container().scoped::<crate::Telescope, _>(|container| {
                 let config =
@@ -84,7 +97,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     .and_then(|value| value.as_bool())
                     .ok_or_else(binding)?;
                 let telescope = Arc::new(crate::Telescope::with_options(
-                    container.make::<dyn crate::contracts::EntriesRepository>()?,
+                    container.make::<dyn EntriesRepository>()?,
                     enabled,
                     container.make::<crate::telescope::Options>()?,
                     match container.make::<openrust::log::context::Repository>() {

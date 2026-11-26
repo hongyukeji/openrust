@@ -15,12 +15,16 @@ struct Store {
     writes: AtomicUsize,
     terminations: AtomicUsize,
     initializations: AtomicUsize,
+    clears: AtomicUsize,
     pruned: Mutex<Vec<(jiff::Timestamp, bool)>>,
     fail: bool,
 }
 impl ClearableRepository for Store {
     fn clear(&self) -> TelescopeFuture<'_, Result<()>> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async {
+            self.clears.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        })
     }
 }
 impl PrunableRepository for Store {
@@ -178,6 +182,46 @@ async fn prune_accepts_fractional_hours_and_uses_the_application_clock() {
             .assert_exit_code(1);
     }
     assert!(store.pruned.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn management_commands_use_their_independently_bound_repositories() {
+    use openrust::testing::TestApp;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_config(|_, _| {
+                Ok(std::collections::BTreeMap::from([(
+                    "telescope".into(),
+                    serde_json::json!({"driver":"custom"}),
+                )]))
+            })
+    })
+    .unwrap();
+    let entries = Arc::new(Store::default());
+    let clearable = Arc::new(Store::default());
+    let prunable = Arc::new(Store::default());
+    let container = app.app().container();
+    container
+        .instance::<dyn EntriesRepository>(entries.clone())
+        .unwrap();
+    container
+        .instance::<dyn ClearableRepository>(clearable.clone())
+        .unwrap();
+    container
+        .instance::<dyn PrunableRepository>(prunable.clone())
+        .unwrap();
+
+    app.artisan(["telescope:clear"]).await.assert_successful();
+    app.artisan(["telescope:prune", "--keep-exceptions"])
+        .await
+        .assert_successful();
+    assert_eq!(clearable.clears.load(Ordering::Relaxed), 1);
+    assert_eq!(prunable.pruned.lock().unwrap().len(), 1);
+    assert!(prunable.pruned.lock().unwrap()[0].1);
+    assert_eq!(entries.clears.load(Ordering::Relaxed), 0);
+    assert!(entries.pruned.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

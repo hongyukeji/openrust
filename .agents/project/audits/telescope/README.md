@@ -91,6 +91,12 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 Rust 前态忽略应用冻结时间并限制非负整数。当前复用框架应用时钟和 PHP 数值格式，构造带正负号的小时区间并以微秒舍入。真实 Artisan 经自定义仓储核对截止时间、边界输入、异常保留选项和无效输入的退出码。SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际命令验证半小时以前的普通记录被删除，恰在截止时间的记录及受保护的异常保留。自定义仓储、Provider 和存储回归通过，独占 Redis 用例沿用环境条件。隔离快照全仓格式、相关严格 Clippy、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-prune-hour-options-{macos-baseline,macos-final,docs}.log`。
 
+## 管理命令的仓储绑定
+
+固定 Laravel Telescope 分别绑定 `EntriesRepository`、`ClearableRepository` 和 `PrunableRepository`。PHP 8.5.12 调用两个实际命令，确认可向 `clear` 和 `prune` 各自注入只实现所需接口的对象，并把保留异常选项交给 PrunableRepository。证据为 `target/tmp/observability-parity/telescope-management-repositories-upstream.log`。 [固定 TelescopeServiceProvider](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/TelescopeServiceProvider.php#L145-L168)
+
+Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会成功但绕过各自已绑定的仓储。现在命令各自解析对应契约，确有独立绑定时使用它，默认通过当前 EntriesRepository 提供同一存储。已发布的 Rust EntriesRepository 继续组合三项存储能力。实际 Artisan 用三个独立实例确认清除和修剪各调用一次，记录仓储不承担这两项操作。默认仓储路径经 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 复验。仓储和 Provider 回归、相关严格 Clippy、快照全仓格式、三语站点构建及六组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-management-repositories-{macos-baseline,macos-final,docs}.log`。
+
 ## 出站 multipart
 
 固定 `ClientRequestWatcher::input` 使用结构化字段，普通字段保留原值，文件或流使用文件名、十进制 KB 长度与部件头部，同名字段取请求中最后一项。Laravel `PendingRequest::parseHttpOptions` 先加入普通字段，再追加登记的附件。OpenRust 调整线上的字段顺序，通过 `RecordedRequest.multipart` 将原值和 `attach_body` 元数据传给 Watcher。未知流长度记为 `null`，流只由 HTTP 传输消费。字段、部件头部和整个载荷复用既有脱敏开关。
