@@ -85,6 +85,18 @@ To share an access policy across keys, add a group and set the key's `group` fie
 },
 ```
 
+For database-managed keys, set `managed_keys.enabled` to `true`. The optional `managed_keys.connection` selects a named database connection. Run the package migration and issue a key for an existing group.
+
+```shell
+./artisan migrate
+./artisan ai:gateway:key:create support-client support-team --expires-in=86400 --requests-per-minute=60
+./artisan ai:gateway:key:list
+./artisan ai:gateway:key:rotate KEY_ID
+./artisan ai:gateway:key:revoke KEY_ID
+```
+
+Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

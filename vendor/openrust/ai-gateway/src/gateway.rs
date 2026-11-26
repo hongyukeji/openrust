@@ -5,8 +5,8 @@ use std::{
 };
 
 use openrust::{
-    cache::limiters::ConcurrencyLease, config::Environment, container::ServiceKey, log::Logger,
-    support::facades::Facade,
+    cache::limiters::ConcurrencyLease, config::Environment, container::ServiceKey,
+    database::DatabaseResult, log::Logger, support::facades::Facade,
 };
 use openrust_ai::{AiManager, TextEndpoint, TextProvider};
 use serde::Deserialize;
@@ -14,7 +14,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-use crate::accounts::{Account, MAX_SECONDS};
+use crate::{
+    accounts::{Account, MAX_SECONDS},
+    managed_keys::KeyStore,
+};
 
 #[derive(Default, Deserialize)]
 struct Configuration {
@@ -74,13 +77,21 @@ struct KeyConfiguration {
 
 pub(crate) struct Key {
     pub(crate) name: String,
-    digest: [u8; 32],
+    managed_id: Option<String>,
+    digest: Option<[u8; 32]>,
     group: Option<Arc<Group>>,
     models: Option<HashSet<String>>,
     pub(crate) requests_per_minute: Option<u64>,
 }
 
 impl Key {
+    pub(crate) fn limiter_key(&self) -> String {
+        match &self.managed_id {
+            Some(id) => format!("ai-gateway:managed-key:{id}"),
+            None => format!("ai-gateway:{}", self.name),
+        }
+    }
+
     pub(crate) fn allows_model(&self, name: &str) -> bool {
         self.models
             .as_ref()
@@ -163,7 +174,9 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
 pub(crate) struct Gateway {
     pub(crate) models: BTreeMap<String, Model>,
     pub(crate) account_cache_store: Option<String>,
-    keys: Vec<Key>,
+    groups: BTreeMap<String, Arc<Group>>,
+    keys: Vec<Arc<Key>>,
+    pub(crate) managed_keys: Option<KeyStore>,
     logger: Arc<Logger>,
 }
 
@@ -181,6 +194,7 @@ impl Gateway {
         env: &Environment,
         ai: &AiManager,
         logger: Arc<Logger>,
+        managed_keys: Option<KeyStore>,
     ) -> Result<Option<Self>, io::Error> {
         let config = config.unwrap_or_else(|| json!({}));
         // 关闭时允许保留待启用的配置，启动时不会解析连接或 Key。
@@ -267,6 +281,8 @@ impl Gateway {
         let mut groups = BTreeMap::new();
         for (name, group) in config.groups {
             if name.trim().is_empty()
+                || name.chars().count() > 128
+                || name.chars().any(char::is_control)
                 || group.models.iter().any(|model| !models.contains_key(model))
                 || group.providers.as_ref().is_some_and(|providers| {
                     providers
@@ -286,7 +302,7 @@ impl Gateway {
             );
         }
 
-        let mut keys = Vec::<Key>::new();
+        let mut keys = Vec::<Arc<Key>>::new();
         for (name, key) in config.keys {
             if key
                 .requests_per_minute
@@ -320,34 +336,70 @@ impl Gateway {
                 .filter(|value| !value.is_empty() && !value.chars().any(char::is_whitespace))
                 .ok_or_else(|| invalid(format!("Key {name} 的环境凭证缺失或无效")))?;
             let digest: [u8; 32] = Sha256::digest(value.as_bytes()).into();
-            if keys.iter().any(|key| bool::from(key.digest.ct_eq(&digest))) {
+            if keys
+                .iter()
+                .filter_map(|key| key.digest.as_ref())
+                .any(|existing| bool::from(existing.ct_eq(&digest)))
+            {
                 return Err(invalid("ai_gateway.keys 的凭证重复"));
             }
-            keys.push(Key {
+            keys.push(Arc::new(Key {
                 name,
-                digest,
+                managed_id: None,
+                digest: Some(digest),
                 models: key.models,
                 group,
                 requests_per_minute: key.requests_per_minute,
-            });
+            }));
         }
         Ok(Some(Self {
             models,
             account_cache_store: config.account_cache_store,
             keys,
+            groups,
+            managed_keys,
             logger,
         }))
     }
 
-    pub(crate) fn authorize(&self, bearer: &str) -> Option<&Key> {
+    pub(crate) fn has_group(&self, name: &str) -> bool {
+        self.groups.contains_key(name)
+    }
+
+    pub(crate) async fn authorize(&self, bearer: &str) -> DatabaseResult<Option<Arc<Key>>> {
         let digest: [u8; 32] = Sha256::digest(bearer.as_bytes()).into();
         let mut matched = None;
         for key in &self.keys {
-            if key.digest.ct_eq(&digest).into() {
+            if key
+                .digest
+                .as_ref()
+                .is_some_and(|expected| expected.ct_eq(&digest).into())
+            {
                 matched = Some(key);
             }
         }
-        matched
+        if let Some(key) = matched {
+            return Ok(Some(key.clone()));
+        }
+        let Some(store) = &self.managed_keys else {
+            return Ok(None);
+        };
+        let Some(record) = store.authenticate(bearer).await? else {
+            return Ok(None);
+        };
+        let Some(group) = self.groups.get(&record.group) else {
+            return Ok(None);
+        };
+        Ok(Some(Arc::new(Key {
+            name: record.name,
+            managed_id: Some(record.id),
+            digest: None,
+            group: Some(group.clone()),
+            models: None,
+            requests_per_minute: record
+                .requests_per_minute
+                .and_then(|limit| u64::try_from(limit).ok()),
+        })))
     }
 
     pub(crate) fn usage(
@@ -364,6 +416,7 @@ impl Gateway {
             logger: self.logger.clone(),
             context: [
                 ("key".into(), json!(key.name)),
+                ("key_id".into(), json!(key.managed_id)),
                 (
                     "group".into(),
                     json!(key.group.as_ref().map(|group| &group.name)),

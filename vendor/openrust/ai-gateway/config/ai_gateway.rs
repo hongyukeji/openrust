@@ -15,6 +15,10 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "groups": {
             // "support-team": {"models": ["support-chat"], "providers": ["deepseek"]},
         },
+        "managed_keys": {
+            "enabled": false,
+            "connection": null,
+        },
         "keys": {
             // "support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "models": ["support-chat"]},
         }

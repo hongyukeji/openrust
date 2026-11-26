@@ -42,11 +42,18 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
 }
 
 fn gemini_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, None, Protocol::Gemini) })
+    Box::pin(async move { catalog(Protocol::Gemini.token(request), None, Protocol::Gemini).await })
 }
 
 fn gemini_model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, request.route("model"), Protocol::Gemini) })
+    Box::pin(async move {
+        catalog(
+            Protocol::Gemini.token(request),
+            request.route("model"),
+            Protocol::Gemini,
+        )
+        .await
+    })
 }
 
 fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -78,11 +85,17 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 }
 
 fn models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, None, catalog_protocol(request)) })
+    Box::pin(async move {
+        let protocol = catalog_protocol(request);
+        catalog(protocol.token(request), None, protocol).await
+    })
 }
 
 fn model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, request.route("model"), catalog_protocol(request)) })
+    Box::pin(async move {
+        let protocol = catalog_protocol(request);
+        catalog(protocol.token(request), request.route("model"), protocol).await
+    })
 }
 
 fn catalog_protocol(request: &Request) -> Protocol {
@@ -93,14 +106,13 @@ fn catalog_protocol(request: &Request) -> Protocol {
     }
 }
 
-fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResult {
+async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> HttpResult {
     let gateway = Gateway::get_facade_root()?;
-    let Some(key) = protocol
-        .token(request)
-        .and_then(|token| gateway.authorize(token))
-    else {
-        return protocol.unauthorized();
+    let key = match authorize(&gateway, token, protocol).await {
+        Ok(key) => key,
+        Err(response) => return response,
     };
+    let key = key.as_ref();
     let mut accessible = gateway.models.iter().filter(|(name, model)| {
         key.allows_model(name)
             && match protocol {
@@ -273,6 +285,25 @@ impl Protocol {
     }
 }
 
+async fn authorize(
+    gateway: &Gateway,
+    token: Option<&str>,
+    protocol: Protocol,
+) -> Result<std::sync::Arc<Key>, HttpResult> {
+    let Some(token) = token else {
+        return Err(protocol.unauthorized());
+    };
+    match gateway.authorize(token).await {
+        Ok(Some(key)) => Ok(key),
+        Ok(None) => Err(protocol.unauthorized()),
+        Err(_) => Err(protocol.error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "authorization_unavailable",
+            "网关凭证存储暂不可用",
+        )),
+    }
+}
+
 async fn relay(
     request: &mut Request,
     endpoint: TextEndpoint,
@@ -286,12 +317,11 @@ async fn relay(
         | TextEndpoint::GeminiCountTokens => Protocol::Gemini,
         _ => Protocol::OpenAi,
     };
-    let Some(key) = protocol
-        .token(request)
-        .and_then(|token| gateway.authorize(token))
-    else {
-        return protocol.unauthorized();
+    let key = match authorize(&gateway, protocol.token(request), protocol).await {
+        Ok(key) => key,
+        Err(response) => return response,
     };
+    let key = key.as_ref();
     let body = match request.body_bytes().await {
         Ok(body) => body,
         Err(HttpError::PayloadTooLarge) => {
@@ -548,10 +578,7 @@ async fn admit(key: &Key, protocol: Protocol) -> Result<Option<Response>, HttpEr
         return Ok(None);
     };
     let limiter = RateLimiter::get_facade_root()?;
-    match limiter
-        .reserve(&format!("ai-gateway:{}", key.name), limit, 60)
-        .await
-    {
+    match limiter.reserve(&key.limiter_key(), limit, 60).await {
         Ok(Some(seconds)) => protocol
             .error(
                 StatusCode::TOO_MANY_REQUESTS,

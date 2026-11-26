@@ -85,6 +85,18 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 },
 ```
 
+將 `managed_keys.enabled` 設為 `true` 可啟用資料庫管理的 Key。選填的 `managed_keys.connection` 指定資料庫連線。先執行套件遷移，再為既有群組簽發 Key。
+
+```shell
+./artisan migrate
+./artisan ai:gateway:key:create support-client support-team --expires-in=86400 --requests-per-minute=60
+./artisan ai:gateway:key:list
+./artisan ai:gateway:key:rotate KEY_ID
+./artisan ai:gateway:key:revoke KEY_ID
+```
+
+簽發和輪替只回傳一次可用的 Bearer Token。資料庫儲存 SHA-256 摘要。輪替沿用 Key ID、群組、有效期限與請求額度。舊版、撤銷或過期的 Token 後續請求回傳 HTTP 401。需要自訂遷移時，執行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新編譯後執行遷移。
+
 ## Agent 工具 {#agent-tools}
 
 實作 `Tool` 的名稱、描述、JSON Schema 和非同步 `handle`。用 `ToolRequest::validate` 執行框架驗證規則，或透過 `decode` 讀取 Rust 型別的參數。工具可以讀取上游呼叫 ID 和本次執行的獨立 ID。
