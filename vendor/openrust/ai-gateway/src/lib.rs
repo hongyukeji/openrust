@@ -12,6 +12,7 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 
+mod compatibility;
 #[path = "../config/ai_gateway.rs"]
 mod configuration;
 mod gateway;

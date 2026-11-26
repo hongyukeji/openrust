@@ -43,3 +43,9 @@
 SDK 参考固定 Laravel AI 的 `Anthropic/Concerns/CreatesAnthropicClient.php`、`BuildsTextRequests.php`、`ParsesTextResponses.php`，沿用 `anthropic-version`、`x-api-key` 和默认 `max_tokens`。公开入口为 `Agent::prompt`、`stream` 与 `Ai::models`。本地 Anthropic 协议模拟验证普通消息、SSE 的增量文本和分别报告的输入／输出用量、目录分页和保留手填 ID。独立 Artisan 通过 `ai:models`、`ai:prompt` 和 `route:list` 验收。
 
 网关已接入 `POST /v1/messages`、`POST /v1/messages/count_tokens` 和 `GET /v1/models/{model}`。正常 HTTP Kernel 验证原生认证头与独立上游凭证、协议错误体、授权目录与单模型、SSE 模型名转换、原生 Token 计数。计数请求返回估算值，调用日志的生成 Token 留空。上游测试为协议模拟。与 OpenAI 的跨协议转换、Gemini 和其余能力见 GW-00。
+
+## GW-03 Responses 转 Anthropic Messages
+
+按固定 [Sub2API Responses handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go) 的跨协议入口实施。公开模型映射使用 Anthropic 原生连接时，网关接受 OpenAI Bearer 请求，检查同一 Key 的公开模型授权，再用该连接的原生认证访问 `/messages`。支持纯文本、首部系统指令、历史文本消息、基本采样和输出限制。未知转换字段、结构化输出、工具、附件及上游持久状态返回明确错误。后续补反方向和更多协议能力。
+
+正常 HTTP Kernel 与独立应用进程加外部 HTTP 客户端，分别验证 JSON 与 SSE、上游模型映射、凭证隔离、首段在上游结束前到达、序列及用量、`max_tokens` 转为 `incomplete`。Artisan 验证对应入口存在。用量日志同时记录入站和上游协议，计数来自上游。上游为协议模拟。

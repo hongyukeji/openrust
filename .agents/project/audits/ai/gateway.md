@@ -7,7 +7,7 @@
 | 固定基线路由 | 鉴权和行为 | OpenRust 裁决 |
 |---|---|---|
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | GW-02 已验收 OpenAI 同协议 JSON、SSE 和下游取消。跨协议映射及多账号待 GW-03／04。 |
-| `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | GW-02 已验收同协议 JSON 和 SSE。Responses → Messages 和反向转换待 GW-03。 |
+| `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | GW-02 已验收同协议 JSON 和 SSE。GW-03 已验收 Responses → Messages 纯文本 JSON、SSE 和用量。工具、结构化及反向转换待补。 |
 | `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | GW-03 待逐操作核对。GW-02 拒绝共享凭证上的 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
 | `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 待验收首帧、取消、连接期间权限、账号归属和关闭码。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | GW-03 已接 Anthropic 同协议，原生错误、SSE、下游 `x-api-key` 与独立上游认证。跨协议待验收。 |

@@ -297,8 +297,10 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
             ("/anthropic/v1/messages", true, "text/event-stream", events.clone()),
             ("/anthropic/v1/models", false, "application/json", json!({"data":[{"id":"First","display_name":"First model"}], "has_more":true, "last_id":"First"}).to_string()),
             ("/anthropic/v1/models?after_id=First", false, "application/json", json!({"data":[{"id":"Second"}], "has_more":false, "last_id":"Second"}).to_string()),
-            ("/anthropic/v1/messages", true, "text/event-stream", events),
+            ("/anthropic/v1/messages", true, "text/event-stream", events.clone()),
             ("/anthropic/v1/messages/count_tokens", false, "application/json", json!({"input_tokens":6}).to_string()),
+            ("/anthropic/v1/messages", false, "application/json", message.to_string()),
+            ("/anthropic/v1/messages", true, "text/event-stream", events),
         ] {
             let (socket, _) = timeout(Duration::from_secs(5), upstream.accept()).await.unwrap().unwrap();
             let mut socket = BufReader::new(socket);
@@ -322,7 +324,13 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                 socket.read_exact(&mut body).await.unwrap();
                 let body: Value = serde_json::from_slice(&body).unwrap();
                 assert_eq!(body["model"], "claude-private");
-                assert_eq!(body["messages"][0]["content"], "Hi!");
+                if body["max_tokens"] == 120 {
+                    assert_eq!(body["system"], "Keep it brief");
+                    assert!(body.get("store").is_none());
+                    assert_eq!(body["messages"][0]["content"][0]["text"], "  Hi!  ");
+                } else {
+                    assert_eq!(body["messages"][0]["content"], "Hi!");
+                }
                 assert_eq!(body["stream"] == true, expected_stream);
             }
             let headers = format!("HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", payload.len());
@@ -403,7 +411,7 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
         None,
     )
     .await?;
-    assert_eq!(model.status(), StatusCode::NOT_FOUND);
+    assert_eq!(model.json::<Value>()?["object"], "model");
 
     let messages = |path: &str, key: &str, stream: bool| {
         http::Request::post(path).header("x-api-key", key)
@@ -435,6 +443,65 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
         ))
         .await?;
     assert_eq!(count.json::<Value>()?["input_tokens"], 6);
+    let input = json!({
+        "model":"claude-public", "max_output_tokens":120, "instructions":"Keep it brief",
+        "input":[{"role":"user","content":[{"type":"input_text","text":"  Hi!  "}]}],
+    });
+    let bearer = Some("Bearer anthropic-caller");
+    let unsupported = send(
+        &mut app,
+        "/v1/responses",
+        bearer,
+        Some(json!({
+            "model":"claude-public","input":"Hello","text":{"format":{"type":"json_schema"}}
+        })),
+    )
+    .await?;
+    assert_eq!(unsupported.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        unsupported.json::<Value>()?["error"]["code"],
+        "unsupported_conversion"
+    );
+    let response = send(&mut app, "/v1/responses", bearer, Some(input.clone())).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = response.json::<Value>()?;
+    assert_eq!(response["model"], "claude-public");
+    assert_eq!(response["output"][0]["content"][0]["text"], "こんにちは");
+    assert_eq!(response["usage"]["total_tokens"], 10);
+    let mut input = input;
+    input["stream"] = true.into();
+    let response = send(&mut app, "/v1/responses", bearer, Some(input)).await?;
+    let text = std::str::from_utf8(response.streamed_content())?;
+    let frames = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .map(serde_json::from_str::<Value>)
+        .collect::<Result<Vec<_>, _>>()?;
+    for (sequence, frame) in frames.iter().enumerate() {
+        assert_eq!(frame["sequence_number"], sequence);
+    }
+    assert_eq!(frames[0]["type"], "response.created");
+    assert!(frames.iter().any(
+        |frame| frame["type"] == "response.output_text.delta" && frame["delta"] == "こんにちは"
+    ));
+    let complete = frames.last().unwrap();
+    assert_eq!(complete["type"], "response.completed");
+    assert_eq!(complete["response"]["usage"]["output_tokens"], 4);
+    assert_eq!(
+        complete["response"]["output"][0]["id"],
+        frames[2]["item"]["id"]
+    );
+    assert_eq!(complete["response"]["model"], "claude-public");
+    assert!(!text.contains("claude-private"));
     task.await?;
+    let log = fs::read_to_string(app.root().join("gateway.log"))?;
+    let rows: Vec<Value> = log
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<Result<_, _>>()?;
+    assert_eq!(rows[2]["context"]["endpoint"], "responses");
+    assert_eq!(rows[2]["context"]["upstream_endpoint"], "messages");
+    assert_eq!(rows[3]["context"]["input_tokens"], 6);
+    assert_eq!(rows[3]["context"]["output_tokens"], 4);
     Ok(())
 }

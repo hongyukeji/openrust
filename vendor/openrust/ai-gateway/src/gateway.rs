@@ -42,6 +42,20 @@ pub(crate) struct Model {
     pub(crate) upstream_model: String,
 }
 
+impl Model {
+    pub(crate) fn upstream_endpoint(&self, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+        if self.provider.supports_endpoint(endpoint) {
+            Some(endpoint)
+        } else if endpoint == TextEndpoint::Responses
+            && self.provider.supports_endpoint(TextEndpoint::Messages)
+        {
+            Some(TextEndpoint::Messages)
+        } else {
+            None
+        }
+    }
+}
+
 pub(crate) struct Gateway {
     pub(crate) models: BTreeMap<String, Model>,
     keys: Vec<Key>,
@@ -155,6 +169,7 @@ impl Gateway {
         name: &str,
         model: &Model,
         endpoint: TextEndpoint,
+        upstream_endpoint: TextEndpoint,
     ) -> Call {
         Call {
             logger: self.logger.clone(),
@@ -164,6 +179,7 @@ impl Gateway {
                 ("upstream_model".into(), json!(model.upstream_model)),
                 ("provider".into(), json!(model.provider.name())),
                 ("endpoint".into(), json!(endpoint.path())),
+                ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
                 ("input_tokens".into(), Value::Null),
                 ("output_tokens".into(), Value::Null),
             ]

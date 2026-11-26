@@ -11,7 +11,10 @@ use openrust::{
 use openrust_ai::{AiError, TextEndpoint};
 use serde_json::{Value, json};
 
-use crate::gateway::{Call, Gateway};
+use crate::{
+    compatibility::responses as bridge,
+    gateway::{Call, Gateway},
+};
 
 type HttpResult = Result<Response, HttpError>;
 
@@ -53,7 +56,7 @@ fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
             && match protocol {
                 Protocol::OpenAi => [TextEndpoint::ChatCompletions, TextEndpoint::Responses]
                     .into_iter()
-                    .any(|endpoint| model.provider.supports_endpoint(endpoint)),
+                    .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
                 Protocol::Anthropic => model.provider.supports_endpoint(TextEndpoint::Messages),
             }
     });
@@ -217,13 +220,13 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
     else {
         return protocol.error(StatusCode::NOT_FOUND, "model_not_found", "模型不可用");
     };
-    if !model.provider.supports_endpoint(endpoint) {
+    let Some(upstream_endpoint) = model.upstream_endpoint(endpoint) else {
         return protocol.error(
             StatusCode::BAD_REQUEST,
             "unsupported_endpoint",
             "该模型不支持此端点",
         );
-    }
+    };
     let streaming = match data.get("stream") {
         None | Some(Value::Bool(false) | Value::Null) => false,
         Some(Value::Bool(true)) if endpoint != TextEndpoint::CountMessageTokens => true,
@@ -277,6 +280,18 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             "此端点仅支持无状态请求",
         );
     }
+    data.insert("model".into(), json!(model.upstream_model));
+    let bridged = endpoint != upstream_endpoint;
+    let data = if bridged {
+        match bridge::to_messages(data) {
+            Ok(data) => data,
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "unsupported_conversion", message);
+            }
+        }
+    } else {
+        Value::Object(data)
+    };
     if let Some(limit) = key.requests_per_minute {
         let limiter = RateLimiter::get_facade_root()?;
         match limiter
@@ -304,9 +319,8 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             }
         }
     }
-    data.insert("model".into(), json!(model.upstream_model));
-    let mut call = gateway.usage(key, &name, model, endpoint);
-    let upstream = match model.provider.relay(endpoint, Value::Object(data)).await {
+    let mut call = gateway.usage(key, &name, model, endpoint, upstream_endpoint);
+    let upstream = match model.provider.relay(upstream_endpoint, data).await {
         Ok(response) => response,
         Err(AiError::Timeout) => {
             call.outcome("timeout");
@@ -338,7 +352,7 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             .map(|response| response.with_headers(headers));
     }
     if streaming {
-        return stream(upstream, headers, name, call, protocol);
+        return stream(upstream, headers, name, call, protocol, bridged);
     }
     let Ok(mut data) = upstream.json::<Value>() else {
         call.outcome("invalid_upstream_response");
@@ -348,6 +362,18 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             "上游未返回有效 JSON",
         );
     };
+    if bridged {
+        call.observe_usage(&data);
+        let Some(response) = bridge::Response::new(name.clone()).buffered(&data) else {
+            call.outcome("invalid_upstream_response");
+            return protocol.error(
+                StatusCode::BAD_GATEWAY,
+                "invalid_upstream_response",
+                "无法将上游消息转换为 Responses",
+            );
+        };
+        data = response;
+    }
     if endpoint != TextEndpoint::CountMessageTokens {
         call.observe_usage(&data);
     }
@@ -362,6 +388,7 @@ fn stream(
     name: String,
     mut call: Call,
     protocol: Protocol,
+    bridged: bool,
 ) -> HttpResult {
     let status = upstream.status();
     let is_sse = upstream
@@ -390,6 +417,10 @@ fn stream(
         header::CONTENT_TYPE,
         HeaderValue::from_static("text/event-stream"),
     );
+    if bridged {
+        let stream = bridged_stream(body, name, call);
+        return Ok(Response::stream(status, stream).with_headers(headers));
+    }
     let stream = async_stream::stream! {
         let mut events = body.eventsource();
         let mut terminal = false;
@@ -445,6 +476,44 @@ fn stream(
         }
     };
     Ok(Response::stream(status, stream).with_headers(headers))
+}
+
+fn bridged_stream(
+    body: client::ResponseStream,
+    name: String,
+    mut call: Call,
+) -> impl futures_util::Stream<Item = Result<String, Infallible>> {
+    async_stream::stream! {
+        let mut events = body.eventsource();
+        let mut state = bridge::StreamState::default();
+        let mut response = bridge::Response::new(name);
+        while let Some(event) = events.next().await {
+            let data = event.ok().and_then(|event| serde_json::from_str::<Value>(&event.data).ok());
+            let Some(data) = data else {
+                call.outcome("stream_error");
+                yield Ok(Protocol::OpenAi.stream_error());
+                return;
+            };
+            call.observe_usage(&data);
+            call.observe_usage(&data["message"]);
+            let Some((frames, terminal)) = state.convert(&mut response, &data) else {
+                call.outcome("invalid_upstream_response");
+                yield Ok(Protocol::OpenAi.stream_error());
+                return;
+            };
+            if terminal {
+                call.outcome("completed");
+            }
+            for frame in frames {
+                yield Ok(frame);
+            }
+            if terminal {
+                return;
+            }
+        }
+        call.outcome("incomplete_stream");
+        yield Ok(Protocol::OpenAi.stream_error());
+    }
 }
 
 fn rename_model(data: &mut Value, name: &str) {
