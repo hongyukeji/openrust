@@ -136,6 +136,11 @@ def main():
                 initial = until(state)
                 assert initial['status'] == 'running' and initial['workers'] == [], initial
                 until(lambda: recorded(loop_events, 'SupervisorLooped'))
+                assert process_reports.exists() and len(process_reports.read_text().splitlines()) >= 2
+                # Both slots can still be cooling during the first successful poll.
+                until(lambda: restart_events.exists()
+                      and len(restart_events.read_text().splitlines()) >= first_event + 2
+                      and len(process_reports.read_text().splitlines()) >= 4)
                 events = [json.loads(row) for row in restart_events.read_text().splitlines()[first_event:]]
                 assert [(event['name'], event['queue'], event['pid'], event['exit_code']) for event in events] == [
                     ('UnableToLaunchProcess', 'first', None, None),

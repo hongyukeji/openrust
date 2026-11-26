@@ -690,7 +690,7 @@ Rust 监督器按席位保存退出快照和冷却期限。冷却席位占用扩
 
 PHP 8.5.12 使用固定 Horizon `WorkerProcess`、Symfony Process 8.0.5 和真实不存在的工作目录。首次创建调用抛出异常，999ms 时跳过。满一秒后派发一条 `UnableToLaunchProcess`，再次创建失败。补回目录后，在同一席位的分钟期限前仍然跳过，到期时再派发一次并启动真实子进程。两次事件均无先前已启动进程，所以没有 `WorkerProcessRestarting`，退出码为空。固定 `Supervisor::loop` 报告此类异常并继续后续轮询。证据为 `target/tmp/observability-parity/horizon-worker-spawn-upstream.log`。 [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php) [Symfony Process 8.0.5](https://github.com/symfony/process/blob/v8.0.5/Process.php)
 
-Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续监督。缺少已启动子进程时，`UnableToLaunchProcess` 的 PID 和退出码为空。进程实际退出后继续保留原字段和事件次序。固定上游创建异常会中止当次监督循环的剩余操作，多席位同时创建失败时的处理顺序仍须独立核对。
+Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续监督。缺少已启动子进程时，`UnableToLaunchProcess` 的 PID 和退出码为空。进程实际退出后继续保留原字段和事件次序。固定上游创建异常会中止当次监督循环的剩余操作，多席位同时创建失败的处理顺序见下节。
 
 在 macOS 隔离快照中叠加两批改动。实际 Artisan 与 Redis 8.10.3 验证初次启动遇到不存在的工作目录时监督器仍正常运行，监听器收到空 PID 与空退出码，补回目录后按分钟冷却期限恢复，关闭后无残留 Worker。包含前批两种正常／异常退出分支的进程矩阵通过，包默认 24 项与独立 Redis 12 项通过，全仓格式、包全目标严格 Clippy、三语站点构建和 12 组文档浏览器检查通过。证据位于 `target/tmp/observability-parity/horizon-worker-spawn-macos.log` 和 `horizon-worker-spawn-docs.log`。
 
@@ -703,9 +703,16 @@ Linux ARM64 以 `3515bafe8` 的进程范围源码重新构建 Release。首轮�
 
 固定 PHP 8.5.12 通过实际 `Supervisor::loop`、`ProcessPool::monitor`、`WorkerProcess` 与 Symfony Process 8.0.5 验证两席位。不存在的工作目录触发真实创建错误。首个席位失败后本轮只报告该错误。下轮会跳过仍在冷却的席位并检查第二个席位。首个席位再次失败时，即使第二个目录已恢复也推迟到下一轮启动。创建失败的轮次不会持久化本轮状态或派发 `SupervisorLooped`。证据为 `target/tmp/observability-parity/horizon-worker-multiple-upstream.log`。
 
-Rust 原先在两个席位都未达到再次尝试期限时已经派发 `SupervisorLooped`。使用真实 `horizon:supervisor` 和隔离 Redis 8.10.3 复现，第一次循环事件前的 `UnableToLaunchProcess` 清单为空。现在在监控开始时先发布初始状态，各席位保留原冷却。进程创建错误交给应用异常处理器并结束当轮检查，下一轮继续。公开命令验收核对 Redis 初始状态、两队列事件顺序、原生进程 I/O 错误进入报告回调及正常退出。macOS 的此项和原有六条结构化命令均通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-rust-baseline.log` 与 `target/tmp/observability-parity/horizon-worker-multiple-macos.log`。
+Rust 原先继续检查后续席位，并在创建进程报错的轮次派发 `SupervisorLooped`。使用真实 `horizon:supervisor` 和隔离 Redis 8.10.3 复现，第一次循环事件前的 `UnableToLaunchProcess` 清单为空。现在在监控开始时先发布初始状态，各席位保留原冷却。进程创建错误交给应用异常处理器并结束当轮检查，下一轮继续。公开命令验收核对 Redis 初始状态、两队列事件顺序、原生进程 I/O 错误进入报告回调及正常退出。macOS 的此项和原有六条结构化命令均通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-rust-baseline.log` 与 `target/tmp/observability-parity/horizon-worker-multiple-macos.log`。
 
 同一 macOS 快照的原生进程矩阵通过，包括异常退出补位、一分钟冷却、工作目录恢复、命令与信号排空、实际 HTTP 和授权。包默认 32 项及隔离 Redis 8.10.3 的 23 项通过，快照全仓格式和包全目标严格 Clippy 通过。三语站点、12 组通用浏览器检查及 Horizon 章节的三语桌面与移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos,macos-redis,docs,docs-browser,docs-chapter}.log`。Linux／Windows 的本次监督循环改动以及最终部署组合继续验收。
+
+
+Linux 首轮测试假定两次重试事件均发生在第一次成功循环之前。固定上游允许两个席位都在冷却的轮次正常完成。验收改为确认首次正常循环前已报告初始创建错误，再等待两次有序的重试事件和四次报告。macOS 与 Linux ARM64 的双席位及结构化 Artisan 专项重跑通过。Linux 7.0.14 ARM64、Rust 1.94.0 与隔离 Redis 8.10.3 同时通过实际异常退出补位、一分钟冷却、工作目录恢复、信号排空及 HTTP 和授权。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos-timing,linux-initial,linux}.log`。
+
+### Horizon 监督循环等待间隔待对齐
+
+固定 PHP 的 Master 与 Supervisor 监控入口在初次持久化后等待一秒，再在每轮处理完成后等待下一秒。实际运行固定 `monitor`，以耗时约 1200ms 的循环夹具验证两个等待各约 1000ms。Rust 两个循环目前用 Tokio 固定间隔，首次立即运行，处理耗时超过一秒时可能立即补跑。Rust 的实际 Artisan 测时与等待间隔修复待办，同时验收等待中收到关闭信号的响应。参考探针输出位于 `target/tmp/observability-parity/horizon-monitor-cadence-upstream.log`。 [固定 Master](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php)
 
 ### Horizon Windows ARM64 应用装配与条件编译
 
