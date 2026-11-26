@@ -120,3 +120,7 @@ Messages 现在可在保留原生优先级的情况下选择 Responses 或 Chat-
 包测试验证根路径默认关闭、授权目录、跨协议认证及计数、共享限流、外部资源拒绝和用量日志。独立 Artisan 的 SDK 用根地址调用计数，独立 HTTP 验证 OpenAI／Anthropic 的真实协议映射和同一 Key 的限流。本地上游使用真实 TCP 协议模拟。Codex 专用模型目录、自托管状态和 WebSocket 仍待后续。
 
 - [OpenAI Responses 输入计数](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) · [Sub2API 固定路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)
+
+## GW-04 持久化用量
+
+可选用量账本覆盖实际发起的上游尝试。回退、SSE 正常终止、异常截断和下游取消均有独立进程验收。记录关联请求 ID、密钥标识、分组、入站和上游协议以及供应商实际用量。网关未尝试发送给上游的鉴权、模型和限流拒绝走原有 HTTP 路径。独立 Artisan 支持按请求或托管 Key 分页查询，详见[AI 验收账本](README.md#gw-04-持久化上游用量)。

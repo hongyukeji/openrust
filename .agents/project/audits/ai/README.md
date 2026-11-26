@@ -259,3 +259,9 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 独立 Artisan 建立仓库，独立 HTTP 通过 TCP 协议服务验证描述、空闲过期、索引计数、属性、双重分页和归属拒绝。实测保留源文件、删除源文件、移除成功但删除上游 503、仓库删除后 404。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器和全站导航渲染通过。正式服务商凭证、文件与仓库 Fake、Gemini 和 Azure 驱动及其他资源路径继续验收。
 
 - [固定 Laravel Store Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/OpenAiStoreGateway.php) · [OpenAI Vector Stores](https://developers.openai.com/api/reference/resources/vector_stores/methods/create)
+
+## GW-04 持久化上游用量
+
+开启 `ai_gateway.usage.enabled` 后，每个上游尝试在出站前写入数据库。静态或托管 Key、分组、公开模型、实际连接与模型、入站和上游端点一并记录，回退用同一请求 ID 关联。用量只取上游报告值，另保留缓存读写和推理 Token，各协议计数含义按原字段。账本省略请求数据和密钥。可用 `ai:gateway:usage:list` 按请求或托管 Key 分页检查。登记失败返回 503。正常响应和失败在请求内结算，取消后尝试异步收尾，进程退出留下的 `pending` 可以查明。
+
+SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均经独立 HTTP、协议服务及 Artisan 验收。核对迁移发布、登记不可用时零出站、503 后回退的两条记录、正常 JSON、缺失用量、SSE 正常终止、截断和下游取消。验证无凭证及请求正文、缓存和推理用量、按请求或托管 Key 分页。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及全站导航渲染通过。Token 或金额硬限额及对未结算记录的核对继续单列。

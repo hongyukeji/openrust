@@ -103,6 +103,20 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 簽發和輪替只回傳一次可用的 Bearer Token。資料庫儲存 SHA-256 摘要。輪替沿用 Key ID、群組、有效期限與請求額度。舊版、撤銷或過期的 Token 後續請求回傳 HTTP 401。需要自訂遷移時，執行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新編譯後執行遷移。
 
+### 持久化閘道用量 {#gateway-usage}
+
+在 `config/ai_gateway.rs` 設定 `usage.enabled = true` 後執行遷移。多個執行個體共用用量資料庫時，可透過 `usage.connection` 指定連線。
+
+```shell
+./artisan migrate
+./artisan ai:gateway:usage:list --limit=20
+./artisan ai:gateway:usage:list --request-id=REQUEST_ID
+```
+
+每次上游嘗試各有一筆記錄。備援嘗試共用 `request_id`。記錄包含下游 Key 或群組、公開模型、連線、上游模型、回應狀態和供應商實際回報的 Token 數。缺少的用量保留為 `null`。帳本省略 Key 金鑰、請求本文和產生的文字。
+
+閘道先登記嘗試，再向上游送出請求。正常結束、出錯和取消都會結算。處理程序在結算前結束時，帳本可能留下 `pending` 記錄供核對。
+
 ## 持久對話 {#conversations}
 
 讓 Agent 實作 `RemembersConversations` 即可把對話存到應用程式資料庫。先發佈遷移，重新編譯應用程式，再執行遷移。

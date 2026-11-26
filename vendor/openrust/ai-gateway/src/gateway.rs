@@ -18,6 +18,7 @@ use crate::{
     accounts::{Account, MAX_SECONDS},
     managed_keys::KeyStore,
     session_affinity::{self, SessionAffinity},
+    usage::{Settlement, UsageAttempt, UsageStore},
 };
 
 #[derive(Default, Deserialize)]
@@ -191,6 +192,7 @@ pub(crate) struct Gateway {
     groups: BTreeMap<String, Arc<Group>>,
     keys: Vec<Arc<Key>>,
     pub(crate) managed_keys: Option<KeyStore>,
+    pub(crate) usage_store: Option<UsageStore>,
     logger: Arc<Logger>,
 }
 
@@ -209,6 +211,7 @@ impl Gateway {
         ai: &AiManager,
         logger: Arc<Logger>,
         managed_keys: Option<KeyStore>,
+        usage_store: Option<UsageStore>,
     ) -> Result<Option<Self>, io::Error> {
         let config = config.unwrap_or_else(|| json!({}));
         // 关闭时允许保留待启用的配置，启动时不会解析连接或 Key。
@@ -381,6 +384,7 @@ impl Gateway {
             keys,
             groups,
             managed_keys,
+            usage_store,
             logger,
         }))
     }
@@ -425,7 +429,7 @@ impl Gateway {
         })))
     }
 
-    pub(crate) fn usage(
+    pub(crate) async fn usage(
         &self,
         key: &Key,
         name: &str,
@@ -433,38 +437,49 @@ impl Gateway {
         endpoints: (TextEndpoint, TextEndpoint),
         request_id: &str,
         lease: Option<ConcurrencyLease>,
-    ) -> Call {
+    ) -> DatabaseResult<Call> {
         let (endpoint, upstream_endpoint) = endpoints;
-        Call {
+        let mut context: openrust::log::LogContext = [
+            ("key".into(), json!(key.name)),
+            ("key_id".into(), json!(key.managed_id)),
+            (
+                "group".into(),
+                json!(key.group.as_ref().map(|group| &group.name)),
+            ),
+            ("request_id".into(), json!(request_id)),
+            ("model".into(), json!(name)),
+            ("upstream_model".into(), json!(target.upstream_model)),
+            ("provider".into(), json!(target.provider_name)),
+            ("endpoint".into(), json!(endpoint.path())),
+            ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
+            ("input_tokens".into(), Value::Null),
+            ("output_tokens".into(), Value::Null),
+        ]
+        .into_iter()
+        .collect();
+        let attempt = match &self.usage_store {
+            Some(store) => {
+                let attempt = store.begin(&context).await?;
+                context.insert("attempt_id".into(), json!(attempt.id));
+                Some(attempt)
+            }
+            None => None,
+        };
+        Ok(Call {
             logger: self.logger.clone(),
-            context: [
-                ("key".into(), json!(key.name)),
-                ("key_id".into(), json!(key.managed_id)),
-                (
-                    "group".into(),
-                    json!(key.group.as_ref().map(|group| &group.name)),
-                ),
-                ("request_id".into(), json!(request_id)),
-                ("model".into(), json!(name)),
-                ("upstream_model".into(), json!(target.upstream_model)),
-                ("provider".into(), json!(target.provider_name)),
-                ("endpoint".into(), json!(endpoint.path())),
-                ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
-                ("input_tokens".into(), Value::Null),
-                ("output_tokens".into(), Value::Null),
-            ]
-            .into_iter()
-            .collect(),
+            context,
+            attempt,
             outcome: "cancelled",
             affinity: None,
             lease,
-        }
+        })
     }
 }
 
 pub(crate) struct Call {
     logger: Arc<Logger>,
     context: openrust::log::LogContext,
+    attempt: Option<UsageAttempt>,
     outcome: &'static str,
     affinity: Option<(SessionAffinity, String)>,
     lease: Option<ConcurrencyLease>,
@@ -479,6 +494,17 @@ impl Call {
         self.outcome("completed");
         if let Some((affinity, target)) = self.affinity.take() {
             affinity.remember(target).await;
+        }
+    }
+
+    pub(crate) async fn settle(&mut self) {
+        if let Some(attempt) = &self.attempt
+            && attempt
+                .finish(Settlement::from_context(self.outcome, &self.context))
+                .await
+                .is_ok()
+        {
+            self.attempt = None;
         }
     }
 
@@ -499,16 +525,56 @@ impl Call {
     }
 
     pub(crate) fn observe_usage(&mut self, payload: &Value) {
-        for (metric, fallback, google) in [
-            ("input_tokens", "prompt_tokens", "promptTokenCount"),
-            ("output_tokens", "completion_tokens", "candidatesTokenCount"),
+        let usage = &payload["usage"];
+        let google = &payload["usageMetadata"];
+        for (metric, candidates) in [
+            (
+                "input_tokens",
+                [
+                    &usage["input_tokens"],
+                    &usage["prompt_tokens"],
+                    &google["promptTokenCount"],
+                    &Value::Null,
+                ],
+            ),
+            (
+                "output_tokens",
+                [
+                    &usage["output_tokens"],
+                    &usage["completion_tokens"],
+                    &google["candidatesTokenCount"],
+                    &Value::Null,
+                ],
+            ),
+            (
+                "cached_input_tokens",
+                [
+                    &usage["input_tokens_details"]["cached_tokens"],
+                    &usage["prompt_tokens_details"]["cached_tokens"],
+                    &usage["cache_read_input_tokens"],
+                    &google["cachedContentTokenCount"],
+                ],
+            ),
+            (
+                "cache_write_input_tokens",
+                [
+                    &usage["input_tokens_details"]["cache_write_tokens"],
+                    &usage["cache_creation_input_tokens"],
+                    &Value::Null,
+                    &Value::Null,
+                ],
+            ),
+            (
+                "reasoning_tokens",
+                [
+                    &usage["output_tokens_details"]["reasoning_tokens"],
+                    &usage["completion_tokens_details"]["reasoning_tokens"],
+                    &google["thoughtsTokenCount"],
+                    &Value::Null,
+                ],
+            ),
         ] {
-            let count = payload["usage"]
-                .get(metric)
-                .or_else(|| payload["usage"].get(fallback))
-                .or_else(|| payload["usageMetadata"].get(google))
-                .and_then(Value::as_u64);
-            if let Some(count) = count {
+            if let Some(count) = candidates.into_iter().find_map(Value::as_u64) {
                 self.context.insert(metric.into(), json!(count));
             }
         }
@@ -517,6 +583,24 @@ impl Call {
 
 impl Drop for Call {
     fn drop(&mut self) {
+        if let Some(attempt) = self.attempt.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            let settle = Settlement::from_context(self.outcome, &self.context);
+            let logger = self.logger.clone();
+            runtime.spawn(async move {
+                if attempt.finish(settle).await.is_err() {
+                    let context = [("attempt_id".into(), json!(attempt.id))]
+                        .into_iter()
+                        .collect();
+                    let _ = logger.log(
+                        openrust::log::Level::Warning,
+                        "ai_gateway.usage_settlement_failed",
+                        &context,
+                    );
+                }
+            });
+        }
         self.context.insert("outcome".into(), json!(self.outcome));
         if let Err(error) = self.logger.info("ai_gateway.call", &self.context) {
             eprintln!("AI 网关用量日志写入失败：{error}");

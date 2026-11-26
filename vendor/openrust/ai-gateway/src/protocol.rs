@@ -570,14 +570,26 @@ async fn relay(
             }
             admitted = true;
         }
-        let mut call = gateway.usage(
-            key,
-            &name,
-            target,
-            (endpoint, upstream_endpoint),
-            &request_id,
-            lease,
-        );
+        let mut call = match gateway
+            .usage(
+                key,
+                &name,
+                target,
+                (endpoint, upstream_endpoint),
+                &request_id,
+                lease,
+            )
+            .await
+        {
+            Ok(call) => call,
+            Err(_) => {
+                return protocol.error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "usage_unavailable",
+                    "AI 网关用量登记暂不可用",
+                );
+            }
+        };
         if let Some(affinity) = &affinity {
             call.bind_affinity(affinity.clone(), target.affinity_key.clone());
         }
@@ -586,6 +598,7 @@ async fn relay(
                 return respond(upstream, name, endpoint, streaming, protocol, bridge, call).await;
             }
             Err(rejected) => {
+                call.settle().await;
                 let cooldown = target
                     .account
                     .as_ref()
@@ -820,11 +833,12 @@ async fn respond(
     let status = upstream.status();
     let headers = downstream_headers(upstream.headers());
     if streaming {
-        return stream(upstream, headers, name, call, protocol, bridge);
+        return stream(upstream, headers, name, call, protocol, bridge).await;
     }
     call.release().await;
     let Ok(mut data) = upstream.json::<Value>() else {
         call.outcome("invalid_upstream_response");
+        call.settle().await;
         return protocol.error(
             StatusCode::BAD_GATEWAY,
             "invalid_upstream_response",
@@ -836,6 +850,7 @@ async fn respond(
     {
         let Some(count) = data["input_tokens"].as_u64() else {
             call.outcome("invalid_upstream_response");
+            call.settle().await;
             return protocol.error(
                 StatusCode::BAD_GATEWAY,
                 "invalid_upstream_response",
@@ -853,6 +868,7 @@ async fn respond(
     if let Some(bridge) = bridge {
         let Some(response) = bridge.response(name.clone(), &data) else {
             call.outcome("invalid_upstream_response");
+            call.settle().await;
             return protocol.error(
                 StatusCode::BAD_GATEWAY,
                 "invalid_upstream_response",
@@ -862,11 +878,12 @@ async fn respond(
         data = response;
     }
     call.complete().await;
+    call.settle().await;
     rename_model(&mut data, &name);
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
 
-fn stream(
+async fn stream(
     upstream: client::Response,
     mut headers: HeaderMap,
     name: String,
@@ -883,6 +900,7 @@ fn stream(
         .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/event-stream"));
     if !is_sse {
         call.outcome("invalid_upstream_response");
+        call.settle().await;
         return protocol.error(
             StatusCode::BAD_GATEWAY,
             "invalid_upstream_response",
@@ -891,6 +909,7 @@ fn stream(
     }
     let Ok(body) = upstream.into_stream() else {
         call.outcome("invalid_upstream_response");
+        call.settle().await;
         return protocol.error(
             StatusCode::BAD_GATEWAY,
             "invalid_upstream_response",
@@ -911,21 +930,25 @@ fn stream(
         while let Some(event) = events.next().await {
             let Ok(event) = event else {
                 call.outcome("stream_error");
+                call.settle().await;
                 yield Ok::<_, Infallible>(protocol.stream_error());
                 return;
             };
             if event.data == "[DONE]" {
                 call.complete().await;
+                call.settle().await;
                 yield Ok("data: [DONE]\n\n".to_owned());
                 return;
             }
             let Ok(mut data) = serde_json::from_str::<Value>(&event.data) else {
                 call.outcome("stream_error");
+                call.settle().await;
                 yield Ok(protocol.stream_error());
                 return;
             };
             if matches!(data["type"].as_str(), Some("error" | "response.failed")) || event.event == "error" || data.get("error").is_some_and(|value| !value.is_null()) {
                 call.outcome("upstream_error");
+                call.settle().await;
                 yield Ok(protocol.stream_error());
                 return;
             }
@@ -960,8 +983,10 @@ fn stream(
         }
         if terminal {
             call.complete().await;
+            call.settle().await;
         } else {
             call.outcome("incomplete_stream");
+            call.settle().await;
             yield Ok(protocol.stream_error());
         }
     };
@@ -979,11 +1004,13 @@ fn bridged_stream(
         while let Some(event) = events.next().await {
             let Ok(event) = event else {
                 call.outcome("stream_error");
+                call.settle().await;
                 yield Ok(protocol.stream_error());
                 return;
             };
             if event.event == "error" {
                 call.outcome("upstream_error");
+                call.settle().await;
                 yield Ok(protocol.stream_error());
                 return;
             }
@@ -992,6 +1019,7 @@ fn bridged_stream(
             } else {
                 let Ok(data) = serde_json::from_str::<Value>(&event.data) else {
                     call.outcome("stream_error");
+                    call.settle().await;
                     yield Ok(protocol.stream_error());
                     return;
                 };
@@ -1002,11 +1030,13 @@ fn bridged_stream(
             };
             let Some((frames, terminal)) = converted else {
                 call.outcome("invalid_upstream_response");
+                call.settle().await;
                 yield Ok(protocol.stream_error());
                 return;
             };
             if terminal {
                 call.complete().await;
+                call.settle().await;
             }
             for frame in frames {
                 yield Ok(frame);
@@ -1016,6 +1046,7 @@ fn bridged_stream(
             }
         }
         call.outcome("incomplete_stream");
+        call.settle().await;
         yield Ok(protocol.stream_error());
     }
 }
@@ -1059,7 +1090,8 @@ fn error_body(code: &str, message: &str) -> Value {
         "upstream_timeout"
         | "upstream_error"
         | "invalid_upstream_response"
-        | "rate_limit_unavailable" => "server_error",
+        | "rate_limit_unavailable"
+        | "usage_unavailable" => "server_error",
         _ => "invalid_request_error",
     };
     json!({"error": {"message": message, "type": kind, "code": code, "param": null}})

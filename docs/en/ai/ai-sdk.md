@@ -103,6 +103,20 @@ For database-managed keys, set `managed_keys.enabled` to `true`. The optional `m
 
 Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
 
+### Persist gateway usage {#gateway-usage}
+
+Set `usage.enabled` to `true` in `config/ai_gateway.rs` and run the migration. Set `usage.connection` to a named database connection when gateways share a usage database.
+
+```shell
+./artisan migrate
+./artisan ai:gateway:usage:list --limit=20
+./artisan ai:gateway:usage:list --request-id=REQUEST_ID
+```
+
+Each upstream attempt has its own record. Retries share a `request_id`. The record includes the downstream Key or group, published model, connection, upstream model, response status, and the token counts the upstream actually reports. Missing counts are `null`. The ledger omits Key secrets, request bodies and response text.
+
+A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.
+
 ## Remembered conversations {#conversations}
 
 Implement `RemembersConversations` on an Agent to store its conversation in the application's database. Publish the migration, rebuild the application, then migrate.

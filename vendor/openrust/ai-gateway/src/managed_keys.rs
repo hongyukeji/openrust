@@ -175,14 +175,14 @@ fn decode(row: Row) -> DatabaseResult<KeyRecord> {
     })
 }
 
-fn text(row: &Row, column: &str) -> DatabaseResult<String> {
+pub(crate) fn text(row: &Row, column: &str) -> DatabaseResult<String> {
     match row.get(column) {
         Some(Value::Text(value)) => Ok(value.clone()),
         _ => Err(DatabaseError::InvalidScalar),
     }
 }
 
-fn integer(row: &Row, column: &str) -> DatabaseResult<Option<i64>> {
+pub(crate) fn integer(row: &Row, column: &str) -> DatabaseResult<Option<i64>> {
     match row.get(column) {
         Some(Value::Integer(value)) => Ok(Some(*value)),
         Some(Value::Null) => Ok(None),
@@ -190,7 +190,7 @@ fn integer(row: &Row, column: &str) -> DatabaseResult<Option<i64>> {
     }
 }
 
-fn nullable(value: Option<i64>) -> Value {
+pub(crate) fn nullable(value: Option<i64>) -> Value {
     value.map_or(Value::Null, Into::into)
 }
 

@@ -1,7 +1,7 @@
 use openrust::{
     console::{
-        AsOutput, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
-        OutputOptions,
+        AsOutput, AsyncCommandCallback, Command, CommandDefinition, ConsoleError, ConsoleFuture,
+        Input, Output, OutputOptions,
     },
     foundation::Application,
     support::{
@@ -34,6 +34,36 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             definition: CommandDefinition::from_signature(signature)?,
         }))?;
     }
+    Artisan::command_with(
+        "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let request = argument(input, "request-id").map(identifier).transpose()?;
+                let key = argument(input, "key-id").map(identifier).transpose()?;
+                let before = argument(input, "before").map(identifier).transpose()?;
+                let limit = positive(input, "limit")?.unwrap_or(50);
+                if limit > 100 {
+                    return Err(ConsoleError::new("每页最多返回 100 条用量记录"));
+                }
+                let records = store
+                    .list(request, key, before, limit as u64)
+                    .await
+                    .map_err(|_| ConsoleError::new("无法读取网关用量记录"))?;
+                let next = records
+                    .last()
+                    .filter(|_| records.len() == limit as usize)
+                    .map(|record| &record.id);
+                write_json(output, json!({"usage":records,"next":next}))?;
+                Ok(0)
+            })
+        }),
+    )?;
     Ok(())
 }
 
