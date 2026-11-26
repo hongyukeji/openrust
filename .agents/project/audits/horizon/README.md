@@ -68,7 +68,9 @@ macOS 用实际 Artisan 和两台 Redis 8.10.3 通过四组进程验收。短时
 
 相同源码的 Linux ARM64 隔离构建保留 Release，仅框架包覆盖为 `opt-level=1`、`codegen-units=128`，Cargo 单作业。实际 Redis 8.10.3 的原生进程矩阵和四组切换通过。短时切换保留同一个 Master，两项任务各完成一次。提升后所有权缺失或被替换时，旧进程退出并保留待处理任务。持续断连时，启用快速终止的进程树正常回收，待处理任务保留。证据为 `target/tmp/observability-parity/horizon-metadata-recovery-linux-{release,promotion}-lean.log`。
 
-标准优化的 Release、Windows 的同批切换和 Linux x86_64 继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
+同一源码在 Windows 11 ARM64 通过单节点 Redis 8.10.3 原生进程矩阵，覆盖公开控制命令、Worker 输出、两种重启、终止等待、快速排空、父进程退出、动态 Supervisor 和文件／Redis 队列。验收程序及根应用生成的 PE 栈保留均实测为 16 MiB。证据为 `target/tmp/observability-windows/horizon-metadata-recovery-process.log`。
+
+标准优化的 Release、Windows 双节点切换和 Linux x86_64 继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、复制滞后导致的回退、切换时已经发出的领取请求和部署组合仍需验收。
 
 ### Master 命令队列与动态部署
 
