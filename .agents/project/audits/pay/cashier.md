@@ -69,3 +69,15 @@ Stripe customer.deleted 在锁下重新核对映射与远端删除状态，原�
 `CashierManager::set_http_factory` 由应用 Provider 为具名账户选择专用现有 HTTP Factory，可接入可信中间件或测试替身。仅刷新该账户随后解析的 Client，旧句柄继续使用原 Factory，`forget_drivers` 清理客户端缓存并保留指定 Factory，传入 `None` 恢复应用默认。每个应用实例持有自己的映射。请求编码、API 版本、重定向限制和超时、Stripe 幂等键及 Paddle 认领、Webhook 验签与事务仍走原入口。工厂中间件随应用代码运行，能看到出站请求，应纳入应用自身的凭据和数据保护。
 
 基线 `d31032e98`，Rust 1.94.0。三个应用实例分别运行真实 HTTP、Artisan 和隔离对照，向实际 loopback Stripe／Paddle 模拟服务发出请求。覆盖旧句柄、单账户替换、两次 HTTP 间清除缓存、跨账户和跨应用隔离、恢复默认、Stripe 版本和稳定请求键、Paddle 版本。包全目标 17 项通过，包含计费和回调在 SQLite 下的事务回归、独立 API 连接超时及脱敏。需重新生成固定官方 PHP SDK 签名的既有专项本轮跳过。修改范围格式、包全目标严格 Clippy、三语文档构建和 Chrome 两挂载点 24 个页面检查通过。定向测试使用实际 HTTP 和 Artisan，未加专门的 Worker 传输用例；真实商户权限、到账、Checkout/SCA 及公开回调继续按前述发布矩阵验收。
+
+## 含点号的具名账户 {#literal-account-name}
+
+Cashier 的账户标识允许点号。基线 `1a66a9296` 的回归同时配置字面键 `merchant.eu` 和嵌套路径 `merchant → eu`，期望选中 Stripe，实际收到 Paddle。应用已按完整账户名注册 HTTP Factory，错误出现在读取账户配置的阶段。沿用固定 Laravel `Arr::get` 先查完整字面键的规则，Cashier 在 `cashier.drivers` 中优先查含点账户的完整键，缺失时沿原配置路径解析。普通账户和标准供应商配置沿用现有解析。 [固定 Laravel Arr::get](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php#L465-L490)
+
+Linux ARM64、Rust 1.94.0、SQLite 3.54.1，使用真实回环 HTTP、Artisan 命令入口及独立应用实例运行 Redis Worker。字面账户和旧路径都按规定解析。Stripe 实际收到专用 Factory 中间件与具名账户幂等键，Paddle 和另一应用未继承该 Factory。固定绑定 `merchant.eu` 的回调对错误密钥返回 403，对真实签名的合成事件返回 200。重投后 SQLite 仍只有一个处理记录。
+
+独立的原生验收二进制通过 `config:cache` 和 `route:cache` 生成实际缓存。生成前的 HTTP 与 Artisan 都解析到 Stripe。生成后，从原始测试配置文件移除完整键，两条入口仍从缓存解析到 Stripe。执行 `config:clear` 后，两条入口都恢复从旧嵌套路径解析到模拟 Paddle。该试验只读取合成账户的选择结果。
+
+运行 `cargo test --locked --offline -p openrust-cashier --test provider`。提供专用 Redis URL 时，用 `CASHIER_TEST_REDIS_URL` 启用生产者和独立应用 Worker 路径。Worker 经真实 `queue:work redis --queue=cashier-probe --once` 执行入队的 Artisan 命令，验证请求仍走具名账户 Factory，使用相同固定版本与幂等键。本轮用隔离 Redis 容器、专用数据库和独立记录，未访问供应商。三语计费指南写明完整键优先规则。测试证据位于 `target/tmp/cashier-literal-accounts/`。
+
+Cashier 全目标测试 17 项通过，依赖新鲜外部官方 SDK 签名的专项仍按原规则单独启用。冻结源码工作区格式、Cashier 全目标严格 Clippy、三语静态站点构建及两个部署路径的 24 项计费页面浏览器检查通过。隔离 Redis、网络、应用目录和文档产物已清理。

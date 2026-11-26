@@ -11,7 +11,7 @@
 | 6 Lang Loader | `07b4ed8d3` 提供容器注册、自定义资源、显式刷新及配置缓存。[拆分与验收](localization-and-text-translation/README.md) | 无独立供应商条件 |
 | 7 四家内容审核 | `954609cca` 复验十二条供应商协议，点播、关联与复合审核覆盖三库。四家项目条件列于[审核复验](content-moderation/four-provider-recheck.md) | 四家测试项目、已启用的模型及权限、经批准的语料和预算、测试 HTTPS 回调。实际长媒体、多音轨、字幕及效果需以业务样本验证 |
 | 8 Reverb 登录 | `01948881c` 验证 Echo、用户登录、定向发送、重连及同主机双节点 Redis。[08-02 登录范围](08-02/README.md#user-sign-in)及[本地 Nginx HTTPS/WSS](08-02/README.md#nginx-tls-acceptance) | 发布时在选定反向代理、正式证书和物理节点验证 |
-| 9 Cashier | `50988715c` 提供 Stripe／Paddle 具名账户的 HTTP Factory | 相应测试商户和回调环境 |
+| 9 Cashier | `50988715c` 提供 Stripe／Paddle 具名账户的 HTTP Factory。[含点号的账户](pay/cashier.md#literal-account-name)已验证完整键优先及独立 Redis Worker | 相应测试商户和回调环境 |
 | 10 New Relic | `29666971b` 按已确认范围通过 OTLP 模拟及应用生命周期。[验收](../plans/log-supplier-integrations.md#合成业务数据与实际-otlp-模拟验收)，并通过[Windows ARM64 原生 OTLP](../plans/log-supplier-integrations.md#windows-arm64-otlp)和[四区域隔离 HTTPS](../plans/log-supplier-integrations.md#regional-https-otlp)，修正日本区域摄取域名 | 隔离 New Relic 租户、摄取凭据及 NRQL 读权限。实际托管队列和平台按发布环境核对 |
 
 [ARM64 Linux 与 Windows 原生验收](webhooks/native-platforms.md)已验证 Webhook 的 HTTP、Artisan 和 Worker。Linux 运行在本机 Docker。Windows 在虚机用默认 Cargo 测试构建复验，测试入口配置独立的 16 MiB 运行线程。[两个独立虚机](webhooks/topology.md#separate-vm-guests)已通过私有网络投递、共享 PostgreSQL 队列及持久处理终态验收，并实测[共享私有 S3 附件](webhooks/shared-object-storage.md#separate-vm-guests)及[对象 ACL、桶策略和禁用 ACL 的边界](webhooks/shared-object-storage.md#bucket-policy)。物理跨机需已授权的隔离主机及共享服务地址。当前进程未配置内容审核专用凭据目录，也未配置 New Relic 的试验租户、摄取及查询凭据。

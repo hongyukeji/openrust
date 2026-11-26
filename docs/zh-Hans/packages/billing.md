@@ -21,6 +21,8 @@ Stripe API 固定为 `2026-11-18.endive`；Webhook 使用相同版本。`CASHIER
 
 `Cashier::driver("stripe")`、`Cashier::default_driver()` 在应用作用域解析账户。`CashierManager::get_default_driver()` 返回配置名；`forget_drivers()` 后新解析实例加载新配置，已持有的实例保留原凭据快照。配置缓存启用时保留缓存快照，修改环境后需按[配置文档](../getting-started/configuration.md)重建缓存。
 
+对于 `merchant.eu` 这类含点号的账户，请在 `cashier.drivers` 中使用完整账户名作为键。完整键和嵌套配置路径同时存在时，Cashier 使用完整键。
+
 ## 具名账户 HTTP 中间件 {#account-http}
 
 在应用 Provider 解析 `CashierManager`，然后调用 `set_http_factory(account, Some(factory))`，传入该账户专用的 `Arc<openrust::http::client::Factory>`。用此 Factory 注册可信请求中间件或测试替身。中间件可以读取出站计费请求，须由服务端控制，避免向日志写入凭据和正文。之后解析账户时使用新 Factory，已取得的 Client 保留原 Factory。`forget_drivers()` 重新读取账户配置并保留覆盖，传入 `None` 恢复应用默认 Factory。使用该账户的 HTTP、Artisan 和 Worker 进程都应注册相同覆盖。

@@ -21,6 +21,8 @@ The package loads `cashier.default`, Stripe `cashier.key`, `cashier.secret`, `ca
 
 `Cashier::driver("stripe")` and `Cashier::default_driver()` resolve clients in application scope. `CashierManager::get_default_driver()` returns the configured name. `forget_drivers()` reloads configuration on subsequent resolutions; existing clients retain their credential snapshots. Cached configuration remains authoritative; rebuild it after changing environment settings as described in [configuration](../getting-started/configuration.md).
 
+For names with dots such as `merchant.eu`, use the full name as a key in `cashier.drivers`. When the full key and a nested configuration path both exist, Cashier uses the full key.
+
 ## Account-specific HTTP middleware {#account-http}
 
 From your application Provider, resolve `CashierManager` and call `set_http_factory(account, Some(factory))` with an `Arc<openrust::http::client::Factory>` dedicated to the named account. Use that factory to attach trusted request middleware or test doubles. It can see outgoing billing requests, so register only server-controlled code and keep credentials and payloads out of logs. A subsequent resolution uses the new factory. Existing clients keep their previous factory, and `forget_drivers()` reloads account configuration while retaining the override. Pass `None` to restore the default factory. Register the override in every HTTP, Artisan and Worker process that uses the account.

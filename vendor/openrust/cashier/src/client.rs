@@ -299,12 +299,33 @@ impl CashierManager {
         if let Some(client) = accounts.drivers.get(name) {
             return Ok(client.clone());
         }
-        // Named accounts override the provider's canonical configuration as a whole.
-        let profile = self.config.get(&format!("cashier.drivers.{name}")).or_else(|| match name {
-            "stripe" => Some(json!({"driver":"stripe", "secret":self.config.get("cashier.secret"), "webhook_secret":self.config.get("cashier.webhook.secret"), "live":self.config.get("cashier.live").unwrap_or(false.into())})),
-            "paddle" => Some(json!({"driver":"paddle", "secret":self.config.get("cashier.paddle.api_key"), "webhook_secret":self.config.get("cashier.paddle.webhook_secret"), "live":!self.config.get("cashier.paddle.sandbox").and_then(|v|v.as_bool()).unwrap_or(false)})),
-            _ => None,
-        }).ok_or(Error::Configuration("account"))?;
+        // 含点号的账户优先按完整键读取，同时保留既有点路径配置。
+        let exact = if name.contains('.') {
+            self.config
+                .get("cashier.drivers")
+                .and_then(|drivers| drivers.get(name).cloned())
+        } else {
+            None
+        };
+        let profile = exact
+            .or_else(|| self.config.get(&format!("cashier.drivers.{name}")))
+            .or_else(|| match name {
+                "stripe" => Some(json!({
+                    "driver": "stripe",
+                    "secret": self.config.get("cashier.secret"),
+                    "webhook_secret": self.config.get("cashier.webhook.secret"),
+                    "live": self.config.get("cashier.live").unwrap_or(false.into()),
+                })),
+                "paddle" => Some(json!({
+                    "driver": "paddle",
+                    "secret": self.config.get("cashier.paddle.api_key"),
+                    "webhook_secret": self.config.get("cashier.paddle.webhook_secret"),
+                    "live": !self.config.get("cashier.paddle.sandbox")
+                        .and_then(|value| value.as_bool()).unwrap_or(false),
+                })),
+                _ => None,
+            })
+            .ok_or(Error::Configuration("account"))?;
         let http = accounts
             .http_factories
             .get(name)

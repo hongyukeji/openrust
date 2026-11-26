@@ -61,6 +61,44 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/cashier-customer", customer)?;
     Ok(())
 }
+
+fn routes_with_callback() -> Result<(), openrust::routing::RoutingError> {
+    routes()?;
+    openrust::support::facades::Route::post("/cashier-webhook-eu", merchant_eu_callback)?;
+    Ok(())
+}
+
+fn merchant_eu_callback(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::{database::Db as DatabaseFacade, http::HttpError};
+        use openrust_cashier::BillingStore;
+
+        let client = Cashier::driver("merchant.eu").map_err(|_| HttpError::InvalidRequest)?;
+        let body = axum::body::to_bytes(request.take_body(), 1024 * 1024)
+            .await
+            .map_err(|_| HttpError::PayloadTooLarge)?;
+        let event = client
+            .verify_webhook(request.headers(), &body)
+            .map_err(|_| HttpError::InvalidSignature)?;
+        let connection =
+            DatabaseFacade::connection(None).map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        BillingStore::new(connection)
+            .handle_webhook(&client, &event)
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        Ok(openrust::http::Response::new(
+            http::StatusCode::OK,
+            openrust::http::Body::empty(),
+        ))
+    })
+}
+
 fn customer(
     _: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
@@ -150,6 +188,15 @@ async fn canonical_provider_configuration_and_named_account_overrides_are_distin
         manager.driver("stripe").unwrap().provider(),
         Provider::Stripe
     );
+    repo.set(
+        "cashier.drivers.legacy",
+        json!({"branch":profile(Provider::Stripe, &server.url)}),
+    )
+    .unwrap();
+    assert_eq!(
+        manager.driver("legacy.branch").unwrap().provider(),
+        Provider::Stripe
+    );
 }
 
 struct TransportProbe(openrust::console::CommandDefinition);
@@ -162,11 +209,20 @@ impl openrust::console::Command for TransportProbe {
     fn handle<'a>(
         &'a self,
         _: &'a Application,
-        _: &'a openrust::console::Input,
+        input: &'a openrust::console::Input,
         _: &'a mut openrust::console::Output,
     ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>> {
         Box::pin(async move {
             use openrust::console::ConsoleError;
+            if input.matches().get_flag("enqueue") {
+                openrust::support::facades::Artisan::queue("billing:transport-probe", &[])
+                    .on_connection("redis")
+                    .on_queue("cashier-probe")
+                    .dispatch()
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))?;
+                return Ok(0);
+            }
             let client =
                 Cashier::default_driver().map_err(|error| ConsoleError::new(error.to_string()))?;
             client
@@ -185,7 +241,13 @@ impl openrust::console::Command for TransportProbe {
 
 fn transport_commands() -> Result<(), openrust::console::ConsoleError> {
     openrust::support::facades::Artisan::add(Box::new(TransportProbe(
-        openrust::console::CommandDefinition::new(clap::Command::new("billing:transport-probe")),
+        openrust::console::CommandDefinition::new(
+            clap::Command::new("billing:transport-probe").arg(
+                clap::Arg::new("enqueue")
+                    .long("enqueue")
+                    .action(clap::ArgAction::SetTrue),
+            ),
+        ),
     )))
 }
 
@@ -206,10 +268,52 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
     };
     let stripe = Server::new(Provider::Stripe).await;
     let paddle = Server::new(Provider::Paddle).await;
+    let named_account = "merchant.eu";
+    let db = Db::new(false).await;
+    let redis = std::env::var("CASHIER_TEST_REDIS_URL").ok();
+    let mut database = json!({
+        "default":"test",
+        "connections":{"test":{"driver":"sqlite","database":db.path.join("db.sqlite")}},
+    });
+    if let Some(redis) = &redis {
+        database["redis"] = json!({"default":{"url":redis},"options":{"prefix":"cashier-probe:"}});
+    }
+    let config: BTreeMap<String, Value> = BTreeMap::from([
+        ("database".into(), database),
+        (
+            "cashier".into(),
+            json!({
+                "default":named_account,
+                "drivers":{
+                    "merchant.eu":profile(Provider::Stripe, &stripe.url),
+                    "merchant":{"eu":profile(Provider::Paddle, &paddle.url)},
+                    "paddle":profile(Provider::Paddle, &paddle.url),
+                },
+            }),
+        ),
+        (
+            "queue".into(),
+            json!({"default":"redis","connections":{"redis":{
+                "driver":"redis","connection":"default","queue":"cashier-probe","retry_after":30,
+            }}}),
+        ),
+    ]);
+    std::fs::write(
+        db.path.join("cashier-fixture.json"),
+        serde_json::to_vec(&config).unwrap(),
+    )
+    .unwrap();
     let build = || {
-        Application::configure(std::env::temp_dir())
-            .with_config(|_, _| Ok(BTreeMap::new()))
-            .with_routing(Routing::default().api(routes).commands(transport_commands))
+        Application::configure(db.path.clone())
+            .with_config(|base, _| {
+                let config = std::fs::read(base.join("cashier-fixture.json")).unwrap();
+                Ok(serde_json::from_slice(&config).unwrap())
+            })
+            .with_routing(
+                Routing::default()
+                    .api(routes_with_callback)
+                    .commands(transport_commands),
+            )
             .with_providers(vec![Box::new(CashierServiceProvider)])
             .create()
             .unwrap()
@@ -219,22 +323,10 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
     let mut console = build();
     for app in [&mut app, &mut second, &mut console] {
         app.boot().await.unwrap();
-        let repo = app
-            .get::<dyn openrust::contracts::config::Repository>("config")
-            .await
-            .unwrap();
-        repo.set(
-            "cashier.drivers",
-            json!({
-                "stripe": profile(Provider::Stripe, &stripe.url),
-                "paddle": profile(Provider::Paddle, &paddle.url),
-            }),
-        )
-        .unwrap();
-        repo.set("cashier.default", json!("stripe")).unwrap();
     }
     let manager = app.make::<CashierManager>().await.unwrap();
-    let original = manager.driver("stripe").unwrap();
+    let original = manager.driver(named_account).unwrap();
+    assert_eq!(original.provider(), Provider::Stripe);
     let named = Arc::new(Factory::new().unwrap());
     named.global_request_middleware(|request| {
         request.headers_mut().insert(
@@ -248,9 +340,11 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
         .make::<CashierManager>()
         .await
         .unwrap()
-        .set_http_factory("stripe", Some(named.clone()))
+        .set_http_factory(named_account, Some(named.clone()))
         .unwrap();
-    manager.set_http_factory("stripe", Some(named)).unwrap();
+    manager
+        .set_http_factory(named_account, Some(named.clone()))
+        .unwrap();
     original.retrieve("customers", "cus_1").await.unwrap();
     assert_eq!(
         console
@@ -285,6 +379,35 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
     let request = || http.get(&url);
     assert_eq!(request().await.unwrap().status(), 200);
     assert_eq!(request().await.unwrap().status(), 200);
+    let webhook_url = url.replace("cashier-customer", "cashier-webhook-eu");
+    let (_, body) = event(
+        &original,
+        "evt_merchant_eu",
+        "payment_intent.succeeded",
+        json!({"id":"pi_1"}),
+        0,
+    );
+    for (secret, expected) in [("other-account-fixture", 403), (SECRET, 200), (SECRET, 200)] {
+        let response = http
+            .pending_request()
+            .with_headers(headers(Provider::Stripe, &body, 0, secret))
+            .with_body(
+                body.clone(),
+                http::HeaderValue::from_static("application/json"),
+            )
+            .send(http::Method::POST, &webhook_url)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+    }
+    assert_eq!(
+        db.connection
+            .table("cashier_events")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
 
     manager
         .driver("paddle")
@@ -296,12 +419,12 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
         .make::<CashierManager>()
         .await
         .unwrap()
-        .driver("stripe")
+        .driver(named_account)
         .unwrap()
         .retrieve("customers", "cus_1")
         .await
         .unwrap();
-    manager.set_http_factory("stripe", None).unwrap();
+    manager.set_http_factory(named_account, None).unwrap();
     assert_eq!(request().await.unwrap().status(), 200);
     shutdown.0.send(()).unwrap();
     task.await.unwrap();
@@ -318,7 +441,7 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
     assert_eq!(calls[1].params["email"], "probe@example.test");
     let expected = aws_lc_rs::digest::digest(
         &aws_lc_rs::digest::SHA256,
-        b"stripe:stripe\0transport-artisan-probe",
+        b"stripe:merchant.eu\0transport-artisan-probe",
     );
     let expected = expected
         .as_ref()
@@ -334,4 +457,43 @@ async fn named_http_factory_is_exercised_via_artisan_and_real_http_without_chang
     assert_eq!(paddle.len(), 1);
     assert_eq!(paddle[0].headers["paddle-version"], "1");
     assert!(!paddle[0].headers.contains_key("x-cashier-probe"));
+
+    if redis.is_some() {
+        let mut worker = build();
+        worker.boot().await.unwrap();
+        worker
+            .make::<CashierManager>()
+            .await
+            .unwrap()
+            .set_http_factory(named_account, Some(named))
+            .unwrap();
+        assert_eq!(
+            build()
+                .handle_command(&["billing:transport-probe".into(), "--enqueue".into()])
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            worker
+                .handle_command(&[
+                    "queue:work".into(),
+                    "redis".into(),
+                    "--queue=cashier-probe".into(),
+                    "--once".into(),
+                ])
+                .await
+                .unwrap(),
+            0
+        );
+        let calls = stripe.requests();
+        assert_eq!(calls.len(), 7);
+        assert_eq!(calls[6].headers["x-cashier-probe"], "selected");
+        assert_eq!(calls[6].headers["idempotency-key"], expected);
+        assert_eq!(
+            calls[6].headers["stripe-version"],
+            openrust_cashier::STRIPE_VERSION
+        );
+        println!("Redis Worker resolved the literal account and used its own HTTP factory");
+    }
 }
