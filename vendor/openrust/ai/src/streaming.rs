@@ -304,9 +304,10 @@ impl TextEndpoint {
                     ..Default::default()
                 })
             }
-            Self::CountMessageTokens | Self::GeminiCountTokens | Self::GeminiGenerateContent => {
-                Err(AiError::StreamingNotSupported)
-            }
+            Self::CountMessageTokens
+            | Self::GeminiCountTokens
+            | Self::GeminiGenerateContent
+            | Self::Embeddings => Err(AiError::StreamingNotSupported),
         }
     }
 }

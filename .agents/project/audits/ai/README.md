@@ -55,3 +55,9 @@ SDK 参考固定 Laravel AI 的 `Anthropic/Concerns/CreatesAnthropicClient.php`�
 SDK 的 `gemini` 连接支持 `Agent::prompt`、`stream` 与 `Ai::models`，使用 `x-goog-api-key` 和 Google 版本化相对路径。目录按 `nextPageToken` 分页，以同一个模型 ID 合并手填项和发现项。调用接受裸 ID 和 `models/` 资源名。网关通过 `/v1beta/models`、`/v1beta/models/{model}` 和三个原生动作向外部客户端提供授权模型。当前流格式为 SSE。上游路径只用已配置且通过验证的模型 ID；下游 Key 与上游应用凭证分离。
 
 真实 HTTP Kernel 加本地协议服务覆盖 SDK 普通文本、SSE、目录分页、鉴权与网关 JSON、SSE、Token 估算和公开模型名。独立 Artisan 通过 `route:list`、`ai:models`、`ai:prompt` 验收。缓存资源、其他原生动作和托管服务商实机待后续验收。
+
+## AI-05 与 GW-03 OpenAI Embeddings
+
+`Embeddings::r#for`、`PendingEmbeddingsGeneration`、`EmbeddingProvider`、`AiManager::embedding_provider` 和 `EmbeddingsResponse` 已支持批量文本。默认连接由 `ai.default_for_embeddings` 选择，默认模型使用命名连接的 `models.embeddings.default`。显式 Provider、模型、维数和超时可逐次覆盖。OpenAI 原生连接支持此能力，兼容驱动须由应用配置该连接的 Embeddings 能力。用固定 `async-openai` 的请求类型和项目 HTTP 工厂调用，以真实索引恢复输入顺序，拒绝重复索引、数量与维数不一致及非有限向量值。
+
+网关 `POST /v1/embeddings` 支持独立下游 Key、公开模型映射、请求用量和同协议 JSON。模型可配置 `endpoints`，从而只发布对应端点。正常 HTTP Kernel 与本地协议服务验证 SDK 批量向量、维数、重复索引反例，网关验证授权、端点限制、同协议请求和真实用量。独立应用进程及 Artisan 验证配置、路由和外部 HTTP。缓存、Fake、排队、其他驱动、向量数据库桥，以及排序与分类仍是 AI-05 的开放项。

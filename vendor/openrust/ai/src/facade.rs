@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use openrust::{container::ServiceKey, support::facades::Facade};
 
-use crate::{Agent, AiError, AiManager, AiResult, FakeTextGateway, ModelCatalog, TextProvider};
+use crate::{
+    Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeTextGateway, ModelCatalog,
+    TextProvider,
+};
 
 pub struct Ai;
 
@@ -21,6 +24,10 @@ impl Ai {
 
     pub fn text_provider(name: Option<&str>) -> AiResult<Arc<dyn TextProvider>> {
         Self::manager()?.text_provider(name)
+    }
+
+    pub fn embedding_provider(name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {
+        Self::manager()?.embedding_provider(name)
     }
 
     pub async fn models(name: Option<&str>) -> AiResult<ModelCatalog> {

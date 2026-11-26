@@ -15,6 +15,7 @@ use crate::{
 struct Models {
     #[serde(default)]
     text: TextModels,
+    embeddings: Option<EmbeddingModels>,
 }
 
 #[derive(Default, Deserialize)]
@@ -22,6 +23,12 @@ struct TextModels {
     default: Option<String>,
     #[serde(default)]
     ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct EmbeddingModels {
+    default: Option<String>,
+    dimensions: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +76,17 @@ impl Connection {
     ) -> AiResult<Self> {
         let config: Configuration = serde_json::from_value(config)
             .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+        if config
+            .models
+            .embeddings
+            .as_ref()
+            .and_then(|models| models.dimensions)
+            == Some(0)
+        {
+            return Err(AiError::InvalidConfiguration(
+                "providers.<name>.models.embeddings.dimensions",
+            ));
+        }
         let url = url::Url::parse(&config.url)
             .map_err(|_| AiError::InvalidConfiguration("providers.<name>.url"))?;
         if !matches!(url.scheme(), "http" | "https")
@@ -143,6 +161,28 @@ impl Connection {
             .as_deref()
             .filter(|model| !model.trim().is_empty())
             .ok_or(AiError::MissingModel)
+    }
+
+    pub(crate) fn embeddings_configured(&self) -> bool {
+        self.config.models.embeddings.is_some()
+    }
+
+    pub(crate) fn default_embeddings_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .embeddings
+            .as_ref()
+            .and_then(|models| models.default.as_deref())
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
+    }
+
+    pub(crate) fn default_embeddings_dimensions(&self) -> Option<usize> {
+        self.config
+            .models
+            .embeddings
+            .as_ref()
+            .and_then(|models| models.dimensions)
     }
 
     pub(crate) fn store(&self) -> bool {

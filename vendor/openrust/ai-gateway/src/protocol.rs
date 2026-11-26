@@ -24,6 +24,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.get("/models/{model}", model)?;
         router.post("/chat/completions", chat_completions)?;
         router.post("/responses", responses)?;
+        router.post("/embeddings", embeddings)?;
         router.post("/messages", messages)?;
         router.post("/messages/count_tokens", count_message_tokens)?;
         Ok(())
@@ -99,34 +100,52 @@ fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResul
     let mut accessible = gateway.models.iter().filter(|(name, model)| {
         key.models.contains(name)
             && match protocol {
-                Protocol::OpenAi => [TextEndpoint::ChatCompletions, TextEndpoint::Responses]
-                    .into_iter()
-                    .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
-                Protocol::Anthropic => model.provider.supports_endpoint(TextEndpoint::Messages),
-                Protocol::Gemini => model
-                    .provider
-                    .supports_endpoint(TextEndpoint::GeminiGenerateContent),
+                Protocol::OpenAi => [
+                    TextEndpoint::ChatCompletions,
+                    TextEndpoint::Responses,
+                    TextEndpoint::Embeddings,
+                ]
+                .into_iter()
+                .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
+                Protocol::Anthropic => model.upstream_endpoint(TextEndpoint::Messages).is_some(),
+                Protocol::Gemini => [
+                    TextEndpoint::GeminiGenerateContent,
+                    TextEndpoint::GeminiStreamGenerateContent,
+                    TextEndpoint::GeminiCountTokens,
+                ]
+                .into_iter()
+                .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
             }
     });
-    let describe = |name: &str| match protocol {
+    let describe = |name: &str, model: &crate::gateway::Model| match protocol {
         Protocol::OpenAi => {
             json!({"id": name, "object": "model", "created": 0, "owned_by": "openrust"})
         }
         Protocol::Anthropic => {
             json!({"id": name, "type": "model", "display_name": name, "created_at": "1970-01-01T00:00:00Z"})
         }
-        Protocol::Gemini => json!({
-            "name": format!("models/{name}"), "displayName": name,
-            "supportedGenerationMethods": ["generateContent", "streamGenerateContent", "countTokens"],
-        }),
+        Protocol::Gemini => {
+            let methods = [
+                TextEndpoint::GeminiGenerateContent,
+                TextEndpoint::GeminiStreamGenerateContent,
+                TextEndpoint::GeminiCountTokens,
+            ]
+            .into_iter()
+            .filter(|endpoint| model.upstream_endpoint(*endpoint).is_some())
+            .map(TextEndpoint::path)
+            .collect::<Vec<_>>();
+            json!({"name":format!("models/{name}"),"displayName": name,"supportedGenerationMethods":methods})
+        }
     };
     let data = if let Some(id) = id {
-        if !accessible.any(|(name, _)| name == id) {
+        let Some((_, model)) = accessible.find(|(name, _)| *name == id) else {
             return protocol.error(StatusCode::NOT_FOUND, "model_not_found", "模型不可用");
-        }
-        describe(id)
+        };
+        describe(id, model)
     } else {
-        let data: Vec<Value> = accessible.map(|(name, _)| describe(name)).collect();
+        let data: Vec<Value> = accessible
+            .map(|(name, model)| describe(name, model))
+            .collect();
         match protocol {
             Protocol::OpenAi => json!({"object": "list", "data": data}),
             Protocol::Gemini => json!({"models":data}),
@@ -149,6 +168,10 @@ fn chat_completions(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn responses(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::Responses, None))
+}
+
+fn embeddings(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::Embeddings, None))
 }
 
 fn messages(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -313,7 +336,14 @@ async fn relay(
     } else {
         match data.get("stream") {
             None | Some(Value::Bool(false) | Value::Null) => false,
-            Some(Value::Bool(true)) if endpoint != TextEndpoint::CountMessageTokens => true,
+            Some(Value::Bool(true))
+                if !matches!(
+                    endpoint,
+                    TextEndpoint::CountMessageTokens | TextEndpoint::Embeddings
+                ) =>
+            {
+                true
+            }
             _ => {
                 return protocol.error(
                     StatusCode::BAD_REQUEST,

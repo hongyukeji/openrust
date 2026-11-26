@@ -16,6 +16,7 @@ mod anthropic;
 mod configuration;
 mod connection;
 mod console;
+mod embeddings;
 mod error;
 mod facade;
 mod fake;
@@ -27,6 +28,10 @@ mod text;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use configuration::load as default_config;
+pub use embeddings::{
+    EmbeddingProvider, Embeddings, EmbeddingsPrompt, EmbeddingsResponse,
+    PendingEmbeddingsGeneration,
+};
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};

@@ -8,7 +8,7 @@ use openrust::{config::Environment, contracts::config::Repository, http::client:
 use serde_json::Value;
 
 use crate::{
-    Agent, AgentResponse, AiError, AiResult, FakeTextGateway, PromptOptions,
+    Agent, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeTextGateway, PromptOptions,
     StreamableAgentResponse, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     gemini::GeminiTextProvider,
@@ -140,6 +140,21 @@ impl AiManager {
         let provider = self.create_text_provider(self.get_instance_config(name)?)?;
         *cached = Some(provider.clone());
         Ok(provider)
+    }
+
+    pub fn embedding_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {
+        let default = if name.is_none() {
+            match self.config.get("ai.default_for_embeddings") {
+                Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
+                None | Some(Value::Null) => None,
+                _ => return Err(AiError::InvalidConfiguration("default_for_embeddings")),
+            }
+        } else {
+            None
+        };
+        self.text_provider(name.or(default.as_deref()))?
+            .embedding_provider()
+            .ok_or(AiError::EmbeddingsNotSupported)
     }
 
     pub fn text_provider_for(

@@ -33,7 +33,7 @@ let answer = response.text;
 
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。Vercel／AG-UI、SDK 工具和會話仍待實作。
 
 ## 模型閘道 {#model-gateway}
 
@@ -55,3 +55,18 @@ let answer = response.text;
 同一個 Anthropic 發佈模型可以由 Messages 和 Responses 用戶端呼叫。轉換支援文字、系統指示、SSE 和基本取樣參數。需要結構化輸出、工具或附件時，依用戶端與模型支援情況選擇原生端點。
 
 Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key。閘道列出已授權的 Gemini 模型，並支援 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中選擇 `gemini` 連線，模型 ID 可以帶 `models/` 前綴。
+
+## Embeddings {#embeddings}
+
+設定 `AI_EMBEDDINGS_PROVIDER=openai`，並將供應商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批次傳送文字，並依輸入順序回傳向量。
+
+```rust
+use openrust_ai::Embeddings;
+
+let response = Embeddings::r#for(["配送", "退貨"])?
+    .generate()
+    .await?;
+let vectors = response.embeddings;
+```
+
+所選模型支援指定維度時，可使用 `dimensions(n)`。使用 OpenAI 相容連線產生向量前，先設定該連線的 `models.embeddings`。透過 `POST /v1/embeddings` 發佈向量模型時，對應公開名稱並為該模型設定 `"endpoints": ["embeddings"]`，再把公開名稱授權給下游 Key。

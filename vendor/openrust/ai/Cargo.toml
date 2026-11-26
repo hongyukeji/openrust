@@ -12,7 +12,7 @@ providers = true
 
 [dependencies]
 openrust = { package = "openrust-framework", path = "../framework" }
-async-openai = { version = "=0.43.0", default-features = false, features = ["chat-completion-types", "response-types"] }
+async-openai = { version = "=0.43.0", default-features = false, features = ["chat-completion-types", "embedding-types", "response-types"] }
 async-stream = "0.3.6"
 eventsource-stream = "=0.2.3"
 futures-util = { version = "0.3", default-features = false }

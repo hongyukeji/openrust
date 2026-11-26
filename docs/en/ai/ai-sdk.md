@@ -33,7 +33,7 @@ In an HTTP route, return the default SDK SSE events with `agent(instructions).st
 
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. Vercel, AG-UI, SDK tools, conversations, and embeddings are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. Vercel, AG-UI, SDK tools, and conversations are pending.
 
 ## Model gateway {#model-gateway}
 
@@ -55,3 +55,18 @@ For an Anthropic client, set the base URL to your application domain and send th
 The same published Anthropic model can serve Messages and Responses clients. The conversion supports text, system instructions, SSE, and basic sampling options. For structured output, tools, or attachments, choose a native endpoint supported by the model and client.
 
 Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent?alt=sse`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.
+
+## Embeddings {#embeddings}
+
+Set `AI_EMBEDDINGS_PROVIDER=openai` and `OPENAI_EMBEDDING_MODEL` to the model ID from your provider. The SDK sends text inputs as a batch and orders the vectors by the original input index.
+
+```rust
+use openrust_ai::Embeddings;
+
+let response = Embeddings::r#for(["Shipping", "Returns"])?
+    .generate()
+    .await?;
+let vectors = response.embeddings;
+```
+
+Use `dimensions(n)` when the selected model supports explicit dimensions. For an OpenAI-compatible connection, configure its `models.embeddings` before using it for embeddings. To publish a vector model through `POST /v1/embeddings`, map its public name and set `"endpoints": ["embeddings"]` on that mapping. Grant the alias to the client Key as with a text model.

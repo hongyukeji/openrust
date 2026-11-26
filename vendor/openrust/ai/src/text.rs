@@ -20,8 +20,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    AiError, AiResult, ModelCatalog, StreamableAgentResponse,
+    AiError, AiResult, EmbeddingProvider, ModelCatalog, StreamableAgentResponse,
     connection::{Authorization, Connection},
+    embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
 };
 
@@ -67,6 +68,10 @@ pub trait TextProvider: Send + Sync {
         })
     }
 
+    fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        None
+    }
+
     fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
         false
     }
@@ -83,6 +88,7 @@ pub enum TextEndpoint {
     Responses,
     Messages,
     CountMessageTokens,
+    Embeddings,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
     GeminiCountTokens,
@@ -95,6 +101,7 @@ impl TextEndpoint {
             Self::Responses => "responses",
             Self::Messages => "messages",
             Self::CountMessageTokens => "messages/count_tokens",
+            Self::Embeddings => "embeddings",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
             Self::GeminiCountTokens => "countTokens",
@@ -119,7 +126,7 @@ impl OpenAiProtocol {
 
 pub(crate) struct OpenAiTextProvider {
     protocol: OpenAiProtocol,
-    connection: Connection,
+    connection: Arc<Connection>,
 }
 
 impl OpenAiTextProvider {
@@ -131,7 +138,12 @@ impl OpenAiTextProvider {
     ) -> AiResult<Self> {
         Ok(Self {
             protocol,
-            connection: Connection::new(config, environment, http, Authorization::Bearer)?,
+            connection: Arc::new(Connection::new(
+                config,
+                environment,
+                http,
+                Authorization::Bearer,
+            )?),
         })
     }
 
@@ -228,8 +240,21 @@ impl TextProvider for OpenAiTextProvider {
         Box::pin(async { self.connection.catalog(self.list_models().await) })
     }
 
+    fn embedding_provider(&self) -> Option<Arc<dyn EmbeddingProvider>> {
+        self.supports_endpoint(TextEndpoint::Embeddings).then(|| {
+            Arc::new(OpenAiEmbeddingProvider(self.connection.clone())) as Arc<dyn EmbeddingProvider>
+        })
+    }
+
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
-        endpoint == TextEndpoint::ChatCompletions || self.protocol.endpoint() == endpoint
+        match endpoint {
+            TextEndpoint::Embeddings => {
+                matches!(self.protocol, OpenAiProtocol::Responses)
+                    || self.connection.embeddings_configured()
+            }
+            TextEndpoint::ChatCompletions => true,
+            _ => self.protocol.endpoint() == endpoint,
+        }
     }
 
     fn relay(&self, endpoint: TextEndpoint, body: Value) -> HttpFuture<'_, AiResult<Response>> {
@@ -237,7 +262,8 @@ impl TextProvider for OpenAiTextProvider {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
             }
-            let stream = body.get("stream").and_then(Value::as_bool) == Some(true);
+            let stream = endpoint != TextEndpoint::Embeddings
+                && body.get("stream").and_then(Value::as_bool) == Some(true);
             self.connection.send(endpoint, &body, stream, None).await
         })
     }

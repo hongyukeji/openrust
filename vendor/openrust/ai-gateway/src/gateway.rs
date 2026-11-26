@@ -21,6 +21,7 @@ struct Configuration {
 struct ModelConfiguration {
     provider: String,
     model: String,
+    endpoints: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -37,22 +38,41 @@ pub(crate) struct Key {
     pub(crate) requests_per_minute: Option<u64>,
 }
 
+const ENDPOINTS: [TextEndpoint; 8] = [
+    TextEndpoint::ChatCompletions,
+    TextEndpoint::Responses,
+    TextEndpoint::Messages,
+    TextEndpoint::CountMessageTokens,
+    TextEndpoint::GeminiGenerateContent,
+    TextEndpoint::GeminiStreamGenerateContent,
+    TextEndpoint::GeminiCountTokens,
+    TextEndpoint::Embeddings,
+];
+
 pub(crate) struct Model {
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
+    endpoints: Vec<TextEndpoint>,
 }
 
 impl Model {
     pub(crate) fn upstream_endpoint(&self, endpoint: TextEndpoint) -> Option<TextEndpoint> {
-        if self.provider.supports_endpoint(endpoint) {
-            Some(endpoint)
-        } else if endpoint == TextEndpoint::Responses
-            && self.provider.supports_endpoint(TextEndpoint::Messages)
-        {
-            Some(TextEndpoint::Messages)
-        } else {
-            None
+        if !self.endpoints.contains(&endpoint) {
+            return None;
         }
+        resolve_endpoint(self.provider.as_ref(), endpoint)
+    }
+}
+
+fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+    if provider.supports_endpoint(endpoint) {
+        Some(endpoint)
+    } else if endpoint == TextEndpoint::Responses
+        && provider.supports_endpoint(TextEndpoint::Messages)
+    {
+        Some(TextEndpoint::Messages)
+    } else {
+        None
     }
 }
 
@@ -97,22 +117,31 @@ impl Gateway {
                 let provider = ai
                     .text_provider(Some(&model.provider))
                     .map_err(|_| invalid(format!("公开模型 {name} 的上游连接无效")))?;
-                if ![
-                    TextEndpoint::ChatCompletions,
-                    TextEndpoint::Responses,
-                    TextEndpoint::Messages,
-                    TextEndpoint::GeminiGenerateContent,
-                ]
-                .into_iter()
-                .any(|endpoint| provider.supports_endpoint(endpoint))
+                let endpoints: Vec<_> = ENDPOINTS
+                    .into_iter()
+                    .filter(|endpoint| resolve_endpoint(provider.as_ref(), *endpoint).is_some())
+                    .filter(|endpoint| {
+                        model.endpoints.as_ref().is_none_or(|configured| {
+                            configured.iter().any(|path| path == endpoint.path())
+                        })
+                    })
+                    .collect();
+                if endpoints.is_empty()
+                    || model
+                        .endpoints
+                        .as_ref()
+                        .is_some_and(|configured| configured.len() != endpoints.len())
                 {
-                    return Err(invalid(format!("公开模型 {name} 的连接未提供网关端点")));
+                    return Err(invalid(format!(
+                        "公开模型 {name} 的端点为空、重复或不受该连接支持"
+                    )));
                 }
                 Ok((
                     name,
                     Model {
                         provider,
                         upstream_model: model.model,
+                        endpoints,
                     },
                 ))
             })
