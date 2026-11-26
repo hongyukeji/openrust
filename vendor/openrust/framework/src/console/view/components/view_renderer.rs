@@ -2,6 +2,8 @@
 mod code;
 mod dimensions;
 mod dom;
+mod element;
+pub use element::{TerminalChild, TerminalContent, TerminalElement, TerminalElementKind};
 mod layout;
 mod lists;
 mod palette;

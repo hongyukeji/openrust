@@ -1,0 +1,61 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_typed_element_construction_layout_and_output",
+  "bindings": {
+    "TerminalElement": [
+      "new",
+      "from_styles / from_styles_with",
+      "configure",
+      "default_styles",
+      "set_content",
+      "to_markup",
+      "render"
+    ],
+    "TerminalElementKind": [
+      "Raw",
+      "Span",
+      "Div",
+      "Paragraph",
+      "Anchor",
+      "BreakLine",
+      "Rule",
+      "ListItem",
+      "OrderedList",
+      "UnorderedList",
+      "DefinitionList",
+      "DefinitionTerm",
+      "DefinitionDescription"
+    ],
+    "TerminalContent": [
+      "Text",
+      "Children"
+    ],
+    "TerminalChild": [
+      "Text",
+      "Element"
+    ]
+  },
+  "source_oracle": "terminal-element-oracle.json",
+  "runtime": {
+    "source_element_cases": 104,
+    "framework_targets": 11,
+    "framework_parent_tests": 40,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 204,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "原生类型统一持有文字或有序子项及具体种类，复用布局内部节点。直接构造不需解析 HTML。",
+    "new 不运行默认类，from_styles 按同一注册及颜色规则解析。共享类名与类型化设置可在 configure 中修改。",
+    "set_content 保留样式身份并清空新元素的子项缓存。样式供多个实例共享，锁的重入冲突返回明确错误。",
+    "to_markup 返回原生 Result，选定输出的 render 保留选项及错误来源。显式方法承担 PHP 字符串转换风险可能的错误。",
+    "元素的内部树使用已有格式化和继承。泛型属性集合、独立样式关联和动态方法仍有实际缺口。"
+  ],
+  "remaining": [
+    "独立 Styles 构造、共享元素关系与属性集合、继承控制、长度与格式查询、flex1。",
+    "Element 的动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造与其他 Artisan 锚点。"
+  ]
+}

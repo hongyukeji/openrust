@@ -359,6 +359,10 @@ async fn formal_progress_example(){
     terminal_style_checks=style_repository_checks.replace('formal_style_repository_example','formal_terminal_style_methods_example').replace('register_style_repository)','register_terminal_styles)').replace('"tools:status-style"','"tools:report-label"').replace('"READY FOR WORK"','"REPORT READY"')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_style_methods{\n'+terminal_style_snippet+terminal_style_checks+'}\n')
 
+    terminal_element_snippet=re.search(r'```rust\n(.*?)```',text.split('{#typed-terminal-elements}',1)[1],re.S).group(1)
+    terminal_element_checks=terminal_style_checks.replace('formal_terminal_style_methods_example','formal_terminal_elements_example').replace('register_terminal_styles)','register_terminal_elements)').replace('"tools:report-label"','"tools:terminal-element"').replace('assert!(output.stdout.contains("REPORT READY"),"{flag}: {:?}",output.stdout);','let plain=openrust::console::Helper::remove_decoration(output.get_formatter().as_ref(),Some(&output.stdout)).unwrap();assert!(plain.contains("Status ready"),"{flag}: {plain:?}");')
+    parts.append('mod '+locale.replace('-','_').lower()+'_terminal_elements{\n'+terminal_element_snippet+terminal_element_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

@@ -2251,7 +2251,8 @@
     "63: ProcessHelper runs and validates native process execution, selected output and callbacks. Application default registry wiring remains open.",
     "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open.",
     "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open.",
-    "66: Typed style mutation entrypoints are verified. Owned style properties, element relationships and additional renderer contracts stay open."
+    "66: Typed style mutation entrypoints are verified. Owned style properties, element relationships and additional renderer contracts stay open.",
+    "67: Typed element construction, shared styles, content replacement and output are verified. Generic style properties and dynamic methods stay open."
   ],
   "native_adaptations": [
     {
@@ -2929,6 +2930,40 @@
       "prepend",
       "append",
       "list / list_with"
+    ]
+  },
+  "terminal_element": {
+    "TerminalElement": [
+      "new",
+      "from_styles / from_styles_with",
+      "configure",
+      "default_styles",
+      "set_content",
+      "to_markup",
+      "render"
+    ],
+    "TerminalElementKind": [
+      "Raw",
+      "Span",
+      "Div",
+      "Paragraph",
+      "Anchor",
+      "BreakLine",
+      "Rule",
+      "ListItem",
+      "OrderedList",
+      "UnorderedList",
+      "DefinitionList",
+      "DefinitionTerm",
+      "DefinitionDescription"
+    ],
+    "TerminalContent": [
+      "Text",
+      "Children"
+    ],
+    "TerminalChild": [
+      "Text",
+      "Element"
     ]
   }
 }

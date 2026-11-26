@@ -361,7 +361,8 @@
         "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
       ],
       "style_repository": "style-repository-contracts.json",
-      "terminal_style_methods": "terminal-style-methods-contracts.json"
+      "terminal_style_methods": "terminal-style-methods-contracts.json",
+      "terminal_element": "terminal-element-contracts.json"
     },
     {
       "anchor": "tables",
@@ -707,6 +708,14 @@
     "remaining": [
       "独立 Styles 构造、元素关系、属性集合、继承、长度与格式查询及未核定 flex1。",
       "Element、通用 HTML 恢复、Factory 容器构造和其余 Artisan 文档锚点。"
+    ]
+  },
+  "terminal_element": {
+    "status": "verified_typed_element_construction_layout_and_output",
+    "contract": "terminal-element-contracts.json",
+    "remaining": [
+      "独立 Styles 构造、共享元素关系与属性集合、继承控制、长度与格式查询、flex1。",
+      "Element 的动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造与其他 Artisan 锚点。"
     ]
   }
 }

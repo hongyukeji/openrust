@@ -116,6 +116,19 @@ pub(super) fn mark(s: &mut Style, value: &str) {
     }
     s.flex = s.markers.iter().any(|m| m == "flex-1");
 }
+pub(super) fn default_classes(tag: &str) -> &'static str {
+    match tag {
+        "p" => "block my-1",
+        "ul" => "block list-disc",
+        "ol" => "block list-decimal",
+        "dt" => "block font-bold",
+        "dd" => "block ml-4",
+        "hr" => "block border-t",
+        "span" | "strong" | "b" | "i" | "em" | "u" | "s" | "a" | "br" => "",
+        _ => "block",
+    }
+}
+
 pub(super) fn apply(
     s: &mut Style,
     input: &str,
@@ -126,16 +139,7 @@ pub(super) fn apply(
     if depth > 256 {
         return Err(ConsoleError::new("组件样式递归超出范围"));
     }
-    let defaults = match tag {
-        "p" => "block my-1",
-        "ul" => "block list-disc",
-        "ol" => "block list-decimal",
-        "dt" => "block font-bold",
-        "dd" => "block ml-4",
-        "hr" => "block border-t",
-        "span" | "strong" | "b" | "i" | "em" | "u" | "s" | "a" | "br" => "",
-        _ => "block",
-    };
+    let defaults = default_classes(tag);
     for token in style_tokens::tokens(
         &format!("{defaults} {input}"),
         Terminal::new().get_width(),

@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "style_repository_and_direct_mutations_verified_element_and_owned_properties_pending",
+  "status": "repository_direct_mutations_typed_element_verified_owned_properties_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -12,7 +12,8 @@
     "component-html-table-contracts.json",
     "component-code-contracts.json",
     "style-repository-contracts.json",
-    "terminal-style-methods-contracts.json"
+    "terminal-style-methods-contracts.json",
+    "terminal-element-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1395,6 +1396,38 @@
       "prepend",
       "append",
       "list / list_with"
+    ],
+    "TerminalElement": [
+      "new",
+      "from_styles / from_styles_with",
+      "configure",
+      "default_styles",
+      "set_content",
+      "to_markup",
+      "render"
+    ],
+    "TerminalElementKind": [
+      "Raw",
+      "Span",
+      "Div",
+      "Paragraph",
+      "Anchor",
+      "BreakLine",
+      "Rule",
+      "ListItem",
+      "OrderedList",
+      "UnorderedList",
+      "DefinitionList",
+      "DefinitionTerm",
+      "DefinitionDescription"
+    ],
+    "TerminalContent": [
+      "Text",
+      "Children"
+    ],
+    "TerminalChild": [
+      "Text",
+      "Element"
     ]
   }
 }

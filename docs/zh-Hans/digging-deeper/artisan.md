@@ -2532,3 +2532,33 @@ fn register_terminal_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 终端元素 {#typed-terminal-elements}
+
+用 `TerminalElement::new` 创建普通元素，或用 `from_styles` 解析默认和传入的样式类。元素可包含文本或有序子项。通过 `from_styles_with` 传入自定义样式仓库。使用 `configure` 可调用当前样式的类型化方法。
+
+`set_content` 创建新元素，沿用同一份样式设置并使用自己的内容。用 `to_markup` 取得带样式标记的文本，或用 `render` 将其写入选定的输出。两个方法都会向调用方返回渲染错误。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalChild, TerminalElement, TerminalElementKind},
+};
+use openrust::support::facades::Artisan;
+
+fn register_terminal_elements() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:terminal-element", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let prefix = TerminalElement::from_styles(TerminalElementKind::Span, "Status", "font-bold")?;
+            let mut line = TerminalElement::from_styles(
+                TerminalElementKind::Div,
+                vec![TerminalChild::from(prefix), TerminalChild::from(" ready")],
+                "text-cyan",
+            )?;
+            line.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

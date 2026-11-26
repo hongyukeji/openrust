@@ -1,0 +1,43 @@
+{
+  "base": "ce2e18bf3af002cc63598e37cccdcb3d026856aa",
+  "contract": "terminal-element-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.47s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.75s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.24s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.81s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.40s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.26s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 204 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s"
+  ],
+  "runtime": {
+    "source_element_cases": 104,
+    "framework_targets": 11,
+    "framework_parent_tests": 40,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 204,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/terminal-element-third.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-element-gates.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-element-site.log",
+    "target/tmp/artisan-tutorial-20261125/terminal-element-expanded-source.json",
+    "target/tmp/artisan-tutorial-20261125/terminal-element-disk-resumed.txt"
+  ],
+  "unaccepted_attempts": [
+    "terminal-element-second.log: missing HTTP json import corrected",
+    "terminal-element-gates-disk-interrupted.log: low disk and live builds blocked initial cleanup; disk recovered and reran"
+  ],
+  "remaining": [
+    "独立 Styles 构造、共享元素关系与属性集合、继承控制、长度与格式查询、flex1。",
+    "Element 的动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造与其他 Artisan 锚点。"
+  ],
+  "pushed": false
+}

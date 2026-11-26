@@ -90,6 +90,7 @@ try {
                     assert.equal(await page.locator('h3#command-helper-sets').count(),1);
                     assert.equal(await page.locator('h3#terminal-style-repository').count(),1);
                     assert.equal(await page.locator('h3#typed-terminal-style-methods').count(),1);
+                    assert.equal(await page.locator('h3#typed-terminal-elements').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

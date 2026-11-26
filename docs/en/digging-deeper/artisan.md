@@ -2532,3 +2532,33 @@ fn register_terminal_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Terminal elements {#typed-terminal-elements}
+
+Use `TerminalElement::new` for a plain element or `from_styles` to resolve its default and supplied classes. Elements accept text or ordered children. Use `from_styles_with` to supply a custom style repository. `configure` exposes the typed methods on the current element’s style.
+
+`set_content` constructs a new element that shares the same style settings and starts with its own content. Use `to_markup` to obtain the styled text, or `render` to write it through the selected output. Both return rendering errors to the caller.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalChild, TerminalElement, TerminalElementKind},
+};
+use openrust::support::facades::Artisan;
+
+fn register_terminal_elements() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:terminal-element", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let prefix = TerminalElement::from_styles(TerminalElementKind::Span, "Status", "font-bold")?;
+            let mut line = TerminalElement::from_styles(
+                TerminalElementKind::Div,
+                vec![TerminalChild::from(prefix), TerminalChild::from(" ready")],
+                "text-cyan",
+            )?;
+            line.render(output, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
