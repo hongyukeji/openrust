@@ -71,8 +71,9 @@
 - PE32+ 的机器类型为 `0xAA64`，栈保留 16 MiB，内嵌 SQLite source ID 与锁定的 SQLite 3.54.1 一致。MSVC `dumpbin /dependents` 列出 Windows 系统库、`VCRUNTIME140.dll` 和 UCRT API 集，未列出 `sqlite3.dll`。本轮验收使用安装了 MSVC 工具链的虚机，未测无工具链机器上的运行库安装流程。
 - Artisan 发现九个 Provider，执行 58 项 SQLite 迁移，生成配置和路由缓存，重跑迁移无待执行项。缓存前后实际 HTTP `/up`、`/` 和 `/api` 均返回 200。两次都在各自的专用 Windows 控制台发送 Ctrl+C，服务进程以状态 0 退出。首次脚本读取控制进程的退出状态时报错，预先持有进程句柄后，用同一二进制在新目录复跑通过。
 - 缓存后使用 Windows WebSocket 客户端连接 Reverb、订阅频道并收到 HTTP 签名发布的事件。独立 `artisan queue:work database --once` 成功退出。只读检查 SQLite 确认迁移记录数为 58，相关应用表已持久化，`jobs` 表为空。
+- 在同一二进制上启用 New Relic Provider，重建 ZIP 后得到与上次相同的归档摘要，复跑 HTTP、Artisan、Reverb 及退出。回环导出经 Rust TCP 转发到 Parallels 私有网络的隔离收集器。实际 protobuf 解码得到 206 个 Span 和 12 条指标记录，核对服务名、`GET /api` 响应与路由属性、`http.server.request.duration` 及独立 `artisan inspire` Span。收集器拒绝携带 `api-key` 的请求。本批使用隔离收集器和合成业务数据，真实账号按模块门禁验收。
 
-构建、PE 导入及运行日志保存在本机 `target/tmp/goal-extension-combined-windows/`。验收覆盖 Windows ARM64 虚机里的独立 ZIP。Windows Docker Desktop、无 MSVC 工具链的 Windows 安装、原生 Windows x64 和实际发布渠道仍需各自的环境。
+构建、PE 导入及运行日志保存在本机 `target/tmp/goal-extension-combined-windows/`，OTLP 复跑在其 `otlp/` 子目录。验收覆盖 Windows ARM64 虚机里的独立 ZIP。Windows Docker Desktop、无 MSVC 工具链的 Windows 安装、原生 Windows x64 和实际发布渠道仍需各自的环境。
 
 根据实际 PE 导入和 Microsoft 的兼容规则，三语部署指南补充 `VCRUNTIME140.dll` 的运行库架构及版本要求。VitePress 构建通过，Playwright 在 `/` 和 `/docs/` 下核对六个页面的已渲染说明及官方链接。该检查覆盖发布文档。 [Microsoft Visual C++ v14 运行库](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
 
