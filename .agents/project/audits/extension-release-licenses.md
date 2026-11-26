@@ -164,3 +164,22 @@ ARM64 的 BLAKE3 NEON 对象在 PDB 中可见，`.text` 贡献为空。x64 两�
 四项保留原生代码的归档来源均可对应根发行声明的许可条目。本次在映射的裁剪区定位到 `blake3_hash_many_neon`，因此该原生对象虽被构建和枚举，映射内没有它的保留符号。范围为该 Mach-O 的六个 Cargo 构建脚本静态归档。Rust 工具链原生代码、其他平台链接映射及最终渠道审核单独核对。
 
 映射对应的 Mach-O SHA-256 为 `473b2b43d91f268773e28dd3f768797ee3a12e1872b49844ca7f683899b41f5f`，重新打包的归档 SHA-256 为 `7c84abe9743af785147aed6c1bb460a832763aa7646e8e68e7003749179c7307`。解包后复验十个许可文件、签名、系统库依赖、58 项迁移、缓存前后 HTTP、Reverb、独立 Worker 和 OTLP。压缩映射及验证日志保存在本机 `target/tmp/goal-extension-combined-macos/link-provenance/`。
+## 五个候选制品的工具链溯源
+
+使用上文候选制品的原始链接映射和 PDB 复查 Rust 1.94.0 工具链，提交为 `4a4ef493e3a1488c6e321570238084b38948f6db`。GNU 链接映射只从已分配节中的正长度输入范围取证。PE 按实际 PE 节界、PDB GUID 和 Age 验证，再从模块的 `Obj` 记录追到归档。Mach-O 将对象编号与链接器保留区的符号对应。
+
+| 制品 | `libstd` | `libcompiler_builtins` | 计量口径 |
+| --- | ---: | ---: | --- |
+| Linux ARM64 | 261980 | 5928 | 映射中 `.text` 字节 |
+| Linux AMD64 | 298862 | 8120 | 映射中 `.text` 字节 |
+| Windows ARM64 | 174156 | 1516 | PDB `.text` 贡献字节 |
+| Windows x64 | 192475 | 1354 | PDB `.text` 贡献字节 |
+| macOS ARM64 | 2097 | 23 | 链接器保留符号条目 |
+
+- 两种 Linux 制品都保留 `Scrt1.o`、`crti.o`、`crtn.o`、`crtbeginS.o`、`crtendS.o` 和 `libc_nonshared.a` 的区段。GNU 链接器将部分合成动态节标注在 `Scrt1.o` 名下，`.rodata` 也有映射重叠，故只引用预期的输入贡献和上表的 `.text` 计数。两份映射均列出 `libgcc.a` 输入，在本次检查的已分配节内未观察到其归档成员的正长度范围。运行时另外动态加载 `libgcc_s.so.1`。GCC 启动文件、glibc 开发包文件与镜像内动态库仍应按各自包版本及版权文件核对。见 [GCC 运行库例外 3.1](https://www.gnu.org/licenses/gcc-exception-3.1.html)。
+- 两种 Windows 制品从 `msvcrt.lib`、`ucrt.lib` 与 `vcruntime.lib` 均保留了正长度的 `.text`、`.rdata` 贡献。PE 的 VCRUNTIME140 与 UCRT 动态导入仍需对应运行环境。ZIP 不含 VC Redistributable 安装器。实际发布若要捆绑该安装器，须按选定工具链条款复核，并在新装 Windows 验证对应架构的运行库安装及卸载。见 [Microsoft Visual C++ 分发指引](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)。
+- macOS 映射同时记录了上表两归档的 1052 和 2 条裁剪符号。原候选制品动态导入的系统库另见该候选的 `otool -L` 记录。
+
+此前逐字节对照的 10 个随附许可文件覆盖根与两个 Webhook 包的既有声明，未随附 Rust 标准库的发行版权报告。本机固定工具链随附的 `share/doc/rust/COPYRIGHT-library.html` 为 425661 字节，SHA-256 为 `af70aaabed1b73e872f14f9130db37e09f3f4d73a5f7c598b9173697a5d2729f`。后续打包需按实际构建工具链带入该报告，并对最终归档单独做字节验收。见 [固定 Rust 源码的版权说明](https://github.com/rust-lang/rust/blob/4a4ef493e3a1488c6e321570238084b38948f6db/COPYRIGHT)。
+
+本轮使用已验收候选的映射和调试记录，未重建或改动可执行文件。三组本地证据目录各自保留 `check-toolchain.py` 及输出 `toolchain.log`，两种 Linux 的日志分别位于架构子目录。
