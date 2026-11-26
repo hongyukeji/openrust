@@ -93,6 +93,15 @@ pub(super) fn classes(node: &Node) -> Result<Style, ConsoleError> {
     }
     Ok(s)
 }
+pub(super) fn inline(class: &str) -> Result<Style, ConsoleError> {
+    let mut style = Style {
+        element: "generic",
+        display: "inline",
+        ..Default::default()
+    };
+    apply(&mut style, class, "span", 0)?;
+    Ok(style)
+}
 fn transform(s: &mut Style, key: &'static str) {
     if !s.transform.contains(&key) {
         s.transform.push(key);

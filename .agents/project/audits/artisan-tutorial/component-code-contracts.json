@@ -1,0 +1,47 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "php_reference": "8.5.12, short_open_tag=1, token_get_all, development-only container",
+  "status": "verified_code_snippet_component_extensions_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer -> code::prepare",
+  "bindings": {
+    "CodeRenderer::toElement": "existing Prepared/Style/Output with first=false normal div",
+    "findExtraSpaces": "first nonempty whitespace-only line; remove matching exact prefix",
+    "tokenize": "mago-syntax streaming Lexer + source-context token category adapter",
+    "getLines": "source whitespace grouping/newline/line-key conversion",
+    "highlight": "existing native Style/format and fixed token theme; no second ANSI engine"
+  },
+  "source_oracle": {
+    "file": "component-code-elements-oracle.json",
+    "cases": 2360,
+    "errors": 8,
+    "mode": "widths20/80, ANSI on/off, Raw/Normal, source Ansi4, real exception handling"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 177,
+    "browser_checks": 12,
+    "framework_targets": 12
+  },
+  "scope": [
+    "PHP snippets and inline text, short/echo/close tags, keywords/comments/strings/heredoc/nowdoc/interpolation, Unicode and malformed snippets.",
+    "Indent prefix semantics, CR/LF ordering, markup serialization, min/default/custom line offsets, marked/unmatched line, parent wrapping and raw/ANSI.",
+    "Adjacent source lexical contracts: soft enum/from, property names, string variable names and offsets, yield-from comments, __halt_compiler identifier contexts and three-token stop.",
+    "Case-distinct and collision-containing heredoc labels remain distinct; private same-length lexer aliases never escape original source positions.",
+    "Extreme line offsets preserve source integer/float display and reject invalid float array keys rather than silently wrapping."
+  ],
+  "adaptations": [
+    "Uses mature mago-syntax/core/database =1.23.0 (latest non-yanked compatible with Rust1.94 at selection), pinned commit62b96def49b2ecc66ed5359347f52d5c45bb42d1, checksum e3b21c431f98a3e5ce80ec4f58c10ff275fc7f767fdc8af3cdd5dd384f826f9d. Latest1.61 requires Rust1.100; no toolchain change.",
+    "37 added locked packages; zero existing versions removed/upgraded; 8 existing metadata dependency edges updated. Only FileId::zero/Input/streaming Lexer initialized; no filesystem database, watcher, VM or PHP runtime. No unsupported performance claim.",
+    "MIT and Apache-2.0 complete original dependency licenses preserved in LICENSE.lexer with accurate provenance. Fixed renderer license unchanged.",
+    "PHP token grammar is retained; ordinary Rust text can be displayed but is not falsely described as a Rust syntax highlighter. API/build/startup do not depend on PHP.",
+    "Source spans limited to u32 byte positions by lexer; existing renderer resource/depth limits remain. No new CLI, serialization or environment contract.",
+    "v0.x had no console CodeRenderer highlighter to extract; existing native pre serialization, input scalars and styling are reused."
+  ],
+  "remaining": [
+    "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

@@ -16,6 +16,9 @@ name = "openrust"
 sanctum = []
 
 [dependencies]
+mago-database = "=1.23.0"
+mago-syntax = "=1.23.0"
+mago-syntax-core = "=1.23.0"
 adotenv = { version = "=1.5.4", default-features = false }
 openrust-blade-compiler = { path = "../blade-compiler" }
 inventory = "=0.3.25"

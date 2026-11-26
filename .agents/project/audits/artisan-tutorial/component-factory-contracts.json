@@ -70,7 +70,7 @@
         "mutate",
         "usingQuestionHelper"
       ],
-      "status": "partial_html_table_verified_code_extensions_pending",
+      "status": "partial_default_html_code_verified_extensions_pending",
       "native": "console::view::components::Component",
       "evidence": [
         "component-core-contracts.json",
@@ -81,14 +81,15 @@
         "component-style-methods-contracts.json",
         "component-list-elements-contracts.json",
         "component-pre-elements-contracts.json",
-        "component-html-table-contracts.json"
+        "component-html-table-contracts.json",
+        "component-code-contracts.json"
       ],
       "owned_bindings": {
         "__construct": "verified_new/from_context",
         "mutate": "verified_named_constructors_and_value_pipeline",
         "usingQuestionHelper": "verified_lending_scope_original_identity_and_finally",
         "compile": "verified_embedded_blade_templates_and_owned_compiler_override",
-        "renderView": "verified_html_table_binding_to_existing_native_table_code_extensions_pending"
+        "renderView": "verified_code_snippet_component_extensions_pending"
       }
     },
     {
@@ -126,7 +127,7 @@
         "factory-registry-contracts.json"
       ],
       "remaining": [
-        "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+        "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
         "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
       ]
     },
@@ -201,7 +202,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "Recorded default markup/style/layout/text/list/rule/pre/table bindings verified; code, standalone extension objects, style repositories, general recovery, Factory override and helper/time remain open.",
+  "inheritance": "Recorded default markup/style/layout/text/list/rule/pre/table/code bindings verified; standalone extension objects, style repositories, general recovery, Factory override and helper/time remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -261,7 +262,7 @@
     "status": "verified_generic_style_method_dispatch_and_text_mutators_specialized_types_pending",
     "contract": "component-style-methods-contracts.json",
     "remaining": [
-      "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -269,7 +270,7 @@
     "status": "verified_default_list_definition_rule_rendering_general_parser_and_specialized_code_pending",
     "contract": "component-list-elements-contracts.json",
     "remaining": [
-      "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
@@ -278,15 +279,23 @@
     "contract": "component-pre-elements-contracts.json",
     "prior_pending_list_pre_resolved": 8,
     "remaining": [
-      "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "component_html_table": {
-    "status": "verified_html_table_binding_to_existing_native_table_code_extensions_pending",
+    "status": "verified_html_table_binding_to_existing_native_table",
     "contract": "component-html-table-contracts.json",
     "remaining": [
-      "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+      "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+    ]
+  },
+  "component_code": {
+    "status": "verified_code_snippet_component_extensions_pending",
+    "contract": "component-code-contracts.json",
+    "remaining": [
+      "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
       "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   }

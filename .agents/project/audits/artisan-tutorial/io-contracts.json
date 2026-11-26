@@ -2131,7 +2131,8 @@
     "54: Component generic style dispatch, original markers, ordered text transformations and explicit bold=false verified; full terminal extension SDK/Factory container override remain open. See component-style-methods-contracts.json.",
     "55: default ul/ol/li/dl/dt/dd/hr rendering and list auto-close subset verified; table/code/pre, custom style/color repositories and remaining SDK still open. See component-list-elements-contracts.json.",
     "56: preformatted lines and opaque raw element semantics verified, including all 8 prior ul/pre source cases; table/code, custom style/color repositories and remaining SDK still open. See component-pre-elements-contracts.json.",
-    "57: HTML table now binds to existing native Table/Cell/Style/Separator; per-render title style ownership verified without changing shared Table SDK. Code/custom-style/extension/Factory/helper gaps remain. See component-html-table-contracts.json."
+    "57: HTML table now binds to existing native Table/Cell/Style/Separator; per-render title style ownership verified without changing shared Table SDK. Code/custom-style/extension/Factory/helper gaps remain. See component-html-table-contracts.json.",
+    "58: CodeRenderer is bound to native streaming lexical tokens and existing style/Prepared pipeline, with source grammar preserved and no PHP runtime. Custom repositories/standalone extensions/Factory/helper gaps remain. See component-code-contracts.json."
   ],
   "native_adaptations": [
     {

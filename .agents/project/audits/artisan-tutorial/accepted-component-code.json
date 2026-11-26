@@ -1,0 +1,58 @@
+{
+  "base": "b857e31da20ad870637f7b1e1f664c3802425a35",
+  "contract": "component-code-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-code-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-code-head-intersection.log",
+    "target/tmp/artisan-tutorial-20261125/component-code-site.log",
+    "target/tmp/artisan-tutorial-20261125/component-code-pty-results.json"
+  ],
+  "test_results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.52s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.16s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.45s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.99s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.00s",
+    "test result: ok. 177 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+  ],
+  "source_oracle": {
+    "file": "component-code-elements-oracle.json",
+    "cases": 2360,
+    "errors": 8,
+    "mode": "widths20/80, ANSI on/off, Raw/Normal, source Ansi4, real exception handling"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 177,
+    "browser_checks": 12,
+    "framework_targets": 12
+  },
+  "failed_attempts_not_counted": [
+    "component-code-first.log: source short tags/context assumptions disproved and fixed",
+    "component-code-expanded.log: extreme float array key mismatch fixed",
+    "component-code-gates.log: guard75 interrupted and cleaned; full retry passed",
+    "component-code-gates-resumed.log: Clippy slice lint fixed without allow",
+    "component-code-members.log/component-code-halt.log: member/string/compiler and yield-from contexts fixed",
+    "component-code-label-before.log: heredoc labels collapsed by naive alias, replaced by collision-free case-distinct aliases",
+    "first PTY oracle path missing -elements, fixed before actual pass"
+  ],
+  "cleanup": {
+    "guard_freed_bytes": 75314606080,
+    "available_after_bytes": 107317514240,
+    "source_logs_lock_downloads_databases_volumes_preserved": true
+  },
+  "remaining": [
+    "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "pushed": false
+}

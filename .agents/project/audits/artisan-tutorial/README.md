@@ -821,3 +821,16 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 11框架目标48父消费者、5实际Artisan/17HTTP含错误后恢复与12并发/5PTY真实20列，174正式三语直接提取消费者、三语站点12手机/桌面浏览器、workspace/all-targets严格Clippy和格式全部通过。辅助ignore由父调用，不额外计独立通过。首轮私有测试生成误改to_string_pretty名字，修后重跑；私有PTY文件路径多出-elements，修正后实跑通过。旧泛型回归原先断言合法table必须失败，现改为未知表格样式报错，新增Source和消费者覆盖正常输出，不降低验证标准。反例/失败日志保留，不计通过。
 
 先独立快照验收，再逐一核根13路径基线后回写，保护其他在途。沿现行缓存/TMPDIR，本簇未触及停线，无数据库/持久服务，Source容器--rm，HTTP/CLI/PTY/浏览器均结束。同步live账本中53“完整样式分发待完成”旧标签为已验尺寸状态，历史accepted/source原记录不改。旧v0.x没有HTML Table桥接，复用当前已验Table。继续code渲染、样式/颜色仓库、独立扩展类型、通用恢复及Factory/Helper/Time；整章仍开放。见accepted-component-html-table.json，核定范围本地提交，不推送。
+
+
+## 58. 代码片段组件与原生词法器（2026-11-26）
+
+57已本地提交be4ed4f70fc1e261c01a89c4859fbdecd0d806b8，未推送。固定CodeRenderer的toElement/findExtraSpaces/tokenize/getLines/highlight已逐项接到原生Prepared/Style/Output。保留PHP词法作为代码展示语法，不执行PHP，也没有应用构建/启动PHP依赖；不把普通Rust文本展示冒称专用Rust语法高亮。沿用既有pre节点序列化、输入数字转换、ANSI格式器；code class按源忽略，普通div包装first=false。
+
+旧v0.x没有对应控制台高亮可提取。成熟词法器选型核对mago官方仓库/稀疏索引/实际crate源码：当前1.61要求Rust1.100，采用兼容现行1.94的非yanked固定1.23.0（提交62b96def49b2ecc66ed5359347f52d5c45bb42d1，crate校验见契约）。固定syntax/core/database三项，仅初始化Input/FileId::zero/streaming Lexer，不建立数据库/文件监听或运行时。锁文件新增37包、既有版本零移除/升级，8既有依赖元数据边增加；未宣称运行时性能收益。必要完整MIT/Apache许可证与来源保留在LICENSE.lexer。crates.io API403及固定网页抓取失败如实保留，实际稀疏索引/归档校验和源码可用；未将网页失败算调研成功。
+
+2360真实固定PHP8.5.12场景（8实际错误），20/80列、ANSI开关与Raw/Normal全部逐字对照。覆盖短标签、关键字/软关键字、注释/数字/字符串/插值/文档字符串、Unicode、无效片段、前导空白行的精确缩进删除、CR/LF顺序、标记/偏移/极值。不是按共同缩进简化：源取第一非空纯空白行前缀；先trim LF，再归一CRLF/CR。相邻入口反例补验enum/from上下文、yield含注释组合token、属性/字符串中的__halt_compiler不截断、脚本上下文消耗3token再停，以及大小写不同和占位碰撞的heredoc标签。适配只补成熟词法器与固定token_get_all的分类差异，不另写完整解析器。私有等长别名按原字节位置还原，原文不被改写；长度遵循词法器u32边界。极大行号按源显示整数溢出后的科学记数，浮点数组键则明确失败，不悄悄截断。
+
+12框架目标、177正式三语直接提取消费者、实际Artisan5进程/HTTP17请求（错误恢复及12并发）/PTY5场景、三语站点12手机桌面浏览器、workspace all-targets严格Clippy与fmt均通过。后续HEAD新增根应用测试依赖aws-lc-rs，已合并保留并重跑本簇消费者及锁定严格门禁；未回退他人提交。辅助ignored由父进程实际执行，不额外虚计独立测试。初轮short_open_tag错误假设、行号float key、特殊标识符词法模式和标签碰撞反例均保留失败日志并修复复验；首轮严格检查slice lint修复，未加allow。私有PTY脚本最初误用oracle路径，修后真实5项通过。
+
+守卫在完整门禁首轮触及32GB，安全结束本批Cargo并清理项目编译profile，实际释放75,314,606,080字节，恢复107,317,514,240字节可用；源码、日志、锁、依赖下载、数据库/卷均保留，恢复后完整重跑。其余临时缓存继续复用，未另复制target。源对照容器--rm，HTTP/Artisan/PTY/浏览器均已结束，无新增持久服务。完整原始日志在target/tmp/artisan-tutorial-20261125/component-code-*，失败和中断不计通过。继续样式/颜色仓库、独立扩展类型、通用HTML恢复及Factory/Helper/Time，整章仍开放；见accepted-component-code.json，不推送。

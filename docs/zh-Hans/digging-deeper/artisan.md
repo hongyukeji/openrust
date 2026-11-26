@@ -2188,7 +2188,7 @@ fn register_component_lists() -> Result<(), ConsoleError> {
 
 `pre` 保留行内容，不折叠空白。最多移除首尾各一个空行，将其余行按最大 UTF-8 字节长度加三个空格补齐，再通过普通 div 样式逐行渲染。因此初始填充对多字节文本使用字节长度，而不是终端列宽。示例输出首个换行以及 `One   `／`Two   `。
 
-内部标签作为原样标记保留，不递归注册成组件；最终格式器如何处理它们仍取决于输出选项。预格式结果不继承父样式，布局可测量其已渲染内容。空结果和隐藏结果仍是有效元素。未被 HTML 恢复移到列表外的直接预格式子元素，会被列表子类型检查拒绝。CRLF、注释、显式空属性和省略值的布尔属性保留既定序列化区别。代码渲染与通用异常 HTML 恢复仍是独立未完成能力。
+内部标签作为原样标记保留，不递归注册成组件；最终格式器如何处理它们仍取决于输出选项。预格式结果不继承父样式，布局可测量其已渲染内容。空结果和隐藏结果仍是有效元素。未被 HTML 恢复移到列表外的直接预格式子元素，会被列表子类型检查拒绝。CRLF、注释、显式空属性和省略值的布尔属性保留既定序列化区别。通用异常 HTML 恢复仍是独立未完成能力。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2221,7 +2221,7 @@ fn register_component_pre() -> Result<(), ConsoleError> {
 
 组件标记复用内置 Table 管线。`style` 选择命名表格样式；`thead`、`tbody` 和 `tfoot` 提供表头、正文、标题与表尾分隔行。单元格支持 `align`、`rowspan`、`colspan` 及既有文本／颜色类。表头单元格设置 strong，单元格内 `<br>` 转成换行。无效样式或对齐沿原机制返回错误。
 
-表格先经过独立的彩色缓冲输出，再进入组件布局，所以外层关闭装饰时，内部 ANSI 输出仍可能保留。HTML 标题样式使用所选命名样式的本次副本，避免临时颜色修改长驻应用的后续请求；直接 Table API 的共享样式行为不变。代码高亮、自定义样式／颜色仓库及通用异常 HTML 恢复仍未完成。
+表格先经过独立的彩色缓冲输出，再进入组件布局，所以外层关闭装饰时，内部 ANSI 输出仍可能保留。HTML 标题样式使用所选命名样式的本次副本，避免临时颜色修改长驻应用的后续请求；直接 Table API 的共享样式行为不变。自定义样式／颜色仓库及通用异常 HTML 恢复仍未完成。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2243,6 +2243,39 @@ fn register_component_table() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(TableCompiler)));
             component.render_view("table", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### 代码片段 {#component-code-snippets}
+
+`code` 输出行号，并在 `line` 指定的绝对行放置标记；`start-line` 默认 1，最小为 1。非零标记即使超出片段范围，也会保留标记占位。首尾空行会修剪，CRLF 归一化；若内容有只包含空白的行，以该行确定缩进前缀，并从匹配的各行移除。代码节点的 `class` 不设置令牌主题。
+
+固定片段契约使用 PHP 词法分类，包括短标签、字符串与注释。其他文本按内联文本显示；这不是 Rust 专用或通用多语言高亮器。词法处理完全运行于 Rust，无须 PHP 程序或运行时。令牌组、行号与标记复用组件样式和原输出格式器；部分 strong／italic ANSI 修饰在无装饰输出中仍会保留。极大行偏移保留整数／浮点文本规则，无法表示的行数组键返回错误。自定义样式／颜色仓库和其他独立终端扩展接口仍未完成。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct CodeCompiler;
+impl ComponentViewCompiler for CodeCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "code" => Ok("<code start-line='8' line='9'>first line\nsecond line</code>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_code() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:code", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(CodeCompiler)));
+            component.render_view("code", json!({}))?;
             Ok(0)
         })
     }))?;

@@ -2188,7 +2188,7 @@ fn register_component_lists() -> Result<(), ConsoleError> {
 
 `pre` preserves line content instead of collapsing whitespace. It removes at most one empty first and last line, pads every remaining line to the maximum UTF-8 byte length plus three spaces, then renders each line through the normal div styles. Multibyte text therefore does not use terminal-column width for this initial padding step. The example emits a leading line break and `One   ` / `Two   `.
 
-Inner tags remain literal markup rather than recursively registered components; output options still determine how the final formatter handles them. The preformatted result is opaque to parent styles, while layout can measure its rendered content. Empty and hidden results remain valid elements. Direct preformatted children are rejected by list child-type checks when they are not moved outside the list by HTML recovery. CRLF, comments, explicit empty attributes and minimized boolean attributes retain their established serialization distinctions. Code rendering and general malformed-HTML recovery remain separate unfinished capabilities.
+Inner tags remain literal markup rather than recursively registered components; output options still determine how the final formatter handles them. The preformatted result is opaque to parent styles, while layout can measure its rendered content. Empty and hidden results remain valid elements. Direct preformatted children are rejected by list child-type checks when they are not moved outside the list by HTML recovery. CRLF, comments, explicit empty attributes and minimized boolean attributes retain their established serialization distinctions. General malformed-HTML recovery remains a separate unfinished capability.
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2221,7 +2221,7 @@ fn register_component_pre() -> Result<(), ConsoleError> {
 
 Use the built-in Table pipeline from component markup. `style` selects a named table style; `thead`, `tbody` and `tfoot` supply headers, rows, titles and footer separators. Cells support `align`, `rowspan`, `colspan` and the existing text/color classes. Header cells apply strong text, and `<br>` inside a cell becomes a line break. Invalid styles or alignment propagate errors.
 
-The table first renders through its own decorated buffer before entering the component layout. Its ANSI output can therefore remain present even when the outer output is undecorated. HTML title styles use a per-render copy of the selected named style, preventing temporary colors from modifying later requests in a long-running application. Direct Table API shared-style behavior is unchanged. Code highlighting, custom style/color repositories and general malformed-HTML recovery remain unfinished.
+The table first renders through its own decorated buffer before entering the component layout. Its ANSI output can therefore remain present even when the outer output is undecorated. HTML title styles use a per-render copy of the selected named style, preventing temporary colors from modifying later requests in a long-running application. Direct Table API shared-style behavior is unchanged. Custom style/color repositories and general malformed-HTML recovery remain unfinished.
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2243,6 +2243,39 @@ fn register_component_table() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(TableCompiler)));
             component.render_view("table", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### Code snippets {#component-code-snippets}
+
+`code` renders numbered lines with a marker on the absolute line selected by `line`; `start-line` defaults to 1 and is clamped to at least 1. A nonzero marker outside the snippet still reserves marker space. Blank boundary lines are trimmed, CRLF is normalized, and an existing whitespace-only line determines the indentation prefix removed from matching lines. The code node's `class` does not set the token theme.
+
+The fixed snippet contract uses PHP lexical categories, including short tags, strings and comments. Other text is rendered as inline text; this is not a dedicated Rust or general multi-language highlighter. Tokenization runs entirely in Rust, without a PHP executable or runtime. Token groups, line numbers and marks use the same component styles and output formatter; some strong/italic ANSI modifiers remain present in undecorated output. Extremely large line offsets preserve integer/float text rules, while an unrepresentable line-array key returns an error. Custom style/color repositories and the remaining standalone terminal extension interfaces are still unfinished.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct CodeCompiler;
+impl ComponentViewCompiler for CodeCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "code" => Ok("<code start-line='8' line='9'>first line\nsecond line</code>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_code() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:code", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(CodeCompiler)));
+            component.render_view("code", json!({}))?;
             Ok(0)
         })
     }))?;

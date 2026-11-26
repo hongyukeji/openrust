@@ -13,17 +13,6 @@ use std::sync::LazyLock;
 fn trim(text: &str) -> &str {
     text.trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}'])
 }
-fn styled(node: &Node, class: &str) -> Result<style::Style, ConsoleError> {
-    let mut node = node.clone();
-    node.name.as_mut().expect("表格元素具有名称").local = "span".into();
-    node.attrs
-        .retain(|attr| attr.name.local.as_ref() != "class");
-    node.attrs.push(html5ever::Attribute {
-        name: html5ever::QualName::new(None, Default::default(), "class".into()),
-        value: class.into(),
-    });
-    style::classes(&node)
-}
 fn format(text: String, style: &style::Style) -> Result<String, ConsoleError> {
     style::format(
         text,
@@ -74,7 +63,7 @@ fn rows(nodes: &[Node], id: usize, depth: usize) -> Result<Vec<TableRow>, Consol
         if styling().is_match(&text) {
             class.push_str(" font-normal");
         }
-        let styles = styled(node, &class)?;
+        let styles = style::inline(&class)?;
         let content = format(text, &styles)?;
         row.push(
             TableCell::new(content)
@@ -95,10 +84,7 @@ fn rows(nodes: &[Node], id: usize, depth: usize) -> Result<Vec<TableRow>, Consol
     Ok(result)
 }
 fn title(nodes: &[Node], id: usize) -> Result<String, ConsoleError> {
-    format(
-        " %s ".to_owned(),
-        &styled(&nodes[id], nodes[id].attr("class"))?,
-    )
+    format(" %s ".to_owned(), &style::inline(nodes[id].attr("class"))?)
 }
 pub(super) fn prepare(
     nodes: &[Node],

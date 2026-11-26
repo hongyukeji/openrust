@@ -1,4 +1,5 @@
 // 第三方许可见 LICENSE.renderer。
+mod code;
 mod dimensions;
 mod dom;
 mod layout;

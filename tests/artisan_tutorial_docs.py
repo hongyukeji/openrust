@@ -320,6 +320,9 @@ async fn formal_progress_example(){
     html_table_code=re.search(r'```rust\n(.*?)```',text.split('{#component-html-tables}',1)[1],re.S).group(1)
     html_table_checks=methods_checks.replace('formal_component_text_example','formal_component_table_example').replace('register_component_text)','register_component_table)').replace('"components:text"','"components:table"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("Report"));assert!(output.stdout.contains("Alpha"));assert!(output.stdout.contains("12"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_component_html_table{\n'+html_table_code+html_table_checks+'}\n')
+    code_snippet=re.search(r'```rust\n(.*?)```',text.split('{#component-code-snippets}',1)[1],re.S).group(1)
+    code_checks=methods_checks.replace('formal_component_text_example','formal_component_code_example').replace('register_component_text)','register_component_code)').replace('"components:text"','"components:code"').replace('assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));','assert!(output.stdout.contains("first line"));assert!(output.stdout.contains("second line"));assert!(output.stdout.contains("➜"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_code{\n'+code_snippet+code_checks+'}\n')
 
 
 

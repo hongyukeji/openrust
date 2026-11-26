@@ -81,6 +81,7 @@ try {
                     assert.equal(await page.locator('h3#component-list-elements').count(),1);
                     assert.equal(await page.locator('h3#component-preformatted-output').count(),1);
                     assert.equal(await page.locator('h3#component-html-tables').count(),1);
+                    assert.equal(await page.locator('h3#component-code-snippets').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

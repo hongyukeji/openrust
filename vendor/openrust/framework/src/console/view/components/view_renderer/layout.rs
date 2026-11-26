@@ -1,5 +1,6 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::{
+    code,
     dom::{self, Node},
     lists, pre, style, table,
     tree::Prepared,
@@ -68,6 +69,9 @@ fn prepare(
     }
     if node.tag() == "table" {
         return table::prepare(nodes, id, first, depth);
+    }
+    if node.tag() == "code" {
+        return code::prepare(nodes, id, depth);
     }
     let mut children = vec![];
     let (first_meaningful, last_meaningful) = boundaries(nodes, &node.children);
