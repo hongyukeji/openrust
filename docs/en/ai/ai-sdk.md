@@ -325,6 +325,21 @@ let answer = response.text;
 
 Agent tools work with buffered and streaming Chat Completions, Responses, Anthropic Messages, and Gemini GenerateContent. Claude and Gemini receive their original model content again with the tool results so the provider can verify its signatures. The SDK streams text as it arrives, then emits the completed tool call and its result before the next model step. The default SSE, Vercel UI, and AG-UI formats carry these tool events. The Agent sends results back with their call IDs and exposes `tool_calls` and `tool_results` on the response. Use `with_max_steps(n)` to limit model steps. Tool execution stops on the last step, and any calls proposed in that step appear as failed results.
 
+### Choose a tool {#tool-choice}
+
+Use `with_tool_choice` on an anonymous Agent or `Agent::tool_choice` on a named Agent. `Auto` lets the model choose, `None` forbids tool calls, and `Required` requires at least one tool call. `ToolChoice::tool(name)` selects one registered tool. Required and named choices apply to the first step. Subsequent steps can use the result and answer normally.
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{Agent, ToolChoice, agent};
+
+let response = agent("Check inventory before answering.")
+    .with_tools(vec![Arc::new(LookupInventory)])
+    .with_tool_choice(ToolChoice::tool("lookup_inventory"))
+    .prompt("Is this item in stock?")
+    .await?;
+```
+
 ## Queued agents {#queued-agents}
 
 Implement `QueueableAgent` on a named Agent that derives `Serialize` and `Deserialize`. Give it a stable `QUEUE_JOB` name. Register it in the application service provider’s `boot` method with `TicketAgent::register_queue(queue.as_ref())`, where `queue` is the application’s `QueueManager`.

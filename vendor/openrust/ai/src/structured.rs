@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     Agent, AgentMiddleware, AgentResponse, Ai, AiError, AiResult, AnonymousAgent, Message,
-    PromptOptions, StreamableAgentResponse, TextGenerationOptions, TextModelTier, Tool,
+    PromptOptions, StreamableAgentResponse, TextGenerationOptions, TextModelTier, Tool, ToolChoice,
 };
 
 #[derive(Clone, Copy)]
@@ -160,6 +160,10 @@ impl Agent for StructuredAnonymousAgent {
     }
     fn attachments(&self) -> &[crate::Attachment] {
         self.agent.attachments()
+    }
+
+    fn tool_choice(&self) -> Option<ToolChoice> {
+        self.agent.tool_choice()
     }
 
     fn tools(&self) -> Vec<Arc<dyn Tool>> {

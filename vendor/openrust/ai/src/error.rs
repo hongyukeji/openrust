@@ -27,6 +27,7 @@ pub enum AiError {
     StructuredOutputNotSupported,
     InvalidSchema,
     InvalidTools,
+    InvalidToolChoice,
     InvalidToolArguments,
     ToolsNotSupported,
     InvalidStructuredResponse,
@@ -100,6 +101,7 @@ impl fmt::Display for AiError {
             }
             Self::InvalidSchema => formatter.write_str("AI 结构化输出模式无效"),
             Self::InvalidTools => formatter.write_str("AI 工具名称无效或重复"),
+            Self::InvalidToolChoice => formatter.write_str("AI 工具选择与当前步骤的工具不匹配"),
             Self::InvalidToolArguments => formatter.write_str("AI 工具参数无效"),
             Self::ToolsNotSupported => formatter.write_str("当前 AI 连接或调用方式未提供工具执行"),
             Self::InvalidStructuredResponse => formatter.write_str("AI 响应不是预期的 JSON 对象"),

@@ -381,3 +381,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 验证具名 Agent、选项记录与非有限数拒绝。真实 HTTP 通过四个本地 TCP 上游核对字段、步骤限额覆盖、流式工具续步、Anthropic 采样取舍，以及 Gemini 同时发送结构化 Schema 和参数。特定供应商扩展选项、工具选择与提示缓存另按对应契约验收。
 
 - [固定 Laravel TextGenerationOptions](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php) · [固定 Laravel Anthropic 请求映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/Concerns/BuildsTextRequests.php)
+
+## AI-03 Agent 工具选择
+
+`ToolChoice` 提供自动、禁止、要求及指定工具四种选择，由具名 Agent 或匿名 Agent 配置。对应四种原生协议的工具选择字段。要求及指定只作用于第一步，与固定 Laravel 的续步规则一致。普通中间件可以覆盖当前步骤的选择。无可用工具及未声明名称在出站前报错。模型返回与要求冲突的工具调用时，先报错再结束，不执行该调用。
+
+独立 Artisan 验证 Responses 的指定工具、首步后释放及 Fake 记录。实测 HTTP 通过 Chat、Anthropic 和 Gemini 本地 TCP 上游覆盖流式续步、自动、禁止、指定与必选，以及已注册的其他工具被拒绝且未触发其处理器。包测试、严格 Clippy 和三语文档验收通过。
+
+- [固定 Laravel ToolChoice](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/ToolChoice.php) · [固定 Laravel 续步选项](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php)

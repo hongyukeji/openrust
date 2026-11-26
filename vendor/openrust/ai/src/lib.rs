@@ -48,6 +48,7 @@ mod streaming;
 mod structured;
 mod summarize;
 mod text;
+mod tool_choice;
 mod tool_protocol;
 mod tool_stream;
 mod tool_stream_protocol;
@@ -112,6 +113,7 @@ pub use structured::{
 };
 pub use summarize::{SummarizeAgent, Summarizes, SummarizesText};
 pub use text::{AgentResponse, TextEndpoint, TextModelTier, TextPrompt, TextProvider, Usage};
+pub use tool_choice::ToolChoice;
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,
     ToolRequest, ToolResult, ToolStep,

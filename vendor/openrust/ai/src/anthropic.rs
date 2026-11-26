@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, ModelCatalog, StepEventStream,
     StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
-    TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep, Usage,
+    TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolStep, Usage,
     connection::{Authorization, Connection},
     files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
@@ -354,6 +354,15 @@ impl AnthropicTextProvider {
             })
             .collect::<Vec<_>>()
             .into();
+
+        if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
+            body["tool_choice"] = match choice {
+                ToolChoice::Auto => json!({"type":"auto"}),
+                ToolChoice::None => json!({"type":"none"}),
+                ToolChoice::Required => json!({"type":"any"}),
+                ToolChoice::Tool(name) => json!({"type":"tool","name":name}),
+            };
+        }
 
         Ok(body)
     }

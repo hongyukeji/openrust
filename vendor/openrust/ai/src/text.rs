@@ -25,12 +25,13 @@ use openrust::{
     },
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
-    StructuredOutput, TextGenerationOptions, ToolCall, ToolDefinition, ToolResult, ToolStep,
+    StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice, ToolDefinition, ToolResult,
+    ToolStep,
     audio::{AudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
@@ -715,18 +716,32 @@ impl OpenAiTextProvider {
         history: &[ToolStep],
         stream: bool,
     ) -> AiResult<Value> {
-        match self.protocol {
+        let mut body = match self.protocol {
             OpenAiProtocol::ChatCompletions => {
                 let body = serde_json::to_value(Self::chat_body(prompt, stream)?)
                     .map_err(|_| AiError::InvalidSchema)?;
-                crate::tool_protocol::chat_request(body, tools, history)
+                crate::tool_protocol::chat_request(body, tools, history)?
             }
             OpenAiProtocol::Responses => {
                 let body = serde_json::to_value(self.responses_body(prompt, stream))
                     .map_err(|_| AiError::InvalidSchema)?;
-                crate::tool_protocol::responses_request(body, tools, history)
+                crate::tool_protocol::responses_request(body, tools, history)?
             }
+        };
+        if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
+            body["tool_choice"] = match choice {
+                ToolChoice::Auto => "auto".into(),
+                ToolChoice::None => "none".into(),
+                ToolChoice::Required => "required".into(),
+                ToolChoice::Tool(name) => match self.protocol {
+                    OpenAiProtocol::ChatCompletions => {
+                        json!({"type":"function","function":{"name":name}})
+                    }
+                    OpenAiProtocol::Responses => json!({"type":"function","name":name}),
+                },
+            };
         }
+        Ok(body)
     }
 }
 

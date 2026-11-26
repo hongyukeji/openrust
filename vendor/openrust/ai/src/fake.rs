@@ -8,12 +8,15 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{AgentResponse, AiError, AiResult, Attachment, Message, TextGenerationOptions, Usage};
+use crate::{
+    AgentResponse, AiError, AiResult, Attachment, Message, TextGenerationOptions, ToolChoice, Usage,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecordedPrompt {
     pub text: String,
     pub options: TextGenerationOptions,
+    pub tool_choice: Option<ToolChoice>,
     pub messages: Vec<Message>,
     pub attachments: Vec<Attachment>,
     pub schema: Option<Value>,

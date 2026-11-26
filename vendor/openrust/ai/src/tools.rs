@@ -150,6 +150,10 @@ pub(crate) async fn run(
                 instructions: prompt.text.instructions.into(),
                 prompt: prompt.text.prompt,
                 options: prompt.options,
+                tool_choice: prompt
+                    .tool_choice
+                    .and_then(|choice| choice.for_step(step - 1))
+                    .cloned(),
                 messages: prompt.messages.into(),
                 attachments: prompt.attachments.into(),
                 structured_output: prompt.structured_output,

@@ -325,6 +325,21 @@ let answer = response.text;
 
 工具调用支持 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的普通与流式请求。Claude 和 Gemini 会收到原始模型内容及工具结果，以便供应商核对签名。SDK 实时发送文本，在下一次模型调用前发送完整的工具调用及结果。默认 SSE、Vercel UI 和 AG-UI 都提供相应的工具事件。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
 
+### 选择工具 {#tool-choice}
+
+匿名 Agent 使用 `with_tool_choice`，具名 Agent 实现 `Agent::tool_choice`。`Auto` 让模型自行选择，`None` 禁止调用，`Required` 要求至少调用一个工具。`ToolChoice::tool(name)` 指定已注册的工具。强制调用和指定工具只作用于第一步，后续步骤可根据工具结果继续回答。
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{Agent, ToolChoice, agent};
+
+let response = agent("Check inventory before answering.")
+    .with_tools(vec![Arc::new(LookupInventory)])
+    .with_tool_choice(ToolChoice::tool("lookup_inventory"))
+    .prompt("Is this item in stock?")
+    .await?;
+```
+
 ## Agent 排队 {#queued-agents}
 
 给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。

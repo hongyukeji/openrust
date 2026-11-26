@@ -5,7 +5,7 @@ use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::ty
 use crate::{
     AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, Message,
     QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent,
-    TextGenerationOptions, TextModelTier, Tool, agent_broadcast::StreamBroadcast,
+    TextGenerationOptions, TextModelTier, Tool, ToolChoice, agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -41,6 +41,10 @@ pub trait Agent: Send + Sync + 'static {
 
     fn attachments(&self) -> &[Attachment] {
         &[]
+    }
+
+    fn tool_choice(&self) -> Option<ToolChoice> {
+        None
     }
 
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
@@ -203,6 +207,7 @@ pub struct AnonymousAgent {
     messages: Vec<Message>,
     attachments: Vec<Attachment>,
     tools: Vec<Arc<dyn Tool>>,
+    tool_choice: Option<ToolChoice>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     max_steps: Option<usize>,
 }
@@ -215,6 +220,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
         messages: Vec::new(),
         attachments: Vec::new(),
         tools: Vec::new(),
+        tool_choice: None,
         middleware: Vec::new(),
         max_steps: None,
     }
@@ -228,6 +234,11 @@ impl AnonymousAgent {
 
     pub fn with_generation_options(mut self, options: TextGenerationOptions) -> Self {
         self.options = options;
+        self
+    }
+
+    pub fn with_tool_choice(mut self, choice: ToolChoice) -> Self {
+        self.tool_choice = Some(choice);
         self
     }
 
@@ -282,6 +293,10 @@ impl Agent for AnonymousAgent {
     }
     fn attachments(&self) -> &[Attachment] {
         &self.attachments
+    }
+
+    fn tool_choice(&self) -> Option<ToolChoice> {
+        self.tool_choice.clone()
     }
 
     fn tools(&self) -> Vec<Arc<dyn Tool>> {

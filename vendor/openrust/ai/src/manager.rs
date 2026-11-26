@@ -627,6 +627,7 @@ impl AiManager {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
+        let choice = agent.tool_choice();
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -654,6 +655,7 @@ impl AiManager {
             return fake.respond(crate::RecordedPrompt {
                 text: prompt.into(),
                 options: generation,
+                tool_choice: choice,
                 messages: messages.to_vec(),
                 attachments: attachments.to_vec(),
                 schema: structured_output
@@ -677,14 +679,24 @@ impl AiManager {
                 timeout: options.timeout,
             },
             options: generation,
+            tool_choice: choice.as_ref(),
             messages,
             attachments,
             structured_output,
         };
         let tools = agent.tools();
+        if tools.is_empty()
+            && let Some(choice) = &choice
+        {
+            choice.validate(&[])?;
+        }
         let middleware = agent.middleware();
         if tools.is_empty() && middleware.is_empty() {
-            provider.generate(request).await
+            let response = provider.generate(request).await?;
+            if let Some(choice) = &choice {
+                choice.validate_calls(&response.tool_calls)?;
+            }
+            Ok(response)
         } else {
             crate::tools::run(
                 provider.as_ref(),
@@ -728,6 +740,7 @@ impl AiManager {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
+        let choice = agent.tool_choice();
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -742,6 +755,11 @@ impl AiManager {
             return Err(AiError::StreamingMiddlewareNotSupported);
         }
         let tools = agent.tools();
+        if tools.is_empty()
+            && let Some(choice) = &choice
+        {
+            choice.validate(&[])?;
+        }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(
             provider.as_ref(),
@@ -756,6 +774,7 @@ impl AiManager {
                 timeout: options.timeout,
             },
             options: generation,
+            tool_choice: choice.as_ref(),
             messages,
             attachments,
             structured_output,

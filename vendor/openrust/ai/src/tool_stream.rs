@@ -18,6 +18,9 @@ pub(crate) async fn stream(
     let application = App::get_instance().ok();
     let max_steps = tools::step_limit(registered.len(), max_steps);
     let (definitions, registered) = tools::prepare(registered)?;
+    if let Some(choice) = prompt.tool_choice {
+        choice.validate(&definitions)?;
+    }
     let gateway = provider
         .step_text_gateway()
         .ok_or(AiError::ToolsNotSupported)?;
@@ -67,6 +70,9 @@ pub(crate) async fn stream(
             } else if completed.tool_calls.is_empty() {
                 Err(AiError::InvalidResponse)?;
             }
+            if let Some(choice) = prompt.choice_for(step - 1) {
+                choice.validate_calls(&completed.tool_calls)?;
+            }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
             for call in &completed.tool_calls {
                 yield event(&invocation_id, StreamEventData::ToolCall { call: call.clone() });
@@ -90,7 +96,7 @@ pub(crate) async fn stream(
                 provider_content: completed.provider_content,
             });
             upstream = provider.step_text_gateway().ok_or(AiError::ToolsNotSupported)?
-                .stream_text_step(&prompt.as_prompt(), &definitions, &history).await?;
+                .stream_text_step(&prompt.as_prompt(step), &definitions, &history).await?;
         }
     };
     Ok(StreamableAgentResponse::from_events(Box::pin(stream)))
@@ -102,6 +108,7 @@ struct OwnedPrompt {
     model: String,
     timeout: Option<Duration>,
     options: crate::TextGenerationOptions,
+    tool_choice: Option<crate::ToolChoice>,
     messages: Vec<Message>,
     attachments: Vec<crate::Attachment>,
     schema: Option<(Value, bool)>,
@@ -115,6 +122,7 @@ impl From<AgentPrompt<'_>> for OwnedPrompt {
             model: value.text.model.into(),
             timeout: value.text.timeout,
             options: value.options,
+            tool_choice: value.tool_choice.cloned(),
             messages: value.messages.to_vec(),
             attachments: value.attachments.to_vec(),
             schema: value
@@ -125,7 +133,13 @@ impl From<AgentPrompt<'_>> for OwnedPrompt {
 }
 
 impl OwnedPrompt {
-    fn as_prompt(&self) -> AgentPrompt<'_> {
+    fn choice_for(&self, step: usize) -> Option<&crate::ToolChoice> {
+        self.tool_choice
+            .as_ref()
+            .and_then(|choice| choice.for_step(step))
+    }
+
+    fn as_prompt(&self, step: usize) -> AgentPrompt<'_> {
         AgentPrompt {
             text: TextPrompt {
                 instructions: &self.instructions,
@@ -134,6 +148,7 @@ impl OwnedPrompt {
                 timeout: self.timeout,
             },
             options: self.options,
+            tool_choice: self.choice_for(step),
             messages: &self.messages,
             attachments: &self.attachments,
             structured_output: self

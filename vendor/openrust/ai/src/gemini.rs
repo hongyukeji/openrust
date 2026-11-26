@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole,
     ModelCatalog, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
-    TextEndpoint, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition, ToolStep,
-    Usage,
+    TextEndpoint, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition,
+    ToolStep, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -465,6 +465,15 @@ impl GeminiTextProvider {
             })).collect();
         if !declarations.is_empty() {
             body["tools"] = json!([{"functionDeclarations":declarations}]);
+        }
+
+        if let Some(choice) = prompt.tool_choice.filter(|_| !tools.is_empty()) {
+            body["toolConfig"]["functionCallingConfig"] = match choice {
+                ToolChoice::Auto => json!({"mode":"AUTO"}),
+                ToolChoice::None => json!({"mode":"NONE"}),
+                ToolChoice::Required => json!({"mode":"ANY"}),
+                ToolChoice::Tool(name) => json!({"mode":"ANY","allowedFunctionNames":[name]}),
+            };
         }
 
         Ok(body)
