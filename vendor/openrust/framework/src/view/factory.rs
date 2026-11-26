@@ -491,18 +491,22 @@ impl Factory {
     ) -> ViewResult<(String, super::RenderedView)> {
         let mut context = RenderContext::new(Some(self));
         context.request = Arc::new(request);
+        let mut source_path = PathBuf::new();
         let html = super::request_data::render_scope(context.request.clone(), || {
-            self.render_view_ref(&mut view, &mut context)
+            self.render_view_ref(&mut view, &mut context, Some(&mut source_path))
         })?;
         let mut data = self.get_shared();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
         }
+        let local_bindings = view.data.keys().cloned().collect();
         data.extend(view.data);
         Ok((
             html,
             super::RenderedView {
                 name: view.name.into_owned(),
+                source_path,
+                local_bindings,
                 data,
             },
         ))
@@ -522,13 +526,14 @@ impl Factory {
         mut view: View,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        self.render_view_ref(&mut view, context)
+        self.render_view_ref(&mut view, context, None)
     }
 
     fn render_view_ref(
         &self,
         view: &mut View,
         context: &mut RenderContext<'_>,
+        mut source_path: Option<&mut PathBuf>,
     ) -> ViewResult<String> {
         if let Some(error) = view.creation_error.take() {
             return Err(error);
@@ -546,27 +551,39 @@ impl Factory {
                 let mut html = String::new();
                 for name in names {
                     let mut render = context.fresh_tree();
-                    let full = self.render_pass(view, &mut render)?;
+                    let full = self.render_pass(view, &mut render, source_path.as_deref_mut())?;
                     html.push_str(&render.fragment(&name).unwrap_or(full));
                 }
                 Ok(html)
             }
             Some(FragmentSelection::All) => {
-                self.render_pass(view, context)?;
+                self.render_pass(view, context, source_path)?;
                 Ok(context.all_fragments())
             }
-            None => self.render_pass(view, context),
+            None => self.render_pass(view, context, source_path),
         }
     }
 
-    fn render_pass(&self, view: &mut View, context: &mut RenderContext<'_>) -> ViewResult<String> {
+    fn render_pass(
+        &self,
+        view: &mut View,
+        context: &mut RenderContext<'_>,
+        source_path: Option<&mut PathBuf>,
+    ) -> ViewResult<String> {
         let mut data = self.prepare_view(view)?;
         data.extend(
             view.data
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone())),
         );
-        self.render_contents(self.view_source(view)?, &data, context)
+        let source = self.view_source(view)?;
+        if let Some(path) = source_path {
+            match &source {
+                ResolvedSource::File(source) => path.clone_from(&source.path),
+                ResolvedSource::Embedded { name, .. } => *path = Path::new("embedded").join(name),
+            }
+        }
+        self.render_contents(source, &data, context)
     }
 
     fn prepare_view(&self, view: &mut View) -> ViewResult<ViewData> {
@@ -761,7 +778,7 @@ impl ContractView for View {
             Some(binding) => binding.factory.clone(),
             None => ViewFacade::get_facade_root()?.as_ref().clone(),
         };
-        factory.render_view_ref(self, &mut RenderContext::new(Some(&factory)))
+        factory.render_view_ref(self, &mut RenderContext::new(Some(&factory)), None)
     }
 }
 

@@ -161,7 +161,13 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用实际 HTTP 内核验证方法�
 
 ### RequestWatcher 的渲染视图
 
-固定 PHP 通过实际 `Illuminate\Http\Response` 渲染根视图后，记录模板路径、显式绑定数据和组合器写入的数据。共享变量可用于渲染，但不会进诊断绑定。对象可提供显式诊断投影。原生响应已经保留名称及最终绑定以供测试使用，Telescope 尚待连通实际来源和可安全记录的投影。固定 PHP 探针为 `target/tmp/observability-parity/telescope-request-view-upstream.log`。
+固定 PHP 8.5.12 使用实际 `Illuminate\Http\Response` 渲染视图，随后返回模板路径、显式绑定与该视图组合器写入的数据。固定探针同时提供用于渲染的共享变量和对象的诊断投影。Rust 复用响应已保留的视图信息，从实际渲染入口记录根模板来源，通过显式绑定键提取同一份最终数据。对象输出 Rust 类型和已有的只读属性投影。框架内嵌模板使用逻辑路径；应用可用 `data.token` 等响应脱敏路径遮盖绑定值。 [固定视图诊断提取](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L203-L255)
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过实际 Blade 响应及 Telescope 入库。页面读取共享变量，诊断仅保存显式绑定、组合器值和投影，脱敏字段在写入前遮盖。Telescope Provider 25 项、Watchers 19 项、仓储 14 项、Pulse Provider 24 项、框架 HTTP 观察与 Blade／模板定位共 15 项通过。独占 Redis 用例沿用环境条件。隔离快照全仓格式、三扩展相关严格 Clippy、三语构建与六组文档浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-request-view-{upstream,macos-baseline,macos-final,docs}.log`。
+
+### RequestWatcher 的文本正文与入站上传
+
+固定 PHP 8.5.12 探针确认，`text/plain` 使用原始正文；multipart 将同字段的上传信息递归写入请求参数。上传只公开客户端文件名和十进制 KB 字符串，空文件为 `0KB`，已有数组中间项保留。当前原生诊断尚未读取已缓存纯文本或已解析上传的元数据。待复用框架原始正文缓存和上传字段树，保持未读取流的观察边界。固定探针为 `target/tmp/observability-parity/telescope-request-inbound-payload-upstream.log`。
 
 ### Query 事务和保存点的调用来源
 

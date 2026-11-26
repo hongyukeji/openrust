@@ -290,6 +290,12 @@ impl NativeWatcher {
         if let Some(target) = &event.redirect_target {
             return format!("Redirected to {target}").into();
         }
+        if let Some((path, data)) = event.rendered_view() {
+            return telescope.response_parameters(json!({
+                "view": path.to_string_lossy(),
+                "data": diagnostic_json_shape(Value::Object(data)),
+            }));
+        }
         match content {
             None => "Not Captured".into(),
             Some(b"" | b"0") => "Empty Response".into(),

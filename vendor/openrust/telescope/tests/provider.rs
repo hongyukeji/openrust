@@ -38,6 +38,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/guest", identity_handler)?;
     openrust::support::facades::Route::get("/request-watcher/{kind}", watched_response)?;
     openrust::support::facades::Route::post("/request-watcher/{kind}", watched_response)?;
+    openrust::support::facades::Route::get("/request-view", watched_view)?;
     Ok(())
 }
 
@@ -1881,6 +1882,105 @@ async fn request_watcher_applies_fixed_filters_and_buffered_response_rules() {
             assert_eq!(records.len(), count, "{method} {case}");
         }
     }
+}
+
+struct Projection(openrust::view::ViewData);
+
+impl openrust::view::ViewObject for Projection {
+    fn properties(&self) -> Option<&openrust::view::ViewData> {
+        Some(&self.0)
+    }
+
+    fn call(
+        &self,
+        _: &str,
+        _: &[openrust::view::ViewValue],
+    ) -> openrust::view::ViewResult<openrust::view::ViewValue> {
+        panic!("diagnostics must use the read-only projection")
+    }
+}
+
+fn watched_view(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::{contracts::support::Responsable, support::facades::View, view::ViewValue};
+        let data = [
+            ("label".to_owned(), ViewValue::from("public")),
+            (
+                "metadata".to_owned(),
+                ViewValue::from(json!({"rows":[2,3]})),
+            ),
+            ("secret".to_owned(), ViewValue::from("private-view-value")),
+            (
+                "object".to_owned(),
+                ViewValue::from_object(std::sync::Arc::new(Projection(
+                    [("projected".into(), "readable".into())].into(),
+                ))),
+            ),
+        ]
+        .into();
+        View::get_facade_root()?
+            .make("telescope-observed", data)?
+            .to_response(request)
+            .await
+    })
+}
+
+#[tokio::test]
+async fn request_watcher_records_rendered_view_and_explicit_bindings() {
+    let mut app = application();
+    let path = app
+        .root()
+        .join("resources/views/telescope-observed.blade.html");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "<p>{{ $label }} {{ $shared }} {{ $composer }}</p>").unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.hide_response_parameters(&["data.secret"]);
+    let views = app.app().make::<openrust::view::Factory>().await.unwrap();
+    views.share("shared", "outside");
+    views.composer("telescope-observed", |view| {
+        view.data_mut().insert("composer".into(), "included".into());
+        Ok(())
+    });
+
+    app.get("/api/request-view")
+        .await
+        .unwrap()
+        .assert_ok()
+        .assert_content("<p>public outside included</p>");
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Request), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 1);
+    let snapshot = &entries[0].content["response"];
+    assert_eq!(snapshot["view"], path.to_string_lossy().as_ref());
+    assert_eq!(snapshot["data"]["label"], "public");
+    assert_eq!(snapshot["data"]["metadata"], json!({"rows":[2,3]}));
+    assert_eq!(snapshot["data"]["composer"], "included");
+    assert_eq!(snapshot["data"]["secret"], "********");
+    assert!(snapshot["data"].get("shared").is_none());
+    assert!(
+        snapshot["data"]["object"]["class"]
+            .as_str()
+            .unwrap()
+            .ends_with("::Projection")
+    );
+    assert_eq!(
+        snapshot["data"]["object"]["properties"],
+        json!({"projected":"readable"})
+    );
+    assert!(
+        !entries[0]
+            .content
+            .to_string()
+            .contains("private-view-value")
+    );
 }
 
 impl openrust::contracts::auth::Authenticatable for ObservedModel {

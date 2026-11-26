@@ -34,6 +34,8 @@ Watcher 覆盖请求、查询、异常、日志、任务、批次、缓存、HTT
 
 可用 `ignore_http_methods` 按方法名排除请求，匹配时忽略大小写。也可用 `ignore_status_codes` 按响应状态码排除。缓冲文本和 JSON 的 `size_limit` 按每 1,000 字符整除计算，设置为 `1` 时最多保留 1,999 个字符。
 
+Blade 响应的请求记录包含实际模板路径和显式绑定数据，包括组合器写入的值。视图对象使用只读投影。可用 `data.token` 等响应参数路径脱敏绑定数据。
+
 `openrust_telescope::watchers` 下的 18 类公开结构均实现 `Watcher`。应用 Provider 可使用 `new(options)` 构造并调用 `register(app).await?`；独立注册前先关闭对应默认配置项，避免重复监听。包 Provider 也使用同一入口。`QueryWatcher` 支持 `slow`，`EventWatcher` 支持 `ignore` 模式。默认忽略框架事件；在解析的服务上调用 `telescope.ignore_framework_events.store(false, std::sync::atomic::Ordering::Release)` 可开启，设置仅在当前应用内共享。
 
 应用事件实现 `Event::properties()` 提供 JSON 诊断快照；Rust 不会反射任意结构体字段。监听器名称来自实际调度器注册。模型水合计数来自原生 Eloquent 生命周期。邮件保留原始 mailable 类型和排队标记；预览使用浏览器沙箱，下载包含捕获的 MIME 邮件。

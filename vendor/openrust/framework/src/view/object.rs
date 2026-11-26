@@ -15,6 +15,12 @@ type ObjectResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 /// Rust 服务显式公开给模板的调用接口，不依赖运行时反射。
 /// 使用现有 ClassProjection 或 dyn ViewObject 容器绑定暴露实际服务。
 pub trait ViewObject: std::any::Any + Send + Sync + 'static {
+    /// 返回供诊断显示的 Rust 类型名称。
+    #[doc(hidden)]
+    fn diagnostic_type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     /// 对象严格比较使用服务实例身份，而非临时适配器的地址。
     fn identity(&self) -> usize {
         std::ptr::from_ref(self).cast::<()>().addr()
@@ -71,6 +77,10 @@ impl ObjectValue {
             .ok_or_else(|| serde::ser::Error::custom("视图服务对象不能序列化。"))?;
         serde::Serialize::serialize(properties, serializer)
     }
+    pub(super) fn diagnostic_type_name(&self) -> &'static str {
+        self.value.diagnostic_type_name()
+    }
+
     pub(super) fn properties(&self) -> Option<&super::ViewData> {
         self.check().ok()?;
         self.value.properties()

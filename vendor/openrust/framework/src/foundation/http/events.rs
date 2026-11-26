@@ -36,6 +36,18 @@ pub struct RequestHandled {
 impl RequestHandled {
     pub const NAME: &'static str = r"OpenRust\Foundation\Http\Events\RequestHandled";
 
+    /// 已渲染根模板的实际来源及显式绑定。可序列化对象使用其只读投影。
+    pub fn rendered_view(
+        &self,
+    ) -> Option<(&std::path::Path, serde_json::Map<String, serde_json::Value>)> {
+        let rendered = self
+            .response
+            .extensions
+            .get::<std::sync::Arc<crate::view::RenderedView>>()?;
+        (!rendered.source_path.as_os_str().is_empty())
+            .then(|| (rendered.source_path.as_path(), rendered.diagnostic_data()))
+    }
+
     pub(super) fn new(
         request: &Request,
         response: &Response,

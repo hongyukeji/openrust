@@ -34,6 +34,8 @@ Request records show the client IP resolved by the framework’s trusted proxy c
 
 To exclude requests, set `ignore_http_methods` to exact method names, which are matched case-insensitively, or set `ignore_status_codes` to response codes. The `size_limit` option compares the whole number of 1,000-character units in buffered text or JSON. A limit of `1` keeps up to 1,999 characters.
 
+For rendered Blade responses, the request record includes the resolved template path and its explicit bindings, including values set by composers. View objects contribute their read-only projection. To mask a sensitive binding, use a response parameter path such as `data.token`.
+
 Each of the 18 public types under `openrust_telescope::watchers` implements `Watcher`. Construct a watcher with `new(options)` and call `register(app).await?` from an application Provider; disable its default configuration entry first to avoid registering it twice. The package Provider uses these same registration paths. `QueryWatcher` options include `slow`; `EventWatcher` supports `ignore` patterns. Framework events are ignored by default; set `telescope.ignore_framework_events.store(false, std::sync::atomic::Ordering::Release)` on the resolved service to include them. This setting is shared only within that application.
 
 For application events, implement `Event::properties()` to expose a JSON diagnostic snapshot; Rust does not reflect arbitrary struct fields. Event listener names come from actual dispatcher registrations. Model hydration counts use the native Eloquent lifecycle. Mail records preserve the original mailable and queued flag. Mail previews use a browser sandbox, and downloads contain the captured MIME message.

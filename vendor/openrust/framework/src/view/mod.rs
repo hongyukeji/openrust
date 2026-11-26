@@ -91,6 +91,28 @@ impl std::error::Error for ViewError {
 pub(crate) struct RenderedView {
     pub(crate) name: String,
     pub(crate) data: ViewData,
+    pub(crate) source_path: PathBuf,
+    local_bindings: Vec<String>,
+}
+
+impl RenderedView {
+    pub(crate) fn diagnostic_data(&self) -> serde_json::Map<String, serde_json::Value> {
+        self.local_bindings
+            .iter()
+            .filter_map(|key| self.data.get(key).map(|value| (key, value)))
+            .map(|(key, value)| {
+                let properties = value.to_json().unwrap_or_default();
+                let data = match value {
+                    ViewValue::Instance(instance) => serde_json::json!({
+                        "class": instance.diagnostic_type_name(),
+                        "properties": properties,
+                    }),
+                    _ => properties,
+                };
+                (key.clone(), data)
+            })
+            .collect()
+    }
 }
 
 /// A named view to be rendered when the HTTP response is prepared.
