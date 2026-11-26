@@ -4,11 +4,12 @@ use openrust::{contracts::auth::Authenticatable, support::Str};
 
 use crate::{
     Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
-    ConversationParticipant, ConversationStore, Decisions, HasStructuredOutput, Message,
-    PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
-    StructuredOutput,
+    ConversationMessageStatus, ConversationParticipant, ConversationStore, Decisions,
+    HasStructuredOutput, Message, PendingToolApprovals, PromptOptions, StreamableAgentResponse,
+    StructuredAgentResponse, StructuredOutput,
     approval_store::{ApprovalScope, SavedApproval},
     approval_turn::ApprovalSession,
+    conversation_store::TurnPersistence,
     conversation_stream,
     structured::schema_for,
     tools::ApprovalCheckpoint,
@@ -103,6 +104,22 @@ impl ConversationTurn {
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
     ) -> AiResult<()> {
+        self.persist_turn(
+            prompt,
+            response,
+            approval,
+            ConversationMessageStatus::Completed,
+        )
+        .await
+    }
+
+    async fn persist_turn(
+        &self,
+        prompt: &str,
+        response: &AgentResponse,
+        approval: Option<&ApprovalSession>,
+        status: ConversationMessageStatus,
+    ) -> AiResult<()> {
         let user = Message::user_with_attachments(prompt, self.attachments.iter().cloned());
         let stored = if let Some(database) = self.store.as_database() {
             let title = if self.existing {
@@ -112,7 +129,8 @@ impl ConversationTurn {
                     crate::conversation_title::title(
                         prompt,
                         &response.provider,
-                        database.generates_titles(),
+                        database.generates_titles()
+                            && status == ConversationMessageStatus::Completed,
                         self.faked,
                     )
                     .await,
@@ -123,15 +141,21 @@ impl ConversationTurn {
                     self.approval_scope(),
                     self.existing,
                     &user,
-                    response,
-                    approval,
-                    title.as_deref(),
+                    TurnPersistence {
+                        response,
+                        approval,
+                        title: title.as_deref(),
+                        status,
+                    },
                 )
                 .await
                 .map_err(|_| AiError::ConversationStorageUnavailable)?
         } else {
             if approval.is_some() {
                 return Err(AiError::ConversationStorageUnavailable);
+            }
+            if status == ConversationMessageStatus::Failed {
+                return Ok(());
             }
             self.store
                 .store_turn_with_message(
@@ -365,7 +389,9 @@ impl<A: Agent> PendingConversation<'_, A> {
             response,
             conversation_id.clone(),
             schema.is_some(),
-            move |response| async move { turn.persist(&prompt, &response).await },
+            move |response, status| async move {
+                turn.persist_turn(&prompt, &response, None, status).await
+            },
         );
         Ok(ConversationResponse {
             conversation_id,

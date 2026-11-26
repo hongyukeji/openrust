@@ -202,6 +202,35 @@ impl StreamResponse {
         }
     }
 
+    pub(crate) fn failed_turn(self, metadata: Option<&StreamMetadata>) -> Option<AgentResponse> {
+        if !self
+            .response
+            .steps
+            .iter()
+            .any(|step| !step.tool_results.is_empty())
+        {
+            return None;
+        }
+        let mut response = self.finish(metadata);
+        let last = response.steps.last()?;
+        response.provider.clone_from(&last.provider);
+        response.model.clone_from(&last.model);
+        response.text.clone_from(&last.text);
+        response.reasoning.clone_from(&last.reasoning);
+        response.citations.clone_from(&last.citations);
+        response.tool_calls = response
+            .steps
+            .iter()
+            .flat_map(|step| step.tool_calls.iter().cloned())
+            .collect();
+        response.tool_results = response
+            .steps
+            .iter()
+            .flat_map(|step| step.tool_results.iter().cloned())
+            .collect();
+        Some(response)
+    }
+
     pub(crate) fn finish(mut self, metadata: Option<&StreamMetadata>) -> AgentResponse {
         let response = &mut self.response;
         self.texts.push(std::mem::take(&mut response.text));

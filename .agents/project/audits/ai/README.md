@@ -242,6 +242,12 @@ SQLite 普通与流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式均通过�
 
 - [固定 Laravel Responses 请求规则](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/BuildsTextRequests.php) · [固定 Laravel Responses 历史映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/MapsMessages.php)
 
+默认数据库存储在流式出错时保留已完成的工具步骤，助手行标为 `failed`。历史分页返回状态，继续会话发送原调用和已保存结果。未完成的步骤、断流后收到的文本及工具前截断都不新增步骤。失败轮使用本地标题预览，客户端继续得到原来的错误。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测独立 Artisan 流式失败及 HTTP 读取和继续。首次截断无记录，已执行工具后截断保留一项工具结果和 11 输入／4 输出 Token。后续请求收到保存的结果，实际工具只执行一次。无权参与者没有上游请求。SDK 15 项、严格 Clippy 和三语站点通过。缓冲失败、审批恢复失败及无人消费的流另行核对。
+
+- [固定 Laravel RememberConversation 失败处理](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Middleware/RememberConversation.php)
+
 ## AI-05 Reranking Fake 与 Collection
 
 `Reranking::fake` 可接收结果列表或完整响应，`fake_with` 接收闭包。默认使用框架 Collection 打乱输入索引并按限制返回，支持阻止意外调用及 Laravel 风格断言。Fake 使用应用内状态，在 SDK 的正常入口拦截并通过与供应商相同的索引和数量校验。包测试覆盖元数据、回调、随机结果、耗尽和无出站请求。

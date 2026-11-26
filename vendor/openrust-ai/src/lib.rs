@@ -92,8 +92,8 @@ pub use classification::{
 };
 pub use configuration::load as default_config;
 pub use conversation_store::{
-    ConversationPage, ConversationParticipant, ConversationStore, DatabaseConversationStore,
-    StoredMessage,
+    ConversationMessageStatus, ConversationPage, ConversationParticipant, ConversationStore,
+    DatabaseConversationStore, StoredMessage,
 };
 pub use conversation_title::ConversationTitleAgent;
 pub use conversations::{ConversationResponse, PendingConversation, RemembersConversations};

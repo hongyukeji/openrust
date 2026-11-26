@@ -62,11 +62,37 @@ impl ConversationParticipant {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConversationMessageStatus {
+    Completed,
+    Failed,
+    Paused,
+}
+
+impl ConversationMessageStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Paused => "paused",
+        }
+    }
+}
+
+pub(crate) struct TurnPersistence<'a> {
+    pub(crate) response: &'a AgentResponse,
+    pub(crate) approval: Option<&'a ApprovalSession>,
+    pub(crate) title: Option<&'a str>,
+    pub(crate) status: ConversationMessageStatus,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct StoredMessage {
     pub id: String,
     pub agent: String,
     pub message: Message,
+    pub status: ConversationMessageStatus,
     pub usage: Json,
     pub meta: Json,
     pub steps: Json,
@@ -325,6 +351,7 @@ impl DatabaseConversationStore {
                     "steps",
                     "usage",
                     "meta",
+                    "status",
                     "created_at",
                 ],
                 cursor,
@@ -406,10 +433,14 @@ impl DatabaseConversationStore {
         scope: ApprovalScope<'_>,
         existing: bool,
         user: &Message,
-        response: &AgentResponse,
-        approval: Option<&ApprovalSession>,
-        title: Option<&str>,
+        outcome: TurnPersistence<'_>,
     ) -> DatabaseResult<bool> {
+        let TurnPersistence {
+            response,
+            approval,
+            title,
+            status,
+        } = outcome;
         let ApprovalScope {
             conversation_id: id,
             participant,
@@ -470,6 +501,7 @@ impl DatabaseConversationStore {
                 )
             };
             rows[1].extend([
+                ("status".into(), status.as_str().into()),
                 ("usage".into(), json!(response.usage).to_string().into()),
                 ("meta".into(), json!(response.meta()).to_string().into()),
                 ("steps".into(), steps.to_string().into()),
@@ -642,9 +674,12 @@ impl ConversationStore for DatabaseConversationStore {
                 },
                 existing,
                 message,
-                response,
-                None,
-                None,
+                TurnPersistence {
+                    response,
+                    approval: None,
+                    title: None,
+                    status: ConversationMessageStatus::Completed,
+                },
             )
             .await
             .map_err(storage_error)
@@ -772,8 +807,15 @@ async fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
             step.remove("provider_replay");
         }
     }
+    let status = match text(row, "status")? {
+        "completed" => ConversationMessageStatus::Completed,
+        "failed" => ConversationMessageStatus::Failed,
+        "paused" => ConversationMessageStatus::Paused,
+        _ => return Err(DatabaseError::InvalidScalar),
+    };
     Ok(StoredMessage {
         id: text(row, "id")?.into(),
+        status,
         agent: text(row, "agent")?.into(),
         message: message(row).await?,
         usage: json("usage")?,

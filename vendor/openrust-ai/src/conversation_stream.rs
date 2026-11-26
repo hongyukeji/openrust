@@ -1,10 +1,11 @@
 use std::future::Future;
 
 use futures_util::StreamExt;
+use openrust::support::facades::Log;
 
 use crate::{
-    AgentEventStream, AgentResponse, AiError, AiResult, StreamEventData, StreamableAgentResponse,
-    StructuredAgentResponse,
+    AgentEventStream, AgentResponse, AiError, AiResult, ConversationMessageStatus, StreamEventData,
+    StreamableAgentResponse, StructuredAgentResponse,
     streaming::{StreamMetadata, StreamResponse},
 };
 
@@ -16,7 +17,7 @@ pub(crate) fn remember<F, Fut>(
     persist: F,
 ) -> StreamableAgentResponse
 where
-    F: FnOnce(AgentResponse) -> Fut + Send + 'static,
+    F: FnOnce(AgentResponse, ConversationMessageStatus) -> Fut + Send + 'static,
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
     let metadata = source.step_metadata();
@@ -32,15 +33,19 @@ fn persisted_events<F, Fut>(
     persist: F,
 ) -> AgentEventStream
 where
-    F: FnOnce(AgentResponse) -> Fut + Send + 'static,
+    F: FnOnce(AgentResponse, ConversationMessageStatus) -> Fut + Send + 'static,
     Fut: Future<Output = AiResult<()>> + Send + 'static,
 {
     let events = async_stream::try_stream! {
         let mut final_event = None;
         let mut response = StreamResponse::default();
         let mut started = false;
-        while let Some(event) = source.next().await {
-            let event = event?;
+        let failure = loop {
+            let event = match source.next().await {
+                None => break None,
+                Some(Err(error)) => break Some(error),
+                Some(Ok(event)) => event,
+            };
             if let Some(previous) = final_event.take() {
                 yield previous;
             }
@@ -63,21 +68,32 @@ where
                 _ => {}
             }
             yield event;
-        }
-        let end = final_event.ok_or(AiError::InvalidResponse)?;
-        let mut response = response.finish(metadata.as_ref());
-        if response.steps.is_empty() && metadata.as_ref().is_some_and(StreamMetadata::stopped) {
-            yield end;
-            return;
-        }
-        if structured {
-            if let Some(last) = response.steps.last() {
-                response.text.clone_from(&last.text);
+        };
+        match (failure, final_event) {
+            (None, Some(end)) => {
+                let mut response = response.finish(metadata.as_ref());
+                if response.steps.is_empty() && metadata.as_ref().is_some_and(StreamMetadata::stopped) {
+                    yield end;
+                    return;
+                }
+                if structured {
+                    if let Some(last) = response.steps.last() {
+                        response.text.clone_from(&last.text);
+                    }
+                    response = StructuredAgentResponse::parse(response)?.response;
+                }
+                persist(response, ConversationMessageStatus::Completed).await?;
+                yield end;
             }
-            response = StructuredAgentResponse::parse(response)?.response;
+            (failure, _) => {
+                if let Some(partial) = response.failed_turn(metadata.as_ref())
+                    && persist(partial, ConversationMessageStatus::Failed).await.is_err()
+                {
+                    let _ = Log::warning("AI 流式会话的已完成工具步骤保存失败", &Default::default());
+                }
+                Err(failure.unwrap_or(AiError::InvalidResponse))?;
+            }
         }
-        persist(response).await?;
-        yield end;
     };
     Box::pin(events)
 }
