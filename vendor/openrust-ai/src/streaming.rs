@@ -26,9 +26,9 @@ mod completion;
 mod protocols;
 mod reasoning;
 pub use citations::UrlCitation;
-pub(crate) use completion::StreamMetadata;
 pub use completion::StreamedAgentResponse;
 use completion::{CompletionCallbacks, StreamStep};
+pub(crate) use completion::{StreamMetadata, StreamResponse};
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
 pub use reasoning::ReasoningPart;
 
@@ -133,6 +133,10 @@ impl StreamableAgentResponse {
     pub(crate) fn with_step_metadata(mut self, metadata: StreamMetadata) -> Self {
         self.metadata = Some(metadata);
         self
+    }
+
+    pub(crate) fn step_metadata(&self) -> Option<StreamMetadata> {
+        self.metadata.clone()
     }
 
     pub(crate) fn observe_step(mut self, observation: crate::events::StepObservation) -> Self {

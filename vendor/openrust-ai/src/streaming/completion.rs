@@ -58,56 +58,11 @@ impl StreamedAgentResponse {
             ),
             _ => return None,
         };
-        let mut response = AgentResponse::new("", Usage::default(), "", "");
-        let mut usage: Option<Usage> = None;
-        let mut texts = Vec::new();
-        let mut text = String::new();
-        let mut step_has_tool_result = false;
+        let mut collector = StreamResponse::default();
         for event in &events {
-            match &event.data {
-                StreamEventData::StreamStart { provider, model } => {
-                    response.provider.clone_from(provider);
-                    response.model.clone_from(model);
-                    if step_has_tool_result {
-                        texts.push(std::mem::take(&mut text));
-                        step_has_tool_result = false;
-                    }
-                }
-                StreamEventData::TextDelta { delta, .. } => text.push_str(delta),
-                StreamEventData::Citation { citation, .. } => {
-                    response.citations.push(citation.clone())
-                }
-                StreamEventData::ToolCall { call } => response.tool_calls.push(call.clone()),
-                StreamEventData::ToolResult { result } => {
-                    response.tool_results.push(result.clone());
-                    step_has_tool_result = true;
-                }
-                StreamEventData::StreamEnd { usage: step, .. } => {
-                    usage = Some(match usage.as_ref() {
-                        Some(previous) => step.clone().combine(previous),
-                        None => step.clone(),
-                    });
-                }
-                _ => {}
-            }
+            collector.record(&event.data);
         }
-        texts.push(text);
-        texts.retain(|text| !text.trim().is_empty());
-        response.text = texts.join("\n\n");
-        response.reasoning = collect_reasoning(&events);
-        response.usage = usage.unwrap_or_default();
-        response.steps = collect_steps(&events);
-        if let Some(metadata) = metadata {
-            metadata.apply(&mut response.steps);
-            if let Some((first, remaining)) = response.steps.split_first() {
-                response
-                    .model
-                    .clone_from(&remaining.last().unwrap_or(first).model);
-                response.usage = remaining.iter().fold(first.usage.clone(), |total, step| {
-                    step.usage.clone().combine(&total)
-                });
-            }
-        }
+        let response = collector.finish(metadata);
         Some(Self {
             invocation_id,
             response,
@@ -156,21 +111,85 @@ impl StreamMetadata {
     }
 }
 
-fn collect_steps(events: &[StreamEvent]) -> Vec<Step> {
-    let mut steps = Vec::new();
-    let mut current = None;
-    for event in events {
-        if matches!(event.data, StreamEventData::StreamStart { .. }) {
-            current = Some(StreamStep::default());
-        }
-        if let Some(step) = current.as_mut()
-            && step.record(&event.data)
-            && let Some(step) = current.take()
-        {
-            steps.push(step.finish());
+pub(crate) struct StreamResponse {
+    response: AgentResponse,
+    current: Option<StreamStep>,
+    usage: Option<Usage>,
+    texts: Vec<String>,
+    reasoning: ReasoningBlocks,
+    step_has_tool_result: bool,
+}
+
+impl Default for StreamResponse {
+    fn default() -> Self {
+        Self {
+            response: AgentResponse::new("", Usage::default(), "", ""),
+            current: None,
+            usage: None,
+            texts: Vec::new(),
+            reasoning: ReasoningBlocks::default(),
+            step_has_tool_result: false,
         }
     }
-    steps
+}
+
+impl StreamResponse {
+    pub(crate) fn record(&mut self, data: &StreamEventData) {
+        match data {
+            StreamEventData::StreamStart { provider, model } => {
+                self.response.provider.clone_from(provider);
+                self.response.model.clone_from(model);
+                self.current = Some(StreamStep::default());
+                if self.step_has_tool_result {
+                    self.texts.push(std::mem::take(&mut self.response.text));
+                    self.step_has_tool_result = false;
+                }
+            }
+            StreamEventData::TextDelta { delta, .. } => self.response.text.push_str(delta),
+            StreamEventData::Citation { citation, .. } => {
+                self.response.citations.push(citation.clone());
+            }
+            StreamEventData::ToolCall { call } => self.response.tool_calls.push(call.clone()),
+            StreamEventData::ToolResult { result } => {
+                self.response.tool_results.push(result.clone());
+                self.step_has_tool_result = true;
+            }
+            StreamEventData::StreamEnd { usage, .. } => {
+                self.usage = Some(match self.usage.as_ref() {
+                    Some(previous) => usage.clone().combine(previous),
+                    None => usage.clone(),
+                });
+            }
+            _ => self.reasoning.record(data),
+        }
+        if let Some(step) = self.current.as_mut()
+            && step.record(data)
+            && let Some(step) = self.current.take()
+        {
+            self.response.steps.push(step.finish());
+        }
+    }
+
+    pub(crate) fn finish(mut self, metadata: Option<&StreamMetadata>) -> AgentResponse {
+        let response = &mut self.response;
+        self.texts.push(std::mem::take(&mut response.text));
+        self.texts.retain(|text| !text.trim().is_empty());
+        response.text = self.texts.join("\n\n");
+        response.reasoning = self.reasoning.finish();
+        response.usage = self.usage.unwrap_or_default();
+        if let Some(metadata) = metadata {
+            metadata.apply(&mut response.steps);
+            if let Some((first, remaining)) = response.steps.split_first() {
+                response
+                    .model
+                    .clone_from(&remaining.last().unwrap_or(first).model);
+                response.usage = remaining.iter().fold(first.usage.clone(), |total, step| {
+                    step.usage.clone().combine(&total)
+                });
+            }
+        }
+        self.response
+    }
 }
 
 #[derive(Default)]

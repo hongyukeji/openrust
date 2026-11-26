@@ -244,6 +244,8 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 独立 HTTP、Artisan、SQLite Worker、模型协议服务和真实 Reverb WebSocket 联测三种方式。通过框架频道授权接口得到订阅签名，未授权请求收到 403，未订阅客户端无事件。超过 Reverb 10 KB 入口限制的中文文本事件仍完整到达 HTTP SSE，前后的正常广播保留，拒绝投递写日志。Worker 对同一调用标识发出完成和终态失败事件，实际用量交给回调。三语构建、AI 页面在两种部署前缀的桌面与移动检查以及全站导航页渲染通过。全站浏览器脚本的安装页语言切换保留查询和锚点断言在该轮超时，独立记录于验收日志。
 
+Worker 复用流完成回调的响应汇总，发布期间逐帧处理。新增独立 Reverb 实测中，两步分别报告 11 输入／3 输出和 7 输入／4 输出 Token，Worker 完成回调汇总为 18／7，保留工具结果、合并文本和各步终帧实际模型。订阅者仍按步骤收到原始用量。原三种广播、403、进程隔离、终态失败和大小限制场景同步复验。SDK 回归 14 项、严格 Clippy 与三语站点通过。
+
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel BroadcastAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/BroadcastAgent.php)
 
 ## AI-06 OpenAI Files API

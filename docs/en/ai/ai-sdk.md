@@ -732,7 +732,7 @@ let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).awai
 let response = stream.to_response();
 ```
 
-Use `broadcast_on_queue` to generate and publish the stream in a worker. Read `invocation_id()` before dispatch to correlate client events. Success callbacks receive the combined response. A terminal error emits `stream_failed` with the same invocation ID. The worker defaults to one attempt for a broadcast because subscribers may have already received some events.
+Use `broadcast_on_queue` to generate and publish the stream in a worker. Read `invocation_id()` before dispatch to correlate client events. Success callbacks receive the combined text, usage across all model steps, tool outcomes, and each step’s metadata. A terminal error emits `stream_failed` with the same invocation ID. The worker defaults to one attempt for a broadcast because subscribers may have already received some events.
 
 An Agent can override `without_broadcasting` to exclude event types from delivery while keeping them in the HTTP stream. Immediate delivery failures are logged. The broadcaster’s payload limits still apply.
 

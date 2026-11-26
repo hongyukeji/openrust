@@ -732,7 +732,7 @@ let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).awai
 let response = stream.to_response();
 ```
 
-`broadcast_on_queue` 在 Worker 内生成和发布流。派发前可通过 `invocation_id()` 取得调用标识，用于关联客户端事件。成功回调接收汇总响应，终态失败会发送同一调用标识的 `stream_failed`。广播任务默认只尝试一次，因为订阅者可能已收到部分事件。
+`broadcast_on_queue` 在 Worker 内生成和发布流。派发前可通过 `invocation_id()` 取得调用标识，用于关联客户端事件。成功回调接收合并文本、所有模型步骤的汇总用量、工具结果和逐步元数据，终态失败会发送同一调用标识的 `stream_failed`。广播任务默认只尝试一次，因为订阅者可能已收到部分事件。
 
 Agent 可覆盖 `without_broadcasting` 来排除部分广播事件，同时在 HTTP 流中保留这些事件。即时投递失败会写入日志。广播服务自身的消息大小限制仍有效。
 

@@ -732,7 +732,7 @@ let stream = agent.broadcast_now("Summarize this ticket", [channel.into()]).awai
 let response = stream.to_response();
 ```
 
-`broadcast_on_queue` 在 Worker 內產生並發布串流。派發前可透過 `invocation_id()` 取得呼叫識別碼，用於關聯用戶端事件。成功回呼接收彙整回應，終止失敗會傳送同一呼叫識別碼的 `stream_failed`。廣播工作預設只嘗試一次，因為訂閱者可能已收到部分事件。
+`broadcast_on_queue` 在 Worker 內產生並發布串流。派發前可透過 `invocation_id()` 取得呼叫識別碼，用於關聯用戶端事件。成功回呼接收合併文字、所有模型步驟的彙總用量、工具結果和逐步中繼資料，終止失敗會傳送同一呼叫識別碼的 `stream_failed`。廣播工作預設只嘗試一次，因為訂閱者可能已收到部分事件。
 
 Agent 可覆寫 `without_broadcasting` 排除部分廣播事件，同時在 HTTP 串流中保留這些事件。即時投遞失敗會寫入日誌。廣播服務本身的訊息大小限制仍有效。
 

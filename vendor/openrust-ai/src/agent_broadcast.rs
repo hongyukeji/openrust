@@ -10,7 +10,10 @@ use openrust::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{Agent, AgentResponse, AiError, AiResult, StreamEvent, StreamEventData, Usage};
+use crate::{
+    Agent, AgentResponse, AiError, AiResult, StreamEvent, StreamEventData,
+    streaming::StreamResponse,
+};
 
 pub(crate) struct StreamBroadcast {
     pub(crate) channels: Vec<BroadcastChannel>,
@@ -132,31 +135,20 @@ impl QueuedBroadcast {
             excluded: agent.without_broadcasting(),
             immediate: true,
         };
-        let mut events = agent.stream_with(text, options).await?.into_stream();
-        let mut response = AgentResponse::new("", Usage::default(), "", "");
+        let stream = agent.stream_with(text, options).await?;
+        let metadata = stream.step_metadata();
+        let mut events = stream.into_stream();
+        let mut response = StreamResponse::default();
         let mut completed = false;
         while let Some(event) = events.next().await {
             let mut event = event?;
             event.invocation_id.clone_from(&self.invocation_id);
             broadcast.publish(&event).await;
-            match event.data {
-                StreamEventData::StreamStart { provider, model } => {
-                    response.provider = provider;
-                    response.model = model;
-                }
-                StreamEventData::TextDelta { delta, .. } => response.text.push_str(&delta),
-                StreamEventData::Citation { citation, .. } => response.citations.push(citation),
-                StreamEventData::ToolCall { call } => response.tool_calls.push(call),
-                StreamEventData::ToolResult { result } => response.tool_results.push(result),
-                StreamEventData::StreamEnd { usage, .. } => {
-                    response.usage = usage;
-                    completed = true;
-                }
-                _ => {}
-            }
+            completed = matches!(event.data, StreamEventData::StreamEnd { .. });
+            response.record(&event.data);
         }
         completed
-            .then_some(response)
+            .then(|| response.finish(metadata.as_ref()))
             .ok_or(AiError::InvalidResponse)
     }
 
