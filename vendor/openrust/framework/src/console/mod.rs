@@ -100,6 +100,7 @@ pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 #[derive(Clone)]
 pub struct Input {
     pub(super) helper_set: Option<HelperSet>,
+    component_dispatch: Option<Arc<dyn view::components::ComponentDispatch>>,
     syntax: Arc<clap::Command>,
     parsing_syntax: Arc<clap::Command>,
     invoked_name: Option<String>,
@@ -123,6 +124,7 @@ impl Input {
             matches: self.matches.clone(),
             shutdown: Some(shutdown),
             helper_set: self.helper_set.clone(),
+            component_dispatch: self.component_dispatch.clone(),
             interaction: self.interaction.clone(),
             stream: self.stream.clone(),
         }

@@ -2259,7 +2259,8 @@
     "71: Explicit terminal style inheritance and ancestor layout are verified. Custom modifier and dynamic element dispatch stay open.",
     "72: Custom terminal modifier callback order, data and errors are verified. Dynamic element dispatch and HTML recovery stay open.",
     "73: Typed element entry and runtime forwarding, values and errors verified. General HTML recovery stays open.",
-    "74: HTML4 fragment recovery verified against 252 source oracle cases, plus terminal and HTTP consumers. Factory injection remains open."
+    "74: HTML4 fragment recovery verified against 252 source oracle cases, plus terminal and HTTP consumers. Factory injection remains open.",
+    "75: Bind and construct command component dispatch once per execution, preserve its original output and verify dynamic/sync customization."
   ],
   "native_adaptations": [
     {
@@ -3045,6 +3046,20 @@
     "Component": [
       "render_view",
       "render_view_with"
+    ]
+  },
+  "command_component_factory": {
+    "CommandComponentFactory": [
+      "make"
+    ],
+    "ComponentDispatch": [
+      "handles_call",
+      "call",
+      "display_line"
+    ],
+    "CommandIo": [
+      "components",
+      "output_components"
     ]
   }
 }

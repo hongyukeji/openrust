@@ -1,0 +1,52 @@
+{
+  "base": "16dc58946157de5e238a8f29f827aa3886ac615a",
+  "contract": "command-component-factory-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.48s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.34s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.21s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 5 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 228 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s"
+  ],
+  "runtime": {
+    "source_factory_cases": 12,
+    "framework_targets": 20,
+    "framework_parent_tests": 81,
+    "new_artisan_processes": 3,
+    "new_http_requests": 14,
+    "formal_document_consumers": 228,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-first.log",
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-consumers.log",
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-doc-first.log",
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-gates.log",
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-site.log",
+    "target/tmp/artisan-tutorial-20261125/command-component-factory-source.json"
+  ],
+  "unaccepted_attempts": [
+    "测试夹具初轮漏引 Application、Facade trait，文档抽取初轮误用根应用未依赖的 tempfile，已修正复验。"
+  ],
+  "remaining": [
+    "按 Artisan 其他锚点继续核对命令退出、注册、程序调用与开发命令。",
+    "原生类型化扩展目前开放四种行组件覆盖。注册表中的问答、任务和其他按名称调用可由 ComponentDispatch 接管。"
+  ],
+  "pushed": false
+}

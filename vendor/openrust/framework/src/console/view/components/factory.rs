@@ -3,7 +3,7 @@ use super::{
     Alert, Ask, AskWithCompletion, BulletList, Choice, Confirm, Error, Info, Line, Secret, Success,
     Task, TwoColumnDetail, Warn,
 };
-use super::{ComponentContext, ComponentRegistry};
+use super::{ComponentContext, ComponentDispatch, ComponentRegistry};
 use crate::console::{
     AsOutput, ChoiceKey, CompletionCallback, ConsoleError, OutputOptions, OutputReference,
     QuestionStyle,
@@ -55,6 +55,7 @@ impl<T: ComponentOutput + ?Sized> ComponentOutput for Box<T> {
 pub struct Factory<'a, T: ComponentOutput + ?Sized> {
     output: &'a mut T,
     registry_source: RegistrySource,
+    pub(super) dispatch: Option<Arc<dyn ComponentDispatch>>,
 }
 enum RegistrySource {
     Application(Arc<crate::container::Container>),
@@ -67,13 +68,34 @@ impl<'a, T: ComponentOutput + ?Sized> Factory<'a, T> {
             output,
             registry_source: crate::support::facades::current_container()
                 .map_or(RegistrySource::None, RegistrySource::Application),
+            dispatch: None,
         }
     }
     pub fn with_registry(output: &'a mut T, registry: Arc<ComponentRegistry>) -> Self {
         Self {
             output,
             registry_source: RegistrySource::Explicit(registry),
+            dispatch: None,
         }
+    }
+    pub(crate) fn with_dispatch(
+        output: &'a mut T,
+        dispatch: Option<Arc<dyn ComponentDispatch>>,
+    ) -> Self {
+        Self {
+            dispatch,
+            ..Self::new(output)
+        }
+    }
+    fn display_line(
+        &mut self,
+        name: &str,
+        text: &str,
+        options: OutputOptions,
+    ) -> Option<Result<(), ConsoleError>> {
+        self.dispatch
+            .clone()?
+            .display_line(name, text, options, self.component_context())
     }
     pub(super) fn registry(&self) -> Result<Option<Arc<ComponentRegistry>>, ConsoleError> {
         match &self.registry_source {
@@ -280,13 +302,17 @@ macro_rules! line_method {
     ($method:ident,$with:ident,$component:ident) => {
         impl<T: ComponentOutput + ?Sized> Factory<'_, T> {
             pub fn $method(&mut self, text: &str) -> Result<(), ConsoleError> {
-                $component::new(self.output).render(text)
+                self.$with(text, crate::console::OutputVerbosity::Normal)
             }
             pub fn $with(
                 &mut self,
                 text: &str,
                 options: impl Into<OutputOptions>,
             ) -> Result<(), ConsoleError> {
+                let options = options.into();
+                if let Some(result) = self.display_line(stringify!($method), text, options) {
+                    return result;
+                }
                 $component::new(self.output).render_with(text, options)
             }
         }

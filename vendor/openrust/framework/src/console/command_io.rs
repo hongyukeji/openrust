@@ -8,6 +8,7 @@ pub struct CommandIo<'a> {
     input: &'a Input,
     output: OutputStyle<'a>,
     components_output: Option<Box<OutputStyle<'a>>>,
+    component_dispatch: Option<std::sync::Arc<dyn super::view::components::ComponentDispatch>>,
 }
 impl Input {
     pub fn io<'a>(&'a self, output: &'a mut Output) -> CommandIo<'a> {
@@ -31,6 +32,7 @@ impl<'a> CommandIo<'a> {
             input,
             output: OutputStyle::new(input, output),
             components_output: None,
+            component_dispatch: input.component_dispatch.clone(),
         }
     }
     pub fn has_argument(&self, name: &str) -> bool {
@@ -64,7 +66,7 @@ impl<'a> CommandIo<'a> {
             .components_output
             .as_deref_mut()
             .unwrap_or(&mut self.output);
-        super::view::components::Factory::new(output)
+        super::view::components::Factory::with_dispatch(output, self.component_dispatch.clone())
     }
     pub fn output_components(&mut self) -> super::view::components::Factory<'_, OutputStyle<'a>> {
         self.components()

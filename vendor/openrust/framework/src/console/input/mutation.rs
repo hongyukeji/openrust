@@ -99,6 +99,7 @@ impl Input {
             matches,
             shutdown: self.shutdown.clone(),
             helper_set: self.helper_set.clone(),
+            component_dispatch: self.component_dispatch.clone(),
             interaction: self.interaction.clone(),
             stream: self.stream.clone(),
         };

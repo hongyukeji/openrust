@@ -958,3 +958,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 252 个固定源码场景验证原始与终端输出，覆盖自闭合非空类型、匹配优先级、错配格式、不完整标签、表格重排、HTML4 引用、原始文本和空正文。保留现有纯 Rust tokenizer 与输出管线，补齐固定 HTML4 的节点构造规则，附来源许可。
 
 67 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、225 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续 Factory 容器构造和覆盖。见 terminal-html-recovery-contracts.json 与 accepted-terminal-html-recovery.json。
+
+
+## 75. 命令组件工厂容器构造
+
+12 个固定源码场景核对默认、两应用替换、同次执行共享、普通输出切换和构造失败。原生构造器及分发状态通过当前应用绑定，所有动态调用可选择接管，同步行组件也有独立覆盖入口。
+
+81 个框架父测试、真实 Artisan 3 进程、HTTP 14 请求、228 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续命令退出、生成和注册。见 command-component-factory-contracts.json 与 accepted-command-component-factory.json。

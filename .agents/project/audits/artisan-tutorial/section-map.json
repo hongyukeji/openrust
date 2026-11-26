@@ -369,7 +369,8 @@
       "terminal_style_inheritance": "terminal-style-inheritance-contracts.json",
       "terminal_style_modifiers": "terminal-style-modifiers-contracts.json",
       "terminal_element_dispatch": "terminal-element-dispatch-contracts.json",
-      "terminal_html_recovery": "terminal-html-recovery-contracts.json"
+      "terminal_html_recovery": "terminal-html-recovery-contracts.json",
+      "command_component_factory": "command-component-factory-contracts.json"
     },
     {
       "anchor": "tables",
@@ -779,6 +780,14 @@
     "remaining": [
       "Factory 容器构造和覆盖。",
       "Artisan 其余教程锚点继续逐项核对。"
+    ]
+  },
+  "command_component_factory": {
+    "status": "verified_command_component_factory_container_resolution",
+    "contract": "command-component-factory-contracts.json",
+    "remaining": [
+      "按 Artisan 其他锚点继续核对命令退出、注册、程序调用与开发命令。",
+      "原生类型化扩展目前开放四种行组件覆盖。注册表中的问答、任务和其他按名称调用可由 ComponentDispatch 接管。"
     ]
   }
 }

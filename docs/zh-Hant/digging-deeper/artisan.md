@@ -2789,3 +2789,66 @@ fn register_html_recovery() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 綁定命令元件工廠 {#command-component-factory}
+
+在應用程式容器中綁定 `dyn CommandComponentFactory`，通常放在服務提供者中。Artisan 每次執行時解析建構器，並傳入已解析的輸入與輸出串流借用。命令內取得的各個元件控制代碼共用回傳的 `ComponentDispatch`。
+
+用 `handles_call` 選擇接管的動態呼叫，用 `display_line` 自訂同步的 `info`、`success`、`warn` 和 `error` 方法。命令之後更換一般輸出時，元件回呼仍使用原本的輸出情境。建構失敗會在命令本文執行前回傳給呼叫端。
+
+```rust
+use std::sync::Arc;
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, ConsoleFuture, Input, OutputOptions,
+    OutputReference,
+    view::components::{CommandComponentFactory, ComponentArgument, ComponentContext, ComponentDispatch},
+};
+use openrust::contracts::{container::Container, foundation::Application as _};
+use openrust::foundation::Application;
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+
+struct Labels;
+
+impl CommandComponentFactory for Labels {
+    fn make(
+        &self, _: &Input, _: OutputReference<'_>,
+    ) -> Result<Arc<dyn ComponentDispatch>, ConsoleError> {
+        Ok(Arc::new(Self))
+    }
+}
+
+impl ComponentDispatch for Labels {
+    fn handles_call(&self, name: &str) -> bool {
+        name == "label"
+    }
+    fn call<'a>(
+        &'a self, _: &'a str, _: Vec<ComponentArgument<'a>>, _: ComponentContext<'a>,
+    ) -> ConsoleFuture<'a, Result<Value, ConsoleError>> {
+        Box::pin(async { Ok(json!("ready")) })
+    }
+    fn display_line(
+        &self, name: &str, text: &str, options: OutputOptions, mut output: ComponentContext<'_>,
+    ) -> Option<Result<(), ConsoleError>> {
+        (name == "info").then(|| output.as_output().writeln(&format!("Result: {text}"), options))
+    }
+}
+
+fn bind_component_factory(app: &Application) -> Result<(), ConsoleError> {
+    app.container().instance::<dyn CommandComponentFactory>(Arc::new(Labels))
+        .map_err(ConsoleError::from_source)?;
+    Ok(())
+}
+
+fn register_component_factory() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:component-factory", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let label = io.components().call("label", vec![]).await?;
+            io.output_components().info(label.as_str().unwrap_or_default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

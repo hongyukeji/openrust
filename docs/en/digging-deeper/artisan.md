@@ -2789,3 +2789,66 @@ fn register_html_recovery() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Bind a command component factory {#command-component-factory}
+
+Bind `dyn CommandComponentFactory` in the application container, usually in a service provider. Artisan resolves the constructor for each execution and passes the parsed input and a borrow of the output stream. The returned `ComponentDispatch` is shared by the component handles obtained during that command.
+
+Implement `handles_call` to intercept dynamic calls and `display_line` to customize the synchronous `info`, `success`, `warn` and `error` methods. The dispatch callback receives the component’s original output context even if the command later replaces its ordinary output. Constructor errors reach the caller before the command body runs.
+
+```rust
+use std::sync::Arc;
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, ConsoleFuture, Input, OutputOptions,
+    OutputReference,
+    view::components::{CommandComponentFactory, ComponentArgument, ComponentContext, ComponentDispatch},
+};
+use openrust::contracts::{container::Container, foundation::Application as _};
+use openrust::foundation::Application;
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+
+struct Labels;
+
+impl CommandComponentFactory for Labels {
+    fn make(
+        &self, _: &Input, _: OutputReference<'_>,
+    ) -> Result<Arc<dyn ComponentDispatch>, ConsoleError> {
+        Ok(Arc::new(Self))
+    }
+}
+
+impl ComponentDispatch for Labels {
+    fn handles_call(&self, name: &str) -> bool {
+        name == "label"
+    }
+    fn call<'a>(
+        &'a self, _: &'a str, _: Vec<ComponentArgument<'a>>, _: ComponentContext<'a>,
+    ) -> ConsoleFuture<'a, Result<Value, ConsoleError>> {
+        Box::pin(async { Ok(json!("ready")) })
+    }
+    fn display_line(
+        &self, name: &str, text: &str, options: OutputOptions, mut output: ComponentContext<'_>,
+    ) -> Option<Result<(), ConsoleError>> {
+        (name == "info").then(|| output.as_output().writeln(&format!("Result: {text}"), options))
+    }
+}
+
+fn bind_component_factory(app: &Application) -> Result<(), ConsoleError> {
+    app.container().instance::<dyn CommandComponentFactory>(Arc::new(Labels))
+        .map_err(ConsoleError::from_source)?;
+    Ok(())
+}
+
+fn register_component_factory() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:component-factory", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let label = io.components().call("label", vec![]).await?;
+            io.output_components().info(label.as_str().unwrap_or_default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

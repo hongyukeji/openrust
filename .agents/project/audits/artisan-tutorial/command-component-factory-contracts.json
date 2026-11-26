@@ -1,0 +1,40 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_command_component_factory_container_resolution",
+  "bindings": {
+    "CommandComponentFactory": [
+      "make"
+    ],
+    "ComponentDispatch": [
+      "handles_call",
+      "call",
+      "display_line"
+    ],
+    "CommandIo": [
+      "components",
+      "output_components"
+    ]
+  },
+  "source_oracle": "command-component-factory-oracle.json",
+  "runtime": {
+    "source_factory_cases": 12,
+    "framework_targets": 20,
+    "framework_parent_tests": 81,
+    "new_artisan_processes": 3,
+    "new_http_requests": 14,
+    "formal_document_consumers": 228,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "与固定 Command::run 一样，应用容器每次命令执行取构造器，同次命令重复取得的句柄共享该构造结果。",
+    "Rust 构造器接收解析输入和原输出的短期借用，拥有的分发状态与输出分开；运行组件时再借用原始上下文。",
+    "动态调用在默认组件解析前允许覆盖。类型化 info、success、warn、error 的同步覆盖独立提供，现有未覆盖入口继续走原生组件。",
+    "普通输出替换仅影响普通命令输出；原组件上下文、构造失败、默认回退及两应用真实并发均已验证。"
+  ],
+  "remaining": [
+    "按 Artisan 其他锚点继续核对命令退出、注册、程序调用与开发命令。",
+    "原生类型化扩展目前开放四种行组件覆盖。注册表中的问答、任务和其他按名称调用可由 ComponentDispatch 接管。"
+  ]
+}

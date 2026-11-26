@@ -72,6 +72,7 @@ impl CommandDefinition {
             interaction: Default::default(),
             stream: None,
             helper_set: None,
+            component_dispatch: None,
             syntax: self.syntax.clone(),
             parsing_syntax: self.syntax.clone(),
             invoked_name: None,

@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "html4_fragment_recovery_verified_factory_injection_pending",
+  "status": "command_factory_injection_verified_output_sections_final_review_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -20,7 +20,8 @@
     "terminal-style-inheritance-contracts.json",
     "terminal-style-modifiers-contracts.json",
     "terminal-element-dispatch-contracts.json",
-    "terminal-html-recovery-contracts.json"
+    "terminal-html-recovery-contracts.json",
+    "command-component-factory-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [

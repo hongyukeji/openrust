@@ -1,0 +1,137 @@
+[
+    {
+        "owner": "A",
+        "mode": "once",
+        "builds": 1,
+        "status": 0,
+        "out": "A-1:one\nordinary\nA-1:two\n",
+        "observed": {
+            "same": true,
+            "answer": "A-1"
+        },
+        "error": null
+    },
+    {
+        "owner": "A",
+        "mode": "replacement",
+        "builds": 2,
+        "status": 0,
+        "out": "A-2:one\nordinary\nA-2:two\n",
+        "observed": {
+            "replacement": "replacement\n",
+            "same": true,
+            "answer": "A-2"
+        },
+        "error": null
+    },
+    {
+        "owner": "A",
+        "mode": "again",
+        "builds": 3,
+        "status": 0,
+        "out": "A-3:one\nordinary\nA-3:two\n",
+        "observed": {
+            "same": true,
+            "answer": "A-3"
+        },
+        "error": null
+    },
+    {
+        "owner": "B",
+        "mode": "once",
+        "builds": 1,
+        "status": 0,
+        "out": "B-1:one\nordinary\nB-1:two\n",
+        "observed": {
+            "same": true,
+            "answer": "B-1"
+        },
+        "error": null
+    },
+    {
+        "owner": "B",
+        "mode": "replacement",
+        "builds": 2,
+        "status": 0,
+        "out": "B-2:one\nordinary\nB-2:two\n",
+        "observed": {
+            "replacement": "replacement\n",
+            "same": true,
+            "answer": "B-2"
+        },
+        "error": null
+    },
+    {
+        "owner": "B",
+        "mode": "again",
+        "builds": 3,
+        "status": 0,
+        "out": "B-3:one\nordinary\nB-3:two\n",
+        "observed": {
+            "same": true,
+            "answer": "B-3"
+        },
+        "error": null
+    },
+    {
+        "owner": "none",
+        "mode": "once",
+        "builds": 0,
+        "status": 0,
+        "out": "\n   INFO  one.  \n\nordinary\n\n   INFO  two.  \n\n",
+        "observed": {
+            "same": true
+        },
+        "error": null
+    },
+    {
+        "owner": "none",
+        "mode": "replacement",
+        "builds": 0,
+        "status": 0,
+        "out": "\n   INFO  one.  \n\nordinary\n\n   INFO  two.  \n\n",
+        "observed": {
+            "replacement": "replacement\n",
+            "same": true
+        },
+        "error": null
+    },
+    {
+        "owner": "none",
+        "mode": "again",
+        "builds": 0,
+        "status": 0,
+        "out": "\n   INFO  one.  \n\nordinary\n\n   INFO  two.  \n\n",
+        "observed": {
+            "same": true
+        },
+        "error": null
+    },
+    {
+        "owner": "error",
+        "mode": "once",
+        "builds": 1,
+        "status": null,
+        "out": "",
+        "observed": [],
+        "error": "RuntimeException:factory unavailable"
+    },
+    {
+        "owner": "error",
+        "mode": "replacement",
+        "builds": 2,
+        "status": null,
+        "out": "",
+        "observed": [],
+        "error": "RuntimeException:factory unavailable"
+    },
+    {
+        "owner": "error",
+        "mode": "again",
+        "builds": 3,
+        "status": null,
+        "out": "",
+        "observed": [],
+        "error": "RuntimeException:factory unavailable"
+    }
+]

@@ -391,6 +391,31 @@ async fn formal_progress_example(){
     html_recovery_checks=dispatch_checks.replace('formal_terminal_element_dispatch_example','formal_terminal_html_recovery_example').replace('register_element_dispatch)','register_html_recovery)').replace('"tools:element-dispatch"','"tools:html-recovery"')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_html_recovery{\n'+html_recovery_snippet+html_recovery_checks+'}\n')
 
+    command_factory_snippet=re.search(r'```rust\n(.*?)```',text.split('{#command-component-factory}',1)[1],re.S).group(1)
+    command_factory_checks = r'''
+#[tokio::test]
+async fn formal_command_component_factory_example() {
+    let root = std::env::temp_dir().join(format!("artisan-command-factory-{}-{}", std::process::id(), module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = Application::configure(root.clone())
+        .with_routing(openrust::foundation::configuration::Routing::default().commands(register_component_factory))
+        .create()
+        .unwrap();
+    bind_component_factory(&app).unwrap();
+    app.boot().await.unwrap();
+    use openrust::support::facades::Facade as _;
+    openrust::support::facades::App::set_facade_application(Some(&app), async {
+        let mut output = openrust::console::Output::default();
+        let code = Artisan::call("tools:component-factory", &["--no-ansi".into()], &mut output)
+            .await.unwrap();
+        assert_eq!(code, 0);
+        assert_eq!(output.stdout, "Result: ready\n");
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_command_component_factory{\n'+command_factory_snippet+command_factory_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

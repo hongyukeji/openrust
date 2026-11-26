@@ -131,6 +131,15 @@ impl<T: ComponentOutput + ?Sized> Factory<'_, T> {
         name: &str,
         parameters: Vec<ComponentArgument<'a>>,
     ) -> Result<Value, ConsoleError> {
+        if let Some(dispatch) = self
+            .dispatch
+            .clone()
+            .filter(|dispatch| dispatch.handles_call(name))
+        {
+            return dispatch
+                .call(name, parameters, self.component_context())
+                .await;
+        }
         if !super::registry::builtin(name) {
             return super::registry::render_custom(self, name, parameters).await;
         }

@@ -822,6 +822,7 @@ impl Application {
                         .unwrap_or_default(),
                     stream: supplied_input.and_then(|input| input.stream.clone()),
                     helper_set: entry.helper_set().cloned(),
+                    component_dispatch: None,
                 };
                 if output.suppressed
                     || input.option("no-interaction") == Some(serde_json::Value::Bool(true))
@@ -838,7 +839,7 @@ impl Application {
                     .then(|| matches.get_one::<i32>("isolated").copied())
                     .flatten()
                 else {
-                    return run_command_with_events(command, application, &input, output).await;
+                    return run_command_with_events(command, application, &mut input, output).await;
                 };
 
                 let name = definition.name();
@@ -861,7 +862,8 @@ impl Application {
                     output.comment(&format!("The [{name}] command is already running."));
                     return Ok(code);
                 };
-                let result = run_command_with_events(command, application, &input, output).await;
+                let result =
+                    run_command_with_events(command, application, &mut input, output).await;
                 let released = lock.release().await.map_err(lock_error);
                 result.and_then(|status| released.map(|_| status))
             }),
@@ -889,10 +891,12 @@ async fn observe_shortcut(
 async fn run_command_with_events(
     command: &dyn Command,
     application: &FoundationApplication,
-    input: &Input,
+    input: &mut Input,
     output: &mut Output,
 ) -> Result<i32, ConsoleError> {
-    use crate::contracts::events::Dispatcher as _;
+    use crate::console::view::components::CommandComponentFactory;
+    use crate::contracts::{container::Container as _, events::Dispatcher as _};
+
     let events = application
         .make::<crate::events::Dispatcher>()
         .await
@@ -912,6 +916,16 @@ async fn run_command_with_events(
     let offset = output.stdout.len();
     let generation = output.capture_generation;
     let started = std::time::Instant::now();
+    let container = application.container();
+    if container.bound::<dyn CommandComponentFactory>() {
+        let constructor = container
+            .make_async::<dyn CommandComponentFactory>()
+            .await
+            .map_err(ConsoleError::from_source)?;
+        input.component_dispatch =
+            Some(constructor.make(input, super::AsOutput::as_output(output))?);
+    }
+
     let status = command.handle(application, input, output).await?;
     let duration = started.elapsed();
     events
