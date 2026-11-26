@@ -214,7 +214,7 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 从完整归档 `4fbb2e4f910eecab7a89ca49f2e7a1daaedee336` 编译 Horizon Artisan 验收程序，使用 Rust 1.94.0、锁定依赖、HostARM64 的 x64 链接器与默认 Release 配置。产物是 `x86_64-pc-windows-msvc` 的 AMD64 PE32+，栈预留 16 MiB，SHA-256 为 `139f1b34f7785f51dd1826f00a8b22bd6ff5b3b24089645338bf9e323c86c9a2`。构建和运行使用独立的项目 NTFS 验收卷。
 
-同一制品在 Windows 11 ARM64 的 x64 兼容层连接隔离 Redis 8.10.3。空闲退出、等待排空、快速终止、快速重启、Master 丢失、自定义处理器、Redis 命令队列和文件命令队列八组通过。入口、子进程替换、输出和控制均从实际运行采证。证据为 `target/tmp/observability-windows/observability-horizon-x64-release.log`。物理 Windows x64、x64 三扩展根组合及正式托管仍需独立验收。
+同一制品在 Windows 11 ARM64 的 x64 兼容层连接隔离 Redis 8.10.3。空闲退出、等待排空、快速终止、快速重启、Master 丢失、自定义处理器、Redis 命令队列和文件命令队列八组通过。入口、子进程替换、输出和控制均从实际运行采证。证据为 `target/tmp/observability-windows/observability-horizon-x64-release.log`。更新快照的 [x64 三扩展根应用](../extension-parity.md#windows-x64-三扩展根应用优化构建)亦通过兼容层验收。物理 Windows x64 及正式托管继续验收。
 
 ### macOS launchd 进程托管
 

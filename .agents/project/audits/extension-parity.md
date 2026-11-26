@@ -24,6 +24,8 @@ Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化�
 
 Windows x64 的 Horizon 优化制品也在 Windows 11 ARM64 的 x64 兼容层通过八组进程和 Redis 验收。证据覆盖实际 AMD64 PE 及兼容层运行，物理 x64 主机继续验收。 [Horizon Windows x64 兼容层](horizon/README.md#windows-x64-优化制品的兼容层实测)
 
+Windows x64 的三扩展根应用已在同一兼容层通过默认 Release 和实际装配验收。 [Windows x64 三扩展根应用](#windows-x64-三扩展根应用优化构建)
+
 Horizon 的成功任务指标以毫秒保留两位小数后再汇总，已通过真实 Redis 的任务和队列消费者验收。 [Horizon 任务计时](horizon/README.md#任务耗时计时契约)
 
 同一 macOS 隔离快照使用真实 Redis 8.10.3 复验 Horizon 运行时 20 项、Pulse 具名卡片查询缓存与 Telescope Redis 命令诊断。证据为 `target/tmp/observability-parity/observability-request-redis-macos-retry.log`。本批验证实际本地组件入口，发布仍按锁定交付组合执行。
@@ -43,6 +45,12 @@ macOS ARM64 从完整归档 `af5a3b36a9852d42bff5c601ba57d26d2f287be2` 用 Rust 
 Windows 11 ARM64 虚机从完整归档 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0` 用 Rust 1.94.0、`aarch64-pc-windows-msvc`、默认 Release 配置和锁定依赖构建。根二进制启用 `horizon,pulse,telescope`，PE 架构为 ARM64，SHA-256 为 `7bc187c9e8602ce0648984b6ff9dc6fc7d14f81179e8e27a49a2a7a3f64a367d`。
 
 同一程序实际运行 Artisan 包发现、配置缓存、SQLite 迁移和清缓存。运行 `pulse:check --once` 后 SQLite 读到 1 条系统记录，`telescope:list command --json` 读到 1 条命令记录，SQLite 共 11 条 Telescope 记录。`horizon:status --json` 在隔离 Redis 8.10.3 正常返回空数组。证据为 `target/tmp/observability-windows/observability-root-release-runtime.log`。后续提交、Windows x64、正式服务管理器和部署拓扑继续验收。
+
+### Windows x64 三扩展根应用优化构建
+
+Windows 11 ARM64 虚机从完整归档 `4ab133025baabf6de2d1c198d735f2c11fbe61ee` 用 Rust 1.94.0、HostARM64 的 x64 MSVC 链接器和锁定依赖构建默认 Release。启用 `horizon,pulse,telescope` 的根二进制 PE 机器类型为 AMD64（`0x8664`），SHA-256 为 `3639a9989f38e30fe1dff362e76e51ad8bfa0f971d655c56cf1073a3ba691787`。宿主首次触及 32 GB 停线，安全清理后从同一源码续跑，复用独立 NTFS 卷的 x64 构建缓存。
+
+在虚机的 x64 兼容层运行该制品。实际 Artisan 完成包发现、配置缓存、SQLite 迁移和清缓存，写入一条 Pulse 系统指标和一条 Telescope 命令记录，SQLite 中共有 11 条 Telescope 条目。Horizon 状态从经虚机专用桥接连接的本机隔离 Redis 8.10.3 返回空数组。证据为 `target/tmp/observability-windows/observability-root-x64-release-4ab133025{,-retry}.log`。物理 Windows x64、后续代码和正式部署组合仍按交付快照复验。
 
 ## 来源和取舍
 
