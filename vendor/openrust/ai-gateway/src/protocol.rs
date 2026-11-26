@@ -19,6 +19,7 @@ use crate::{
     codex_catalog,
     compatibility::{Bridge, Translation},
     gateway::{Call, Gateway, Key, Target, UsageAdmission},
+    invocation::{CallIdentity, ClientInvocation},
     session_affinity::SessionAffinity,
 };
 
@@ -634,6 +635,7 @@ async fn relay(
         && !includes_tool_history(&data)
         && data.get("store") != Some(&Value::Bool(true));
     let request_id = Str::ulid().to_string();
+    let invocation = ClientInvocation::from_headers(request.headers());
     let mut admitted = false;
     let mut failure = None;
     let mut conversion_error = None;
@@ -741,7 +743,10 @@ async fn relay(
                 &name,
                 target,
                 (endpoint, upstream_endpoint),
-                &request_id,
+                CallIdentity {
+                    request_id: &request_id,
+                    invocation: invocation.as_ref(),
+                },
                 (lease, reservation),
             )
             .await

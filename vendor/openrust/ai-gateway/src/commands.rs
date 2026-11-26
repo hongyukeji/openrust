@@ -35,7 +35,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }))?;
     }
     Artisan::command_with(
-        "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50} {--billing : 附加计费快照与金额}",
+        "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50} {--billing : 附加计费快照与金额} {--invocation-id= : SDK 调用 ID} {--invocation-scope= : 调用方作用域}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {
                 let gateway =
@@ -51,8 +51,27 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 if limit > 100 {
                     return Err(ConsoleError::new("每页最多返回 100 条用量记录"));
                 }
+                let invocation = argument(input, "invocation-id")
+                    .map(identifier)
+                    .transpose()?;
+                let invocation_scope = argument(input, "invocation-scope")
+                    .map(|scope| {
+                        if scope.len() == 64 && scope.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                            Ok(scope.to_ascii_lowercase())
+                        } else {
+                            Err(ConsoleError::new("调用方作用域必须为 64 位十六进制值"))
+                        }
+                    })
+                    .transpose()?;
+                let invocation = invocation.map(str::to_ascii_uppercase);
                 let records = store
-                    .list(request, key, before, limit as u64)
+                    .list(
+                        request,
+                        key,
+                        before,
+                        (invocation.as_deref(), invocation_scope.as_deref()),
+                        limit as u64,
+                    )
                     .await
                     .map_err(|_| ConsoleError::new("无法读取网关用量记录"))?;
                 let next = records

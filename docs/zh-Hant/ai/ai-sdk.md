@@ -236,6 +236,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 每次上游嘗試各有一筆記錄。備援嘗試共用 `request_id`。記錄包含下游 Key 或群組、公開模型、連線、上游模型、回應狀態和供應商實際回報的 Token 數。缺少的用量保留為 `null`。帳本省略 Key 金鑰、請求本文和產生的文字。
 
+在 `ai.providers` 中，為連線至自有閘道的 SDK 連線設定 `"forward_usage_context": true`。閘道為每次實際文字請求儲存 `consumer_invocation` 和從零開始的 `model_turn`。執行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相關嘗試，並用 `--invocation-scope=<scope>` 限定發起呼叫的 Key 範圍。各模型回合有獨立的閘道請求 ID。關聯識別碼不影響計費或請求去重。
+
 閘道先登記嘗試，再向上游送出請求。正常結束、出錯和取消都會結算。處理程序在結算前結束時，帳本可能留下 `pending` 記錄供核對。
 
 使用發起模型呼叫的 Key，以 Bearer 或 `x-api-key` 驗證身分並請求 `GET /v1/usage?days=7`。回應包含該 Key 當日、累計與依 UTC 日期彙整的用量。`days` 可設為 1 至 90。遞補只算一次請求，並按實際向上游送出的次數統計嘗試。缺少的 Token 數維持 `null`。

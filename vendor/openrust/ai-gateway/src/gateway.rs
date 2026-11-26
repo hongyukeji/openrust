@@ -18,6 +18,7 @@ use crate::{
     accounts::{Account, MAX_SECONDS},
     billing::PriceBook,
     codex_catalog::CodexMetadata,
+    invocation::CallIdentity,
     managed_keys::KeyStore,
     output_quota::{OutputQuota, QuotaReservation},
     session_affinity::{self, SessionAffinity},
@@ -539,7 +540,7 @@ impl Gateway {
         name: &str,
         target: &Target,
         endpoints: (TextEndpoint, TextEndpoint),
-        request_id: &str,
+        identity: CallIdentity<'_>,
         admission: (Option<ConcurrencyLease>, Option<QuotaReservation>),
     ) -> Result<Call, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
@@ -551,7 +552,7 @@ impl Gateway {
                 "group".into(),
                 json!(key.group.as_ref().map(|group| &group.name)),
             ),
-            ("request_id".into(), json!(request_id)),
+            ("request_id".into(), json!(identity.request_id)),
             ("model".into(), json!(name)),
             ("upstream_model".into(), json!(target.upstream_model)),
             ("provider".into(), json!(target.provider_name)),
@@ -562,6 +563,10 @@ impl Gateway {
         ]
         .into_iter()
         .collect();
+        if let Some(invocation) = identity.invocation {
+            context.insert("consumer_invocation".into(), json!(invocation.id));
+            context.insert("model_turn".into(), json!(invocation.model_turn));
+        }
         let attempt = match &self.usage_store {
             Some(store) => {
                 let retry_after = reservation.as_ref().map(QuotaReservation::retry_after);

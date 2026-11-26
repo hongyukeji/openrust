@@ -161,7 +161,12 @@ pub(crate) async fn generate_step(
                     structured_output: step.structured_output,
                 };
                 if step.tools.is_empty() && step.steps.is_empty() {
-                    let response = context.provider.generate(request).await?;
+                    let response = crate::request_context::in_invocation(
+                        step.invocation_id,
+                        step.number,
+                        context.provider.generate(request),
+                    )
+                    .await?;
                     if let Some(choice) = choice {
                         choice.validate_calls(&response.tool_calls)?;
                     }
@@ -177,9 +182,12 @@ pub(crate) async fn generate_step(
                     .provider
                     .step_text_gateway()
                     .ok_or(AiError::ToolsNotSupported)?;
-                let mut response = gateway
-                    .generate_text_step(&request, &step.tools, step.steps)
-                    .await?;
+                let mut response = crate::request_context::in_invocation(
+                    step.invocation_id,
+                    step.number,
+                    gateway.generate_text_step(&request, &step.tools, step.steps),
+                )
+                .await?;
                 if let Some(choice) = choice {
                     choice.validate_calls(&response.tool_calls)?;
                 }

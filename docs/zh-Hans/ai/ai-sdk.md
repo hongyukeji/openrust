@@ -236,6 +236,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 每次上游尝试各有一条记录。回退尝试共用 `request_id`。记录包含下游 Key 或分组、公开模型、连接、上游模型、响应状态和供应商实际返回的 Token 数。缺失用量保留为 `null`。账本省略 Key 密钥、请求正文和生成文本。
 
+在 `ai.providers` 中，为连接自有网关的 SDK 连接设置 `"forward_usage_context": true`。网关为每次实际文本请求保存 `consumer_invocation` 和从零开始的 `model_turn`。运行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相关尝试，并可用 `--invocation-scope=<scope>` 限定发起调用的 Key 范围。各模型回合有独立的网关请求 ID。关联标识不影响计费或请求去重。
+
 网关先登记尝试，再向上游发送请求。正常结束、出错和取消都会结算。进程在结算之前退出时，账本可能保留 `pending` 记录供核对。
 
 使用发起模型调用的 Key，以 Bearer 或 `x-api-key` 鉴权请求 `GET /v1/usage?days=7`。返回该 Key 当日、累计以及按 UTC 日期汇总的用量。`days` 可设为 1 至 90。回退只计为一次请求，同时按实际出站次数统计尝试。缺失的 Token 数保持 `null`。

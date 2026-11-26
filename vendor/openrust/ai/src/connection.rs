@@ -81,6 +81,8 @@ struct Configuration {
     #[serde(default)]
     headers: BTreeMap<String, String>,
     #[serde(default)]
+    forward_usage_context: bool,
+    #[serde(default)]
     models: Models,
     #[serde(default)]
     files: Option<FileConfiguration>,
@@ -174,6 +176,11 @@ impl Connection {
             .replace_headers(self.headers.clone())
             .redact_payload()
             .timeout(timeout.unwrap_or(Duration::from_secs(60)));
+        if self.config.forward_usage_context
+            && let Some(headers) = crate::request_context::headers()
+        {
+            request = request.replace_headers(headers);
+        }
         if matches!(self.authorization, Authorization::Anthropic) {
             request = request.with_header(
                 "anthropic-version".parse().expect("valid header name"),
@@ -433,7 +440,9 @@ fn configured_headers(headers: &BTreeMap<String, String>) -> AiResult<HeaderMap>
         let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| error())?;
         if matches!(
             name.as_str(),
-            "authorization"
+            crate::request_context::INVOCATION_HEADER
+                | crate::request_context::MODEL_TURN_HEADER
+                | "authorization"
                 | "proxy-authorization"
                 | "api-key"
                 | "x-api-key"

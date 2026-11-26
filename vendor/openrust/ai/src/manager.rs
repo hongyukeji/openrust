@@ -711,7 +711,13 @@ impl AiManager {
         }
         let middleware = agent.middleware();
         if tools.is_empty() && middleware.is_empty() {
-            let response = provider.generate(request).await?;
+            let invocation_id = openrust::support::Str::ulid().to_string();
+            let response = crate::request_context::in_invocation(
+                &invocation_id,
+                0,
+                provider.generate(request),
+            )
+            .await?;
             if let Some(choice) = &choice {
                 choice.validate_calls(&response.tool_calls)?;
             }
@@ -815,7 +821,8 @@ impl AiManager {
             structured_output,
         };
         if tools.is_empty() {
-            provider.stream(request).await
+            let invocation_id = openrust::support::Str::ulid().to_string();
+            crate::request_context::in_invocation(&invocation_id, 0, provider.stream(request)).await
         } else {
             crate::tool_stream::stream(
                 provider.clone(),

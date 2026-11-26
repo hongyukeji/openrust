@@ -167,9 +167,10 @@ impl StreamableAgentResponse {
         provider: String,
         requested_model: String,
     ) -> Self {
+        let invocation =
+            crate::request_context::invocation_id().unwrap_or_else(|| Str::ulid().to_string());
         let events = async_stream::try_stream! {
             let mut source = stream.eventsource();
-            let invocation = Str::ulid().to_string();
             let mut message = None::<String>;
             let mut started = false;
             let mut reason = None;

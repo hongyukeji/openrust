@@ -25,11 +25,16 @@ pub(crate) async fn stream(
     let gateway = provider
         .step_text_gateway()
         .ok_or(AiError::ToolsNotSupported)?;
-    let mut upstream = gateway.stream_text_step(&prompt, &definitions, &[]).await?;
+    let mut run = tools::ToolRun::new(max_steps);
+    let invocation_id = run.invocation_id.clone();
+    let mut upstream = crate::request_context::in_invocation(
+        &invocation_id,
+        0,
+        gateway.stream_text_step(&prompt, &definitions, &[]),
+    )
+    .await?;
     let prompt = OwnedPrompt::from(prompt);
     let stream = async_stream::try_stream! {
-        let mut run = tools::ToolRun::new(max_steps);
-        let invocation_id = run.invocation_id.clone();
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
             yield event(&invocation_id, StreamEventData::StreamStart {
@@ -121,8 +126,11 @@ pub(crate) async fn stream(
                 return;
             }
             run.add_step(completed, results);
-            upstream = provider.step_text_gateway().ok_or(AiError::ToolsNotSupported)?
-                .stream_text_step(&prompt.as_prompt(step), &definitions, &run.history).await?;
+            let gateway = provider.step_text_gateway().ok_or(AiError::ToolsNotSupported)?;
+            upstream = crate::request_context::in_invocation(
+                &invocation_id, step,
+                gateway.stream_text_step(&prompt.as_prompt(step), &definitions, &run.history),
+            ).await?;
         }
     };
     Ok(StreamableAgentResponse::from_events(Box::pin(stream)))

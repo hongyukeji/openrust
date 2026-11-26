@@ -9,6 +9,7 @@ use openrust::{
     support::Str,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::{
     billing::ChargePlan,
@@ -17,7 +18,7 @@ use crate::{
 };
 
 const TABLE: &str = "ai_gateway_usage";
-const COLUMNS: [&str; 23] = [
+const COLUMNS: [&str; 26] = [
     "id",
     "request_id",
     "key_id",
@@ -41,6 +42,9 @@ const COLUMNS: [&str; 23] = [
     "dispatch_started_at",
     "upstream_request_id",
     "reported_model",
+    "consumer_invocation",
+    "invocation_scope",
+    "model_turn",
 ];
 
 pub(crate) const DAY: i64 = 86_400;
@@ -61,6 +65,22 @@ pub(crate) enum UsageOwner<'a> {
 }
 
 impl UsageOwner<'_> {
+    fn invocation_scope(&self, invocation: &str) -> String {
+        let (kind, owner) = match self {
+            Self::Managed(id) => ("managed", *id),
+            Self::Static(scope) => ("static", scope.as_str()),
+        };
+        let digest = Sha256::new()
+            .chain_update(b"openrust.ai-gateway.invocation\0")
+            .chain_update(kind)
+            .chain_update([0])
+            .chain_update(owner)
+            .chain_update([0])
+            .chain_update(invocation)
+            .finalize();
+        format!("{digest:x}")
+    }
+
     fn filter<'a>(&self, query: Builder<'a>) -> Builder<'a> {
         match self {
             Self::Managed(id) => query.r#where("key_id", "=", *id),
@@ -242,6 +262,12 @@ pub(crate) struct UsageRecord {
     dispatch_started_at: Option<i64>,
     upstream_request_id: Option<String>,
     reported_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    consumer_invocation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    invocation_scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_turn: Option<i64>,
 }
 
 impl UsageStore {
@@ -319,6 +345,24 @@ impl UsageStore {
             ("usage_state".into(), "not_dispatched".into()),
             ("started_at".into(), now().into()),
         ]);
+        if let Some(invocation) = context
+            .get("consumer_invocation")
+            .and_then(serde_json::Value::as_str)
+        {
+            record.insert("consumer_invocation".into(), invocation.into());
+            record.insert(
+                "invocation_scope".into(),
+                owner.invocation_scope(invocation).into(),
+            );
+            record.insert(
+                "model_turn".into(),
+                nullable(
+                    context
+                        .get("model_turn")
+                        .and_then(serde_json::Value::as_i64),
+                ),
+            );
+        }
         if let UsageOwner::Static(scope) = owner {
             record.insert("static_key_scope".into(), scope.into());
         }
@@ -457,6 +501,7 @@ impl UsageStore {
         request: Option<&str>,
         key: Option<&str>,
         before: Option<&str>,
+        invocation: (Option<&str>, Option<&str>),
         limit: u64,
     ) -> DatabaseResult<Vec<UsageRecord>> {
         let mut query = self
@@ -474,6 +519,12 @@ impl UsageStore {
         }
         if let Some(before) = before {
             query = query.r#where("id", "<", before);
+        }
+        if let Some(id) = invocation.0 {
+            query = query.r#where("consumer_invocation", "=", id);
+        }
+        if let Some(scope) = invocation.1 {
+            query = query.r#where("invocation_scope", "=", scope);
         }
         query.get().await?.into_iter().map(decode).collect()
     }
@@ -622,6 +673,9 @@ fn decode(row: Row) -> DatabaseResult<UsageRecord> {
         dispatch_started_at: integer("dispatch_started_at")?,
         upstream_request_id: optional_text("upstream_request_id")?,
         reported_model: optional_text("reported_model")?,
+        consumer_invocation: optional_text("consumer_invocation")?,
+        invocation_scope: optional_text("invocation_scope")?,
+        model_turn: integer("model_turn")?,
     })
 }
 
