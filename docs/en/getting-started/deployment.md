@@ -215,6 +215,8 @@ The proxy configuration in `docker/nginx/default.conf` preserves the request pat
 
 Build settings use `APP_BUILD_FEATURES` and `APP_BUILD_JOBS` (default `4`), passed through Compose to the Dockerfile. Override `APP_STORAGE_PATH` for a different storage mount; relative paths start at `docker/` and must be writable by UID/GID `10001`.
 
+Separate optional features with commas, for example `APP_BUILD_FEATURES=webhook-client,webhook-server,reverb`. Run `artisan package:discover` in the staging container to verify the package list before deployment. Run HTTP and standalone queue workers from the same image so they load the same package providers.
+
 The image includes distribution notices at `/app/THIRD_PARTY_NOTICES.md`, including SQLite's source identification, the license for its Rust wrapper, and the notices for bundled PCRE2, AWS-LC, and ring. When the build includes `webhook-client` or `webhook-server`, directly or as a dependency, its notices and license texts are under `/app/licenses/<package>/`.
 
 Nginx permits request bodies up to 8 MiB, matching the framework input limit. Proxy read and send timeouts use the Nginx default of 60 seconds; streaming and WebSocket connections should exchange data or heartbeats promptly. Configure longer idle timeouts in `docker/nginx/default.conf` only when needed.

@@ -14,7 +14,7 @@
 | `x86_64-pc-windows-msvc` | 608 | 608 |
 | `aarch64-pc-windows-msvc` | 607 | 607 |
 
-本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
+本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64 和 AMD64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
 
 ## 原生 SQLite 制品
 
@@ -41,4 +41,20 @@
 - 独立 SQLite 挂载内，`package:discover` 的实际清单只含上述九个包。Artisan 执行 58 项迁移，核对 Webhook 收发、Pay、Cashier 和内容审核数据表。生成配置及路由缓存后重跑迁移，无待执行项。缓存前后实际 HTTP `/up`、`/`、`/api` 均为 200，两个容器响应 SIGTERM 并以状态 0 退出。
 - 缓存后，Reverb WebSocket 建立连接、订阅频道并收到 HTTP 签名发布的事件。另启独立 Artisan `queue:work database --once` 成功退出，确认队列为空。带业务任务的验收仍引用各模块的独立测试与集群记录。
 
-构建、ELF、许可和运行日志在本机 `target/tmp/goal-extension-combined-image/`。ELF 符号表中的 `blake3_neon.c` 是文件条目，对应的静态可执行代码仍需用链接映射核对。该候选制品验收覆盖本机 ARM64 Docker 环境。组合的 x86_64、Windows、发布渠道、完整静态依赖溯源及外部测试租户仍按各自的交付条件核验。
+构建、ELF、许可和运行日志在本机 `target/tmp/goal-extension-combined-image/`。ELF 符号表中的 `blake3_neon.c` 是文件条目，对应的静态可执行代码仍需用链接映射核对。该候选制品验收覆盖本机 ARM64 Docker 环境。
+
+## Linux AMD64 组合候选制品
+
+用 `ab1d2b4c8553b45768d3cbc36efca0c9958c58c3` 的干净归档、仓库 Dockerfile、Rust 1.94.0 和相同的九项特性在 ARM64 Docker Desktop 交叉构建 `linux/amd64` Release 镜像。构建使用 `APP_BUILD_JOBS=1`。候选制品对应的 `x86_64-unknown-linux-gnu` 锁定生产与构建依赖图包含 597 个包版本，Cargo 与 cargo-deny 的清单逐项一致。
+
+- OCI 索引摘要为 `sha256:37ffb47c67e82522266d0b044f2a4c0b291f3e44cb9f091c2118f0caae254e60`，AMD64 镜像清单摘要为 `sha256:aa68f8954715057e7c98a8bf90feba8a65367bccbeeb97bdf3ce5913966ab77c`。实际 `/app/main` 的 SHA-256 为 `806d1810c89ba0c63f95b386d53a96fb1f10a53886f2812a0462e3e6c53dd074`。
+- `readelf` 确认 x86-64 ELF 定义 PCRE2 编译与 JIT、SQLite、AWS-LC 和 ring 原生符号。SQLite source ID 与根发行声明一致。运行镜像中 `ldd` 显示 glibc、libm、libgcc 和动态加载器。以 UID/GID 10001 从只读容器读取的 10 个许可文件与源码逐字节一致，Debian glibc 和 libgcc 版权文件可读。
+- 在 x86_64 仿真运行环境，九个 Provider 发现、58 项 SQLite 迁移及幂等重跑通过。配置和路由缓存前后，HTTP `/up`、`/`、`/api` 返回 200。缓存后 Reverb 建立连接、订阅并接收签名发布的事件。独立 SQLite Worker 空队列检查成功，HTTP 容器响应 SIGTERM 并以状态 0 退出。
+- 相同镜像启用 New Relic Provider 后重跑上述流程。使用同一容器网络命名空间的回环 Collector，实际 protobuf 解码得到 206 个 Span 和 12 条指标记录。核对服务名、`GET /api` 的响应状态及路由标签、`http.server.request.duration` 和独立的 `artisan inspire` Span。真实租户的摄取与查询沿用模块发布检查。
+- 三语部署说明补充可选功能列表和预发布包发现。Compose 解析确认逗号分隔的值原样传入构建参数，VitePress 构建成功，Playwright 核对两种部署前缀下的六个页面。
+
+本机日志保存在 `target/tmp/goal-extension-combined-amd64/`。历史 Ubuntu 实机证明已有部署链路，当前组合仍需可确认的隔离主机 SSH 入口、登录用户和非交互 Docker 权限复验。完整静态依赖溯源、目标发布渠道和外部测试租户仍按各自条件核验。[历史原生 Ubuntu 验收](08-04/docker.md#原生-ubuntu-x86_64-发布复验)
+
+## Windows ARM64 组合预检
+
+在现有 Windows 11 ARM64 虚机上核对 `ab1d2b4c8` 归档和 Rust 1.94.0。首次离线解析缺少 `mago-syntax`，按锁文件补齐公开依赖后，用 `cargo tree --locked --offline --target aarch64-pc-windows-msvc --edges normal --depth 1` 复验，九个扩展依赖均出现，联网与离线树输出逐字节一致。专用验收盘有 34,179,629,056 字节可用，虚机未检测到 Docker CLI。组合 PE、运行与许可随附仍需实际构建验收。
