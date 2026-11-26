@@ -162,4 +162,4 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## Vendor 目录统一
 
-- [ ] 各模块开发和验收全部完结后，按[项目规范](conventions.md#代码与测试目录)统一迁移到 `vendor/<Cargo 包名>/`。例如将 `vendor/openrust/ai/` 迁至 `vendor/openrust-ai/`。按各包 `Cargo.toml` 的 `package.name` 确定目录，同步更新工作区成员、路径依赖、构建与发布脚本、测试、项目指引和三语文档中的现行路径。迁移后核对 Cargo 工作区与依赖解析、编译和发布入口。
+- [ ] 当前小阶段开发完成并通过验收后，立即按[项目规范](conventions.md#代码与测试目录)将 `vendor/` 目录统一迁移到 `vendor/<Cargo 包名>/`。例如将 `vendor/openrust/ai/` 迁至 `vendor/openrust-ai/`。按各包 `Cargo.toml` 的 `package.name` 确定目录，同步更新工作区成员、路径依赖、构建与发布脚本、测试、项目指引和三语文档中的现行路径。迁移后核对 Cargo 工作区与依赖解析、编译和发布入口。

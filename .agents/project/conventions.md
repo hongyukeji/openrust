@@ -45,7 +45,7 @@
 
 ## 代码与测试目录
 
-- 应用代码放在根应用的对应目录。`vendor/` 按 Cargo 的单层布局组织，每个包直接放在 `vendor/<Cargo 包名>/`，例如 `vendor/openrust-framework/` 和 `vendor/openrust-ai/`。`cargo vendor` 生成的依赖目录按 Cargo 的规则处理同名多版本。统一迁移排在各模块开发和验收完结之后，过渡期间沿用现有的 `vendor/openrust/<组件>/`。见[待办](todo.md#vendor-目录统一)和 [Cargo vendor](https://doc.rust-lang.org/cargo/commands/cargo-vendor.html)。
+- 应用代码放在根应用的对应目录。`vendor/` 按 Cargo 的单层布局组织，每个包直接放在 `vendor/<Cargo 包名>/`，例如 `vendor/openrust-framework/` 和 `vendor/openrust-ai/`。`cargo vendor` 生成的依赖目录按 Cargo 的规则处理同名多版本。当前小阶段开发完成并通过验收后，立即统一迁移 `vendor/` 目录。迁移前沿用现有的 `vendor/openrust/<组件>/`。见[待办](todo.md#vendor-目录统一)和 [Cargo vendor](https://doc.rust-lang.org/cargo/commands/cargo-vendor.html)。
 - 测试代码单独存放。根应用测试放在根目录的 `tests/`，crate 测试放在所属 crate 的 `tests/`。
 - 构建脚本自动注册清单时，供应用装配调用的入口函数声明放在正式源码，生成文件只提供模块和清单数据。保留最小可见性，并验证编译、同级模块调用及 IDE 导航；不要通过扩大可见性、关闭检查或手改生成文件消除诊断。
 
