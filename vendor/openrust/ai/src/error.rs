@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::localization;
+
 pub type AiResult<T> = Result<T, AiError>;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -117,14 +119,22 @@ impl fmt::Display for AiError {
             Self::InvalidSchema => formatter.write_str("AI 结构化输出模式无效"),
             Self::InvalidTools => formatter.write_str("AI 工具名称无效或重复"),
             Self::InvalidToolChoice => formatter.write_str("AI 工具选择与当前步骤的工具不匹配"),
-            Self::InvalidApprovalDecisions => formatter.write_str("AI 工具审批决定无效"),
-            Self::ApprovalNotFound => formatter.write_str("未找到当前会话的 AI 工具审批"),
-            Self::ApprovalExpired => formatter.write_str("AI 工具审批已过期"),
-            Self::ApprovalConsumed => formatter.write_str("AI 工具审批已提交或正在执行"),
-            Self::ApprovalPaused(_) => formatter.write_str("AI 工具执行等待审批"),
-            Self::ApprovalNotResumable { .. } => {
-                formatter.write_str("该工具须经审批，当前调用没有审批恢复入口")
+            Self::InvalidApprovalDecisions => {
+                approval_error(formatter, "invalid_decisions", "AI 工具审批决定无效")
             }
+            Self::ApprovalNotFound => {
+                approval_error(formatter, "not_found", "未找到当前会话的 AI 工具审批")
+            }
+            Self::ApprovalExpired => approval_error(formatter, "expired", "AI 工具审批已过期"),
+            Self::ApprovalConsumed => {
+                approval_error(formatter, "consumed", "AI 工具审批已提交或正在执行")
+            }
+            Self::ApprovalPaused(_) => approval_error(formatter, "paused", "AI 工具执行等待审批"),
+            Self::ApprovalNotResumable { .. } => approval_error(
+                formatter,
+                "not_resumable",
+                "该工具须经审批，当前调用没有审批恢复入口",
+            ),
             Self::InvalidToolArguments => formatter.write_str("AI 工具参数无效"),
             Self::SimilaritySearchFailed => formatter.write_str("AI 相似度搜索查询失败"),
             Self::ToolsNotSupported => formatter.write_str("当前 AI 连接或调用方式未提供工具执行"),
@@ -172,6 +182,14 @@ impl fmt::Display for AiError {
             Self::FakeExhausted => formatter.write_str("AI Fake 响应序列已耗尽"),
         }
     }
+}
+
+fn approval_error(formatter: &mut fmt::Formatter<'_>, key: &str, fallback: &str) -> fmt::Result {
+    formatter.write_str(&localization::text(
+        &format!("ai::errors.approval.{key}"),
+        &Default::default(),
+        fallback,
+    ))
 }
 
 impl std::error::Error for AiError {

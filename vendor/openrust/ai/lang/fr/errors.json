@@ -1,3 +1,11 @@
 {
-  "stream": "Une erreur est survenue."
+  "stream": "Une erreur est survenue.",
+  "approval": {
+    "invalid_decisions": "Les décisions d’approbation des outils d’IA sont invalides.",
+    "not_found": "Aucune approbation d’outil d’IA correspondante n’a été trouvée pour cette conversation.",
+    "expired": "L’approbation d’outil d’IA a expiré.",
+    "consumed": "L’approbation d’outil d’IA a déjà été soumise ou est en cours d’exécution.",
+    "paused": "L’exécution des outils d’IA attend une approbation.",
+    "not_resumable": "Cet outil nécessite une approbation et cet appel ne peut pas reprendre après celle-ci."
+  }
 }

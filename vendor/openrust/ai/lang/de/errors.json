@@ -1,3 +1,11 @@
 {
-  "stream": "Ein Fehler ist aufgetreten."
+  "stream": "Ein Fehler ist aufgetreten.",
+  "approval": {
+    "invalid_decisions": "Die Entscheidungen zur Freigabe der KI-Werkzeuge sind ungültig.",
+    "not_found": "Für diese Unterhaltung wurde keine passende Werkzeugfreigabe gefunden.",
+    "expired": "Die Werkzeugfreigabe ist abgelaufen.",
+    "consumed": "Die Werkzeugfreigabe wurde bereits übermittelt oder wird ausgeführt.",
+    "paused": "Die Ausführung der KI-Werkzeuge wartet auf Freigabe.",
+    "not_resumable": "Das Werkzeug benötigt eine Freigabe. Dieser Aufruf kann danach nicht fortgesetzt werden."
+  }
 }

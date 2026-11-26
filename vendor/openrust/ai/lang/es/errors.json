@@ -1,3 +1,11 @@
 {
-  "stream": "Se produjo un error."
+  "stream": "Se produjo un error.",
+  "approval": {
+    "invalid_decisions": "Las decisiones de aprobación de herramientas de IA no son válidas.",
+    "not_found": "No se encontró la aprobación de herramientas de IA para esta conversación.",
+    "expired": "La aprobación de herramientas de IA ha caducado.",
+    "consumed": "La aprobación de herramientas de IA ya se ha enviado o se está ejecutando.",
+    "paused": "La ejecución de las herramientas de IA está pendiente de aprobación.",
+    "not_resumable": "Esta herramienta requiere aprobación y esta llamada no se puede reanudar después de aprobarla."
+  }
 }

@@ -1,3 +1,11 @@
 {
-  "stream": "Ocorreu um erro."
+  "stream": "Ocorreu um erro.",
+  "approval": {
+    "invalid_decisions": "As decisões de aprovação de ferramentas de IA são inválidas.",
+    "not_found": "Nenhuma aprovação de ferramenta de IA correspondente foi encontrada para esta conversa.",
+    "expired": "A aprovação da ferramenta de IA expirou.",
+    "consumed": "A aprovação da ferramenta de IA já foi enviada ou está em execução.",
+    "paused": "A execução das ferramentas de IA está aguardando aprovação.",
+    "not_resumable": "Esta ferramenta exige aprovação e a chamada não pode ser retomada após a aprovação."
+  }
 }

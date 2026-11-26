@@ -1,3 +1,11 @@
 {
-  "stream": "发生错误"
+  "stream": "发生错误",
+  "approval": {
+    "invalid_decisions": "AI 工具审批决定无效",
+    "not_found": "未找到当前会话的 AI 工具审批",
+    "expired": "AI 工具审批已过期",
+    "consumed": "AI 工具审批已提交或正在执行",
+    "paused": "AI 工具执行等待审批",
+    "not_resumable": "该工具须经审批，当前调用没有审批恢复入口"
+  }
 }

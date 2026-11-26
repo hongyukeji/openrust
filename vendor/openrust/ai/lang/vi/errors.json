@@ -1,3 +1,11 @@
 {
-  "stream": "Đã xảy ra lỗi."
+  "stream": "Đã xảy ra lỗi.",
+  "approval": {
+    "invalid_decisions": "Quyết định phê duyệt công cụ AI không hợp lệ.",
+    "not_found": "Không tìm thấy phê duyệt công cụ AI tương ứng cho cuộc trò chuyện này.",
+    "expired": "Phê duyệt công cụ AI đã hết hạn.",
+    "consumed": "Phê duyệt công cụ AI đã được gửi hoặc đang thực thi.",
+    "paused": "Công cụ AI đang chờ được phê duyệt để thực thi.",
+    "not_resumable": "Công cụ này cần được phê duyệt và lượt gọi này không thể tiếp tục sau khi phê duyệt."
+  }
 }

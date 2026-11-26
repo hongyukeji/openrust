@@ -1,3 +1,11 @@
 {
-  "stream": "Terjadi kesalahan."
+  "stream": "Terjadi kesalahan.",
+  "approval": {
+    "invalid_decisions": "Keputusan persetujuan alat AI tidak valid.",
+    "not_found": "Persetujuan alat AI yang sesuai tidak ditemukan untuk percakapan ini.",
+    "expired": "Persetujuan alat AI telah kedaluwarsa.",
+    "consumed": "Persetujuan alat AI sudah dikirim atau sedang dijalankan.",
+    "paused": "Eksekusi alat AI sedang menunggu persetujuan.",
+    "not_resumable": "Alat ini memerlukan persetujuan dan pemanggilan ini tidak dapat dilanjutkan setelah disetujui."
+  }
 }
