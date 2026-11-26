@@ -472,7 +472,7 @@ Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pu
 
 macOS 使用本批完整源码，以实际编译器重映射验证五种路径。SQLite 通过 Git 框架包、普通第三方注册表包、同名前缀第三方注册表包、Pulse 注册表包和标准发布路径的 HTTP 测试。标准路径的 Pulse Provider 17 项及 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项通过。Pulse 和 Telescope 的 Provider／Watcher 共 48 项，独占 Redis 8.10.3 的 Telescope 原生命令专项、共享识别规则单项、快照全仓格式和相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-{macos,redis}.log`。
 
-同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次平台结果使用测试构建，修复版的 Release 继续验收。
+同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次 Linux／Windows 结果使用测试构建。修复版在 macOS 默认 Release 通过上述五种 SQLite 路径、Pulse Provider 17 项，以及标准重映射下的 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-macos-release.log`。Linux／Windows Pulse Release 与 Telescope 自定义路径 Release 继续验收。
 
 ### Pulse Servers 默认主机名与配置缓存
 
@@ -705,10 +705,12 @@ Linux ARM64 以 `3515bafe8` 的进程范围源码重新构建 Release。首轮�
 
 Rust 原先继续检查后续席位，并在创建进程报错的轮次派发 `SupervisorLooped`。使用真实 `horizon:supervisor` 和隔离 Redis 8.10.3 复现，第一次循环事件前的 `UnableToLaunchProcess` 清单为空。现在在监控开始时先发布初始状态，各席位保留原冷却。进程创建错误交给应用异常处理器并结束当轮检查，下一轮继续。公开命令验收核对 Redis 初始状态、两队列事件顺序、原生进程 I/O 错误进入报告回调及正常退出。macOS 的此项和原有六条结构化命令均通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-rust-baseline.log` 与 `target/tmp/observability-parity/horizon-worker-multiple-macos.log`。
 
-同一 macOS 快照的原生进程矩阵通过，包括异常退出补位、一分钟冷却、工作目录恢复、命令与信号排空、实际 HTTP 和授权。包默认 32 项及隔离 Redis 8.10.3 的 23 项通过，快照全仓格式和包全目标严格 Clippy 通过。三语站点、12 组通用浏览器检查及 Horizon 章节的三语桌面与移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos,macos-redis,docs,docs-browser,docs-chapter}.log`。Linux／Windows 的本次监督循环改动以及最终部署组合继续验收。
+同一 macOS 快照的原生进程矩阵通过，包括异常退出补位、一分钟冷却、工作目录恢复、命令与信号排空、实际 HTTP 和授权。包默认 32 项及隔离 Redis 8.10.3 的 23 项通过，快照全仓格式和包全目标严格 Clippy 通过。三语站点、12 组通用浏览器检查及 Horizon 章节的三语桌面与移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos,macos-redis,docs,docs-browser,docs-chapter}.log`。最终部署组合继续验收。
 
 
 Linux 首轮测试假定两次重试事件均发生在第一次成功循环之前。固定上游允许两个席位都在冷却的轮次正常完成。验收改为确认首次正常循环前已报告初始创建错误，再等待两次有序的重试事件和四次报告。macOS 与 Linux ARM64 的双席位及结构化 Artisan 专项重跑通过。Linux 7.0.14 ARM64、Rust 1.94.0 与隔离 Redis 8.10.3 同时通过实际异常退出补位、一分钟冷却、工作目录恢复、信号排空及 HTTP 和授权。证据为 `target/tmp/observability-parity/horizon-worker-multiple-{macos-timing,linux-initial,linux}.log`。
+
+Windows 11 ARM64 对 `f21ba5bcb` 的工作进程实现复跑原生进程矩阵，覆盖空计划、排空等待、快速终止、父端退出、应用处理器、Redis 与文件命令队列。双席位单独在干净配置中调用实际 Artisan，验证了初始监督器状态、两条重试事件、四次原生 `NotADirectory` 异常报告和正常终止。初次探针受前一组测试环境变量和 PowerShell 多行状态匹配影响，隔离环境并聚合输出后重跑通过。证据为 `target/tmp/observability-windows/horizon-worker-multiple-arm64{,-targeted}.log`。
 
 ### Horizon 监督循环等待间隔待对齐
 
