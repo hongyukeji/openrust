@@ -4,7 +4,7 @@ use openrust::{
     contracts::container::BindingResolutionError,
     database::{Value, eloquent::Model},
     queue::{JobType, Payload},
-    support::facades::Facade,
+    support::{facades::Facade, php_unique_regular_strings},
 };
 use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 
@@ -56,10 +56,11 @@ impl Tags {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
         for callback in callbacks {
-            append_unique(
-                &mut tags,
-                callback(payload).into_iter().filter(|tag| !tag.is_empty()),
-            );
+            for tag in callback(payload) {
+                if !tag.is_empty() && !tags.contains(&tag) {
+                    tags.push(tag);
+                }
+            }
         }
         Ok(tags)
     }
@@ -100,10 +101,12 @@ impl Tags {
     fn listener_tags(manager: &TagManager, payload: &Payload) -> Result<Vec<String>> {
         let mut tags = Vec::new();
         for target in std::iter::once(Self::subject(payload)).chain(Self::target_for(payload)) {
-            let resolved = Self::resolve_target(manager.callbacks_for(target), payload)?;
-            append_unique(&mut tags, resolved);
+            tags.extend(Self::resolve_target(
+                manager.callbacks_for(target),
+                payload,
+            )?);
         }
-        Ok(tags)
+        Ok(php_unique_regular_strings(tags))
     }
 
     fn resolve_target(callbacks: TargetCallbacks, payload: &Payload) -> Result<Vec<String>> {
@@ -116,11 +119,9 @@ impl Tags {
     }
 
     fn explicit_tags(callbacks: TargetCallbacks, payload: &Payload) -> Vec<String> {
-        let mut tags = Vec::new();
-        if let Some(callback) = callbacks.tags {
-            append_unique(&mut tags, callback(payload));
-        }
-        tags
+        callbacks.tags.map_or_else(Vec::new, |callback| {
+            php_unique_regular_strings(callback(payload))
+        })
     }
 
     fn model_tags(callbacks: TargetCallbacks, payload: &Payload) -> Result<Vec<String>> {
@@ -174,14 +175,6 @@ impl Tags {
             }
         }
         Ok(tags)
-    }
-}
-
-fn append_unique(tags: &mut Vec<String>, values: impl IntoIterator<Item = String>) {
-    for tag in values {
-        if !tags.contains(&tag) {
-            tags.push(tag);
-        }
     }
 }
 

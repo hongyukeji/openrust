@@ -228,6 +228,12 @@ Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0
 
 原生 `JobAttempted` 可提供浮点毫秒。原先的浮点乘法将 `1.005` 毫秒记为 `1.0`。现在复用框架的 PHP 半值进位实现，与 PHP 8.5.12 的 `round(1.005, 2)` 一致。真实 HTTP 派发和 Redis 任务、队列仓储均得到 `1.01`。默认运行用例 2 项、独立 Redis 20 项、快照格式和包全目标严格 Clippy 通过。证据为 `target/tmp/observability-parity/horizon-fractional-tie-{baseline,verified}.log`。
 
+## 显式标签的数值文本去重
+
+固定 Horizon 的显式标签与排队监听器合并使用 Laravel `Collection::unique`，经 PHP 8.5.12 的 `SORT_REGULAR` 处理。用实际 Horizon 标签和载荷验证 `01`、`1`、`1e0` 的常见混合形式。已有载荷标签先合入，静默标签仍按原文本匹配。另一个样本同时包含 `10`、`1e1` 和 `10x`，固定排序可以保留前两个数值等价文本。Rust 复用框架数值文本比较，并按固定 PHP 的排序分区及原位置还原标签。原生应用级 `Horizon::tag` 的附加规则仍由该接口控制。 [固定 Horizon Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
+
+固定 PHP 的 1,624 组字符串数组输出和 OpenRust 一致，含近整数精度边界、小区间及 1024 个元素的排序分界。实际 HTTP 通知生产者、带加密载荷的通知、排队监听器、Redis 载荷和详情以及 Artisan 失败重试通过。Horizon 默认运行与标签 8 项、独占 Redis 8.10.3 的 24 项、框架 Collection 7 项、相关严格 Clippy、快照格式及三语文档桌面与移动六组通过。排序许可随源码保留。证据为 `target/tmp/observability-parity/horizon-tags-numeric-{upstream,baseline,exact-macos,collections,docs}.log`。
+
 ## 当前实现
 
 - 可选 `HorizonServiceProvider` 通过包发现装配，懒绑定应用内服务、默认配置及发布模板。默认应用不预装扩展 Provider、配置或业务示例。面板必须显式注册路由、显式授权，默认拒绝；每次读写重新授权，写操作校验同源请求标识。

@@ -2119,12 +2119,17 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     fn register_tags() {
         Horizon::tag_for::<AuditListener>(|payload| {
             assert_eq!(payload.data()["item"], 4);
-            vec!["listener".into(), "common".into(), "listener".into()]
+            ["listener", "common", "listener", "01", "1"]
+                .map(str::to_owned)
+                .to_vec()
         })
         .unwrap();
         Horizon::tag_for::<Published>(|payload| {
             if payload.event_type().is_some() {
                 assert_eq!(payload.data()["item"], 4);
+                return ["event", "common", "1.0", "1e0", "002", "2"]
+                    .map(str::to_owned)
+                    .to_vec();
             }
             vec!["event".into(), "common".into()]
         })
@@ -2146,7 +2151,21 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
                 payload.data()
             };
             assert_eq!(delivery["delivery"]["channel"], "mail");
-            vec!["notification".into()]
+            [
+                "notification",
+                "01",
+                "1",
+                "0",
+                "-0.0",
+                "",
+                "002",
+                "2",
+                "10",
+                "1e1",
+                "10x",
+            ]
+            .map(str::to_owned)
+            .to_vec()
         })
         .unwrap();
         Horizon::tag_for::<QuietJob>(|_| Vec::new()).unwrap();
@@ -2155,7 +2174,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             if payload.event_type().is_some() {
                 assert_eq!(
                     Tags::extract_explicit_tags(payload).unwrap(),
-                    ["listener", "common", "event"]
+                    ["listener", "common", "01", "event", "002"]
                 );
             }
             vec!["global".into()]
@@ -2236,6 +2255,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             "notifications.send_queued_notifications",
             "notifications.send_queued_notifications.audit",
         ]);
+        config.get_mut("horizon").unwrap()["silenced_tags"] = json!(["1"]);
         config.insert(
             "mail".into(),
             json!({
@@ -2314,7 +2334,17 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
         let expected: &[&str] = match queue {
             "broadcasts" => &["event", "common", "global"],
             "mail" => &["mail", "global"],
-            "notices" | "encrypted-notices" => &["notification", "global"],
+            "notices" | "encrypted-notices" => &[
+                "notification",
+                "01",
+                "0",
+                "",
+                "002",
+                "10",
+                "1e1",
+                "10x",
+                "global",
+            ],
             "quiet" => &[
                 &model_tags[0],
                 &model_tags[1],
@@ -2378,7 +2408,10 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     let failed = jobs.get_failed(None).await.unwrap();
     assert_eq!(failed.len(), 1);
     assert!(failed[0].silenced);
-    assert_eq!(failed[0].tags, ["listener", "common", "event", "global"]);
+    assert_eq!(
+        failed[0].tags,
+        ["listener", "common", "01", "event", "002", "global"]
+    );
     let failed_payload: Payload = serde_json::from_value(failed[0].payload.clone()).unwrap();
     assert_eq!(
         Tags::target_for(&failed_payload),

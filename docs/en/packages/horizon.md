@@ -168,7 +168,7 @@ By default it watches the application, bootstrap, configuration, database, route
 
 ## Job tags {#tags}
 
-After Horizon is registered, use `Horizon::tag_for::<T>(callback)` in the application provider to tag a job, mailable, notification, event, or listener type. Register a fallback with `Horizon::tag_models_for::<T>(callback)`. Its callback runs when the type supplies no explicit tags. Queued listeners and their events each follow this rule. Horizon keeps the first occurrence of each tag, with listener tags preceding event tags. Both callbacks can read the serialized event in the payload.
+After Horizon is registered, use `Horizon::tag_for::<T>(callback)` in the application provider to tag a job, mailable, notification, event, or listener type. Register a fallback with `Horizon::tag_models_for::<T>(callback)`. Its callback runs when the type supplies no explicit tags. Queued listeners and their events each follow this rule. Horizon puts listener tags before event tags and uses Laravel's comparison rules when removing duplicates. Numeric strings such as `01` and `1` can compare as equal. Both callbacks can read the serialized event in the payload.
 
 `Tags::for_model(&model)` builds a tag from the Rust model type and its scalar primary key. Missing, null, and false keys yield an empty suffix. True yields `1`. Structured values and invalid UTF-8 byte keys return an error. `Tags::for_models` keeps the first model with a given framework state and preserves equal tags from distinct models. Use `Tags::for_models_by` with a model comparator when custom fields or independently loaded relations affect equality. Rust applications declare the payload's model fields through these callbacks.
 

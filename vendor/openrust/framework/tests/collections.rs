@@ -5,6 +5,49 @@ use serde::{Serialize, Serializer};
 use serde_json::json;
 
 #[test]
+fn regular_string_uniqueness_matches_php_for_mixed_tags_and_sort_thresholds() {
+    use openrust::support::php_unique_regular_strings;
+
+    let tags = [
+        "10",
+        "1e1",
+        "10x",
+        "2",
+        "2.0",
+        "01",
+        "1",
+        "01Z",
+        "9007199254740992",
+        "9007199254740993",
+        "9007199254740992.0",
+    ];
+    for (length, retained) in [
+        (7, &[0, 1, 2, 3, 5][..]),
+        (16, &[0, 1, 2, 3, 5, 7, 8, 9, 12, 13, 14]),
+        (17, &[0, 1, 2, 3, 5, 6, 7, 8, 9]),
+        (
+            1024,
+            &[
+                0, 1, 2, 3, 5, 7, 8, 9, 20, 30, 86, 96, 119, 152, 214, 371, 679,
+            ],
+        ),
+    ] {
+        let input: Vec<_> = tags
+            .into_iter()
+            .cycle()
+            .take(length)
+            .map(str::to_owned)
+            .collect();
+        let expected: Vec<_> = retained.iter().map(|&index| input[index].clone()).collect();
+        assert_eq!(
+            php_unique_regular_strings(input),
+            expected,
+            "length {length}"
+        );
+    }
+}
+
+#[test]
 fn keys_follow_php_integer_normalization_append_and_replacement_order() {
     let mut values = Collection::from_entries([
         ("-5", "negative"),

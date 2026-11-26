@@ -241,6 +241,37 @@ fn compare_numeric_strings(left: &str, right: &str) -> Ordering {
     }
 }
 
+#[path = "regular_string_sort.rs"]
+mod regular_string_sort;
+
+/// 保留固定 PHP `array_unique(..., SORT_REGULAR)` 对字符串数组的值与原始顺序。
+#[doc(hidden)]
+#[must_use]
+pub fn php_unique_regular_strings(values: Vec<String>) -> Vec<String> {
+    if values.len() < 2 {
+        return values;
+    }
+    let mut sorted: Vec<_> = (0..values.len()).collect();
+    let compare =
+        |left: usize, right: usize| compare_numeric_strings(&values[left], &values[right]);
+    regular_string_sort::sort(&mut sorted, |left, right| compare(left, right).is_gt());
+    let mut keep = vec![true; values.len()];
+    let mut first = sorted[0];
+    for &next in &sorted[1..] {
+        if compare(first, next).is_eq() {
+            keep[first.max(next)] = false;
+            first = first.min(next);
+        } else {
+            first = next;
+        }
+    }
+    values
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(value, keep)| keep.then_some(value))
+        .collect()
+}
+
 fn compare_numbers(left: InputNumber, right: InputNumber) -> Ordering {
     match (left, right) {
         (InputNumber::Integer(left), InputNumber::Integer(right)) => left.cmp(&right),

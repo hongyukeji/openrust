@@ -168,7 +168,7 @@ Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回�
 
 ## 任务标签 {#tags}
 
-在应用 Provider 中，Horizon 注册后可用 `Horizon::tag_for::<T>(callback)` 为底层任务、邮件、通知或事件类型指定标签。用 `Horizon::tag_models_for::<T>(callback)` 注册回退回调，它会在该类型的显式标签为空时执行。排队监听器与其事件各自使用这套规则，先取监听器标签，再取事件标签，重复标签保留首次出现顺序。两个回调都可以读取载荷中的序列化事件。
+在应用 Provider 中，Horizon 注册后可用 `Horizon::tag_for::<T>(callback)` 为底层任务、邮件、通知或事件类型指定标签。用 `Horizon::tag_models_for::<T>(callback)` 注册回退回调，它会在该类型的显式标签为空时执行。排队监听器与其事件各自使用这套规则，先取监听器标签，再取事件标签，再按 Laravel 的比较规则去除重复标签，`01` 与 `1` 这样的数值文本可以比较为相等。两个回调都可以读取载荷中的序列化事件。
 
 `Tags::for_model(&model)` 将 Rust 模型类型与标量主键组合为标签。缺少主键、主键为 null 或 false 时后缀为空，true 的后缀为 `1`。结构化值或无效 UTF-8 字节键返回错误。`Tags::for_models` 按框架保存的模型状态去重。不同模型生成的同名标签按原顺序保留。应用自定义字段或独立加载的关联影响等价判定时，使用 `Tags::for_models_by` 提供比较规则。Rust 应用通过回调显式声明载荷中的模型字段。
 
