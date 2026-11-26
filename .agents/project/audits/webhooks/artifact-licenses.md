@@ -48,3 +48,11 @@ python3 -B tests/webhooks_licenses.py --image openrust:webhook-licenses-transiti
   --package webhook-client
 python3 -B tests/webhooks_licenses.py --image openrust:webhook-licenses-default-arm64
 ```
+
+## linux/amd64 交叉构建与仿真运行
+
+使用 `96d3859f7` 的干净归档，在 ARM64 Docker Desktop 通过仓库 Dockerfile 和 Rust 1.94.0 交叉构建双包 Release 镜像。运行镜像为 `linux/amd64`，使用本机 Docker 的 x86_64 仿真执行。双包及根项目共 10 个许可文件与源码逐字节一致。
+
+以 UID/GID 10001 和只读根文件系统复验包发现、37 项 SQLite 迁移及幂等重跑、配置与路由缓存、接收积压、缺失出站策略的拒绝和独立 Worker 的空队列检查。缓存前后均实际访问 HTTP，重启后 `/up`、`/`、`/api` 均返回 200，SIGTERM 退出码为 0。
+
+`ldd` 列出的原生库由 Debian 的 glibc 和 libgcc 提供，可读取其版权文件。ELF 同时定义了 `pcre2_compile_8` 和 `pcre2_jit_compile_8`，表明交叉构建包含静态 PCRE2。本次镜像的根声明及随附 Webhook 声明未包含该静态原文，单列后续打包。证据在 `target/tmp/webhook-runtime-amd64/`。物理 x86_64 运行及发布渠道的完整制品核对仍开放。
