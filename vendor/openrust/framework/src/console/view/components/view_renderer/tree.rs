@@ -39,8 +39,10 @@ impl Prepared {
                 style.fg = parent.fg.clone();
                 style.color_order.push("fg");
             }
-            if style.bold.is_none() {
-                style.bold = parent.bold;
+            if style.bold.is_none()
+                && let Some(bold) = parent.bold
+            {
+                style::font_bold(style, bold);
             }
         }
     }

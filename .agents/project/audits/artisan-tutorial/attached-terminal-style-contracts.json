@@ -1,0 +1,41 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_attached_terminal_styles_properties_and_width",
+  "bindings": {
+    "TerminalElement": [
+      "with_styles",
+      "get_properties",
+      "set_properties",
+      "with",
+      "get_length",
+      "get_inner_width",
+      "default_styles"
+    ]
+  },
+  "source_oracles": [
+    "attached-terminal-style-oracle.json",
+    "terminal-style-properties-oracle.json"
+  ],
+  "runtime": {
+    "source_attached_property_cases": 25,
+    "framework_targets": 14,
+    "framework_parent_tests": 53,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 213,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "原生构造接收拥有的独立样式，显式建立元素关联。应用方法、属性、默认类与修饰器沿用同一份状态。",
+    "内容替换给新元素独立内容并共享样式。渲染始终按当前对象内容，隐式长度和内宽读取同一组中最近关联的存活对象。",
+    "固定 PHP 即使最后元素无外部引用也通过样式回指保活。Rust 使用弱引用避免样式与内容形成保留环，最后元素释放后回退接收者。",
+    "具名元素配置方法和其属性入口替代 PHP 的对象反射。正在修改的共享状态返回错误，避免锁重入。",
+    "默认类可以来自拥有的样式值，返回迭代器随实例借用。既有元素种类、渲染和默认输出使用方式保持。"
+  ],
+  "remaining": [
+    "显式继承与祖先属性传递、完整自定义修饰器及动态方法转发。",
+    "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
+  ]
+}

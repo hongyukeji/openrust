@@ -2627,3 +2627,34 @@ fn register_style_properties() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 元素樣式關聯 {#terminal-style-attachment}
+
+使用 `TerminalElement::with_styles` 將獨立樣式及其屬性和預設類別關聯到元素。`get_properties`、`set_properties` 和 `with` 會操作元素實際使用的樣式。透過 `set_content` 建立的元素共用該樣式。
+
+`get_length(Some(text))` 測量指定文字。`get_length(None)` 和 `get_inner_width` 使用最近關聯的存活元素。呈現仍使用接收者自己的內容。最近關聯的元素釋放後，測量會使用接收者自己的內容。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalElement, TerminalElementKind, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_attached_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:attached-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let style = TerminalStyles::new().with_default_styles(["text-cyan", "font-bold"]);
+            let mut label = TerminalElement::with_styles(TerminalElementKind::Span, "Ready", style);
+            label.configure(|styles| styles.add_style("ml-1").map(|_| ()))?;
+
+            let mut next = label.set_content("Attached ready");
+            let width = label.get_length(None)?;
+            next.render(output, OutputFormat::Normal)?;
+            output.comment(&format!("{width} columns"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

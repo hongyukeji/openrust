@@ -364,7 +364,8 @@
       "terminal_style_methods": "terminal-style-methods-contracts.json",
       "terminal_element": "terminal-element-contracts.json",
       "standalone_terminal_styles": "standalone-terminal-styles-contracts.json",
-      "terminal_style_properties": "terminal-style-properties-contracts.json"
+      "terminal_style_properties": "terminal-style-properties-contracts.json",
+      "attached_terminal_style": "attached-terminal-style-contracts.json"
     },
     {
       "anchor": "tables",
@@ -733,6 +734,14 @@
     "contract": "terminal-style-properties-contracts.json",
     "remaining": [
       "附着元素关联后读取／设置／继承属性、动态方法转发、完整自定义修饰器及隐式尺寸。",
+      "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
+    ]
+  },
+  "attached_terminal_style": {
+    "status": "verified_attached_terminal_styles_properties_and_width",
+    "contract": "attached-terminal-style-contracts.json",
+    "remaining": [
+      "显式继承与祖先属性传递、完整自定义修饰器及动态方法转发。",
       "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
     ]
   }

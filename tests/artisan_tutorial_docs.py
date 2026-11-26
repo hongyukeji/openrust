@@ -371,6 +371,10 @@ async fn formal_progress_example(){
     terminal_properties_checks=standalone_styles_checks.replace('formal_standalone_style_example','formal_terminal_style_properties_example').replace('register_standalone_styles)','register_style_properties)').replace('"tools:standalone-style"','"tools:style-properties"').replace('"Available: 9 columns"','"Properties ready"')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_style_properties{\n'+terminal_properties_snippet+terminal_properties_checks+'}\n')
 
+    style_attachment_snippet=re.search(r'```rust\n(.*?)```',text.split('{#terminal-style-attachment}',1)[1],re.S).group(1)
+    style_attachment_checks=terminal_properties_checks.replace('formal_terminal_style_properties_example','formal_terminal_style_attachment_example').replace('register_style_properties)','register_attached_styles)').replace('"tools:style-properties"','"tools:attached-style"').replace('"Properties ready"','"Attached ready"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_terminal_style_attachment{\n'+style_attachment_snippet+style_attachment_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

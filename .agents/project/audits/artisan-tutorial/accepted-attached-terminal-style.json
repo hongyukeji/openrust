@@ -1,0 +1,42 @@
+{
+  "base": "1a4f386d43603ce1d560bb5224cb0c29e072a5e0",
+  "contract": "attached-terminal-style-contracts.json",
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.52s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.36s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.47s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.24s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+    "test result: ok. 5 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 213 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s"
+  ],
+  "runtime": {
+    "source_attached_property_cases": 25,
+    "framework_targets": 14,
+    "framework_parent_tests": 53,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 213,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/attached-terminal-style-first.log",
+    "target/tmp/artisan-tutorial-20261125/attached-terminal-style-gates.log",
+    "target/tmp/artisan-tutorial-20261125/attached-terminal-style-site.log",
+    "target/tmp/artisan-tutorial-20261125/attached-terminal-style-source.json"
+  ],
+  "unaccepted_attempts": [],
+  "remaining": [
+    "显式继承与祖先属性传递、完整自定义修饰器及动态方法转发。",
+    "通用 HTML 恢复、Factory 容器构造和其他 Artisan 文档锚点。"
+  ],
+  "pushed": false
+}

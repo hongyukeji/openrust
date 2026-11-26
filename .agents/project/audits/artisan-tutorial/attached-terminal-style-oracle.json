@@ -1,0 +1,43 @@
+{
+    "new_markup": "old",
+    "new_length": 3,
+    "explicit_length": 6,
+    "new_inner": 3,
+    "default_styles": [
+        "font-bold",
+        "text-cyan"
+    ],
+    "first_properties": {
+        "colors": {
+            "fg": "cyan"
+        },
+        "options": {
+            "bold": true
+        },
+        "isFirstChild": false,
+        "styles": {
+            "ml": 2,
+            "mr": 1
+        }
+    },
+    "first_width": 3,
+    "old_reads_latest_length": 14,
+    "copy_length": 14,
+    "old_reads_latest_inner": 11,
+    "old_renders_own": "  <fg=cyan;options=bold>old<\/> ",
+    "copy_markup": "  <fg=cyan;options=bold>replacement<\/> ",
+    "after_merge_original": "  <fg=cyan;bg=blue;options=bold>old<\/> ",
+    "after_merge_copy": "  <fg=cyan;bg=blue;options=bold>replacement<\/> ",
+    "after_replace_original": " old",
+    "after_replace_copy": " replacement",
+    "after_replace_properties": {
+        "isFirstChild": true,
+        "styles": {
+            "display": "block",
+            "pl": 1
+        }
+    },
+    "nested": "\n<fg=red;options=bold><fg=red;options=bold> old<\/><fg=red;options=bold> replacement<\/>!<\/>",
+    "nested_length": 18,
+    "live_style_records_dropped_latest": 18
+}

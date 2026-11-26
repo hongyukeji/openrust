@@ -93,6 +93,7 @@ try {
                     assert.equal(await page.locator('h3#typed-terminal-elements').count(),1);
                     assert.equal(await page.locator('h3#standalone-terminal-styles').count(),1);
                     assert.equal(await page.locator('h3#terminal-style-properties').count(),1);
+                    assert.equal(await page.locator('h3#terminal-style-attachment').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

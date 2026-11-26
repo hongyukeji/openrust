@@ -2627,3 +2627,34 @@ fn register_style_properties() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Element style attachment {#terminal-style-attachment}
+
+Use `TerminalElement::with_styles` to attach a standalone style, including its properties and default class names. `get_properties`, `set_properties`, and `with` operate on the same style used by the element. Elements produced by `set_content` share that style.
+
+`get_length(Some(text))` measures explicit text. `get_length(None)` and `get_inner_width` use the most recently attached live element. Rendering still uses the receiver’s own content. Once the latest element is dropped, the measurement uses the receiver’s content.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalElement, TerminalElementKind, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_attached_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:attached-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let style = TerminalStyles::new().with_default_styles(["text-cyan", "font-bold"]);
+            let mut label = TerminalElement::with_styles(TerminalElementKind::Span, "Ready", style);
+            label.configure(|styles| styles.add_style("ml-1").map(|_| ()))?;
+
+            let mut next = label.set_content("Attached ready");
+            let width = label.get_length(None)?;
+            next.render(output, OutputFormat::Normal)?;
+            output.comment(&format!("{width} columns"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

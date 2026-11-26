@@ -389,6 +389,16 @@ impl TerminalStyles<'static> {
         self
     }
 
+    pub(super) fn into_parts(self) -> (Style, Option<StyleRepository>, Option<Vec<String>>) {
+        let state = match self.state {
+            StyleStorage::Owned(style) => *style,
+            StyleStorage::Borrowed(style) => style.clone(),
+        };
+        let repository = self.repository.map(Cow::into_owned);
+        let defaults = self.defaults.map(Cow::into_owned);
+        (state, repository, defaults)
+    }
+
     pub fn get_properties(&self) -> &serde_json::Map<String, serde_json::Value> {
         self.state
             .get()
