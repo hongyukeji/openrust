@@ -435,6 +435,93 @@ async fn pulse_work_and_check_use_their_own_iteration_schedules() {
 }
 
 #[tokio::test]
+async fn pulse_check_uses_the_public_beat_instance_and_vapor_defaults() {
+    use openrust::{
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    };
+    use std::{sync::Mutex, time::Duration};
+
+    #[derive(Default)]
+    struct BeatInstances(Mutex<Vec<String>>);
+
+    impl Listener for BeatInstances {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async {
+                let beat = event.downcast_ref::<SharedBeat>().unwrap();
+                self.0.lock().unwrap().push(beat.instance.clone());
+                Ok(None)
+            })
+        }
+    }
+
+    for (value, vapor) in [
+        ("0", false),
+        ("FaLsE", false),
+        ("(false)", false),
+        ("(null)", false),
+        ("EMPTY", false),
+        (r#"'"0"'"#, false),
+        (r#"'"false"'"#, true),
+        ("/parameter/path", true),
+    ] {
+        let mut app = TestApp::create(|builder| {
+            builder
+                .with_config(|root, env| {
+                    let mut settings = config(root, env)?;
+                    settings.get_mut("pulse").unwrap()["recorders"]["Servers"] = json!(false);
+                    Ok(settings)
+                })
+                .with_providers(vec![Box::new(PulseServiceProvider)])
+        })
+        .unwrap();
+        std::fs::write(
+            app.root().join(".env.testing"),
+            format!("VAPOR_SSM_PATH={value}\n"),
+        )
+        .unwrap();
+        app.boot().await.unwrap();
+        let listener = Arc::new(BeatInstances::default());
+        app.app()
+            .make::<openrust::events::Dispatcher>()
+            .await
+            .unwrap()
+            .listen(
+                "OpenRust\\Pulse\\Events\\SharedBeat",
+                listener.clone(),
+                Delivery::Sync,
+            )
+            .unwrap();
+        let args = if vapor {
+            vec!["pulse:check"]
+        } else {
+            vec!["pulse:check", "--once"]
+        };
+        tokio::time::timeout(Duration::from_secs(10), app.artisan(args))
+            .await
+            .unwrap()
+            .assert_successful();
+        let instances = listener.0.lock().unwrap();
+        assert_eq!(instances.len(), 1, "{value}");
+        if vapor {
+            assert_eq!(instances[0], "vapor", "{value}");
+        } else {
+            assert_eq!(instances[0].len(), 16, "{value}");
+            assert!(
+                instances[0]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric()),
+                "{value}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics_rows() {
     use openrust::database::Value;
     use openrust::support::facades::Cache;

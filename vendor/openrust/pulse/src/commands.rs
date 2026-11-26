@@ -7,7 +7,7 @@ use openrust::{
         events::Dispatcher as _,
     },
     foundation::Application,
-    support::facades::Artisan,
+    support::{Str, facades::Artisan},
 };
 use std::{sync::Arc, time::Duration};
 use tokio::time::Instant;
@@ -56,6 +56,23 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
 }
 fn error(e: impl std::fmt::Display) -> ConsoleError {
     ConsoleError::new(e.to_string())
+}
+fn vapor_enabled(value: &str) -> bool {
+    // Laravel 的 Env::get 先处理保留字，再去掉成对引号，最后由命令转为布尔值。
+    if ["false", "(false)", "empty", "(empty)", "null", "(null)"]
+        .iter()
+        .any(|literal| value.eq_ignore_ascii_case(literal))
+    {
+        return false;
+    }
+    let quoted =
+        matches!(value.as_bytes(), [b'\'', .., b'\''] | [b'"', .., b'"']) && !value.contains('\n');
+    let value = if quoted {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+    !matches!(value, "" | "0")
 }
 pub(crate) async fn cache(
     app: &Application,
@@ -132,11 +149,11 @@ impl Command for PulseCommand {
                             .map_err(error)?
                             .get_utf8("VAPOR_SSM_PATH")
                             .map_err(error)?
-                            .is_some_and(|v| !v.is_empty() && v != "0");
+                            .is_some_and(vapor_enabled);
                     let instance = if vapor {
                         "vapor".into()
                     } else {
-                        format!("{:032x}", fastrand::u128(..))
+                        Str::random(16)
                     };
                     let mut lock = if matches!(kind, Kind::Check)
                         && cache.get_store().lock_provider().is_some()

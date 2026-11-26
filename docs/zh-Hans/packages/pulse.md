@@ -104,4 +104,4 @@ let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 ./artisan pulse:purge --force
 ```
 
-`pulse:check` 将下一次检查安排在本次检查开始一秒后，服务器记录器按采样周期工作。Vapor 环境或 `--once` 执行一次。`pulse:work` 消费 Redis 流并定期清理旧指标，每轮处理完毕后等待一秒。直接存储模式无需运行该进程。`pulse:restart` 通知长期运行的两类命令退出，由进程管理器重启。`pulse:clear` 与 `pulse:purge` 清理指定类型或全部指标，生产环境需要确认或 `--force`。部署后使用 `./main artisan`。
+`pulse:check` 将下一次检查安排在本次检查开始一秒后，服务器记录器按采样周期工作。`VAPOR_SSM_PATH` 启用 Vapor 时只检查一次，`SharedBeat.instance` 为 `vapor`。其他环境下，每次运行命令使用一个 16 位字母数字实例标识，可加 `--once` 只检查一次。`pulse:work` 消费 Redis 流并定期清理旧指标，每轮处理完毕后等待一秒。直接存储模式无需运行该进程。`pulse:restart` 通知长期运行的两类命令退出，由进程管理器重启。`pulse:clear` 与 `pulse:purge` 清理指定类型或全部指标，生产环境需要确认或 `--force`。部署后使用 `./main artisan`。
