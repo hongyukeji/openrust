@@ -16,6 +16,8 @@ pub(super) enum Bridge {
     ChatToMessages,
     MessagesToResponses,
     MessagesToChat,
+    ResponsesCountToMessages,
+    MessagesCountToResponses,
 }
 
 impl Bridge {
@@ -26,6 +28,12 @@ impl Bridge {
             (TextEndpoint::ChatCompletions, TextEndpoint::Messages) => Some(Self::ChatToMessages),
             (TextEndpoint::Messages, TextEndpoint::Responses) => Some(Self::MessagesToResponses),
             (TextEndpoint::Messages, TextEndpoint::ChatCompletions) => Some(Self::MessagesToChat),
+            (TextEndpoint::CountResponseTokens, TextEndpoint::CountMessageTokens) => {
+                Some(Self::ResponsesCountToMessages)
+            }
+            (TextEndpoint::CountMessageTokens, TextEndpoint::CountResponseTokens) => {
+                Some(Self::MessagesCountToResponses)
+            }
             _ => None,
         }
     }
@@ -71,6 +79,30 @@ impl Bridge {
             Self::ChatToMessages => chat_messages::to_messages(data)?,
             Self::MessagesToResponses => messages::to_responses(data)?,
             Self::MessagesToChat => messages_chat::request(data)?,
+            Self::ResponsesCountToMessages => {
+                let mut payload = responses::to_messages(data)?;
+                let fields = payload.as_object_mut().expect("Messages 请求为对象");
+                for key in ["max_tokens", "stream", "temperature", "top_p"] {
+                    fields.remove(key);
+                }
+                payload
+            }
+            Self::MessagesCountToResponses => {
+                let mut data = data;
+                data.insert("max_tokens".into(), 1.into());
+                let mut payload = messages::to_responses(data)?;
+                let fields = payload.as_object_mut().expect("Responses 请求为对象");
+                for key in [
+                    "max_output_tokens",
+                    "store",
+                    "stream",
+                    "temperature",
+                    "top_p",
+                ] {
+                    fields.remove(key);
+                }
+                payload
+            }
         };
         Ok((
             request,
@@ -106,6 +138,9 @@ impl Translation {
                 messages::Message::new(name, self.allows_tools).buffered(data)
             }
             Bridge::MessagesToChat => messages_chat::response(name, self.allows_tools, data),
+            Bridge::ResponsesCountToMessages | Bridge::MessagesCountToResponses => {
+                Some(data.clone())
+            }
         }
     }
 
@@ -130,11 +165,13 @@ impl Translation {
             Bridge::MessagesToChat => Stream::MessagesClient(Box::new(
                 messages_chat::StreamState::new(name, self.allows_tools),
             )),
+            Bridge::ResponsesCountToMessages | Bridge::MessagesCountToResponses => Stream::Counting,
         }
     }
 }
 
 pub(super) enum Stream {
+    Counting,
     Responses(Box<responses::Response>, responses::StreamState),
     Chat(Box<chat::StreamState>),
     ChatClient(Box<chat_messages::StreamState>),
@@ -148,6 +185,7 @@ impl Stream {
             Self::Responses(response, state) => state.convert(response, data).map(response_wire),
             Self::Chat(state) => state.convert(data).map(response_wire),
             Self::ChatClient(state) => state.convert(data),
+            Self::Counting => None,
             Self::Messages(message, state) => state.convert(message, data),
             Self::MessagesClient(state) => state.convert(data),
         }

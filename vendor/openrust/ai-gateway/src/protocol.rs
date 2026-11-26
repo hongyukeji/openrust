@@ -5,7 +5,7 @@ use futures_util::StreamExt as _;
 use http::{HeaderMap, HeaderValue, header};
 use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode, client},
-    routing::{RouteGroup, RoutingError},
+    routing::{RouteGroup, Router, RoutingError},
     support::{
         Str,
         facades::{Facade, RateLimiter, Route},
@@ -25,13 +25,8 @@ type HttpResult = Result<Response, HttpError>;
 
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
-        router.get("/models", models)?;
-        router.get("/models/{model}", model)?;
-        router.post("/chat/completions", chat_completions)?;
-        router.post("/responses", responses)?;
-        router.post("/embeddings", embeddings)?;
+        shared_routes(router)?;
         router.post("/messages", messages)?;
-        router.post("/messages/count_tokens", count_message_tokens)?;
         Ok(())
     })?;
     Route::group(RouteGroup::new().prefix("/v1beta"), |router| {
@@ -40,6 +35,21 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.post("/models/{model}", gemini_operation)?;
         Ok(())
     })
+}
+
+pub(crate) fn unversioned_routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new(), shared_routes)
+}
+
+fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
+    router.get("/models", models)?;
+    router.get("/models/{model}", model)?;
+    router.post("/chat/completions", chat_completions)?;
+    router.post("/responses", responses)?;
+    router.post("/responses/input_tokens", count_response_tokens)?;
+    router.post("/embeddings", embeddings)?;
+    router.post("/messages/count_tokens", count_message_tokens)?;
+    Ok(())
 }
 
 fn gemini_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -120,11 +130,15 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                 Protocol::OpenAi => [
                     TextEndpoint::ChatCompletions,
                     TextEndpoint::Responses,
+                    TextEndpoint::CountResponseTokens,
                     TextEndpoint::Embeddings,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
-                Protocol::Anthropic => model.supports_for(TextEndpoint::Messages, key),
+                Protocol::Anthropic => {
+                    model.supports_for(TextEndpoint::Messages, key)
+                        || model.supports_for(TextEndpoint::CountMessageTokens, key)
+                }
                 Protocol::Gemini => [
                     TextEndpoint::GeminiGenerateContent,
                     TextEndpoint::GeminiStreamGenerateContent,
@@ -185,6 +199,10 @@ fn chat_completions(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn responses(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::Responses, None))
+}
+
+fn count_response_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::CountResponseTokens, None))
 }
 
 fn embeddings(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -372,10 +390,7 @@ async fn relay(
         match data.get("stream") {
             None | Some(Value::Bool(false) | Value::Null) => false,
             Some(Value::Bool(true))
-                if !matches!(
-                    endpoint,
-                    TextEndpoint::CountMessageTokens | TextEndpoint::Embeddings
-                ) =>
+                if !endpoint.is_counting() && endpoint != TextEndpoint::Embeddings =>
             {
                 true
             }
@@ -388,7 +403,10 @@ async fn relay(
             }
         }
     };
-    if endpoint == TextEndpoint::Responses {
+    if matches!(
+        endpoint,
+        TextEndpoint::Responses | TextEndpoint::CountResponseTokens
+    ) {
         // 共享上游 Key 暂不承载跨请求资源，防止不同下游 Key 通过资源 ID 互访。
         if ["store", "background"].iter().any(|field| {
             !matches!(
@@ -417,7 +435,23 @@ async fn relay(
                 "此端点仅支持无状态请求及客户端工具",
             );
         }
-        data.insert("store".into(), Value::Bool(false));
+        if endpoint == TextEndpoint::CountResponseTokens {
+            if data
+                .get("input")
+                .is_some_and(|input| !countable_input(input))
+            {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "unsupported_count_input",
+                    "计数目前只接收文本和内联客户端函数项",
+                );
+            }
+            for field in ["store", "background", "stream"] {
+                data.remove(field);
+            }
+        } else {
+            data.insert("store".into(), Value::Bool(false));
+        }
     }
     if matches!(protocol, Protocol::Anthropic)
         && ["container", "mcp_servers"]
@@ -595,6 +629,37 @@ async fn relay(
     )
 }
 
+fn countable_input(input: &Value) -> bool {
+    if input.is_string() || input.is_null() {
+        return true;
+    }
+    input.as_array().is_some_and(|items| {
+        items.iter().all(|item| match item["type"].as_str() {
+            Some("function_call") => {
+                item["call_id"].is_string()
+                    && item["name"].is_string()
+                    && item["arguments"].as_str().is_some_and(|arguments| {
+                        serde_json::from_str::<serde_json::Map<String, Value>>(arguments).is_ok()
+                    })
+            }
+            Some("function_call_output") => {
+                item["call_id"].is_string() && item["output"].is_string()
+            }
+            Some("message") | None => {
+                let content = &item["content"];
+                content.is_string()
+                    || content.as_array().is_some_and(|parts| {
+                        parts.iter().all(|part| {
+                            matches!(part["type"].as_str(), Some("input_text" | "output_text"))
+                                && part["text"].is_string()
+                        })
+                    })
+            }
+            _ => false,
+        })
+    })
+}
+
 fn includes_tool_history(data: &serde_json::Map<String, Value>) -> bool {
     let has_items = |field: &str, predicate: fn(&Value) -> bool| {
         data.get(field)
@@ -766,10 +831,23 @@ async fn respond(
             "上游未返回有效 JSON",
         );
     };
-    if !matches!(
-        endpoint,
-        TextEndpoint::CountMessageTokens | TextEndpoint::GeminiCountTokens
-    ) {
+    if endpoint == TextEndpoint::CountResponseTokens
+        || (endpoint == TextEndpoint::CountMessageTokens && bridge.is_some())
+    {
+        let Some(count) = data["input_tokens"].as_u64() else {
+            call.outcome("invalid_upstream_response");
+            return protocol.error(
+                StatusCode::BAD_GATEWAY,
+                "invalid_upstream_response",
+                "上游未返回有效的 Token 数",
+            );
+        };
+        data = if endpoint == TextEndpoint::CountResponseTokens {
+            json!({"object":"response.input_tokens","input_tokens":count})
+        } else {
+            json!({"input_tokens":count})
+        };
+    } else if !endpoint.is_counting() {
         call.observe_usage(&data);
     }
     if let Some(bridge) = bridge {

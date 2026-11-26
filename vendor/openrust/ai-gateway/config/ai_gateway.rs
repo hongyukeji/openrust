@@ -6,6 +6,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "enabled": env.get_utf8("AI_GATEWAY_ENABLED")?.is_some_and(|value| {
             value.eq_ignore_ascii_case("true") || value == "1"
         }),
+        "unversioned_paths": false,
         "models": {
             // "support-chat": {"provider": "deepseek", "model": "上游模型 ID"},
         },

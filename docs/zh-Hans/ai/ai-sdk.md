@@ -62,6 +62,10 @@ let answer = response.text;
 
 使用 Anthropic 客户端时，基础 URL 指向应用域名，下游 Key 通过 `x-api-key` 提交。网关支持 `/v1/messages` 和 `/v1/messages/count_tokens`，模型可映射到 Anthropic 原生连接。Messages 请求也可以路由到已发布的 OpenAI Responses 或 Chat Completions 模型。网关保留客户端工具调用 ID，并按顺序发送每个工具的内容块。带 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目录使用 OpenAI 格式。
 
+通过 `POST /v1/responses/input_tokens` 统计已发布的 OpenAI 或 Anthropic 模型输入。发送包含模型和无状态输入的 JSON，网关调用上游计数并返回 `input_tokens`。Messages 计数入口也可使用 OpenAI Responses 连接。计数请求计入下游 Key 的请求次数，计数结果不进入生成用量。
+
+客户端需要不含 `/v1` 的路径时，在 `config/ai_gateway.rs` 将 `unversioned_paths` 设为 `true`。这会增加 `/models`、`/models/{model}`、`/chat/completions`、`/responses`、`/responses/input_tokens`、`/embeddings` 和 `/messages/count_tokens`，并共用原有授权与限流。
+
 两个方向的转换都支持普通 JSON 和 SSE，给客户端返回公开模型名。上游报告缓存读写用量时，网关会按目标协议返回相应计数。
 
 同一个 Anthropic 发布模型可供 Messages、Responses 和 Chat Completions 客户端调用。转换支持文本、系统指令、基本采样参数和客户端函数工具，支持 JSON 和 SSE。工具调用 ID、流式参数增量和文本结果可双向传递。结构化输出和附件使用相应的原生端点。

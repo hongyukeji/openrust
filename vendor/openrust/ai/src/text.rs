@@ -157,6 +157,7 @@ pub trait TextProvider: Send + Sync {
 pub enum TextEndpoint {
     ChatCompletions,
     Responses,
+    CountResponseTokens,
     Messages,
     CountMessageTokens,
     Embeddings,
@@ -170,6 +171,7 @@ impl TextEndpoint {
         match self {
             Self::ChatCompletions => "chat/completions",
             Self::Responses => "responses",
+            Self::CountResponseTokens => "responses/input_tokens",
             Self::Messages => "messages",
             Self::CountMessageTokens => "messages/count_tokens",
             Self::Embeddings => "embeddings",
@@ -177,6 +179,13 @@ impl TextEndpoint {
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
             Self::GeminiCountTokens => "countTokens",
         }
+    }
+
+    pub const fn is_counting(self) -> bool {
+        matches!(
+            self,
+            Self::CountResponseTokens | Self::CountMessageTokens | Self::GeminiCountTokens
+        )
     }
 }
 
@@ -410,6 +419,7 @@ impl TextProvider for OpenAiTextProvider {
                 matches!(self.protocol, OpenAiProtocol::Responses)
                     || self.connection.embeddings_configured()
             }
+            TextEndpoint::CountResponseTokens => matches!(self.protocol, OpenAiProtocol::Responses),
             TextEndpoint::ChatCompletions => true,
             _ => self.protocol.endpoint() == endpoint,
         }
@@ -420,7 +430,8 @@ impl TextProvider for OpenAiTextProvider {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
             }
-            let stream = endpoint != TextEndpoint::Embeddings
+            let stream = !endpoint.is_counting()
+                && endpoint != TextEndpoint::Embeddings
                 && body.get("stream").and_then(Value::as_bool) == Some(true);
             self.connection.send(endpoint, &body, stream, None).await
         })

@@ -25,6 +25,8 @@ struct Configuration {
     #[serde(default)]
     enabled: bool,
     #[serde(default)]
+    unversioned_paths: bool,
+    #[serde(default)]
     models: BTreeMap<String, ModelConfiguration>,
     #[serde(default)]
     accounts: BTreeMap<String, AccountConfiguration>,
@@ -112,9 +114,10 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 8] = [
+const ENDPOINTS: [TextEndpoint; 9] = [
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
+    TextEndpoint::CountResponseTokens,
     TextEndpoint::Messages,
     TextEndpoint::CountMessageTokens,
     TextEndpoint::GeminiGenerateContent,
@@ -170,6 +173,8 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
         TextEndpoint::Responses => &[TextEndpoint::Messages, TextEndpoint::ChatCompletions],
         TextEndpoint::ChatCompletions => &[TextEndpoint::Messages],
         TextEndpoint::Messages => &[TextEndpoint::Responses, TextEndpoint::ChatCompletions],
+        TextEndpoint::CountResponseTokens => &[TextEndpoint::CountMessageTokens],
+        TextEndpoint::CountMessageTokens => &[TextEndpoint::CountResponseTokens],
         _ => &[],
     };
     translated
@@ -180,6 +185,7 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
 
 pub(crate) struct Gateway {
     pub(crate) models: BTreeMap<String, Model>,
+    pub(crate) unversioned_paths: bool,
     pub(crate) account_cache_store: Option<String>,
     pub(crate) account_session_ttl: Option<i64>,
     groups: BTreeMap<String, Arc<Group>>,
@@ -369,6 +375,7 @@ impl Gateway {
         }
         Ok(Some(Self {
             models,
+            unversioned_paths: config.unversioned_paths,
             account_cache_store: config.account_cache_store,
             account_session_ttl: config.account_session_ttl,
             keys,
