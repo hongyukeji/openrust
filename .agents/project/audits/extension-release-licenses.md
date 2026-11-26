@@ -14,7 +14,7 @@
 | `x86_64-pc-windows-msvc` | 608 | 608 |
 | `aarch64-pc-windows-msvc` | 607 | 607 |
 
-本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64、Linux AMD64 和 Windows ARM64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
+本表包含构建依赖及根包，记录 Cargo 解析结果和已声明的许可。下文记录 Linux ARM64、Linux AMD64、Windows ARM64 和 Windows x64 组合候选制品的实际检查。其他目标的最终二进制、发布渠道中的许可随附及其他原生依赖仍需逐项核对。Webhook 双包已有的制品证据单独维护。[Webhook 制品与许可](webhooks/artifact-licenses.md)
 
 ## 原生 SQLite 制品
 
@@ -80,3 +80,14 @@
 ## Windows x64 组合预检
 
 在同一 Windows 11 ARM64 虚机核对 `7dd141aac` 归档。Rust 1.94.0 已安装 `x86_64-pc-windows-msvc` 标准库，MSVC HostARM64 的 x64 链接器及 Windows SDK 的 x64 库均可用。针对 x64 执行 `cargo tree --locked --offline`，九个扩展依赖均出现。以 `rustc --target x86_64-pc-windows-msvc` 编译最小探针，核对 PE 机器类型为 `0x8664`，在虚机的 x64 兼容层执行成功。此项验证工具链及兼容层加载，完整应用、发布归档、实际运行行为和原生 x64 主机仍需独立验收。
+
+## Windows x64 组合候选制品
+
+沿用 `7dd141aac49bafa452f35293d68b45375b36d4ff` 的干净归档，用 Rust 1.94.0、`x86_64-pc-windows-msvc`、MSVC HostARM64、`--release --locked --offline --jobs 1 --bin main` 和相同的九项扩展及 `standalone` 构建。两次宿主磁盘停线都只停止本批构建树。宿主持锁清理后，复用专用 NTFS 盘已完成的编译产物，等待其他虚机构建退出后用相同选项续跑。
+
+- Windows 生成的 ZIP 的 SHA-256 为 `376ed9f455e2bd2fb9f9ced95d14160663c686276661ff711c1351eadfb094fa`，解包二进制为 `7f13525d4c4a557ef5e26a291ea50082bddd34165f9f777e79a91eb3e0f1426e`。10 个许可文件与源码逐字节一致。
+- PE32+ 的机器类型为 `0x8664`，栈保留 16 MiB，内嵌 SQLite source ID 与锁定的 SQLite 3.54.1 一致。MSVC `dumpbin /dependents` 显示 Windows 系统库、`VCRUNTIME140.dll` 和 UCRT API 集，未列出 `sqlite3.dll`。虚机已安装 x64 Visual C++ 运行库。
+- 从解包目录运行，Artisan 发现九个 Provider、执行 58 项 SQLite 迁移并生成配置与路由缓存，重复迁移无待执行项。缓存前后的实际 HTTP `/up`、`/` 和 `/api` 均返回 200。缓存后连接、订阅及接收 Reverb 签名投递通过，独立 `artisan queue:work database --once` 成功退出且队列表为空。两个 HTTP 进程响应各自私有控制台的 Ctrl+C 并以状态 0 退出。
+- 同一制品启用 New Relic Provider 后再跑整套，归档与二进制摘要一致。隔离私有网络收集器解码 206 个 Span 和 12 条指标记录，核对服务身份、`GET /api` 状态与路由、请求耗时指标及 `artisan inspire` Span。
+
+实际运行环境为 Windows ARM64 虚机的 x64 兼容层，证据位于本机 `target/tmp/goal-extension-combined-windows-x64/`。原生 Windows x64、Windows Docker Desktop、无 MSVC 工具链的安装、真实 New Relic 租户及目标发布渠道按各自环境复验。
