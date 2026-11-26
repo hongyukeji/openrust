@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, Message, QueueableAgent,
-    QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent, Tool,
+    AgentMiddleware, AgentResponse, Ai, AiResult, FakeTextGateway, ImageAttachment, Message,
+    QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent, Tool,
     agent_broadcast::StreamBroadcast,
 };
 
@@ -28,6 +28,10 @@ pub trait Agent: Send + Sync + 'static {
     }
 
     fn messages(&self) -> &[Message] {
+        &[]
+    }
+
+    fn attachments(&self) -> &[ImageAttachment] {
         &[]
     }
 
@@ -187,6 +191,7 @@ pub trait Agent: Send + Sync + 'static {
 pub struct AnonymousAgent {
     instructions: String,
     messages: Vec<Message>,
+    attachments: Vec<ImageAttachment>,
     tools: Vec<Arc<dyn Tool>>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     max_steps: Option<usize>,
@@ -196,6 +201,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
         messages: Vec::new(),
+        attachments: Vec::new(),
         tools: Vec::new(),
         middleware: Vec::new(),
         max_steps: None,
@@ -222,6 +228,14 @@ impl AnonymousAgent {
         StructuredAnonymousAgent::new(self, schema)
     }
 
+    pub fn with_attachments(
+        mut self,
+        attachments: impl IntoIterator<Item = ImageAttachment>,
+    ) -> Self {
+        self.attachments = attachments.into_iter().collect();
+        self
+    }
+
     pub fn with_messages(mut self, messages: impl IntoIterator<Item = Message>) -> Self {
         self.messages = messages.into_iter().collect();
         self
@@ -236,6 +250,10 @@ impl Agent for AnonymousAgent {
     fn messages(&self) -> &[Message] {
         &self.messages
     }
+    fn attachments(&self) -> &[ImageAttachment] {
+        &self.attachments
+    }
+
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
         self.tools.clone()
     }

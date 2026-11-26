@@ -341,3 +341,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 验证固定 ID、严格序列、选项和断言。独立 HTTP 验证回调、文件 Fake 联动、成员分页、只操作当前连接与 Fake、删除成员和原文件。OpenAI 向量仓库回归、两个包测试与严格 Clippy、三语构建、十二组浏览器及导航通过。
 
 - [固定 Laravel Stores 入口](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Stores.php) · [固定 Laravel FakeStoreGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeStoreGateway.php)
+
+## AI-02／AI-03 Agent 图片附件
+
+匿名 Agent 用 `with_attachments`，具名 Agent 实现 `attachments`。复用图像生成的 `ImageAttachment`，支持字节、应用磁盘、本地路径与 HTTP 上传。允许图片作为唯一输入。OpenAI Chat Completions／Responses、Anthropic Messages 与 Gemini 各自以原生格式接收图片。流式工具续步保留本轮图片，文本 Fake 记录图片并支持断言。此处的附件随本轮调用发送，会话存储仍按文本契约保存。
+
+独立 Artisan 验证本地、私有磁盘、Fake、图片数量上限和真实 Responses 请求。真实 HTTP Kernel 解析 multipart，四个本地 TCP 协议入口逐一核对鉴权、图片字节、普通响应、SSE 及仅图片输入。Chat 工具流验证第二步仍保留同一张图片与工具结果。文档、供应商存储 ID、远端附件、单次调用及历史附件、真实供应商视觉模型仍列为后续验收。
+
+- [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel Image](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Image.php)

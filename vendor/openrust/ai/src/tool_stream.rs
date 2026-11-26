@@ -102,6 +102,7 @@ struct OwnedPrompt {
     model: String,
     timeout: Option<Duration>,
     messages: Vec<Message>,
+    attachments: Vec<crate::ImageAttachment>,
     schema: Option<(Value, bool)>,
 }
 
@@ -113,6 +114,7 @@ impl From<AgentPrompt<'_>> for OwnedPrompt {
             model: value.text.model.into(),
             timeout: value.text.timeout,
             messages: value.messages.to_vec(),
+            attachments: value.attachments.to_vec(),
             schema: value
                 .structured_output
                 .map(|output| (output.schema.clone(), output.strict)),
@@ -130,6 +132,7 @@ impl OwnedPrompt {
                 timeout: self.timeout,
             },
             messages: &self.messages,
+            attachments: &self.attachments,
             structured_output: self
                 .schema
                 .as_ref()

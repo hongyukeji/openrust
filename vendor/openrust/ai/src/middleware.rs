@@ -6,8 +6,8 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, Message, StepResponse, StructuredOutput, TextPrompt,
-    TextProvider, ToolDefinition, ToolStep, Usage,
+    AgentPrompt, AiError, AiResult, ImageAttachment, Message, StepResponse, StructuredOutput,
+    TextPrompt, TextProvider, ToolDefinition, ToolStep, Usage,
 };
 
 /// Agent 中间件可以读取、修改或拦截单个模型生成步骤。
@@ -27,6 +27,7 @@ pub struct PendingStep<'a> {
     pub instructions: Cow<'a, str>,
     pub prompt: &'a str,
     pub messages: Cow<'a, [Message]>,
+    pub attachments: Cow<'a, [ImageAttachment]>,
     pub structured_output: Option<StructuredOutput<'a>>,
     pub steps: &'a [ToolStep],
     pub usage: Usage,
@@ -52,6 +53,11 @@ impl<'a> PendingStep<'a> {
 
     pub fn with_messages(mut self, messages: impl Into<Cow<'a, [Message]>>) -> Self {
         self.messages = messages.into();
+        self
+    }
+
+    pub fn with_attachments(mut self, attachments: impl Into<Cow<'a, [ImageAttachment]>>) -> Self {
+        self.attachments = attachments.into();
         self
     }
 
@@ -112,6 +118,7 @@ pub(crate) async fn generate_step(
                 if step.model.trim().is_empty() {
                     return Err(AiError::MissingModel);
                 }
+                crate::image::validate_prompt_images(&step.attachments)?;
                 context
                     .allowed
                     .extend(step.tools.iter().map(|tool| tool.name.clone()));
@@ -123,6 +130,7 @@ pub(crate) async fn generate_step(
                         timeout: step.timeout,
                     },
                     messages: &step.messages,
+                    attachments: &step.attachments,
                     structured_output: step.structured_output,
                 };
                 if step.tools.is_empty() && step.steps.is_empty() {

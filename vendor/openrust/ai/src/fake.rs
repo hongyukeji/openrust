@@ -8,12 +8,13 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{AgentResponse, AiError, AiResult, Message, Usage};
+use crate::{AgentResponse, AiError, AiResult, ImageAttachment, Message, Usage};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordedPrompt {
     pub text: String,
     pub messages: Vec<Message>,
+    pub attachments: Vec<ImageAttachment>,
     pub schema: Option<Value>,
     pub provider: Option<String>,
     pub model: Option<String>,
@@ -74,14 +75,7 @@ impl FakeTextGateway {
         self.assert_prompted_times(0);
     }
 
-    pub(super) fn respond(
-        &self,
-        prompt: &str,
-        messages: &[Message],
-        schema: Option<&Value>,
-        provider: Option<String>,
-        model: Option<String>,
-    ) -> AiResult<AgentResponse> {
+    pub(super) fn respond(&self, prompt: RecordedPrompt) -> AiResult<AgentResponse> {
         let text = match self.responses.lock().unwrap().pop_front() {
             Some(text) => text,
             None if self.prevent_stray.load(Ordering::Relaxed) => {
@@ -90,24 +84,21 @@ impl FakeTextGateway {
             None => format!(
                 "Fake response for prompt: {}",
                 prompt
+                    .text
                     .split_whitespace()
                     .take(10)
                     .collect::<Vec<_>>()
                     .join(" ")
             ),
         };
-        self.prompts.lock().unwrap().push(RecordedPrompt {
-            text: prompt.into(),
-            messages: messages.to_vec(),
-            schema: schema.cloned(),
-            provider: provider.clone(),
-            model: model.clone(),
-        });
+        let provider = prompt.provider.clone().unwrap_or_default();
+        let model = prompt.model.clone().unwrap_or_default();
+        self.prompts.lock().unwrap().push(prompt);
         Ok(AgentResponse {
             text,
             usage: Usage::default(),
-            provider: provider.unwrap_or_default(),
-            model: model.unwrap_or_default(),
+            provider,
+            model,
             tool_calls: Vec::new(),
             tool_results: Vec::new(),
         })

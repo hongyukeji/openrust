@@ -225,6 +225,22 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+## 图片附件 {#prompt-images}
+
+```rust
+use openrust_ai::{Agent, ImageAttachment, agent};
+
+let photo = ImageAttachment::from_storage("photos/sample.png", None).await?;
+let response = agent("Describe the scene.")
+    .with_attachments([photo])
+    .prompt("What can you see?")
+    .await?;
+```
+
+上传图片用 `ImageAttachment::from_upload(&file)` 读取，本地文件用 `ImageAttachment::from_path(path).await`，字节用 `ImageAttachment::from_bytes(bytes)`。具名 Agent 通过 `Agent::attachments` 提供附件，匿名 Agent 可以用 `with_attachments`。
+
+所选模型需支持图片输入。OpenAI Responses、Chat Completions、Anthropic Messages 和 Gemini 分别使用原生图片格式。SDK 接收 PNG、JPEG 和 WebP，单次最多 16 张，原始图片总量须小于 50 MB，同时受供应商限制。可以只发送图片，也可以附上文字。附件跟随本轮调用及工具续步，文本会话存储只记录文本。
+
 ## Agent 工具 {#agent-tools}
 
 实现 `Tool` 的名称、描述、JSON Schema 和异步 `handle`。用 `ToolRequest::validate` 运行框架验证规则，或通过 `decode` 将参数读为 Rust 类型。工具可以读取上游调用 ID 和本次执行的独立 ID。

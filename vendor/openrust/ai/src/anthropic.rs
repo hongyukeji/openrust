@@ -6,6 +6,7 @@ use openrust::{
         HttpFuture,
         client::{Factory, Response},
     },
+    support::Str,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -42,7 +43,20 @@ impl AnthropicTextProvider {
             .iter()
             .map(|message| json!({"role":message.role.as_str(), "content":message.content}))
             .collect();
-        messages.push(json!({"role":"user","content":prompt.text.prompt}));
+        let content = if prompt.attachments.is_empty() {
+            Value::from(prompt.text.prompt)
+        } else {
+            let mut blocks = Vec::new();
+            if !prompt.text.prompt.trim().is_empty() {
+                blocks.push(json!({"type":"text","text":prompt.text.prompt}));
+            }
+            blocks.extend(prompt.attachments.iter().map(|image| json!({
+                "type":"image",
+                "source":{"type":"base64","media_type":image.mime(),"data":Str::to_base64(image.content())}
+            })));
+            Value::Array(blocks)
+        };
+        messages.push(json!({"role":"user","content":content}));
         let mut body = json!({
             "model": prompt.text.model,
             "max_tokens": 64_000,

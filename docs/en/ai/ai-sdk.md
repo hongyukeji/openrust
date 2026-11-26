@@ -225,6 +225,22 @@ Pass the authenticated participant's type and ID when continuing a conversation.
 
 The SDK saves completed user and assistant messages together. The next prompt receives the latest 100 messages in chronological order by default. Change `conversations.max_messages` in `config/ai.rs` to adjust that limit. The store uses the default database connection unless `AI_CONVERSATIONS_CONNECTION` names another connection. For a history screen, use `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` for newest-first cursor pagination. Use `stream()` for a streamed turn and pass its `response` to your SSE renderer. The conversation ID is available immediately. The SDK saves the turn before sending the final completion event. An interrupted stream leaves no new messages. For an Agent with a schema, use `prompt_structured()` or `stream_structured()`.
 
+## Image attachments {#prompt-images}
+
+```rust
+use openrust_ai::{Agent, ImageAttachment, agent};
+
+let photo = ImageAttachment::from_storage("photos/sample.png", None).await?;
+let response = agent("Describe the scene.")
+    .with_attachments([photo])
+    .prompt("What can you see?")
+    .await?;
+```
+
+Read an uploaded image with `ImageAttachment::from_upload(&file)`, a local file with `ImageAttachment::from_path(path).await`, or raw bytes with `ImageAttachment::from_bytes(bytes)`. Supply the attachments through `Agent::attachments` on a named agent or `with_attachments` on an anonymous agent.
+
+The selected model must support image input. OpenAI Responses, Chat Completions, Anthropic Messages, and Gemini each use their native image format. The SDK accepts PNG, JPEG, and WebP, with at most 16 attachments and less than 50 MB of raw images per prompt. Provider limits also apply. Attachments can accompany text or be the only input. They travel with the current turn and its tool steps. The text conversation store keeps only text.
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

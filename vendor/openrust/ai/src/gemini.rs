@@ -83,7 +83,16 @@ impl GeminiTextProvider {
                 json!({"role":role,"parts":[{"text":message.content}]})
             })
             .collect();
-        contents.push(json!({"role":"user","parts":[{"text":prompt.text.prompt}]}));
+        let mut parts = Vec::new();
+        if prompt.attachments.is_empty() || !prompt.text.prompt.trim().is_empty() {
+            parts.push(json!({"text":prompt.text.prompt}));
+        }
+        parts.extend(prompt.attachments.iter().map(|image| {
+            json!({
+                "inlineData":{"mimeType":image.mime(),"data":Str::to_base64(image.content())}
+            })
+        }));
+        contents.push(json!({"role":"user","parts":parts}));
         let mut body = json!({"contents":contents});
         if !prompt.text.instructions.is_empty() {
             body["systemInstruction"] = json!({"parts":[{"text":prompt.text.instructions}]});

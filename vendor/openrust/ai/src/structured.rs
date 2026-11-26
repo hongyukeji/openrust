@@ -150,6 +150,10 @@ impl Agent for StructuredAnonymousAgent {
     fn messages(&self) -> &[Message] {
         self.agent.messages()
     }
+    fn attachments(&self) -> &[crate::ImageAttachment] {
+        self.agent.attachments()
+    }
+
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
         self.agent.tools()
     }

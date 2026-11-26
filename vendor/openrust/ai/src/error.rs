@@ -19,6 +19,7 @@ pub enum AiError {
     MissingCredential,
     ModelsNotSupported,
     MessagesNotSupported,
+    AttachmentsNotSupported,
     StructuredOutputNotSupported,
     InvalidSchema,
     InvalidTools,
@@ -82,6 +83,7 @@ impl fmt::Display for AiError {
             Self::MissingModel => formatter.write_str("请选择 AI 模型，或为当前连接配置默认模型"),
             Self::MissingCredential => formatter.write_str("AI 连接的环境凭证未配置"),
             Self::ModelsNotSupported => formatter.write_str("该 AI 协议驱动未提供模型目录"),
+            Self::AttachmentsNotSupported => formatter.write_str("该 AI 协议驱动不支持提示词附件"),
             Self::MessagesNotSupported => formatter.write_str("该 AI 协议驱动未接收历史消息"),
             Self::StructuredOutputNotSupported => {
                 formatter.write_str("该 AI 协议驱动未提供结构化输出")

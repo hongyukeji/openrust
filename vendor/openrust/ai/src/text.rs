@@ -3,14 +3,17 @@ use std::{sync::Arc, time::Duration};
 use async_openai::types::{
     chat::{
         ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
-        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
+        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessage,
         ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageContent, ChatCompletionStreamOptions,
-        CreateChatCompletionRequest, ResponseFormat, ResponseFormatJsonSchema,
+        ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
+        ChatCompletionStreamOptions, CreateChatCompletionRequest, ImageUrl, ResponseFormat,
+        ResponseFormatJsonSchema,
     },
     responses::{
-        CreateResponse, EasyInputContent, EasyInputMessage, InputItem, InputParam,
-        ResponseTextParam, Role, TextResponseFormatConfiguration,
+        CreateResponse, EasyInputContent, EasyInputMessage, InputContent, InputImageContent,
+        InputItem, InputParam, InputTextContent, ResponseTextParam, Role,
+        TextResponseFormatConfiguration,
     },
 };
 use openrust::{
@@ -98,6 +101,9 @@ pub trait TextProvider: Send + Sync {
         if prompt.structured_output.is_some() {
             return Box::pin(async { Err(AiError::StructuredOutputNotSupported) });
         }
+        if !prompt.attachments.is_empty() {
+            return Box::pin(async { Err(AiError::AttachmentsNotSupported) });
+        }
         if prompt.messages.is_empty() {
             self.generate_text(prompt.text)
         } else {
@@ -111,6 +117,9 @@ pub trait TextProvider: Send + Sync {
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         if prompt.structured_output.is_some() {
             return Box::pin(async { Err(AiError::StructuredOutputNotSupported) });
+        }
+        if !prompt.attachments.is_empty() {
+            return Box::pin(async { Err(AiError::AttachmentsNotSupported) });
         }
         if prompt.messages.is_empty() {
             self.stream_text(prompt.text)
@@ -286,7 +295,32 @@ impl OpenAiTextProvider {
                 })
             }
         }));
-        messages.push(user(prompt.text.prompt));
+        let latest = if prompt.attachments.is_empty() {
+            user(prompt.text.prompt)
+        } else {
+            use ChatCompletionRequestUserMessageContentPart::{ImageUrl as ImagePart, Text};
+            let mut parts = Vec::new();
+            if !prompt.text.prompt.trim().is_empty() {
+                parts.push(Text(ChatCompletionRequestMessageContentPartText {
+                    text: prompt.text.prompt.into(),
+                    ..Default::default()
+                }));
+            }
+            parts.extend(prompt.attachments.iter().map(|image| {
+                ImagePart(ChatCompletionRequestMessageContentPartImage {
+                    image_url: ImageUrl {
+                        url: image.data_url(),
+                        detail: None,
+                    },
+                    ..Default::default()
+                })
+            }));
+            ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
+                content: ChatCompletionRequestUserMessageContent::Array(parts),
+                name: None,
+            })
+        };
+        messages.push(latest);
         CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
@@ -305,31 +339,48 @@ impl OpenAiTextProvider {
     }
 
     fn responses_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> CreateResponse {
-        let input = if prompt.messages.is_empty() {
+        let input = if prompt.messages.is_empty() && prompt.attachments.is_empty() {
             InputParam::Text(prompt.text.prompt.into())
         } else {
-            let message = |role, content: &str| {
+            let message = |role, content| {
                 InputItem::EasyMessage(EasyInputMessage {
                     r#type: Default::default(),
                     role,
-                    content: EasyInputContent::Text(content.into()),
+                    content,
                     phase: None,
                 })
             };
-            InputParam::Items(
-                prompt
-                    .messages
-                    .iter()
-                    .map(|entry| {
-                        let role = match entry.role {
-                            MessageRole::User => Role::User,
-                            MessageRole::Assistant => Role::Assistant,
-                        };
-                        message(role, &entry.content)
+            let mut history: Vec<_> = prompt
+                .messages
+                .iter()
+                .map(|entry| {
+                    let role = match entry.role {
+                        MessageRole::User => Role::User,
+                        MessageRole::Assistant => Role::Assistant,
+                    };
+                    message(role, EasyInputContent::Text(entry.content.clone()))
+                })
+                .collect();
+            let content = if prompt.attachments.is_empty() {
+                EasyInputContent::Text(prompt.text.prompt.into())
+            } else {
+                let mut parts = Vec::new();
+                if !prompt.text.prompt.trim().is_empty() {
+                    parts.push(InputContent::InputText(InputTextContent {
+                        text: prompt.text.prompt.into(),
+                        ..Default::default()
+                    }));
+                }
+                parts.extend(prompt.attachments.iter().map(|image| {
+                    InputContent::InputImage(InputImageContent {
+                        image_url: Some(image.data_url()),
+                        ..Default::default()
                     })
-                    .chain(std::iter::once(message(Role::User, prompt.text.prompt)))
-                    .collect(),
-            )
+                }));
+                EasyInputContent::ContentList(parts)
+            };
+            history.push(message(Role::User, content));
+            InputParam::Items(history)
         };
         CreateResponse {
             instructions: (!prompt.text.instructions.is_empty())

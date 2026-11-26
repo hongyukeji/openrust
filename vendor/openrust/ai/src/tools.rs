@@ -150,6 +150,7 @@ pub(crate) async fn run(
                 instructions: prompt.text.instructions.into(),
                 prompt: prompt.text.prompt,
                 messages: prompt.messages.into(),
+                attachments: prompt.attachments.into(),
                 structured_output: prompt.structured_output,
                 steps: &history,
                 usage: usage.clone().unwrap_or_default(),

@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fmt, path::Path, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 pub use openrust::image::Format as ImageFormat;
@@ -155,10 +155,33 @@ fn detect_format(bytes: &Bytes) -> Option<ImageFormat> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ImageAttachment {
     content: Bytes,
     format: ImageFormat,
+}
+
+impl fmt::Debug for ImageAttachment {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ImageAttachment")
+            .field("format", &self.format)
+            .field("bytes", &self.content.len())
+            .finish()
+    }
+}
+
+pub(crate) fn validate_prompt_images(images: &[ImageAttachment]) -> AiResult<()> {
+    if images.len() > MAX_ATTACHMENTS
+        || images
+            .iter()
+            .map(|image| image.content.len())
+            .fold(0usize, usize::saturating_add)
+            >= MAX_ATTACHMENT_BYTES
+    {
+        return Err(AiError::InvalidImage);
+    }
+    Ok(())
 }
 
 impl ImageAttachment {
@@ -169,6 +192,25 @@ impl ImageAttachment {
         }
         let format = detect_format(&content).ok_or(AiError::InvalidImage)?;
         Ok(Self { content, format })
+    }
+
+    pub fn from_upload(file: &UploadedFile) -> AiResult<Self> {
+        Self::from_bytes(file.get())
+    }
+
+    pub async fn from_path(path: impl AsRef<Path>) -> AiResult<Self> {
+        let file = tokio::fs::File::open(path.as_ref())
+            .await
+            .map_err(|_| AiError::MediaStorageUnavailable)?;
+        if !file
+            .metadata()
+            .await
+            .map_err(|_| AiError::MediaStorageUnavailable)?
+            .is_file()
+        {
+            return Err(AiError::InvalidImage);
+        }
+        Self::from_bytes(media_storage::read_limited(file, MAX_ATTACHMENT_BYTES).await?)
     }
 
     pub async fn from_storage(path: &str, disk: Option<&str>) -> AiResult<Self> {
@@ -185,6 +227,14 @@ impl ImageAttachment {
         Self::from_bytes(content)
     }
 
+    pub fn mime(&self) -> &'static str {
+        self.format.mime_type()
+    }
+
+    pub(crate) fn data_url(&self) -> String {
+        as_data_url(self.mime(), &self.content)
+    }
+
     pub fn format(&self) -> ImageFormat {
         self.format
     }
@@ -192,6 +242,10 @@ impl ImageAttachment {
     pub fn content(&self) -> &[u8] {
         &self.content
     }
+}
+
+fn as_data_url(mime: &str, content: &[u8]) -> String {
+    format!("data:{mime};base64,{}", Str::to_base64(content))
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
@@ -232,11 +286,7 @@ impl GeneratedImage {
     }
 
     pub fn data_url(&self) -> String {
-        format!(
-            "data:{};base64,{}",
-            self.mime(),
-            Str::to_base64(&self.content)
-        )
+        as_data_url(self.mime(), &self.content)
     }
 
     pub async fn store(&self, directory: &str, disk: Option<&str>) -> AiResult<String> {

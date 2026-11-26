@@ -624,9 +624,11 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
     ) -> AiResult<AgentResponse> {
-        if prompt.trim().is_empty() {
+        let attachments = agent.attachments();
+        if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
+        crate::image::validate_prompt_images(attachments)?;
         if let Some(fake) = self.text_fake::<A>() {
             let provider = options
                 .provider
@@ -642,13 +644,16 @@ impl AiManager {
                         .ok()
                         .and_then(|resolved| resolved.default_text_model().ok().map(str::to_owned))
                 });
-            return fake.respond(
-                prompt,
-                messages,
-                structured_output.as_ref().map(|output| output.schema),
+            return fake.respond(crate::RecordedPrompt {
+                text: prompt.into(),
+                messages: messages.to_vec(),
+                attachments: attachments.to_vec(),
+                schema: structured_output
+                    .as_ref()
+                    .map(|output| output.schema.clone()),
                 provider,
                 model,
-            );
+            });
         }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
@@ -660,6 +665,7 @@ impl AiManager {
                 timeout: options.timeout,
             },
             messages,
+            attachments,
             structured_output,
         };
         let tools = agent.tools();
@@ -706,9 +712,11 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
     ) -> AiResult<StreamableAgentResponse> {
-        if prompt.trim().is_empty() {
+        let attachments = agent.attachments();
+        if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
+        crate::image::validate_prompt_images(attachments)?;
         if self.text_fake::<A>().is_some() {
             return self
                 .prompt_with_history(agent, prompt, options, structured_output, messages)
@@ -729,6 +737,7 @@ impl AiManager {
                 timeout: options.timeout,
             },
             messages,
+            attachments,
             structured_output,
         };
         if tools.is_empty() {
