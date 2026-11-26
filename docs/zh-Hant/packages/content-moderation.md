@@ -2,7 +2,7 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-本套件提供自訂驅動契約、阿里雲、騰訊雲、Sightengine 和 Hive 的具名設定，以及持久化影片審核流程。各供應商小節說明支援的輸入和審核涵蓋範圍。
+本套件提供自訂驅動契約、阿里雲、騰訊雲、Sightengine 和 Hive 的具名設定，以及持久化影片審核流程。各供應商小節說明支援的輸入和審核涵蓋範圍。模型、語言與模態的實際涵蓋範圍取決於具名設定關聯的供應商專案及已開通服務。
 
 ## 供應商憑證 {#credentials}
 

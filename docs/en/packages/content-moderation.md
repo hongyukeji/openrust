@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, named Alibaba Cloud, Tencent Cloud, Sightengine and Hive profiles, and a durable video review workflow. Each provider section describes its supported inputs and coverage.
+The package provides custom driver contracts, named Alibaba Cloud, Tencent Cloud, Sightengine and Hive profiles, and a durable video review workflow. Each provider section describes its supported inputs and coverage. Actual model, language, and modality coverage depends on the named provider project and its enabled services.
 
 ## Provider credentials {#credentials}
 
