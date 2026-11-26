@@ -424,7 +424,7 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 
 ## GW-01 授权 Sub2API 实例实测
 
-2026-11-26，使用现有调用方 Bearer Key 和连接级附加头，经 OpenRust SDK 连接授权的 Sub2API 实例，协议为 OpenAI Responses，模型为 `gpt-6.1-sol`。实例的账号、分组与管理配置保持原样。部署版本、分组名及实际选中的上游账号无法由调用方接口确认，未借用独立隔离实例的版本信息。
+2026-11-26，使用现有调用方 Bearer Key 和连接级附加头，经 OpenRust SDK 连接授权的 Sub2API 实例，协议为 OpenAI Responses，模型为 `gpt-6.1-sol`。部署版本、分组和实际选中的上游账号由下方后台核对补证。实例的账号、分组与管理配置保持原样。
 
 | 实测入口 | 结果 |
 |---|---|
@@ -438,6 +438,30 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 连接级 `headers` 沿用固定 Laravel 的配置名，在 SDK 共享 HTTP 入口合并并标记为敏感值。实际 Artisan 配置入口验证保留鉴权头、重复名称及非法头值被拒绝。回归测试通过 Chat Completions 与 Responses 核对嵌套 Schema；Anthropic、Gemini 同样使用对象转换。此记录对应 SDK 消费既有实例，OpenRust 自托管网关及实际客户端入站证据见[网关端点账本](gateway.md)。
 
 - [固定 Laravel Provider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [固定 Laravel ObjectSchema](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/ObjectSchema.php)
+
+### Sub2API 后台只读核对
+
+使用已登录的 Chrome 查看「使用记录」和「账号管理」，按时间、端点和 Token 数匹配 SDK 实测记录。后台显示版本 `v0.2.23`。六条成功调用均命中 `OpenAI` 分组下的同一个 OpenAI OAuth Pro 账号，入站和上游端点均为 `/v1/responses`，记录的响应模型为 `gpt-6.1-sol`。
+
+| 北京时间（2026-11-26） | 实测入口 | 输入 Token | 输出 Token | 网关记录费用（USD） |
+|---|---|---:|---:|---:|
+| 20:52:48 | Artisan 普通文本 | 26 | 8 | 0.000132 |
+| 20:52:50 | Artisan 流式文本 | 27 | 9 | 0.000144 |
+| 20:52:52 | 工具首轮 | 69 | 17 | 0.000308 |
+| 20:52:53 | 工具续轮 | 99 | 7 | 0.000268 |
+| 20:52:56 | 应用 HTTP 流式文本 | 27 | 9 | 0.000144 |
+| 20:54:49 | 修复后的结构化输出 | 44 | 12 | 0.000208 |
+| 合计 | 6 次上游调用 | 292 | 62 | 0.001204 |
+
+工具两轮合计 168 输入、24 输出 Token，网关费用为 0.000576 USD。两条调用明细与 SDK 汇总一致。
+
+| 北京时间（2026-11-26） | 失败请求 | 后台依据 |
+|---|---|---|
+| 20:52:50 | 严格结构化输出 400 | 已到达 OpenAI 上游，错误指出响应 Schema 必须提供 `additionalProperties: false`。修复后复测成功。 |
+| 20:52:54 | Embeddings 503 | `/v1/embeddings` 路由暂不可用，错误记录未关联上游账号。向量实机仍待成功验收。 |
+| 20:52:55 | Responses 图片工具 403 | 当前 `OpenAI` 分组未启用图片生成，错误记录未关联上游账号。媒体实机仍待成功验收。 |
+
+**供应商实际结算待核对。** 0.001204 USD 是 Sub2API 后台六条成功记录的计费合计。OpenAI OAuth Pro 账号的供应商实际结算需要账单或获授权的报表作为凭据。三次失败均未匹配到成功用量记录，费用仍未知。
 
 ## AI-03 持久化工具审批与恢复
 
