@@ -12,6 +12,7 @@ use openrust::{
 use serde_json::{Value, json};
 
 use crate::{
+    billing::adjustments::Direction,
     budget::BudgetScope,
     gateway::Gateway,
     managed_keys::{KeyRecord, PREFIX, now},
@@ -199,6 +200,39 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     .await
                     .map_err(|_| ConsoleError::new("无法读取网关预算余额"))?;
                 write_json(output, json!(balance))?;
+                Ok(0)
+            })
+        }),
+    )?;
+    Artisan::command_with(
+        "ai:gateway:budget:reconcile {attempt-id : 用量尝试 ID} {--direction= : cost 或 receivable} {--reference= : 核对凭据编号} {--actor= : 审计操作者}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let id = required(input, "attempt-id")?.to_ascii_uppercase();
+                identifier(&id).map_err(|_| ConsoleError::new("用量尝试 ID 无效"))?;
+                let direction = match argument(input, "direction") {
+                    Some("cost") => Direction::Cost,
+                    Some("receivable") => Direction::Receivable,
+                    _ => return Err(ConsoleError::new("请用 --direction 指定费用方向")),
+                };
+                let reference = required(input, "reference")?.to_owned();
+                let actor = required(input, "actor")?.to_owned();
+                let result = store
+                    .reconcile_budget(id, direction, reference, actor)
+                    .await
+                    .map_err(|error| match error {
+                        openrust::database::DatabaseError::InvalidQuery(reason) => {
+                            ConsoleError::new(reason)
+                        }
+                        _ => ConsoleError::new("无法核对网关预算"),
+                    })?;
+                write_json(output, json!(result))?;
                 Ok(0)
             })
         }),

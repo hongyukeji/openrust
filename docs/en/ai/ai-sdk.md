@@ -373,6 +373,8 @@ If the account budget has no room, the gateway can select another authorized ups
 
 Run `./artisan ai:gateway:budget:show openai --account` to inspect the account balance or `./artisan ai:gateway:budget:recover openai --account` to recover stale, never-dispatched attempts by connection. Recovery releases both reservations for an attempt that held both.
 
+After a supplier statement or charge adjustment resolves a cost, run `./artisan ai:gateway:budget:reconcile <attempt-id> --direction=cost --reference=<evidence-id> --actor=operator`. Use `--direction=receivable` for a downstream adjustment. The command settles the confirmed amount in the original budget window. Retrying the same evidence reference returns its original record. For a corrected amount, use a new evidence reference. An amount above the original reservation ceiling stops new admissions for that window and remains visible for review.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

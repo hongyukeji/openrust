@@ -27,6 +27,8 @@ mod billing_migration;
 mod budget;
 #[path = "../database/migrations/2026_11_26_000009_create_ai_gateway_budgets_table.rs"]
 mod budget_migration;
+#[path = "../database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs"]
+mod budget_settlements_migration;
 mod codex_catalog;
 mod commands;
 mod compatibility;
@@ -93,6 +95,8 @@ const COST_PAGES_MIGRATION: &str =
     "database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs";
 const BILLING_ADJUSTMENTS_MIGRATION: &str =
     "database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs";
+const BUDGET_SETTLEMENTS_MIGRATION: &str =
+    "database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs";
 static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
@@ -141,6 +145,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs",
         &billing_adjustments_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs",
+        &budget_settlements_migration::MIGRATION,
     ),
 ];
 
@@ -225,6 +233,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         BILLING_ADJUSTMENTS_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs"),
+                    ),
+                    (
+                        BUDGET_SETTLEMENTS_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

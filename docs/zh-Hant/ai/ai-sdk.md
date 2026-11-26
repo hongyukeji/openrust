@@ -373,6 +373,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 執行 `./artisan ai:gateway:budget:show openai --account` 查詢帳號餘額，用 `./artisan ai:gateway:budget:recover openai --account` 依連線復原逾時且未對外送出的嘗試。一筆嘗試同時預留兩種預算時，復原會一併釋放。
 
+供應商帳單或借貸項確認費用後，執行 `./artisan ai:gateway:budget:reconcile <attempt-id> --direction=cost --reference=<憑據編號> --actor=operator`。核對下游應收時改用 `--direction=receivable`。指令在原預算帳期內結算已確認金額。重複提交相同憑據編號會傳回原記錄，更正金額時使用新的憑據編號。費用超出原預留上限時，本帳期停止新增呼叫，實際金額仍可核對。
+
 ### 群組輸出 Token 配額 {#gateway-output-quota}
 
 啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。

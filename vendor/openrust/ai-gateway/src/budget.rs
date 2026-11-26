@@ -14,6 +14,8 @@ use crate::{
     usage::DAY,
 };
 
+pub(crate) mod settlements;
+
 const TABLE: &str = "ai_gateway_budgets";
 const MAX_BUDGET_ATOMS: i64 = i64::MAX / 4;
 pub(crate) const DENIED: &str = "AI 网关分组货币预算不足";

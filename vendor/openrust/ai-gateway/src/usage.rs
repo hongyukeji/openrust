@@ -286,6 +286,16 @@ impl UsageStore {
         budget.balance(&self.connection, scope).await
     }
 
+    pub(crate) async fn reconcile_budget(
+        &self,
+        attempt: String,
+        direction: billing::adjustments::Direction,
+        reference: String,
+        actor: String,
+    ) -> DatabaseResult<budget::settlements::BudgetSettlement> {
+        budget::settlements::reconcile(&self.connection, attempt, direction, reference, actor).await
+    }
+
     pub(crate) async fn recover_budget(
         &self,
         scope: BudgetScope<'_>,
@@ -764,7 +774,14 @@ impl UsageAttempt {
                                             .settle(transaction, plan.receivable(&settlement))
                                             .await?;
                                     }
-                                    if let Some(account) = budget.account {
+                                    if let Some(account) = budget.account
+                                        && !budget::settlements::applied(
+                                            transaction,
+                                            &id,
+                                            billing::adjustments::Direction::Cost,
+                                        )
+                                        .await?
+                                    {
                                         account.settle(transaction, plan.cost(&settlement)).await?;
                                     }
                                 }

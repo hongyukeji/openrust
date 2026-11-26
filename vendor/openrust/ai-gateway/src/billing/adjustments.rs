@@ -30,13 +30,13 @@ pub(crate) struct Input {
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum Direction {
+pub(crate) enum Direction {
     Cost,
     Receivable,
 }
 
 impl Direction {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Cost => "cost",
             Self::Receivable => "receivable",
