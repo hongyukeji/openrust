@@ -91,17 +91,6 @@ fn get<T: ?Sized + Send + Sync + 'static>(
             source,
         })
 }
-fn option<'a>(
-    config: &'a WebhookConfig,
-    field: &'static str,
-    default: Option<&'a str>,
-) -> Result<&'a str> {
-    match config.options().get(field) {
-        Some(serde_json::Value::String(value)) => Ok(value),
-        None | Some(serde_json::Value::Null) => default.ok_or(Error::InvalidConfig(field)),
-        _ => Err(Error::InvalidConfig(field)),
-    }
-}
 macro_rules! registration {
     ($method:ident,$role:literal,$contract:ty) => {
         pub fn $method(
@@ -163,27 +152,27 @@ impl WebhookRuntime {
 
     fn from_application_scoped(app: Arc<Application>, config: Arc<WebhookConfig>) -> Result<Self> {
         let container = app.container();
-        let validator_name = option(&config, "signature_validator", None)?;
+        let validator_name = config.signature_validator_name()?;
         let validator =
             get::<dyn SignatureValidator>(container, "signature_validator", validator_name)?;
         let validator = (validator.create)(&config, container)?;
         let profile = get::<dyn WebhookProfile>(
             container,
             "webhook_profile",
-            option(&config, "webhook_profile", None)?,
+            config.webhook_profile_name()?,
         )?;
         let profile = (profile.create)(&config, container)?;
         let response = get::<dyn RespondsToWebhook>(
             container,
             "webhook_response",
-            option(&config, "webhook_response", Some("default"))?,
+            config.webhook_response_name()?,
         )?;
         let response = (response.create)(&config, container)?;
-        let store_name = option(&config, "webhook_model", None)?.to_owned();
+        let store_name = config.webhook_model_name()?.to_owned();
         let job = get::<dyn WebhookJobDispatcher>(
             container,
             "process_webhook_job",
-            option(&config, "process_webhook_job", None)?,
+            config.process_webhook_job_name()?,
         )?;
         let events = container
             .get::<openrust::events::Dispatcher>("events")
@@ -208,7 +197,7 @@ impl WebhookRuntime {
         let audit = match config.options().get("verification_audit") {
             None | Some(serde_json::Value::Null | serde_json::Value::Bool(false)) => None,
             Some(serde_json::Value::Bool(true)) => {
-                let scope = option(&config, "scope", None)?;
+                let scope = config.string_option("scope", None)?;
                 let connection = match config.options().get("connection") {
                     None | Some(serde_json::Value::Null) => None,
                     Some(serde_json::Value::String(connection)) => Some(connection.as_str()),

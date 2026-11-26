@@ -401,6 +401,21 @@ async fn immutable_runtime_configuration_builders_use_the_same_typed_factories()
         .unwrap();
     assert_eq!(config.options()["scope"], "stable-app-tenant");
     assert!(!config.options().to_string().contains("runtime-secret"));
+    for name in [
+        config.signature_validator_name(),
+        config.webhook_profile_name(),
+        config.webhook_response_name(),
+        config.webhook_model_name(),
+        config.process_webhook_job_name(),
+    ] {
+        assert_eq!(name.unwrap(), "vendor");
+    }
+    let manual = WebhookConfig::new("one", "").unwrap();
+    assert_eq!(manual.webhook_response_name().unwrap(), "default");
+    assert!(matches!(
+        manual.process_webhook_job_name(),
+        Err(Error::InvalidConfig("process_webhook_job"))
+    ));
     let config = Arc::new(config);
     let runtime = WebhookRuntime::from_application(app, config.clone())
         .await

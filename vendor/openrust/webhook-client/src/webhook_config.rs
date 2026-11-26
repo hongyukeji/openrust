@@ -352,6 +352,44 @@ impl WebhookConfig {
     pub fn with_process_webhook_job(self, name: impl Into<String>) -> Result<Self> {
         self.with_implementation("process_webhook_job", name)
     }
+
+    /// 已选择的签名验证器工厂名。
+    pub fn signature_validator_name(&self) -> Result<&str> {
+        self.string_option("signature_validator", None)
+    }
+
+    /// 已选择的请求筛选工厂名。
+    pub fn webhook_profile_name(&self) -> Result<&str> {
+        self.string_option("webhook_profile", None)
+    }
+
+    /// 已选择的响应工厂名，省略时使用 default。
+    pub fn webhook_response_name(&self) -> Result<&str> {
+        self.string_option("webhook_response", Some("default"))
+    }
+
+    /// 已选择的模型存储工厂名。
+    pub fn webhook_model_name(&self) -> Result<&str> {
+        self.string_option("webhook_model", None)
+    }
+
+    /// 已选择的处理任务派发工厂名。
+    pub fn process_webhook_job_name(&self) -> Result<&str> {
+        self.string_option("process_webhook_job", None)
+    }
+
+    pub(crate) fn string_option<'a>(
+        &'a self,
+        field: &'static str,
+        default: Option<&'a str>,
+    ) -> Result<&'a str> {
+        match self.options.get(field) {
+            Some(Value::String(value)) => Ok(value),
+            None | Some(Value::Null) => default.ok_or(Error::InvalidConfig(field)),
+            _ => Err(Error::InvalidConfig(field)),
+        }
+    }
+
     pub fn with_scope(mut self, scope: impl Into<String>) -> Result<Self> {
         let scope = scope.into();
         if !valid_scope(&scope) {

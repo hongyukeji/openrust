@@ -987,8 +987,13 @@ impl openrust::support::ServiceProvider for FixtureProvider {
             WebhookRuntime::register_signature_validator(
                 openrust::contracts::foundation::Application::container(app),
                 "custom",
-                |_, container| {
+                |config, container| {
                     use openrust::contracts::container::Container as _;
+                    assert_eq!(config.signature_validator_name()?, "custom");
+                    assert_eq!(config.webhook_profile_name()?, "process-everything");
+                    assert_eq!(config.webhook_model_name()?, "custom");
+                    assert_eq!(config.webhook_response_name()?, "custom");
+                    assert_eq!(config.process_webhook_job_name()?, "fixture-custom");
                     Ok(std::sync::Arc::new(CustomValidator {
                         request: container.get("request")?,
                     }))

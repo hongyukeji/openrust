@@ -117,6 +117,8 @@ pub async fn process_named(
 
 ## 自定义实现与快照 {#customization}
 
+工厂可通过 `signature_validator_name()`、`webhook_profile_name()`、`webhook_response_name()`、`webhook_model_name()` 和 `process_webhook_job_name()` 读取具名注册。运行时使用相同的名称解析工厂。省略响应时选择 `default`。
+
 在具名接收配置中启用 `"observe_receipts": true`，或者调用 `WebhookConfig::with_receipt_observation()`，可通过原生事件监听 `events::WebhookReceiptObserved`。事件只包含固定结果分类和处理耗时。数据库存储能区分首次接收、去重和冲突，旧的自定义存储可继续使用原有接口。事件在接收流程返回之前触发，监听器返回错误时原响应和已提交记录照常保留。路由匹配或请求读取阶段提前拒绝的请求不进入该事件。
 
 外部 crate 可实现 `SignatureValidator`、`WebhookProfile`、`RespondsToWebhook`、`WebhookStore` 和 `WebhookJobDispatcher`。`ProcessEverythingWebhookProfile` 选择所有请求，`DefaultRespondsTo` 生成 `{"message":"ok"}`。`WebhookRuntime::new` 接受显式依赖；`WebhookRuntime::from_application` 按当前应用的类型化工厂解析选定名称，不执行类名字符串，也不使用全局注册表。

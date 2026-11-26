@@ -235,7 +235,7 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "partial_configuration_factories_verified",
+      "status": "native_configuration_factories_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "name",
@@ -249,8 +249,9 @@
         "storeAttachments",
         "processWebhookJobClass"
       ],
-      "notes": "名称／凭据引用／头／预算／快照及运行时 Builder 已验。签名验证器／Profile／模型／Job 派发引用必填，Response 缺失或 null 默认；store_headers 的省略／null／列表／明确字符串 * 已验。五类类型化 Factory 与生命周期 Runtime 保持不可变配置元数据不缓存跨请求对象，工厂对象不按配置或任务序列化。storeAttachments 布尔／缺省／null 已验。完整模型／可排队 Job 及配置字段／错误继承最终裁决仍待完成；不把 Runtime 的对象当该源类型全部公开字段已对齐。",
+      "notes": "名称／凭据引用／头／预算／快照及运行时 Builder 已验。签名验证器／Profile／模型／Job 派发引用必填，Response 缺失或 null 默认；store_headers 的省略／null／列表／明确字符串 * 已验。五类类型化 Factory 与生命周期 Runtime 保持不可变配置元数据不缓存跨请求对象，工厂对象不按配置或任务序列化。storeAttachments 布尔／缺省／null 已验。五个公开具名读取入口与实际 Runtime 工厂使用同一解析。Rust 通过容器提供类型化实现，模型与任务的生命周期由各自入口记录。",
       "evidence": [
+        ".agents/project/audits/webhooks/config-factory-names.md",
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
         "vendor/openrust/webhook-client/tests/processor.rs",

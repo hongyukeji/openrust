@@ -117,6 +117,8 @@ The controller uses native `Request::body_bytes_with_limit`: raw bytes are retai
 
 ## Custom implementations and snapshots {#customization}
 
+A factory can use `signature_validator_name()`, `webhook_profile_name()`, `webhook_response_name()`, `webhook_model_name()`, and `process_webhook_job_name()` to read the configured registrations. Runtime resolution uses the same names. An omitted response selects `default`.
+
 Set `"observe_receipts": true` on a named receiving profile or call `WebhookConfig::with_receipt_observation()` to listen for the native `events::WebhookReceiptObserved` event. It carries only a fixed outcome and the elapsed processing time. The database store distinguishes new receipts, duplicates, and conflicts. Existing custom stores can keep their current methods. The event runs before the processor returns. A listener error leaves the response and committed records intact. Requests rejected during routing or body collection are outside the processor and produce no receipt observation.
 
 Implement `SignatureValidator`, `WebhookProfile`, `RespondsToWebhook`, `WebhookStore` or `WebhookJobDispatcher` in another crate. `ProcessEverythingWebhookProfile` selects every request; `DefaultRespondsTo` produces `{"message":"ok"}`. `WebhookRuntime::new` accepts explicit dependencies. `WebhookRuntime::from_application` resolves the selected names through the current application’s typed factories; it does not evaluate class-name strings or use a global registry.

@@ -68,7 +68,7 @@
 | 编号／公开面 | 必交付内容及Rust表达 | 验收重点 |
 |---|---|---|
 | WC-01 安装／Provider | 独立安装、发现、配置默认与合并、迁移发布、正常引导；保持默认应用可不装包 | 全新应用、安装前后／重复安装、不覆盖自定义文件、HTTP／Artisan／Worker |
-| WC-02 WebhookConfig | 具名多接收配置；指定Validator、Profile、Response、Model／存储、Job的Rust注册替代 | 缺名／重名／错误类型、未知实现、秘钥缺失和不同应用隔离；不能队列序列化类名后任意反射 |
+| WC-02 WebhookConfig | 具名多接收配置；指定 Validator、Profile、Response、Model／存储和 Job 的 Rust 注册。[具名读取入口](../audits/webhooks/config-factory-names.md)与运行时装配复用解析 | 缺名／重名／错误类型、未知实现、秘钥缺失和不同应用隔离；不能队列序列化类名后任意反射 |
 | WC-03 WebhookConfigRepository | `add_config`／`get_config`及默认／未知选择语义，配置版本不可变 | 多业务／多账号、注册替换与旧任务、并发解析 |
 | WC-04 路由／控制器 | WebhookController对应处理、显式路由注册、多个应用／端点、路由方法与唯一名称令牌配置 | 允许的方法、404／405、同名路由与前缀、配置映射；令牌不是验签替代，不能关闭全局CSRF |
 | WC-05 无控制器入口 | `WebhookProcessor::process`可以从自定义HTTP入口调用 | 与控制器路径共享验证／存储／响应，保留原始字节 |
