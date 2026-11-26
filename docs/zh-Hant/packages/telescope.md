@@ -61,6 +61,6 @@ Watcher 涵蓋請求、查詢、例外、日誌、工作、批次、快取、HTT
 ./artisan telescope:clear
 ```
 
-`list` 接受 `--tag`、`--batch`、`--family` 與 `--before` 序號游標。`show` 接受 UUID、無歧義 UUID 前綴、`latest` 或 `latest:{type}`。一般輸出截斷長內容，`--full` 保留完整值；JSON 始終保留擷取內容。主控台使用一般表格與時間戳記，未採用 PHP 主控台的樣式與相對時間描述。
+`list` 接受 `--tag`、`--batch`、`--family` 與 `--before` 序號游標。`show` 接受 UUID、無歧義 UUID 前綴、`latest` 或 `latest:{type}`。一般輸出依顯示寬度截斷過長內容，`--full` 保留完整值；JSON 始終保留擷取內容。主控台使用一般表格與時間戳記，未採用 PHP 主控台的樣式與相對時間描述。
 
 `prune` 以應用時鐘計算截止時間，預設保留 24 小時。`--hours=0.5` 將截止時間設在目前時間之前 30 分鐘。負數將截止時間移到未來。`--keep-exceptions` 保留例外紀錄。`clear` 刪除全部 Telescope 紀錄、標籤與監控列。保留策略由應用排程器執行。`telescope:publish` 發布設定，`--force` 覆寫該檔案。獨立程式碼可用 `EntriesRepository` 實作建立 `Telescope` 並明確呼叫 `store().await`；應用 Provider 可在首次解析 Telescope 前替換此契約。Provider 可為 `telescope:clear` 個別繫結 `ClearableRepository`，並為 `telescope:prune` 個別繫結 `PrunableRepository`。兩個命令預設使用已設定的 `EntriesRepository`。

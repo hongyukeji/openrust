@@ -97,6 +97,12 @@ Rust 前态忽略应用冻结时间并限制非负整数。当前复用框架应
 
 Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会成功但绕过各自已绑定的仓储。现在命令各自解析对应契约，确有独立绑定时使用它，默认通过当前 EntriesRepository 提供同一存储。已发布的 Rust EntriesRepository 继续组合三项存储能力。实际 Artisan 用三个独立实例确认清除和修剪各调用一次，记录仓储不承担这两项操作。默认仓储路径经 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 复验。仓储和 Provider 回归、相关严格 Clippy、快照全仓格式、三语站点构建及六组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-management-repositories-{macos-baseline,macos-final,docs}.log`。
 
+## list 命令的纯文本字段
+
+固定 `ListCommand::tableColumns` 的 PHP 8.5.12 探针读取实际列和值。入站 Request 缺状态时显示 `0`，出站 ClientRequest 缺状态时显示 `N/A`，已有数值文本按整数输出。缓存动作显示 `HIT`、`MISS`、`SET` 和 `FORGET`，未知值原样保留。41 列以上的宽字符 URI 按显示宽度截断后追加省略号。证据为 `target/tmp/observability-parity/telescope-list-cells-upstream.log`。 [固定 ListCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ListCommand.php#L110-L208)
+
+Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。命令使用原生纯文本表格及时间戳。输出中的相对时间、颜色和 `show` 分类详情仍按各自契约核对。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
+
 ## 出站 multipart
 
 固定 `ClientRequestWatcher::input` 使用结构化字段，普通字段保留原值，文件或流使用文件名、十进制 KB 长度与部件头部，同名字段取请求中最后一项。Laravel `PendingRequest::parseHttpOptions` 先加入普通字段，再追加登记的附件。OpenRust 调整线上的字段顺序，通过 `RecordedRequest.multipart` 将原值和 `attach_body` 元数据传给 Watcher。未知流长度记为 `null`，流只由 HTTP 传输消费。字段、部件头部和整个载荷复用既有脱敏开关。

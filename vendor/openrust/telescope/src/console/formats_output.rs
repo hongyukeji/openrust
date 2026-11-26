@@ -1,5 +1,8 @@
 use crate::{EntryResult, EntryType};
-use openrust::console::Output;
+use openrust::{
+    console::Output,
+    support::{Str, php_integer_cast},
+};
 use serde_json::Value;
 
 fn text(content: &Value, key: &str) -> String {
@@ -10,10 +13,10 @@ fn text(content: &Value, key: &str) -> String {
     }
 }
 fn limit(value: &str, length: usize, full: bool) -> String {
-    if full || value.chars().count() <= length {
+    if full {
         value.to_owned()
     } else {
-        format!("{}...", value.chars().take(length).collect::<String>())
+        Str::limit(value, length, "...", false)
     }
 }
 fn single_line(value: &str) -> String {
@@ -101,10 +104,10 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
             Some(EntryType::Request | EntryType::ClientRequest) => vec![
                 t("method"),
                 limit(&t("uri"), 40, false),
-                if c["response_status"].is_null() {
+                if kind == Some(EntryType::ClientRequest) && c["response_status"].is_null() {
                     "N/A".into()
                 } else {
-                    t("response_status")
+                    php_integer_cast(&c["response_status"]).to_string()
                 },
                 unit(c, "duration", "ms"),
             ],
@@ -128,7 +131,17 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
                 },
             ],
             Some(EntryType::Job) => vec![basename(&t("name")).into(), t("queue"), t("status")],
-            Some(EntryType::Cache) => vec![t("type"), limit(&t("key"), 50, false)],
+            Some(EntryType::Cache) => {
+                let action = t("type");
+                let label = match action.as_str() {
+                    "hit" => "HIT",
+                    "missed" => "MISS",
+                    "set" => "SET",
+                    "forget" => "FORGET",
+                    other => other,
+                };
+                vec![label.to_owned(), limit(&t("key"), 50, false)]
+            }
             Some(EntryType::Log) => vec![t("level"), limit(&t("message"), 60, false)],
             Some(EntryType::Mail) => vec![
                 basename(&t("mailable")).into(),

@@ -2009,6 +2009,70 @@ async fn multipart_media_rewrites_preserve_the_correct_telescope_diagnostic() {
 }
 
 #[tokio::test]
+async fn list_renders_fixed_plain_text_values_for_request_and_cache_rows() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let clipped_uri = format!("{}...", "界".repeat(20));
+    let mut cases = vec![
+        (
+            EntryType::Request,
+            json!({"method":"GET","uri":"界".repeat(21),"duration":0}),
+            vec!["GET", clipped_uri.as_str(), "0", "0ms"],
+        ),
+        (
+            EntryType::ClientRequest,
+            json!({"method":"GET","uri":"/external"}),
+            vec!["GET", "/external", "N/A", ""],
+        ),
+        (
+            EntryType::ClientRequest,
+            json!({"method":"GET","uri":"/external","response_status":"0200"}),
+            vec!["GET", "/external", "200", ""],
+        ),
+    ];
+    cases.extend(
+        [
+            ("hit", "HIT"),
+            ("missed", "MISS"),
+            ("set", "SET"),
+            ("forget", "FORGET"),
+            ("other", "other"),
+        ]
+        .map(|(action, label)| {
+            (
+                EntryType::Cache,
+                json!({"type":action,"key":"value"}),
+                vec![label, "value"],
+            )
+        }),
+    );
+    for (index, (kind, content, expected)) in cases.into_iter().enumerate() {
+        let tag = format!("case-{index}");
+        let entry = IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(uuid::Uuid::now_v7())
+            .tags([tag.clone()]);
+        let id = entry.uuid.to_string();
+        repository.store(&[entry]).await.unwrap();
+        let result = app
+            .artisan(["telescope:list", kind.as_str(), "--tag", &tag])
+            .await;
+        result.assert_successful();
+        let row = result
+            .stdout
+            .lines()
+            .find(|line| line.starts_with(&id[..8]))
+            .unwrap();
+        let fields: Vec<_> = row.split('\t').skip(1).collect();
+        assert_eq!(&fields[..fields.len() - 1], expected, "{tag}");
+    }
+}
+
+#[tokio::test]
 async fn prune_fractional_hours_updates_real_storage_and_preserves_exceptions() {
     use openrust::support::{Date, DateTimezone};
 
