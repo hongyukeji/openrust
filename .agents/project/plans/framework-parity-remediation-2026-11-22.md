@@ -498,7 +498,7 @@ X09—X24的存在不证明均由用户明确要求，不将历史默认差异�
 | E04 前端 | 与E02联动，明确Vue／React／Inertia各自范围；没有实现仍保留缺口 |
 | E05 Agent开发 | 与E06/E07分别调查职责和需求，保留独立可选任务，不凭外部HTTP调用声称框架SDK |
 | E06 MCP | 可选包后续：协议版本、传输、发现、认证及官方兼容测试，复用成熟协议库 |
-| E07 AI SDK 与模型网关 | [Laravel AI + Sub2API + DeepSeek Harness 开发计划](laravel-ai-sdk.md)。对外优先交付 [Sub2API 式自托管网关](laravel-ai-sdk.md#sub2api-兼容接入与模型网关)，包括上游账号池、模型路由、下游 Key 与用量管理。发布配置提供[八家连接预设及可覆盖的官方 URL](laravel-ai-sdk.md#首批供应商预设)，默认连接与模型显式选择，支持动态发现。成员级契约核对、实施及联合验收待办。 |
+| E07 AI SDK 与模型网关 | [Laravel AI + Sub2API + DeepSeek Harness 开发计划](laravel-ai-sdk.md)。对外优先交付 [Sub2API 式自托管网关](laravel-ai-sdk.md#sub2api-兼容接入与模型网关)，包括上游账号池、模型路由、下游 Key 与用量管理。发布配置提供[八家连接预设及可覆盖的官方 URL](laravel-ai-sdk.md#首批供应商预设)，默认连接与模型显式选择，支持动态发现。已完成非流式文本首批。见 [E07 契约与验收账本](../audits/ai/README.md)。余下成员级核对、实现及联合验收推进中。 |
 | E08 Boost | 工具后续：与E05/E06区分，调查Rust开发指引生成与工具安装实际需求 |
 | E09 Head | 可选页面能力后续：复核固定官方包来源与职责，布局标签不当独立包等价 |
 | E10 Dusk | PHP包不直接移植；记录成熟浏览器测试方案及真实应用用例，WebDriver封装能力仍单列缺口 |
@@ -849,7 +849,7 @@ P1表示优先处理明显能力／协议／资源行为缺口；P2表示迁移�
 | E04 | 前端 | **部分原生支持。** 已有服务端 Blade 视图、公共文件与 JSON 响应。当前源码没有 Vue／React 应用脚手架、Inertia 适配器或前端包管理工作流。 | [docs/zh_CN/getting-started/frontend.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/getting-started/frontend.md:5) |
 | E05 | Agent 开发 | **未提供。** OpenRust 没有框架 AI agent 运行时或 AI 服务安装器。应用可通过自身代码集成外部 AI 服务。 | [docs/zh_CN/getting-started/ai.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/getting-started/ai.md:5) |
 | E06 | MCP | **当前源码未提供。** 尚未提供 MCP 服务端／客户端传输、工具发现或 MCP 认证层。 | [docs/zh_CN/ai/mcp.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/ai/mcp.md:5) |
-| E07 | AI SDK | **当前源码未提供。** 尚未提供 AI SDK 包、模型供应商注册、agent API 或 embedding／向量存储抽象。 | [docs/zh_CN/ai/ai-sdk.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/ai/ai-sdk.md:5) |
+| E07 | AI SDK | **部分原生支持。** 可选 AI SDK 已提供两个非流式文本协议、具名 Provider、Agent 和文本 Fake。流式、工具、其他能力和对外网关待验收。 | [AI SDK](../../../docs/zh-Hans/ai/ai-sdk.md) |
 | E08 | Boost | **当前源码未提供。** 尚未提供 Boost 集成、自动生成 agent 指引或工具安装命令。 | [docs/zh_CN/ai/boost.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/ai/boost.md:5) |
 | E09 | Head | **当前源码未提供。** 尚未提供独立 Head 包或 Head 服务 API。页面 head 标记可在 Blade 布局与组件中编写。 | [docs/zh_CN/packages/head.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/packages/head.md:5) |
 | E10 | 浏览器测试／Dusk | **未提供。** OpenRust 没有 Dusk 包、WebDriver 管理器或 `dusk` Artisan 命令。可使用外部浏览器测试工具测试正在运行的应用。 | [docs/zh_CN/packages/dusk.md:5](/Users/Home/Codes/Rust/openrust/docs/zh_CN/packages/dusk.md:5) |

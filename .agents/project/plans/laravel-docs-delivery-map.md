@@ -118,7 +118,7 @@
 
 | Laravel 文档 | OpenRust 正文路径 | 交付单元 |
 | --- | --- | --- |
-| [AI SDK](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/ai-sdk.md) | [ai/ai-sdk.md](../../../docs/en/ai/ai-sdk.md) | 当前源码未提供，见 [E07 对齐计划](laravel-ai-sdk.md) |
+| [AI SDK](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/ai-sdk.md) | [ai/ai-sdk.md](../../../docs/en/ai/ai-sdk.md) | 部分支持，已交付非流式文本首批，见 [E07 对齐计划](laravel-ai-sdk.md) |
 | [MCP](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mcp.md) | [ai/mcp.md](../../../docs/en/ai/mcp.md) | 需确认 |
 | [Boost](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/boost.md) | [ai/boost.md](../../../docs/en/ai/boost.md) | 需确认 |
 

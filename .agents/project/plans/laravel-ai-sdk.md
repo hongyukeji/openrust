@@ -1,6 +1,6 @@
 # Laravel AI SDK 与模型网关开发计划
 
-用户确认 E07 的完整目标为 **Laravel AI + Sub2API + DeepSeek Harness（DSH）的模型接入体验**。Laravel AI 定义框架内的 SDK 契约，Sub2API 是自托管网关的主要对齐基线，DSH 提供添加连接和选用模型的体验参考。当前完成计划复审、固定基线取证和协议类型试编。成员级对齐、实现及运行验收待办。
+用户确认 E07 的完整目标为 **Laravel AI + Sub2API + DeepSeek Harness（DSH）的模型接入体验**。Laravel AI 定义框架内的 SDK 契约，Sub2API 是自托管网关的主要对齐基线，DSH 提供添加连接和选用模型的体验参考。当前完成计划复审、固定基线取证、协议类型试编及 AI-01 非流式文本首批。已落实的成员、实测及缺口见 [契约账本](../audits/ai/README.md)，其余 SDK 能力、网关及联合验收仍在推进。
 
 ## 开发需求
 

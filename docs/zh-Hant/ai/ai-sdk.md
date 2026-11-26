@@ -2,14 +2,29 @@
 
 ## 支援狀態 {#support-status}
 
-**目前原始碼未提供。** 尚未提供 AI SDK 套件、模型供應商註冊、agent API 或 embedding／向量儲存抽象。
-
-本章保留框架導航路徑供對照；存在導航入口不代表已經安裝相應套件，也不承諾對應 PHP API 相容。
+選用的 `ai` feature 提供 Laravel 風格的 `Ai`、`AiManager`、`Agent` 與文字 Fake。目前支援 OpenAI Responses 和 OpenAI 相容 Chat Completions 的非串流文字呼叫。
 
 ## 可用入口 {#available-entry-points}
 
-原生介面及用法見 [HTTP Client](../digging-deeper/http-client.md)。整合其他函式庫或服務時，應用程式需實作配接層，並按該服務的契約驗證生命週期、錯誤與憑證處理。
+啟用 `ai` feature 後，套件探索會註冊 SDK。選擇支援的連線，填寫對應的憑證與模型 ID。例如，使用相容驅動程式連線至 DeepSeek：
+
+```dotenv
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-flash
+```
+
+將 API Key 填入應用程式環境。官方基礎位址可透過 `DEEPSEEK_URL` 覆寫。也可在 `config/ai.rs` 裡自訂 `ai.providers` 的具名連線。模型 ID 可寫入連線的 `models.text.default`，或於呼叫時明確指定。
+
+```rust
+use openrust_ai::{Agent, agent};
+
+let response = agent("用繁體中文簡要回答。").prompt("如何申請退款？").await?;
+let answer = response.text;
+```
+
+在啟用 SDK 的應用程式發行版中，可執行 `artisan vendor:publish --tag=ai-config` 發布設定範本。在應用程式測試中，使用 `Ai::fake::<YourAgent>(responses)` 安裝應用程式層級的替身，可檢查提示文字與呼叫次數。
 
 ## 範圍 {#scope}
 
-OpenRust 不提供此整合的安裝命令。不要因存在此導航入口就將框架Composer 或 Artisan 命令照搬至 OpenRust。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。串流輸出、工具、會話、模型探索、Embeddings 和對外相容閘道仍待實作。

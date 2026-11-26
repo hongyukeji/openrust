@@ -320,6 +320,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-openai"
+version = "0.43.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c30702b56c3a8e7d9b01c94b0d7927019f3fe6aa2d7af7d2f1968bbdb858eec"
+dependencies = [
+ "bytes",
+ "derive_builder",
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2502,9 +2515,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4515,6 +4530,7 @@ dependencies = [
  "clap",
  "jiff 0.2.46",
  "openrust-activitylog",
+ "openrust-ai",
  "openrust-cashier",
  "openrust-content-moderation",
  "openrust-fortify",
@@ -4557,6 +4573,18 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "openrust-ai"
+version = "0.0.0"
+dependencies = [
+ "async-openai",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]
