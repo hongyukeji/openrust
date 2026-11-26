@@ -4,6 +4,25 @@ use crate::localization;
 
 pub type AiResult<T> = Result<T, AiError>;
 
+pub(crate) enum ProviderAttemptError {
+    BeforeCommit(AiError),
+    Committed(AiError),
+}
+
+impl ProviderAttemptError {
+    pub(crate) fn into_error(self) -> AiError {
+        match self {
+            Self::BeforeCommit(error) | Self::Committed(error) => error,
+        }
+    }
+}
+
+impl From<AiError> for ProviderAttemptError {
+    fn from(error: AiError) -> Self {
+        Self::Committed(error)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AiError {

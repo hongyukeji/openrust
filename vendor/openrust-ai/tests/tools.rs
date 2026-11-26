@@ -707,7 +707,7 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
 }
 
 #[tokio::test]
-async fn sdk_tool_stream_fails_over_before_execution_and_never_replays_tools() -> TestResult {
+async fn sdk_tools_fail_over_before_execution_and_never_replay() -> TestResult {
     use futures_util::StreamExt;
 
     let unavailable = (503, "application/json", String::from("{}"));
@@ -717,12 +717,17 @@ async fn sdk_tool_stream_fails_over_before_execution_and_never_replays_tools() -
             "finish_reason":"tool_calls"}]
     });
     let tool_stream = format!("data: {tool_frame}\n\ndata: [DONE]\n\n");
+    let buffered_call = json!({
+        "choices":[{"message":{"tool_calls":[{"id":"call_fixture","type":"function",
+            "function":{"name":"lookup","arguments":json!({"sku":"demo"}).to_string()}}]},
+            "finish_reason":"tool_calls"}]
+    });
     let (openai, openai_requests) = http_fixture_with_status(
         "v1",
         "responses",
         "authorization",
         "Bearer fixture-key",
-        vec![unavailable.clone()],
+        vec![unavailable.clone(), unavailable.clone()],
     )
     .await;
     let (deepseek, deepseek_requests) = http_fixture_with_status(
@@ -730,13 +735,34 @@ async fn sdk_tool_stream_fails_over_before_execution_and_never_replays_tools() -
         "chat/completions",
         "authorization",
         "Bearer fixture-key",
-        vec![(200, "text/event-stream", tool_stream), unavailable],
+        vec![
+            (200, "text/event-stream", tool_stream),
+            unavailable.clone(),
+            (200, "application/json", buffered_call.to_string()),
+            unavailable,
+        ],
     )
     .await;
     let mut app = TestApp::create(|builder| {
         builder
             .with_providers(openrust_ai::openrust_providers())
             .with_routing(Routing::default().web(|| {
+                Route::get("/buffered-tool-failover", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let error = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .with_providers([
+                            ProviderTarget::new("openai"),
+                            ProviderTarget::new("deepseek"),
+                            ProviderTarget::new("unconfigured"),
+                        ])
+                        .prompt("Check demo.")
+                        .await
+                        .unwrap_err();
+                    assert_eq!(error, AiError::ProviderStatus(503));
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
                 Route::get("/tool-failover", || async {
                     let tool = Arc::new(Lookup(AtomicUsize::new(0)));
                     let mut events = agent("")
@@ -777,15 +803,24 @@ async fn sdk_tool_stream_fails_over_before_execution_and_never_replays_tools() -
         ),
     )?;
     assert_eq!(app.get("/tool-failover").await?.status(), StatusCode::OK);
-    assert_eq!(openai_requests.await?[0]["model"], "primary");
-    let backup = deepseek_requests.await?;
-    assert_eq!(backup[0]["model"], "backup");
-    let tool_output = backup[1]["messages"].as_array().unwrap().last().unwrap()["content"]
-        .as_str()
-        .unwrap();
     assert_eq!(
-        serde_json::from_str::<Value>(tool_output)?,
-        json!({"sku":"demo","quantity":4})
+        app.get("/buffered-tool-failover").await?.status(),
+        StatusCode::OK
     );
+    let attempts = openai_requests.await?;
+    assert_eq!(attempts.len(), 2);
+    assert!(attempts.iter().all(|attempt| attempt["model"] == "primary"));
+    let backup = deepseek_requests.await?;
+    assert_eq!(backup.len(), 4);
+    assert!(backup.iter().all(|attempt| attempt["model"] == "backup"));
+    for continuation in [&backup[1], &backup[3]] {
+        let tool_output = continuation["messages"].as_array().unwrap().last().unwrap()["content"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(tool_output)?,
+            json!({"sku":"demo","quantity":4})
+        );
+    }
     Ok(())
 }

@@ -24,6 +24,7 @@ use crate::{
         HttpDecisionsProvider, RecordedClassification,
     },
     connection::{Authorization, Connection},
+    error::ProviderAttemptError,
     gemini::GeminiTextProvider,
     on_demand::{OnDemandProviders, reserved_name},
     reranking::{HttpRerankingProvider, RerankingProtocol},
@@ -680,7 +681,7 @@ impl AiManager {
                 model,
             });
         }
-        let mut request = AgentPrompt {
+        let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
                 prompt,
@@ -703,8 +704,13 @@ impl AiManager {
         let middleware = agent.middleware();
         if tools.is_empty() && middleware.is_empty() {
             let response = self
-                .with_text_failover(agent, options, request, |provider, request, _| {
-                    provider.generate(request)
+                .with_text_failover(agent, options, request, None, |provider, request, _, _| {
+                    Box::pin(async move {
+                        provider
+                            .generate(request)
+                            .await
+                            .map_err(ProviderAttemptError::BeforeCommit)
+                    })
                 })
                 .await?;
             if let Some(choice) = &choice {
@@ -712,21 +718,22 @@ impl AiManager {
             }
             Ok(response)
         } else {
-            let provider = self.text_provider_for(agent, options.provider)?;
-            request.text.model = resolve_model(
-                provider.as_ref(),
-                primary_model(agent, options),
-                agent.model_tier(),
-            )?;
-            let provider_options = agent.provider_options(provider.name());
-            request.provider_options = Some(&provider_options);
-            crate::tools::run(
-                provider.as_ref(),
+            let max_steps = agent.max_steps();
+            self.with_text_failover(
+                agent,
+                options,
                 request,
-                tools,
-                agent.max_steps(),
-                middleware,
                 approvals,
+                |provider, request, approvals, _| {
+                    Box::pin(crate::tools::run(
+                        provider.as_ref(),
+                        request,
+                        tools.clone(),
+                        max_steps,
+                        middleware.clone(),
+                        approvals,
+                    ))
+                },
             )
             .await
         }
@@ -811,29 +818,52 @@ impl AiManager {
             structured_output,
         };
         if tools.is_empty() {
-            self.with_text_failover(agent, options, request, |provider, request, probe| {
-                Box::pin(async move {
-                    let response = provider.stream(request).await?;
-                    if probe {
-                        response.probe().await
-                    } else {
-                        Ok(response)
-                    }
-                })
-            })
+            self.with_text_failover(
+                agent,
+                options,
+                request,
+                None,
+                |provider, request, _, probe| {
+                    Box::pin(async move {
+                        let response = provider
+                            .stream(request)
+                            .await
+                            .map_err(ProviderAttemptError::BeforeCommit)?;
+                        if probe {
+                            response
+                                .probe()
+                                .await
+                                .map_err(ProviderAttemptError::BeforeCommit)
+                        } else {
+                            Ok(response)
+                        }
+                    })
+                },
+            )
             .await
         } else {
             let max_steps = agent.max_steps();
             let prepared = self
-                .with_text_failover(agent, options, request, |provider, request, probe| {
-                    Box::pin(crate::tool_stream::prepare(
-                        provider.clone(),
-                        request,
-                        tools.clone(),
-                        max_steps,
-                        probe,
-                    ))
-                })
+                .with_text_failover(
+                    agent,
+                    options,
+                    request,
+                    None,
+                    |provider, request, _, probe| {
+                        let tools = tools.clone();
+                        Box::pin(async move {
+                            crate::tool_stream::prepare(
+                                provider.clone(),
+                                request,
+                                tools,
+                                max_steps,
+                                probe,
+                            )
+                            .await
+                            .map_err(ProviderAttemptError::BeforeCommit)
+                        })
+                    },
+                )
                 .await?;
             Ok(crate::tool_stream::response(prepared, approvals))
         }
@@ -844,11 +874,13 @@ impl AiManager {
         agent: &A,
         options: PromptOptions<'_>,
         request: AgentPrompt<'_>,
+        approvals: Option<&crate::approval_turn::ApprovalSession>,
         send: impl for<'a> Fn(
             &'a Arc<dyn TextProvider>,
             AgentPrompt<'a>,
+            Option<&'a crate::approval_turn::ApprovalSession>,
             bool,
-        ) -> HttpFuture<'a, AiResult<T>>,
+        ) -> HttpFuture<'a, Result<T, ProviderAttemptError>>,
     ) -> AiResult<T> {
         let invocation_id = Str::ulid().to_string();
         let targets = agent.providers();
@@ -871,11 +903,13 @@ impl AiManager {
             match crate::request_context::in_invocation(
                 &invocation_id,
                 0,
-                send(&provider, attempt, can_fail_over),
+                send(&provider, attempt, approvals, can_fail_over),
             )
             .await
             {
-                Err(error) if can_fail_over && error.allows_provider_failover() => {
+                Err(ProviderAttemptError::BeforeCommit(error))
+                    if can_fail_over && error.allows_provider_failover() =>
+                {
                     let target = next.next().expect("已确认存在备用连接");
                     crate::events::dispatch_agent_failover(crate::events::AgentFailedOver {
                         invocation_id: invocation_id.clone(),
@@ -888,7 +922,7 @@ impl AiManager {
                     name = Some(&target.provider);
                     requested_model = target.model.as_deref();
                 }
-                result => return result,
+                result => return result.map_err(ProviderAttemptError::into_error),
             }
         }
     }

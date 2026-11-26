@@ -18,7 +18,7 @@ use serde_json::{Map, Value};
 use crate::{
     AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, Decision, Decisions,
     PendingApproval, PendingStep, PendingToolApprovals, TextProvider, Usage,
-    approval_turn::ApprovalSession, messages::OwnedPrompt,
+    approval_turn::ApprovalSession, error::ProviderAttemptError, messages::OwnedPrompt,
 };
 
 /// 由应用声明并执行的 Agent 工具。
@@ -232,6 +232,7 @@ impl ApprovalCheckpoint {
             Some(session),
         )
         .await
+        .map_err(ProviderAttemptError::into_error)
     }
 }
 
@@ -242,7 +243,7 @@ pub(crate) async fn run(
     max_steps: Option<usize>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     approvals: Option<&ApprovalSession>,
-) -> AiResult<AgentResponse> {
+) -> Result<AgentResponse, ProviderAttemptError> {
     let max_steps = step_limit(tools.len(), max_steps);
     let (definitions, tools) = prepare(tools)?;
     ToolRun::new(max_steps)
@@ -260,7 +261,8 @@ pub(crate) async fn run(
 impl ToolRun {
     pub(crate) fn new(max_steps: usize) -> Self {
         Self {
-            invocation_id: Str::ulid().to_string(),
+            invocation_id: crate::request_context::invocation_id()
+                .unwrap_or_else(|| Str::ulid().to_string()),
             history: Vec::new(),
             usage: None,
             max_steps,
@@ -326,7 +328,7 @@ impl ToolRun {
         tools: &ToolHandlers,
         middleware: &[Arc<dyn AgentMiddleware>],
         approvals: Option<&ApprovalSession>,
-    ) -> AiResult<AgentResponse> {
+    ) -> Result<AgentResponse, ProviderAttemptError> {
         let mut seen = self
             .history
             .iter()
@@ -360,7 +362,14 @@ impl ToolRun {
                 },
                 middleware,
             )
-            .await?;
+            .await
+            .map_err(|error| {
+                if step == 0 && middleware.is_empty() {
+                    ProviderAttemptError::BeforeCommit(error)
+                } else {
+                    ProviderAttemptError::Committed(error)
+                }
+            })?;
             validate_calls(&response.tool_calls, &mut seen)?;
             let plan = plan_execution(
                 &response.tool_calls,
@@ -374,7 +383,7 @@ impl ToolRun {
                 let pending = self
                     .pause(approvals, provider, prompt, response, approval, allowed)
                     .await?;
-                return Err(AiError::ApprovalPaused(pending));
+                return Err(AiError::ApprovalPaused(pending).into());
             }
             let results = plan.run().await;
             let finished = response.tool_calls.is_empty() || final_step;
@@ -389,7 +398,7 @@ impl ToolRun {
                     tool_results.extend(step.results);
                 }
                 if text.is_none() && tool_calls.is_empty() {
-                    return Err(AiError::InvalidResponse);
+                    return Err(AiError::InvalidResponse.into());
                 }
                 return Ok(AgentResponse {
                     text: text.unwrap_or_default(),
@@ -401,7 +410,7 @@ impl ToolRun {
                 });
             }
         }
-        Err(AiError::InvalidResponse)
+        Err(AiError::InvalidResponse.into())
     }
 }
 

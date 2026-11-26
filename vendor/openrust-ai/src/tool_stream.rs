@@ -40,10 +40,7 @@ pub(crate) async fn prepare(
     let gateway = provider
         .step_text_gateway()
         .ok_or(AiError::ToolsNotSupported)?;
-    let mut run = tools::ToolRun::new(max_steps);
-    if let Some(invocation_id) = crate::request_context::invocation_id() {
-        run.invocation_id = invocation_id;
-    }
+    let run = tools::ToolRun::new(max_steps);
     let mut upstream = gateway.stream_text_step(&prompt, &definitions, &[]).await?;
     if probe {
         let first = upstream.next().await.transpose()?;
