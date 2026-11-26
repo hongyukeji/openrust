@@ -878,7 +878,9 @@ async fn native_mail_preserves_queued_identity_and_sandboxes_preview_and_downloa
             std::any::type_name::<ObservedMail>()
         );
         assert_eq!(entry.content["to"], json!({"to@example.org":""}));
-        let full = repository.find(&entry.id.to_string()).await.unwrap();
+        let mut full = repository.find(&entry.id.to_string()).await.unwrap();
+        // 固定上游仓储也未为标签查询指定排序。
+        full.tags.sort_unstable();
         assert_eq!(
             full.tags,
             ["bcc@example.org", "cc@example.org", "to@example.org"]

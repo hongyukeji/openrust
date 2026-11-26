@@ -260,20 +260,22 @@ async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage()
             .unwrap();
 
         // 不完整的应用会由命令自身报错，诊断采集不得抢先访问存储。
-        let _result = tokio::time::timeout(
+        let result = tokio::time::timeout(
             std::time::Duration::from_secs(2),
             app.handle_command(&arguments.into_iter().map(Into::into).collect::<Vec<_>>()),
         )
         .await
         .expect("初始化命令不应等待诊断存储");
         if ignored {
+            assert_ne!(result.unwrap(), 0);
             assert_eq!(store.initializations.load(Ordering::Relaxed), 0);
             assert_eq!(store.writes.load(Ordering::Relaxed), 0);
+            assert_eq!(store.terminations.load(Ordering::Relaxed), 0);
         } else {
-            assert!(store.initializations.load(Ordering::Relaxed) > 0);
+            assert_eq!(store.initializations.load(Ordering::Relaxed), 1);
             assert!(store.writes.load(Ordering::Relaxed) > 0);
             assert_eq!(store.terminations.load(Ordering::Relaxed), 1);
-            assert_eq!(_result.unwrap(), 0);
+            assert_eq!(result.unwrap(), 0);
         }
     }
 }

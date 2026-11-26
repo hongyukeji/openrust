@@ -107,30 +107,9 @@ impl ServiceProvider for TelescopeServiceProvider {
                         Err(error) => return Err(error),
                     },
                 ));
-                let pending = telescope.clone();
-                match openrust::support::defer(
-                    async move {
-                        let result = pending.store().await;
-                        // 诊断存储自身的错误不再进入本次采集，避免报告时递归写入。
-                        pending.stop_recording();
-                        let failed = result?;
-                        if !failed.is_empty() {
-                            crate::jobs::ProcessPendingUpdates::new(failed, 0)
-                                .dispatch()
-                                .await
-                                .map_err(crate::Error::Queue)?;
-                        }
-                        Ok::<_, crate::Error>(())
-                    },
-                    None,
-                    true,
-                ) {
-                    Ok(_) => telescope
-                        .automatic_recording
-                        .store(true, std::sync::atomic::Ordering::Release),
-                    Err(openrust::concurrency::Error::OutsideRequest) => {}
-                    Err(_) => return Err(binding()),
-                }
+                telescope
+                    .ensure_automatic_recording()
+                    .map_err(|_| binding())?;
                 Ok(telescope)
             })?;
             Ok(())

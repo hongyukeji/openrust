@@ -98,7 +98,7 @@ pub struct Telescope {
     started: AtomicBool,
     sensitive_seen: AtomicBool,
     diagnostic_context: Option<Arc<openrust::log::context::Repository>>,
-    pub(crate) automatic_recording: AtomicBool,
+    automatic_recording: Mutex<bool>,
     suppressed: AtomicUsize,
     pending: Mutex<Pending>,
     callbacks: Arc<RwLock<Callbacks>>,
@@ -135,7 +135,7 @@ impl Telescope {
             started: AtomicBool::new(false),
             sensitive_seen: AtomicBool::new(false),
             diagnostic_context,
-            automatic_recording: AtomicBool::new(false),
+            automatic_recording: Mutex::new(false),
             suppressed: AtomicUsize::new(0),
             pending: Mutex::default(),
             callbacks: options.callbacks.clone(),
@@ -264,6 +264,45 @@ impl Telescope {
     }
     pub(crate) fn has_started(&self) -> bool {
         self.started.load(Ordering::Acquire)
+    }
+    pub(crate) fn automatic_recording(&self) -> bool {
+        *self
+            .automatic_recording
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+    pub(crate) fn ensure_automatic_recording(
+        self: &Arc<Self>,
+    ) -> openrust::concurrency::Result<bool> {
+        let mut registered = self
+            .automatic_recording
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if !*registered {
+            let telescope = self.clone();
+            match openrust::support::defer(
+                async move {
+                    let result = telescope.store().await;
+                    // 存储异常交给应用报告时，停止本次采集以免递归写入。
+                    telescope.stop_recording();
+                    let failed = result?;
+                    if !failed.is_empty() {
+                        crate::jobs::ProcessPendingUpdates::new(failed, 0)
+                            .dispatch()
+                            .await
+                            .map_err(crate::Error::Queue)?;
+                    }
+                    Ok::<_, crate::Error>(())
+                },
+                None,
+                true,
+            ) {
+                Ok(_) => *registered = true,
+                Err(openrust::concurrency::Error::OutsideRequest) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(*registered)
     }
     pub fn stop_recording(&self) {
         self.enabled.store(false, Ordering::Release);

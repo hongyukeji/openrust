@@ -34,11 +34,7 @@ impl Listener for EventListener {
             let Ok(telescope) = facades::Telescope::get_facade_root() else {
                 return Ok(None);
             };
-            if !telescope
-                .automatic_recording
-                .load(std::sync::atomic::Ordering::Acquire)
-                || !telescope.has_started()
-            {
+            if !telescope.automatic_recording() || !telescope.has_started() {
                 return Ok(None);
             }
             if telescope
@@ -97,12 +93,7 @@ fn register_logging(
         let Ok(telescope) = facades::Telescope::get_facade_root() else {
             return Ok(());
         };
-        if telescope
-            .automatic_recording
-            .load(std::sync::atomic::Ordering::Acquire)
-            && telescope.has_started()
-            && telescope.is_recording()
-        {
+        if telescope.automatic_recording() && telescope.has_started() && telescope.is_recording() {
             watcher
                 .record(event, &telescope, None)
                 .map_err(|source| openrust::log::LogError::WriteFailed(Box::new(source)))?;
@@ -127,9 +118,7 @@ fn register_views(
             return Ok(());
         };
         if !watcher.enabled("ViewWatcher")
-            || !telescope
-                .automatic_recording
-                .load(std::sync::atomic::Ordering::Acquire)
+            || !telescope.automatic_recording()
             || !telescope.is_recording()
         {
             return Ok(());
@@ -718,10 +707,13 @@ impl Listener for NativeWatcher {
             let Ok(telescope) = facades::Telescope::get_facade_root() else {
                 return Ok(None);
             };
-            if !telescope
-                .automatic_recording
-                .load(std::sync::atomic::Ordering::Acquire)
-            {
+            // Artisan 启动事件可能已在同一容器作用域内解析 Telescope。
+            // 命令开始后才进入延迟回调生命周期，此时补登记本次写入。
+            if !telescope.ensure_automatic_recording().map_err(|source| {
+                openrust::events::EventError::Listener {
+                    source: Box::new(source),
+                }
+            })? {
                 return Ok(None);
             }
             let starting = event
