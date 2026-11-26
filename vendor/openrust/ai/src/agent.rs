@@ -5,7 +5,7 @@ use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::ty
 use crate::{
     AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, Message,
     QueueableAgent, QueuedAgentResponse, StreamableAgentResponse, StructuredAnonymousAgent,
-    TextModelTier, Tool, agent_broadcast::StreamBroadcast,
+    TextGenerationOptions, TextModelTier, Tool, agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -29,6 +29,10 @@ pub trait Agent: Send + Sync + 'static {
 
     fn model_tier(&self) -> TextModelTier {
         TextModelTier::Default
+    }
+
+    fn generation_options(&self) -> TextGenerationOptions {
+        TextGenerationOptions::default()
     }
 
     fn messages(&self) -> &[Message] {
@@ -195,6 +199,7 @@ pub trait Agent: Send + Sync + 'static {
 pub struct AnonymousAgent {
     instructions: String,
     model_tier: TextModelTier,
+    options: TextGenerationOptions,
     messages: Vec<Message>,
     attachments: Vec<Attachment>,
     tools: Vec<Arc<dyn Tool>>,
@@ -206,6 +211,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
         model_tier: TextModelTier::Default,
+        options: TextGenerationOptions::default(),
         messages: Vec::new(),
         attachments: Vec::new(),
         tools: Vec::new(),
@@ -217,6 +223,11 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
 impl AnonymousAgent {
     pub fn with_model_tier(mut self, tier: TextModelTier) -> Self {
         self.model_tier = tier;
+        self
+    }
+
+    pub fn with_generation_options(mut self, options: TextGenerationOptions) -> Self {
+        self.options = options;
         self
     }
 
@@ -260,6 +271,10 @@ impl Agent for AnonymousAgent {
 
     fn model_tier(&self) -> TextModelTier {
         self.model_tier
+    }
+
+    fn generation_options(&self) -> TextGenerationOptions {
+        self.options
     }
 
     fn messages(&self) -> &[Message] {

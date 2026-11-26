@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Attachment, StructuredOutput, TextPrompt};
+use crate::{Attachment, StructuredOutput, TextGenerationOptions, TextPrompt};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -44,6 +44,7 @@ impl Message {
 /// 当前文本提示词及本次调用随附的历史消息。
 pub struct AgentPrompt<'a> {
     pub text: TextPrompt<'a>,
+    pub options: TextGenerationOptions,
     pub messages: &'a [Message],
     pub attachments: &'a [Attachment],
     pub structured_output: Option<StructuredOutput<'a>>,
@@ -53,6 +54,7 @@ impl<'a> From<TextPrompt<'a>> for AgentPrompt<'a> {
     fn from(text: TextPrompt<'a>) -> Self {
         Self {
             text,
+            options: TextGenerationOptions::default(),
             messages: &[],
             attachments: &[],
             structured_output: None,

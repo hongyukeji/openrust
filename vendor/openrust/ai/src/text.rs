@@ -30,7 +30,7 @@ use serde_json::Value;
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
-    StructuredOutput, ToolCall, ToolDefinition, ToolResult, ToolStep,
+    StructuredOutput, TextGenerationOptions, ToolCall, ToolDefinition, ToolResult, ToolStep,
     audio::{AudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
@@ -118,6 +118,9 @@ pub trait TextProvider: Send + Sync {
         if !prompt.attachments.is_empty() {
             return Box::pin(async { Err(AiError::AttachmentsNotSupported) });
         }
+        if prompt.options != TextGenerationOptions::default() {
+            return Box::pin(async { Err(AiError::GenerationOptionsNotSupported) });
+        }
         if prompt.messages.is_empty() {
             self.generate_text(prompt.text)
         } else {
@@ -134,6 +137,9 @@ pub trait TextProvider: Send + Sync {
         }
         if !prompt.attachments.is_empty() {
             return Box::pin(async { Err(AiError::AttachmentsNotSupported) });
+        }
+        if prompt.options != TextGenerationOptions::default() {
+            return Box::pin(async { Err(AiError::GenerationOptionsNotSupported) });
         }
         if prompt.messages.is_empty() {
             self.stream_text(prompt.text)
@@ -308,6 +314,8 @@ impl OpenAiTextProvider {
         Ok(response.data)
     }
 
+    // OpenAI 兼容驱动沿用 Chat 兼容端点的 max_tokens 契约。
+    #[allow(deprecated)]
     fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<CreateChatCompletionRequest> {
         let user = |text: &str| {
             ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
@@ -381,6 +389,9 @@ impl OpenAiTextProvider {
         Ok(CreateChatCompletionRequest {
             model: prompt.text.model.into(),
             messages,
+            max_tokens: prompt.options.max_tokens,
+            temperature: prompt.options.temperature,
+            top_p: prompt.options.top_p,
             response_format: prompt.structured_output.as_ref().map(|output| {
                 ResponseFormat::JsonSchema {
                     json_schema: schema_format(output),
@@ -464,6 +475,9 @@ impl OpenAiTextProvider {
                     verbosity: None,
                 }),
             model: Some(prompt.text.model.into()),
+            max_output_tokens: prompt.options.max_tokens,
+            temperature: prompt.options.temperature,
+            top_p: prompt.options.top_p,
             store: Some(self.connection.store()),
             stream: stream.then_some(true),
             ..Default::default()

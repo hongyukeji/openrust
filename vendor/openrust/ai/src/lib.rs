@@ -33,6 +33,7 @@ mod fake_embedding_gateway;
 mod fake_reranking_gateway;
 mod files;
 mod gemini;
+mod generation_options;
 mod image;
 mod manager;
 mod media_storage;
@@ -84,6 +85,7 @@ pub use files::{
     FakeFileGateway, FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files,
     ProviderFilePage, RecordedFileDeletion, RecordedFileUpload,
 };
+pub use generation_options::TextGenerationOptions;
 pub use image::{
     GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,
     ImageUsage, PendingImageGeneration,

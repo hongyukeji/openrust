@@ -625,6 +625,8 @@ impl AiManager {
         messages: &[crate::Message],
     ) -> AiResult<AgentResponse> {
         let attachments = agent.attachments();
+        let generation = agent.generation_options();
+        generation.validate()?;
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -651,6 +653,7 @@ impl AiManager {
                 });
             return fake.respond(crate::RecordedPrompt {
                 text: prompt.into(),
+                options: generation,
                 messages: messages.to_vec(),
                 attachments: attachments.to_vec(),
                 schema: structured_output
@@ -673,6 +676,7 @@ impl AiManager {
                 model,
                 timeout: options.timeout,
             },
+            options: generation,
             messages,
             attachments,
             structured_output,
@@ -722,6 +726,8 @@ impl AiManager {
         messages: &[crate::Message],
     ) -> AiResult<StreamableAgentResponse> {
         let attachments = agent.attachments();
+        let generation = agent.generation_options();
+        generation.validate()?;
         if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -749,6 +755,7 @@ impl AiManager {
                 model,
                 timeout: options.timeout,
             },
+            options: generation,
             messages,
             attachments,
             structured_output,

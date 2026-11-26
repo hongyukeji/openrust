@@ -95,6 +95,15 @@ impl GeminiTextProvider {
             body["generationConfig"] =
                 json!({"responseMimeType":"application/json","responseJsonSchema":output.schema});
         }
+        if let Some(max_tokens) = prompt.options.max_tokens {
+            body["generationConfig"]["maxOutputTokens"] = max_tokens.into();
+        }
+        if let Some(temperature) = prompt.options.temperature {
+            body["generationConfig"]["temperature"] = temperature.into();
+        }
+        if let Some(top_p) = prompt.options.top_p {
+            body["generationConfig"]["topP"] = top_p.into();
+        }
         body
     }
 

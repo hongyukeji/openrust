@@ -101,6 +101,7 @@ struct OwnedPrompt {
     text: String,
     model: String,
     timeout: Option<Duration>,
+    options: crate::TextGenerationOptions,
     messages: Vec<Message>,
     attachments: Vec<crate::Attachment>,
     schema: Option<(Value, bool)>,
@@ -113,6 +114,7 @@ impl From<AgentPrompt<'_>> for OwnedPrompt {
             text: value.text.prompt.into(),
             model: value.text.model.into(),
             timeout: value.text.timeout,
+            options: value.options,
             messages: value.messages.to_vec(),
             attachments: value.attachments.to_vec(),
             schema: value
@@ -131,6 +133,7 @@ impl OwnedPrompt {
                 model: &self.model,
                 timeout: self.timeout,
             },
+            options: self.options,
             messages: &self.messages,
             attachments: &self.attachments,
             structured_output: self

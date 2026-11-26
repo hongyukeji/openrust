@@ -7,7 +7,7 @@ use openrust::{
 
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, Message, StepResponse, StructuredOutput,
-    TextPrompt, TextProvider, ToolDefinition, ToolStep, Usage,
+    TextGenerationOptions, TextPrompt, TextProvider, ToolDefinition, ToolStep, Usage,
 };
 
 /// Agent 中间件可以读取、修改或拦截单个模型生成步骤。
@@ -26,6 +26,7 @@ pub struct PendingStep<'a> {
     pub model: Cow<'a, str>,
     pub instructions: Cow<'a, str>,
     pub prompt: &'a str,
+    pub options: TextGenerationOptions,
     pub messages: Cow<'a, [Message]>,
     pub attachments: Cow<'a, [Attachment]>,
     pub structured_output: Option<StructuredOutput<'a>>,
@@ -58,6 +59,11 @@ impl<'a> PendingStep<'a> {
 
     pub fn with_attachments(mut self, attachments: impl Into<Cow<'a, [Attachment]>>) -> Self {
         self.attachments = attachments.into();
+        self
+    }
+
+    pub fn with_generation_options(mut self, options: TextGenerationOptions) -> Self {
+        self.options = options;
         self
     }
 
@@ -119,6 +125,7 @@ pub(crate) async fn generate_step(
                     return Err(AiError::MissingModel);
                 }
                 crate::attachments::validate_prompt_attachments(&step.attachments)?;
+                step.options.validate()?;
                 context
                     .allowed
                     .extend(step.tools.iter().map(|tool| tool.name.clone()));
@@ -129,6 +136,7 @@ pub(crate) async fn generate_step(
                         model: &step.model,
                         timeout: step.timeout,
                     },
+                    options: step.options,
                     messages: &step.messages,
                     attachments: &step.attachments,
                     structured_output: step.structured_output,

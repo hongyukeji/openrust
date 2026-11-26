@@ -71,11 +71,21 @@ impl AnthropicTextProvider {
         messages.push(json!({"role":"user","content":content}));
         let mut body = json!({
             "model": prompt.text.model,
-            "max_tokens": 64_000,
+            "max_tokens": prompt.options.max_tokens.unwrap_or(64_000),
             "messages": messages,
         });
         if !prompt.text.instructions.is_empty() {
             body["system"] = prompt.text.instructions.into();
+        }
+        if supports_sampling(prompt.text.model) {
+            if let Some(temperature) = prompt.options.temperature {
+                if temperature > 1.0 {
+                    return Err(AiError::InvalidGenerationOptions);
+                }
+                body["temperature"] = temperature.into();
+            } else if let Some(top_p) = prompt.options.top_p {
+                body["top_p"] = top_p.into();
+            }
         }
         if let Some(output) = &prompt.structured_output {
             body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
@@ -123,6 +133,29 @@ impl AnthropicTextProvider {
             );
         }
         Err(AiError::InvalidResponse)
+    }
+}
+
+fn supports_sampling(model: &str) -> bool {
+    let Some(model) = model.strip_prefix("claude-") else {
+        return false;
+    };
+    if model.starts_with("3-") {
+        return true;
+    }
+    let mut segments = model.split('-');
+    if !matches!(segments.next(), Some("opus" | "sonnet" | "haiku")) || segments.next() != Some("4")
+    {
+        return false;
+    }
+    let date = |value: &str| value.len() == 8 && value.bytes().all(|digit| digit.is_ascii_digit());
+    match (segments.next(), segments.next(), segments.next()) {
+        (None, None, None) => true,
+        (Some(value), None, None) => {
+            date(value) || matches!(value, "0" | "1" | "2" | "3" | "4" | "5" | "6")
+        }
+        (Some("0" | "1" | "2" | "3" | "4" | "5" | "6"), Some(value), None) => date(value),
+        _ => false,
     }
 }
 

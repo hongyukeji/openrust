@@ -373,3 +373,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 写入真实 File Cache，独立 HTTP 回读相同向量和模型标识，证明缓存命中没有出站。还验证原生 API Key、模型路径、批量顺序、显式覆盖、未报告用量、非法路径、超大维度及响应维度不符。本批覆盖文本 Embeddings，对外 Gemini 原生网关及多模态向量另行验收。
 
 - [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php#L179) · [Gemini Embeddings API](https://ai.google.dev/api/embeddings)
+
+## AI-02 文本生成选项
+
+`TextGenerationOptions` 通过具名 Agent 的 `generation_options` 或匿名 Agent 的 `with_generation_options` 配置输出 Token 上限、temperature 与 top-p。协议分别使用 Responses 的 `max_output_tokens`、Chat 兼容与 Anthropic 的 `max_tokens`、Gemini 的 `generationConfig.maxOutputTokens`。Anthropic 沿用固定 Laravel 的模型采样判定，并优先采用 temperature。Fake 记录选项。中间件可在普通响应的当前步骤覆盖配置，流式工具续步会保留原始 Agent 配置。
+
+独立 Artisan 验证具名 Agent、选项记录与非有限数拒绝。真实 HTTP 通过四个本地 TCP 上游核对字段、步骤限额覆盖、流式工具续步、Anthropic 采样取舍，以及 Gemini 同时发送结构化 Schema 和参数。特定供应商扩展选项、工具选择与提示缓存另按对应契约验收。
+
+- [固定 Laravel TextGenerationOptions](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationOptions.php) · [固定 Laravel Anthropic 请求映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/Concerns/BuildsTextRequests.php)

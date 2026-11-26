@@ -149,6 +149,7 @@ pub(crate) async fn run(
                 model: prompt.text.model.into(),
                 instructions: prompt.text.instructions.into(),
                 prompt: prompt.text.prompt,
+                options: prompt.options,
                 messages: prompt.messages.into(),
                 attachments: prompt.attachments.into(),
                 structured_output: prompt.structured_output,

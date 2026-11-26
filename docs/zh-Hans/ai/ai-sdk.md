@@ -243,6 +243,25 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 SDK 将完成的用户消息和助手消息一起保存。下一次提示默认按时间顺序读取最近 100 条消息，可在 `config/ai.rs` 中调整 `conversations.max_messages`。数据库默认沿用应用连接，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名连接。历史页面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 从最新消息开始游标分页。流式会话使用 `stream()`，将返回的 `response` 交给 SSE 渲染器。调用开始后即可读取会话 ID。SDK 在发送最终完成事件前保存该轮消息，流中断时不会新增会话消息。声明了响应结构的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
+## 文本生成选项 {#text-generation-options}
+
+在 Agent 上设置输出 Token 上限与采样参数。匿名 Agent 用 `with_generation_options`，具名 Agent 实现 `Agent::generation_options`。这些选项也用于结构化输出和流式工具续步。普通响应的 Agent 中间件可覆盖当前步骤的选项。
+
+```rust
+use openrust_ai::{Agent, TextGenerationOptions, agent};
+
+let response = agent("Keep the answer concise.")
+    .with_generation_options(TextGenerationOptions {
+        max_tokens: Some(256),
+        temperature: Some(0.5),
+        ..Default::default()
+    })
+    .prompt("Summarize our return policy.")
+    .await?;
+```
+
+驱动会生成供应商协议所需的字段。Anthropic 只向支持采样的 Claude 模型发送采样参数。两项都设置时，优先发送 temperature。
+
 ## 文本摘要 {#text-summarization}
 
 导入扩展 trait 后，`Str` 和 `Stringable` 共用同一个摘要 Agent，默认请求不超过三句。`summarize_with` 可传入句数，并用常规的 `PromptOptions` 指定连接、模型和超时。
