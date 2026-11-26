@@ -8,11 +8,13 @@ Telescope 的原生命令已验证批次查询统计和全部 18 类条目详情
 
 Telescope 的 `list` 和 `show` 已通过三库 Artisan 验证 UTC 相对时间、ANSI 配色、纯文本和 JSON，`show` 同时显示原始时间戳。时间格式化函数与 3,016 组固定上游结果一致。 [Telescope 相对时间和终端输出](telescope/README.md#list-与-show-的相对时间)
 
+Telescope 已通过三库验证调度任务继承配置时区。正常调度产生任务条目，`schedule:test` 保留普通命令条目，原生调度完成监听器仍会收到事件。 [Telescope 调度时区](telescope/README.md#调度条目的默认时区) [Telescope 手动调度试跑](telescope/README.md#手动调度试跑的记录范围)
+
 Pulse 的慢操作、用量、异常、缓存、队列和服务器卡片复用五秒查询快照。查询耗时与执行时间和缓存结果一起刷新，已授权 HTTP 和原生浏览器均有专项证据。 [Pulse 卡片查询审计](pulse/README.md#查询耗时和执行时间)
 
 Pulse 队列卡片的采样峰值、连接标签及逐点读数已在真实看板验收，刷新时保留仍在图中的时间点。卡片内部缓存和看板轮询的自采集已分别修复，后者沿用应用的请求 Recorder 忽略规则。面板兼容固定上游周期链接和已有短写，支持浏览器前进与后退。三库定向结果与桌面、手机版面证据均随批次记录。 [Pulse 队列采样点](pulse/README.md#队列采样点读数与刷新) [Pulse 请求采集](pulse/README.md#面板刷新与请求采集) [Pulse 周期链接](pulse/README.md#周期链接和浏览器历史)
 
-Pulse 已复验慢操作、异常和用量的采样计数，按可视范围独立加载指标卡片，单卡失败时其他卡片继续显示及更新。后台降频、离线暂停和重新联网的自动轮询已通过真实应用浏览器。 [Pulse 卡片加载与轮询](pulse/README.md#首屏卡片的延迟加载与隔离) [Pulse 采样计数](pulse/README.md#慢操作异常和用量的采样计数)
+Pulse 已复验慢操作、异常和用量的采样计数，按可视范围独立加载指标卡片，单卡失败时其他卡片继续显示及更新。后台按卡片独立抽样、离线暂停和恢复在线轮询均已通过真实应用浏览器。 [Pulse 卡片加载](pulse/README.md#首屏卡片的延迟加载与隔离) [Pulse 后台轮询](pulse/README.md#后台离线和页面移除的轮询) [Pulse 采样计数](pulse/README.md#慢操作异常和用量的采样计数)
 
 Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化构建验证独占 Redis、三个 Sentinel 和真实故障切换；Windows 11 ARM64 有原生开发构建的进程矩阵。正式目标服务管理器、物理 x86_64、目标 Redis 拓扑和最终发布快照仍按部署条件验收。 [Horizon 专项审计](horizon/README.md) [平台与发布条件](../todo.md#平台与发布条件)
 
