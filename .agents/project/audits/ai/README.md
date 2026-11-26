@@ -647,6 +647,16 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 - [固定 Laravel ReasoningDelta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ReasoningDelta.php) · [OpenAI 推理摘要文档](https://developers.openai.com/api/docs/guides/reasoning?api-mode=responses&site_locale=en) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 
+### AI-02 具名供应商故障转移
+
+`Agent::providers` 与匿名 Agent 的 `with_providers` 可声明有序具名连接。连接内指定模型或使用当前档位。单次调用显式指定供应商时只使用指定连接。切换时发布 `AgentFailedOver`，候选请求、事件和原生文本流沿用同一调用 ID。需要向自托管端传递该 ID 时沿用已有的 `forward_usage_context`。固定基线的数组供应商使用逐连接模型映射。旧版工作树 `6d1a81924` 未发现对应 AI SDK 实现。
+
+隔离应用以真实 Artisan 和 HTTP 调用 Responses 与 Chat Completions 模拟服务。已核对 HTTP 402、429、502、503、504、520、522、524 触发顺序切换，401 和显式连接直接返回，全部候选失败返回末次错误。已核对按连接选择模型、结构化 Schema、首事件前传输中断转移、交付首事件后断开原流，以及监听器每次切换只收到一个与出站请求同 ID 的事件。文本、工具、UI 回归和三语站点通过。
+
+待补 `Retry-After` 同连接重试、供应商错误代码与正文分类、带工具或应用中间件的故障转移，以及剩余供应商和入口的逐项验收。
+
+- [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [供应商与模型列表](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [故障分类和重试](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Concerns/HandlesFailoverErrors.php)
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。

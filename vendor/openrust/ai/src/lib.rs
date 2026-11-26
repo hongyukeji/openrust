@@ -70,7 +70,7 @@ mod tools;
 mod transcription;
 mod usage;
 
-pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
+pub use agent::{Agent, AnonymousAgent, PromptOptions, ProviderTarget, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
 pub use agent_tool::{AgentTool, CanActAsTool};
 pub use approval_turn::{ApprovalResponse, PendingToolApprovals};

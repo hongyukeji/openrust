@@ -16,12 +16,37 @@ pub struct PromptOptions<'a> {
     pub timeout: Option<Duration>,
 }
 
+/// Agent 按声明顺序尝试的具名连接及可选模型。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProviderTarget {
+    pub provider: String,
+    pub model: Option<String>,
+}
+
+impl ProviderTarget {
+    pub fn new(provider: impl Into<String>) -> Self {
+        Self {
+            provider: provider.into(),
+            model: None,
+        }
+    }
+
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+}
+
 /// 应用可实现此契约，或用 `agent` 构造匿名 Agent。
 pub trait Agent: Send + Sync + 'static {
     fn instructions(&self) -> &str;
 
     fn provider(&self) -> Option<&str> {
         None
+    }
+
+    fn providers(&self) -> &[ProviderTarget] {
+        &[]
     }
 
     fn model(&self) -> Option<&str> {
@@ -211,6 +236,7 @@ pub trait Agent: Send + Sync + 'static {
 
 pub struct AnonymousAgent {
     instructions: String,
+    providers: Vec<ProviderTarget>,
     model_tier: TextModelTier,
     options: TextGenerationOptions,
     provider_options: BTreeMap<String, ProviderOptions>,
@@ -226,6 +252,7 @@ pub struct AnonymousAgent {
 pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
+        providers: Vec::new(),
         model_tier: TextModelTier::Default,
         options: TextGenerationOptions::default(),
         provider_options: BTreeMap::new(),
@@ -240,6 +267,11 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
 }
 
 impl AnonymousAgent {
+    pub fn with_providers(mut self, providers: impl IntoIterator<Item = ProviderTarget>) -> Self {
+        self.providers = providers.into_iter().collect();
+        self
+    }
+
     pub fn with_model_tier(mut self, tier: TextModelTier) -> Self {
         self.model_tier = tier;
         self
@@ -308,6 +340,10 @@ impl AnonymousAgent {
 impl Agent for AnonymousAgent {
     fn instructions(&self) -> &str {
         &self.instructions
+    }
+
+    fn providers(&self) -> &[ProviderTarget] {
+        &self.providers
     }
 
     fn model_tier(&self) -> TextModelTier {

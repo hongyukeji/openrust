@@ -8,7 +8,7 @@ use md5::Md5;
 use openrust::{
     config::Environment,
     contracts::config::Repository,
-    http::client::Factory,
+    http::{HttpFuture, client::Factory},
     support::{Str, facades::Facade},
 };
 use serde_json::Value;
@@ -553,7 +553,7 @@ impl AiManager {
         agent: &impl Agent,
         name: Option<&str>,
     ) -> AiResult<Arc<dyn TextProvider>> {
-        self.text_provider(name.or_else(|| agent.provider()))
+        self.text_provider(name.or_else(|| primary_provider(agent)))
     }
 
     fn create_text_provider(&self, config: Value) -> AiResult<Arc<dyn TextProvider>> {
@@ -648,12 +648,10 @@ impl AiManager {
         if let Some(fake) = self.text_fake::<A>() {
             let provider = options
                 .provider
-                .or_else(|| agent.provider())
+                .or_else(|| primary_provider(agent))
                 .map(str::to_owned)
                 .or_else(|| self.get_default_instance().ok());
-            let model = options
-                .model
-                .or_else(|| agent.model())
+            let model = primary_model(agent, options)
                 .map(str::to_owned)
                 .or_else(|| {
                     self.text_provider(provider.as_deref())
@@ -682,22 +680,15 @@ impl AiManager {
                 model,
             });
         }
-        let provider = self.text_provider_for(agent, options.provider)?;
-        let model = resolve_model(
-            provider.as_ref(),
-            options.model.or_else(|| agent.model()),
-            agent.model_tier(),
-        )?;
-        let provider_options = agent.provider_options(provider.name());
-        let request = AgentPrompt {
+        let mut request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
                 prompt,
-                model,
+                model: "",
                 timeout: options.timeout,
             },
             options: generation,
-            provider_options: Some(&provider_options),
+            provider_options: None,
             tool_choice: choice.as_ref(),
             messages,
             attachments,
@@ -711,18 +702,24 @@ impl AiManager {
         }
         let middleware = agent.middleware();
         if tools.is_empty() && middleware.is_empty() {
-            let invocation_id = openrust::support::Str::ulid().to_string();
-            let response = crate::request_context::in_invocation(
-                &invocation_id,
-                0,
-                provider.generate(request),
-            )
-            .await?;
+            let response = self
+                .with_text_failover(agent, options, request, |provider, request| {
+                    provider.generate(request)
+                })
+                .await?;
             if let Some(choice) = &choice {
                 choice.validate_calls(&response.tool_calls)?;
             }
             Ok(response)
         } else {
+            let provider = self.text_provider_for(agent, options.provider)?;
+            request.text.model = resolve_model(
+                provider.as_ref(),
+                primary_model(agent, options),
+                agent.model_tier(),
+            )?;
+            let provider_options = agent.provider_options(provider.name());
+            request.provider_options = Some(&provider_options);
             crate::tools::run(
                 provider.as_ref(),
                 request,
@@ -799,31 +796,42 @@ impl AiManager {
         {
             choice.validate(&[])?;
         }
-        let provider = self.text_provider_for(agent, options.provider)?;
-        let model = resolve_model(
-            provider.as_ref(),
-            options.model.or_else(|| agent.model()),
-            agent.model_tier(),
-        )?;
-        let provider_options = agent.provider_options(provider.name());
-        let request = AgentPrompt {
+        let mut request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
                 prompt,
-                model,
+                model: "",
                 timeout: options.timeout,
             },
             options: generation,
-            provider_options: Some(&provider_options),
+            provider_options: None,
             tool_choice: choice.as_ref(),
             messages,
             attachments,
             structured_output,
         };
         if tools.is_empty() {
-            let invocation_id = openrust::support::Str::ulid().to_string();
-            crate::request_context::in_invocation(&invocation_id, 0, provider.stream(request)).await
+            let probe = options.provider.is_none() && agent.providers().len() > 1;
+            self.with_text_failover(agent, options, request, |provider, request| {
+                Box::pin(async move {
+                    let response = provider.stream(request).await?;
+                    if probe {
+                        response.probe().await
+                    } else {
+                        Ok(response)
+                    }
+                })
+            })
+            .await
         } else {
+            let provider = self.text_provider_for(agent, options.provider)?;
+            request.text.model = resolve_model(
+                provider.as_ref(),
+                primary_model(agent, options),
+                agent.model_tier(),
+            )?;
+            let provider_options = agent.provider_options(provider.name());
+            request.provider_options = Some(&provider_options);
             crate::tool_stream::stream(
                 provider.clone(),
                 request,
@@ -833,6 +841,75 @@ impl AiManager {
             )
             .await
         }
+    }
+
+    async fn with_text_failover<A: Agent, T>(
+        &self,
+        agent: &A,
+        options: PromptOptions<'_>,
+        request: AgentPrompt<'_>,
+        send: impl for<'a> Fn(&'a dyn TextProvider, AgentPrompt<'a>) -> HttpFuture<'a, AiResult<T>>,
+    ) -> AiResult<T> {
+        let invocation_id = Str::ulid().to_string();
+        let targets = agent.providers();
+        let mut next = targets.iter().skip(1);
+        let mut name = options.provider.or_else(|| primary_provider(agent));
+        let mut requested_model = primary_model(agent, options);
+        loop {
+            let provider = self.text_provider(name)?;
+            let model = resolve_model(provider.as_ref(), requested_model, agent.model_tier())?;
+            let provider_options = agent.provider_options(provider.name());
+            let attempt = AgentPrompt {
+                text: TextPrompt {
+                    model,
+                    ..request.text
+                },
+                provider_options: Some(&provider_options),
+                ..request
+            };
+            match crate::request_context::in_invocation(
+                &invocation_id,
+                0,
+                send(provider.as_ref(), attempt),
+            )
+            .await
+            {
+                Err(error) if options.provider.is_none() && error.allows_provider_failover() => {
+                    let Some(target) = next.next() else {
+                        return Err(error);
+                    };
+                    crate::events::dispatch_agent_failover(crate::events::AgentFailedOver {
+                        invocation_id: invocation_id.clone(),
+                        agent: std::any::type_name::<A>(),
+                        provider: provider.name().to_owned(),
+                        model: model.to_owned(),
+                        error,
+                    })
+                    .await;
+                    name = Some(&target.provider);
+                    requested_model = target.model.as_deref();
+                }
+                result => return result,
+            }
+        }
+    }
+}
+
+fn primary_provider(agent: &impl Agent) -> Option<&str> {
+    agent
+        .providers()
+        .first()
+        .map(|target| target.provider.as_str())
+        .or_else(|| agent.provider())
+}
+
+fn primary_model<'a>(agent: &'a impl Agent, options: PromptOptions<'a>) -> Option<&'a str> {
+    if options.provider.is_none()
+        && let Some(first) = agent.providers().first()
+    {
+        first.model.as_deref()
+    } else {
+        options.model.or_else(|| agent.model())
     }
 }
 

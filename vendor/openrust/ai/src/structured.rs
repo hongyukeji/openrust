@@ -184,6 +184,10 @@ impl Agent for StructuredAnonymousAgent {
         self.agent.instructions()
     }
 
+    fn providers(&self) -> &[crate::ProviderTarget] {
+        self.agent.providers()
+    }
+
     fn model_tier(&self) -> TextModelTier {
         self.agent.model_tier()
     }

@@ -63,6 +63,22 @@ Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示
 
 当前请求或命令需要临时连接时，可用 `Ai::build(config)`，字段沿用具名连接配置。通过返回的 `name()` 在提示词调用中指定连接，或在同一作用域内通过 `Ai::text_provider` 查找。框架保留名及应用已有名称不能用作临时连接。`Ai::flush_state()` 会清除当前作用域的临时连接。
 
+### 供应商故障转移 {#provider-failover}
+
+普通文本、结构化输出和无应用工具的文本流可以按顺序尝试多个具名连接。匿名 Agent 用 `with_providers`，自定义 Agent 可实现 `Agent::providers`。每个连接可指定模型，省略时使用该连接的模型档位。
+
+```rust
+use openrust_ai::{Agent, ProviderTarget, agent};
+
+let responder = agent("Answer briefly.").with_providers([
+    ProviderTarget::new("openai").with_model("first-model-id"),
+    ProviderTarget::new("deepseek"),
+]);
+let answer = responder.prompt("What can I do next?").await?;
+```
+
+连接失败、请求超时、限流、费用不足或指定的上游过载状态可触发切换。应用可监听 `openrust_ai::events::AgentFailedOver`，用调用 ID 关联已尝试的连接。使用 `PromptOptions.provider` 显式指定连接会仅调用该连接。流交付首个事件后固定使用当前连接。带应用工具或普通提示词中间件的调用当前仅使用首选连接。
+
 ### 接入 Responses 网关 {#responses-gateway}
 
 接入提供 OpenAI Responses 的 Sub2API 实例时，使用 `driver: "openai"` 和实例的 v1 基础地址。SDK 使用 `/models` 发现模型，通过 `/responses` 发起生成请求。设置 `store: false` 可请求上游关闭响应存储。

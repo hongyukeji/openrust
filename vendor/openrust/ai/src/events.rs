@@ -3,7 +3,31 @@ use openrust::{
     support::facades::{Event as Events, Log},
 };
 
-use crate::{ConversationParticipant, PendingApproval, ToolResult};
+use crate::{AiError, ConversationParticipant, PendingApproval, ToolResult};
+
+pub struct AgentFailedOver {
+    pub invocation_id: String,
+    pub agent: &'static str,
+    pub provider: String,
+    pub model: String,
+    pub error: AiError,
+}
+
+impl AgentFailedOver {
+    pub const NAME: &str = "openrust_ai::events::AgentFailedOver";
+}
+
+impl Event for AgentFailedOver {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+pub(crate) async fn dispatch_agent_failover(event: AgentFailedOver) {
+    if Events::dispatch(event).await.is_err() {
+        let _ = Log::warning("AI 供应商故障转移事件监听器失败", &Default::default());
+    }
+}
 
 pub struct ToolApprovalRequested {
     pub invocation_id: String,

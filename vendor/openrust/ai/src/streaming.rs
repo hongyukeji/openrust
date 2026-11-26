@@ -110,6 +110,13 @@ impl StreamableAgentResponse {
         }
     }
 
+    pub(crate) async fn probe(mut self) -> AiResult<Self> {
+        if let Some(event) = self.events.next().await {
+            self.inspected.push(event?);
+        }
+        Ok(self)
+    }
+
     pub(crate) fn broadcasting(mut self, broadcast: StreamBroadcast) -> AiResult<Self> {
         let app = App::get_facade_root().map_err(|_| AiError::Unavailable)?;
         let mut events = self.events;

@@ -63,6 +63,22 @@ Use `agent(instructions).with_schema(schema).prompt(text)` to request a JSON obj
 
 For a connection needed only during the current request or command, use `Ai::build(config)` with the same fields as a named provider. Use the resulting provider's `name()` in a prompt or look it up with `Ai::text_provider` during that scope. Names reserved by the SDK or configured in the application are unavailable for temporary connections. `Ai::flush_state()` clears the current scope’s temporary connections.
 
+### Provider failover {#provider-failover}
+
+Plain text, structured output, and text streams without application tools can try named connections in order. Use `with_providers` on an anonymous agent or implement `Agent::providers` on a custom agent. Each connection can select a model or use its configured model tier.
+
+```rust
+use openrust_ai::{Agent, ProviderTarget, agent};
+
+let responder = agent("Answer briefly.").with_providers([
+    ProviderTarget::new("openai").with_model("first-model-id"),
+    ProviderTarget::new("deepseek"),
+]);
+let answer = responder.prompt("What can I do next?").await?;
+```
+
+Connection failures, timeouts, rate limits, insufficient credits, and certain upstream overload statuses can trigger failover. Listen for `openrust_ai::events::AgentFailedOver` to correlate attempts by invocation ID. Setting `PromptOptions.provider` explicitly selects a single connection. A stream stays with its current connection once it delivers its first event. Calls with application tools or buffered prompt middleware currently use the first connection only.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

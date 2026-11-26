@@ -87,6 +87,17 @@ pub enum AiError {
     FakeNotInstalled,
 }
 
+impl AiError {
+    pub(crate) fn allows_provider_failover(&self) -> bool {
+        matches!(
+            self,
+            Self::Transport
+                | Self::Timeout
+                | Self::ProviderStatus(402 | 429 | 502 | 503 | 504 | 520 | 522 | 524)
+        )
+    }
+}
+
 impl fmt::Display for AiError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
