@@ -198,7 +198,15 @@ impl Recorders {
                 route.uri.trim_start_matches('/')
             );
             let mut via = route.action.clone();
-            if e.route_name
+            if e.route_name.as_deref() == Some(crate::http::METRICS_ROUTE)
+                && let Some(dashboard) = route
+                    .uri
+                    .strip_suffix(crate::http::METRICS_PATH.trim_start_matches('/'))
+            {
+                via = format!("via {path}");
+                path = format!("/{}", dashboard.trim_matches('/'));
+            } else if e
+                .route_name
                 .as_deref()
                 .is_some_and(|name| name.ends_with("livewire.update"))
                 && let Some(snapshot) = e

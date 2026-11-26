@@ -146,6 +146,12 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 及具名 Redis 8.10.3 通过真实 HTTP
 
 Chrome 在受控指标数据上验证估算值、键盘、触摸与定时刷新，在真实 SQLite 应用上回归指标请求、服务器图及队列图交互。三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-queue-trend-{upstream,macos,docs,docs-retry}.log`。
 
+### 面板刷新与请求采集
+
+固定 PHP 8.5.12 以具名 Livewire 路由和实际请求快照调用 `LivewireRoutes::resolveRoutePath`，刷新请求归入 `/operations/pulse`，原路由保存在 `via` 中。固定 SlowRequests 和 UserRequests 的默认规则过滤此面板路径，保留 `/operations/pulse-report`。原生面板使用独立具名指标入口，将该请求按已注册面板路径交给相同过滤逻辑，继续支持应用清空忽略规则后采集该请求并显示其来源。 [固定路径解析](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Concerns/LivewireRoutes.php) [固定配置](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/config/pulse.php)
+
+修复前两次面板刷新均产生慢请求记录。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的真实授权 HTTP 验证冷、热刷新均按配置过滤，普通业务路径继续计入慢请求与用户请求。清空忽略规则后两类采集均恢复，慢请求附带指标入口来源。Pulse Provider 25 项、隔离快照格式和全目标严格 Clippy 通过。证据为 `target/tmp/observability-parity/pulse-dashboard-request-{upstream,macos-baseline,macos-verified}.log`。
+
 ### 服务器卡片的心跳与历史缓存
 
 固定 Servers 在同一次五秒缓存查询中读取系统当前值、指标曲线并判断最近上报。Rust 将心跳状态和 CPU／内存历史保存在同一缓存项，按周期及已加载的服务器配置分区，使配置改动可立即选择新结果。忽略期限的输入校验在读缓存前完成。 [固定 Servers::render](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Servers.php)

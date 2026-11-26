@@ -286,6 +286,113 @@ async fn request_recorders_attribute_named_livewire_updates_to_the_decoded_page(
         );
     }
 }
+#[tokio::test]
+async fn request_recorders_apply_dashboard_path_filters_to_native_metrics() {
+    use openrust::{
+        contracts::foundation::Application as _, database::Value as DbValue, support::facades::Auth,
+    };
+
+    fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Auth::user(request).await?;
+            Ok(Response::from("ok"))
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("app").unwrap()["env"] = json!("production");
+                let pulse = values.get_mut("pulse").unwrap();
+                pulse["path"] = json!("operations/pulse");
+                pulse["recorders"] = json!({
+                    "SlowRequests":{"threshold":0,"ignore":["#^/operations/pulse$#"]},
+                    "UserRequests":{"ignore":["#^/operations/pulse$#"]}
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_routing(Routing::default().web(|| Route::get("/operations/pulse-report", report)))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.app()
+        .make::<openrust::auth::access::GateRegistry>()
+        .await
+        .unwrap()
+        .define_guest("viewPulse", |_, _| {
+            Box::pin(async { Ok(openrust::auth::access::Response::allow()) })
+        });
+    for url in [
+        "/operations/pulse/api/metrics?user=1",
+        "/operations/pulse/api/metrics?user=1",
+        "/operations/pulse-report?user=1",
+    ] {
+        app.get(url).await.unwrap().assert_ok();
+    }
+    let store = app.app().make::<DatabaseStorage>().await.unwrap();
+    let connection = store.connection();
+    for kind in ["slow_request", "user_request", "slow_user_request"] {
+        let rows = connection
+            .table("pulse_entries")
+            .r#where("type", "=", kind)
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1, "unexpected {kind} entries: {rows:?}");
+        let key = if kind == "slow_request" {
+            json!(["GET", "/operations/pulse-report", "Closure"]).to_string()
+        } else {
+            "42".into()
+        };
+        assert_eq!(rows[0].get("key"), Some(&DbValue::Text(key)));
+    }
+
+    let config = app.app().config().unwrap();
+    for name in ["SlowRequests", "UserRequests"] {
+        config
+            .set(&format!("pulse.recorders.{name}.ignore"), json!([]))
+            .unwrap();
+    }
+    app.get("/operations/pulse/api/metrics?user=1")
+        .await
+        .unwrap()
+        .assert_ok();
+    let rows = connection
+        .table("pulse_entries")
+        .r#where("type", "=", "slow_request")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().any(|row| {
+        row.get("key")
+            == Some(&DbValue::Text(
+                json!([
+                    "GET",
+                    "/operations/pulse",
+                    "via /operations/pulse/api/metrics"
+                ])
+                .to_string(),
+            ))
+    }));
+    for kind in ["user_request", "slow_user_request"] {
+        assert_eq!(
+            connection
+                .table("pulse_entries")
+                .r#where("type", "=", kind)
+                .r#where("key", "=", "42")
+                .count("*")
+                .await
+                .unwrap(),
+            2
+        );
+    }
+}
+
 struct AuthProvider;
 impl openrust::support::ServiceProvider for AuthProvider {
     fn boot<'a>(

@@ -11,6 +11,10 @@ use openrust::{
 };
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, sync::Arc, time::Instant};
+
+pub(crate) const METRICS_ROUTE: &str = "pulse.metrics";
+pub(crate) const METRICS_PATH: &str = "/api/metrics";
+
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
         .map_err(|_| RoutingError::NoRegistrationScope)?
@@ -46,7 +50,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
     }
     Route::group(group, |router| {
         router.get("/", page)?.name("pulse");
-        router.get("/api/metrics", metrics)?;
+        router.get(METRICS_PATH, metrics)?.name(METRICS_ROUTE);
         Ok(())
     })
 }
