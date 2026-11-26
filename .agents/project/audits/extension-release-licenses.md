@@ -190,6 +190,8 @@ Docker 构建从实际 Rust sysroot 复制版权报告，由既有运行层带�
 
 Linux ARM64 九扩展 Release 首次重建达到 32 GB 磁盘停线，构建守卫停止进程并释放项目编译空间。同步隔离验收将相同 Docker 复制步骤应用于本机已有的默认应用镜像。两份镜像的 `/app/main` SHA-256 相同，版权报告和两个根发行文件与原件逐字节一致。两边各从空 SQLite 执行四项迁移，配置和路由缓存前后 `/up`、`/` 均为 200，该基准镜像的 `/api` 均为 404。SIGTERM 以状态 0 退出，独立 `artisan queue:work database --once` 完成，队列保持为空。此轮隔离验收覆盖打包步骤及默认应用行为。九扩展完整镜像另行复验。三语部署文档的 VitePress 构建和三个部署页面的报告路径通过。
 
-从旧候选使用的 ARM64 构建基础镜像复查软件包归属，`libc6-dev:arm64` 版本 `2.36-9+deb12u13` 提供 glibc 启动文件与 `libc_nonshared.a`，`libgcc-12-dev:arm64` 版本 `12.2.0-14+deb12u1` 提供 GCC 启动文件。两个开发包的版权文件与对应候选运行镜像里记录的同来源运行库版权文件 SHA-256 各自相同。AMD64 交叉工具链开发包的版权文件仍需按实际构建镜像核对。
+从旧候选使用的 ARM64 构建基础镜像复查软件包归属，`libc6-dev:arm64` 版本 `2.36-9+deb12u13` 提供 glibc 启动文件与 `libc_nonshared.a`，`libgcc-12-dev:arm64` 版本 `12.2.0-14+deb12u1` 提供 GCC 启动文件。复用 AMD64 候选的交叉工具链构建层，分别追到 `libc6-dev-amd64-cross` 版本 `2.36-8cross1` 和 `libgcc-12-dev-amd64-cross` 版本 `12.2.0-14cross1`。两种架构的开发包版权文件均与各自候选运行镜像里记录的同来源运行库版权文件 SHA-256 相同。glibc 和 GCC 版权文件的哈希分别为 `40c7e1f2118531f038ca22999bd976901254e1bc5cd1b0f0211bdd064c599987` 和 `da8191658b3452ce9caf31638ba61dab31a38c619fa39df119812e050f592fd3`。
+
+Windows 两个已验收的九扩展 EXE 按原 SHA-256 重新打包到独立 ZIP。每份 ZIP 随附 11 个许可文件，解压后的 Rust 报告逐字节对应工具链原件。两个制品都复验九个 Provider、58 项 SQLite 迁移、缓存前后 HTTP、签名 Reverb、独立 Artisan Worker 和 Ctrl+C 退出，数据库确认队列为空。ARM64 ZIP SHA-256 为 `c3962b4ee8f99bfe56440d2747315d1424019b2e5744ee24454e8c48585cf172`，x64 ZIP SHA-256 为 `a20511cc6bdabd3ccbfe94ff83358c4b0ab97a1baa31373a01713bb4f9959129`。x64 仍在 Windows 11 ARM64 虚机的兼容层运行。两个 ZIP、解压目录及临时数据库验收后已清理。
 
 证据位于本机 `target/tmp/goal-extension-rust-notices/`。
