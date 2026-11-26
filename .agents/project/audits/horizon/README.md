@@ -202,6 +202,10 @@ Windows 11 ARM64 用正常 Cargo 构建及真实 Redis 8.10.3 运行 [进程树�
 
 Windows ARM64 的 Horizon 库与验收示例严格 Clippy 通过。macOS 的框架进程测试 15 项、Horizon 完整进程回归、Horizon 全目标与框架库严格 Clippy 通过。Linux ARM64 复验通过阻塞和非阻塞接管及真实孤儿清理。三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{retention,core-regression,macos-final,linux-final}.log`。
 
+## 任务耗时计时契约
+
+固定 Horizon 在 `JobReserved` 的保留状态监听器之后启动 `Stopwatch`，成功删除时读取耗时，异常或失败时清理计时器。PHP 8.5.12 用受控时钟执行固定 `Stopwatch`，确认毫秒保留两位小数，重复启动覆盖，未知及清理后的计时返回空值。证据为 `target/tmp/observability-parity/horizon-stopwatch-upstream.log`。Rust 的原生 Redis 保留快照在发布监听事件前开始单调计时，直接提交毫秒数。继续核对起点、舍入、重试及同一进程显式派发公开事件的行为。 [固定 Stopwatch](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Stopwatch.php) [固定事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
+
 ## 当前实现
 
 - 可选 `HorizonServiceProvider` 通过包发现装配，懒绑定应用内服务、默认配置及发布模板。默认应用不预装扩展 Provider、配置或业务示例。面板必须显式注册路由、显式授权，默认拒绝；每次读写重新授权，写操作校验同源请求标识。
