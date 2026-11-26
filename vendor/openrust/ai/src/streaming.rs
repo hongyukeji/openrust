@@ -99,6 +99,29 @@ impl StreamableAgentResponse {
         self.events
     }
 
+    /// Registers a callback for the first error reported while consuming the stream.
+    pub fn catch(mut self, callback: impl FnOnce(&AiError) + Send + 'static) -> Self {
+        let app = App::get_facade_root().ok();
+        let mut source = self.events;
+        self.events = Box::pin(async_stream::stream! {
+            let mut callback = Some(callback);
+            while let Some(event) = source.next().await {
+                if let Err(error) = &event
+                    && let Some(callback) = callback.take()
+                {
+                    // HTTP 客户端读取正文时，路由的应用作用域可能已经退出。
+                    if let Some(app) = &app {
+                        app.scope(async { callback(error) }).await;
+                    } else {
+                        callback(error);
+                    }
+                }
+                yield event;
+            }
+        });
+        self
+    }
+
     pub fn using_protocol(mut self, protocol: impl StreamProtocol + 'static) -> Self {
         self.protocol = Some(Box::new(protocol));
         self

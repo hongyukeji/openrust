@@ -569,6 +569,14 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 实际 Artisan 与并发 HTTP 验证 18 语、应用覆写、回退及退出码。使用本地 HTTP 上游返回推理 429 和目录 503，检查错误脱敏、配置模型保留、选择输出和机器 JSON 一致。文本、模型选择回归、严格 Clippy 和三语文档通过。
 
+### AI-02 流式错误回调
+
+`StreamableAgentResponse::catch` 对照固定 Laravel 流响应的错误回调。流消费失败时，已登记的回调按顺序各执行一次，并将原始错误交给消费端。Rust 在 `stream(...).await` 启动请求，启动失败从该结果返回。HTTP 正文异步消费时，回调仍可使用登记时的应用容器。
+
+实际 Artisan 检查正常结束、流中错误、两个回调的调用顺序和启动失败。实际 HTTP 分别检查 Vercel 与 AG-UI 的正常结束、上游流中断、错误脱敏和回调应用作用域。文本、工具与 UI 流回归、严格 Clippy 和三语文档通过。逐事件消费和完成回调继续按 AI-02 核对。
+
+- [固定 Laravel StreamableAgentResponse](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/StreamableAgentResponse.php)
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。
