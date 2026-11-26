@@ -78,7 +78,8 @@ pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
 pub use files::{
-    FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files, ProviderFilePage,
+    FakeFileGateway, FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files,
+    ProviderFilePage, RecordedFileDeletion, RecordedFileUpload,
 };
 pub use image::{
     GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,

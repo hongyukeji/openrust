@@ -19,8 +19,10 @@ use crate::{
     text::{transport_error, validate},
 };
 
+mod fake;
 mod gemini;
 mod workspace;
+pub use fake::{FakeFileGateway, RecordedFileDeletion, RecordedFileUpload};
 pub(crate) use gemini::{GeminiFileProvider, validate_gemini_id};
 pub(crate) use workspace::{WorkspaceFileProtocol, WorkspaceFileProvider};
 
@@ -29,8 +31,81 @@ const FILE_LIMIT: usize = 100 * 1024 * 1024;
 pub struct Files;
 
 impl Files {
+    pub fn fake(responses: impl IntoIterator<Item = Bytes>) -> AiResult<Arc<FakeFileGateway>> {
+        Ai::fake_files(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&str) -> AiResult<Bytes> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeFileGateway>> {
+        Ok(Ai::manager()?.fake_files_with(resolve))
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::files_are_faked()
+    }
+
+    pub fn fake_id(name: &str) -> String {
+        use openrust::support::Str;
+        format!("fake_file_{}", Str::of(name).hash::<md5::Md5>().value())
+    }
+
+    #[track_caller]
+    pub fn assert_stored(matches: impl Fn(&RecordedFileUpload) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_stored(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_stored(matches: impl Fn(&RecordedFileUpload) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_stored(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_stored() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_stored();
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_deleted(id: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_deleted(id);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_deleted_where(matches: impl Fn(&RecordedFileDeletion) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_deleted_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_deleted(id: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_deleted(id);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_deleted_where(
+        matches: impl Fn(&RecordedFileDeletion) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_deleted_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_deleted() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_deleted();
+        Ok(())
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeFileGateway>> {
+        Ai::manager()?.files_fake().ok_or(AiError::FakeNotInstalled)
+    }
+
     pub async fn get(id: &str, provider: Option<&str>) -> AiResult<FileResponse> {
-        let provider = Ai::file_provider(provider)?;
+        let provider = Ai::fakeable_file_provider(provider)?;
         let id = provider.canonical_id(id)?;
         let file = provider.get_file(&id).await?;
         if file.id != id {
@@ -40,7 +115,7 @@ impl Files {
     }
 
     pub async fn put(file: FileUpload, provider: Option<&str>) -> AiResult<FileResponse> {
-        let provider = Ai::file_provider(provider)?;
+        let provider = Ai::fakeable_file_provider(provider)?;
         let info = provider.put_file(file).await?;
         FileResponse::new(info, provider)
     }
@@ -61,7 +136,7 @@ impl Files {
     }
 
     pub async fn delete(id: &str, provider: Option<&str>) -> AiResult<bool> {
-        let provider = Ai::file_provider(provider)?;
+        let provider = Ai::fakeable_file_provider(provider)?;
         let id = provider.canonical_id(id)?;
         provider.delete_file(&id).await
     }
@@ -74,7 +149,7 @@ impl Files {
         if !(1..=100).contains(&limit) {
             return Err(AiError::InvalidConfiguration("files.limit"));
         }
-        let provider = Ai::file_provider(provider)?;
+        let provider = Ai::fakeable_file_provider(provider)?;
         if let Some(cursor) = after {
             provider.validate_cursor(cursor)?;
         }

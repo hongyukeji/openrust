@@ -442,6 +442,8 @@ Gemini 傳回類似 `files/policy` 的資源名稱。`Files::get` 和 `Files::de
 
 透過共享閘道呼叫時，使用對應協定的原生格式提交內嵌附件。供應商帳號下的檔案 ID 可在 SDK 中透過建立檔案的連線使用。
 
+測試中用 `Files::fake([])?` 在記憶體中上傳、查詢與刪除檔案。可傳入位元組回應序列，也可用 `fake_with` 依請求 ID 產生內容。在替身上啟用 `prevent_stray_operations(true)`，拒絕未設定的查詢。可用 `assert_stored`、`assert_not_stored`、`assert_deleted` 及 `assert_not_deleted` 驗證操作。`Files::fake_id("policy.txt")` 傳回固定的測試 ID。
+
 ## 向量儲存庫 {#vector-stores}
 
 用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI、Azure OpenAI 與 Gemini File Search 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。

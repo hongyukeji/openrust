@@ -321,3 +321,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 ## GW-04 调用方用量
 
 `GET /v1/usage` 按当前凭证返回当日、累计及 UTC 日序列。已通过 SQLite、MySQL 和 PostgreSQL 独立 HTTP 与 Artisan 验收。见[网关验收账本](gateway.md#gw-04-调用方用量)。
+
+## AI-06 文件 Fake
+
+`Files::fake`、`fake_with`、`fake_id`、`is_faked` 和上传／删除断言接入应用容器。实际文件连接继续可由原有 `Ai::file_provider` 解析。Fake 在未配置真实供应商时也可使用，按具名连接隔离。查询支持字节序列、回调和严格模式，上传可回读并通过游标分页。
+
+独立 Artisan 和 HTTP 验证无真实供应商配置、确定的 ID、严格响应序列、回调、断言、同名文件的连接隔离、应用隔离与私有 Storage 回读。两个包测试、严格 Clippy、三语文档构建、十二组浏览器及导航通过。仓库 Fake、文件提示词及其他媒体的 Fake 继续分列。
+
+- [固定 Laravel Files 入口](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files.php) · [固定 Laravel FakeFileGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeFileGateway.php)

@@ -81,6 +81,20 @@ impl Ai {
         Self::manager()?.file_provider(name)
     }
 
+    pub fn fakeable_file_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::FileProvider>> {
+        Self::manager()?.fakeable_file_provider(name)
+    }
+
+    pub fn fake_files(
+        responses: impl IntoIterator<Item = bytes::Bytes>,
+    ) -> AiResult<Arc<crate::FakeFileGateway>> {
+        Ok(Self::manager()?.fake_files(responses))
+    }
+
+    pub fn files_are_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.files_fake().is_some())
+    }
+
     pub fn store_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::StoreProvider>> {
         Self::manager()?.store_provider(name)
     }

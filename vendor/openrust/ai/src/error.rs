@@ -63,6 +63,7 @@ pub enum AiError {
     InvalidResponse,
     Refused,
     FakeExhausted,
+    FakeNotInstalled,
 }
 
 impl fmt::Display for AiError {
@@ -129,6 +130,7 @@ impl fmt::Display for AiError {
             Self::ProviderStatus(status) => write!(formatter, "AI 供应商返回 HTTP {status}"),
             Self::InvalidResponse => formatter.write_str("AI 供应商响应格式无效"),
             Self::Refused => formatter.write_str("AI 供应商拒绝了生成请求"),
+            Self::FakeNotInstalled => formatter.write_str("尚未启用 AI 替身"),
             Self::FakeExhausted => formatter.write_str("AI Fake 响应序列已耗尽"),
         }
     }

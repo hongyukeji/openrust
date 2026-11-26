@@ -40,6 +40,7 @@ pub struct AiManager {
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
+    file_fake: RwLock<Option<Arc<crate::files::FakeFileGateway>>>,
     classification_fake: RwLock<Option<Arc<FakeClassificationGateway>>>,
     reranking_fake: RwLock<Option<Arc<FakeRerankingGateway>>>,
     on_demand: Arc<OnDemandProviders>,
@@ -57,6 +58,7 @@ impl AiManager {
             providers: Mutex::default(),
             fakes: RwLock::default(),
             embeddings_fake: RwLock::default(),
+            file_fake: RwLock::default(),
             classification_fake: RwLock::default(),
             reranking_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
@@ -360,6 +362,48 @@ impl AiManager {
         self.text_provider(Some(&name))?
             .file_provider()
             .ok_or(AiError::FilesNotSupported)
+    }
+
+    pub fn fakeable_file_provider(
+        &self,
+        name: Option<&str>,
+    ) -> AiResult<Arc<dyn crate::FileProvider>> {
+        let Some(fake) = self.files_fake() else {
+            return self.file_provider(name);
+        };
+        let name = match self.provider_name_for(name, "default_for_files") {
+            Ok(name) => name,
+            Err(AiError::DefaultNotConfigured) => "fake".into(),
+            Err(error) => return Err(error),
+        };
+        Ok(fake.provider(name))
+    }
+
+    pub fn fake_files(
+        &self,
+        responses: impl IntoIterator<Item = bytes::Bytes>,
+    ) -> Arc<crate::files::FakeFileGateway> {
+        self.install_file_fake(crate::files::FakeFileGateway::new(responses))
+    }
+
+    pub fn fake_files_with(
+        &self,
+        resolve: impl Fn(&str) -> AiResult<bytes::Bytes> + Send + Sync + 'static,
+    ) -> Arc<crate::files::FakeFileGateway> {
+        self.install_file_fake(crate::files::FakeFileGateway::with(resolve))
+    }
+
+    fn install_file_fake(
+        &self,
+        fake: crate::files::FakeFileGateway,
+    ) -> Arc<crate::files::FakeFileGateway> {
+        let fake = Arc::new(fake);
+        *self.file_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn files_fake(&self) -> Option<Arc<crate::files::FakeFileGateway>> {
+        self.file_fake.read().unwrap().clone()
     }
 
     pub fn store_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::StoreProvider>> {

@@ -442,6 +442,8 @@ Gemini returns a resource name such as `files/policy`. You can pass the resource
 
 When calling the shared gateway, send inline attachments using the endpoint’s native format. File IDs from an upstream account can be used through the SDK with the connection that created them.
 
+In tests, call `Files::fake([])?` for in-memory uploads, lookups, and deletes. Pass a sequence of byte responses or use `fake_with` to generate bytes from the requested ID. Enable `prevent_stray_operations(true)` on the fake to reject unconfigured lookups. Use `assert_stored`, `assert_not_stored`, `assert_deleted`, and `assert_not_deleted` to check operations. `Files::fake_id("policy.txt")` returns the deterministic test ID.
+
 ## Vector stores {#vector-stores}
 
 Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI, Azure OpenAI, and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
