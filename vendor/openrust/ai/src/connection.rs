@@ -11,8 +11,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AiError, AiResult, ModelCatalog, TextEndpoint, TextModelTier, models::ListedModel,
-    text::transport_error,
+    AiError, AiResult, ModelCatalog, TextEndpoint, TextModelTier,
+    models::ListedModel,
+    text::{send_with_retry_after, transport_error},
 };
 
 #[derive(Default, Deserialize)]
@@ -413,6 +414,16 @@ impl Connection {
 
     pub(crate) fn catalog(&self, discovered: AiResult<Vec<ListedModel>>) -> ModelCatalog {
         ModelCatalog::merge(discovered, self.configured_text_models().map(str::to_owned))
+    }
+
+    pub(crate) async fn send_sdk_text(
+        &self,
+        endpoint: TextEndpoint,
+        body: &impl Serialize,
+        stream: bool,
+        timeout: Option<Duration>,
+    ) -> AiResult<Response> {
+        send_with_retry_after(|| self.send(endpoint, body, stream, timeout)).await
     }
 
     pub(crate) async fn send(

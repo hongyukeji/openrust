@@ -22,7 +22,7 @@ use crate::{
     models::ListedModel,
     provider_options::apply_provider_options,
     stores::StoreProvider,
-    text::{transport_error, validate},
+    text::{send_with_retry_after, transport_error, validate},
 };
 
 mod embeddings;
@@ -62,6 +62,16 @@ impl GeminiTextProvider {
                 .stream();
         }
         request.post(&path, body).await.map_err(transport_error)
+    }
+
+    async fn send_sdk_text(
+        &self,
+        endpoint: TextEndpoint,
+        model: &str,
+        body: &Value,
+        timeout: Option<Duration>,
+    ) -> AiResult<Response> {
+        send_with_retry_after(|| self.relay_model(endpoint, model, body, timeout)).await
     }
 
     fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
@@ -208,16 +218,14 @@ impl TextProvider for GeminiTextProvider {
     fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
             let response = self
-                .relay_model(
+                .send_sdk_text(
                     TextEndpoint::GeminiGenerateContent,
                     prompt.text.model,
                     &Self::prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
                 .await?;
-            let value: Value = validate(Ok(response))?
-                .json()
-                .map_err(|_| AiError::InvalidResponse)?;
+            let value: Value = response.json().map_err(|_| AiError::InvalidResponse)?;
             let candidate = &value["candidates"][0];
             finish_reason(&value, candidate)?;
             let text: String = text_parts(candidate).collect();
@@ -243,14 +251,14 @@ impl TextProvider for GeminiTextProvider {
         prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
-            let response = validate(Ok(self
-                .relay_model(
+            let response = self
+                .send_sdk_text(
                     TextEndpoint::GeminiStreamGenerateContent,
                     prompt.text.model,
                     &Self::prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
-                .await?))?;
+                .await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }
@@ -384,16 +392,16 @@ impl StepTextGateway for GeminiTextProvider {
         Box::pin(async move {
             let body = Self::tool_payload(prompt, tools, history)?;
 
-            let value: Value = validate(Ok(self
-                .relay_model(
+            let value: Value = self
+                .send_sdk_text(
                     TextEndpoint::GeminiGenerateContent,
                     prompt.text.model,
                     &body,
                     prompt.text.timeout,
                 )
-                .await?))?
-            .json()
-            .map_err(|_| AiError::InvalidResponse)?;
+                .await?
+                .json()
+                .map_err(|_| AiError::InvalidResponse)?;
             parse_step(value)
         })
     }
@@ -406,14 +414,14 @@ impl StepTextGateway for GeminiTextProvider {
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
             let body = Self::tool_payload(prompt, tools, history)?;
-            let response = validate(Ok(self
-                .relay_model(
+            let response = self
+                .send_sdk_text(
                     TextEndpoint::GeminiStreamGenerateContent,
                     prompt.text.model,
                     &body,
                     prompt.text.timeout,
                 )
-                .await?))?;
+                .await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }

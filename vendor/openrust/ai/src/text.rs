@@ -493,11 +493,9 @@ impl OpenAiTextProvider {
 
     async fn send_text(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
         let body = self.request_body(prompt, stream)?;
-        let response = self
-            .connection
-            .send(self.protocol.endpoint(), &body, stream, prompt.text.timeout)
-            .await?;
-        validate(Ok(response))
+        self.connection
+            .send_sdk_text(self.protocol.endpoint(), &body, stream, prompt.text.timeout)
+            .await
     }
 }
 
@@ -747,15 +745,15 @@ impl StepTextGateway for OpenAiTextProvider {
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
             let payload = self.tool_payload(prompt, tools, history, false)?;
-            let response = validate(Ok(self
+            let response = self
                 .connection
-                .send(
+                .send_sdk_text(
                     self.protocol.endpoint(),
                     &payload,
                     false,
                     prompt.text.timeout,
                 )
-                .await?))?;
+                .await?;
             let response = response
                 .json::<Value>()
                 .map_err(|_| AiError::InvalidResponse)?;
@@ -773,15 +771,15 @@ impl StepTextGateway for OpenAiTextProvider {
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
             let payload = self.tool_payload(prompt, tools, history, true)?;
-            let response = validate(Ok(self
+            let response = self
                 .connection
-                .send(
+                .send_sdk_text(
                     self.protocol.endpoint(),
                     &payload,
                     true,
                     prompt.text.timeout,
                 )
-                .await?))?;
+                .await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }
@@ -798,6 +796,58 @@ fn schema_format(output: &StructuredOutput<'_>) -> ResponseFormatJsonSchema {
         strict: Some(output.strict),
         description: None,
     }
+}
+
+/// 按上游给出的短等待时间重试一次当前文本请求。
+pub(crate) async fn send_with_retry_after<F>(send: impl Fn() -> F) -> AiResult<Response>
+where
+    F: std::future::Future<Output = AiResult<Response>>,
+{
+    let response = send().await?;
+    let Some(seconds) = retry_after_seconds(&response) else {
+        return validate(Ok(response));
+    };
+    drop(response);
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
+    validate(Ok(send().await?))
+}
+
+fn retry_after_seconds(response: &Response) -> Option<u64> {
+    let status = response.status().as_u16();
+    if status != 429 && !crate::error::provider_overloaded(status) {
+        return None;
+    }
+    let header = response
+        .headers()
+        .get(http::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?;
+    if !header.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let seconds = header.parse().ok().filter(|seconds| *seconds <= 10)?;
+    if status == 429 && insufficient_credits(response) {
+        return None;
+    }
+    Some(seconds)
+}
+
+fn insufficient_credits(response: &Response) -> bool {
+    let Ok(body) = response.json::<Value>() else {
+        return false;
+    };
+    ["code", "type"].into_iter().any(|field| {
+        matches!(
+            body["error"][field].as_str(),
+            Some(
+                "insufficient_quota"
+                    | "credit_balance_exhausted"
+                    | "organization_spend_limit_exceeded"
+                    | "project_spend_limit_exceeded"
+                    | "organization_usage_limit_exceeded"
+            )
+        )
+    })
 }
 
 pub(crate) fn validate(response: client::Result<Response>) -> AiResult<Response> {

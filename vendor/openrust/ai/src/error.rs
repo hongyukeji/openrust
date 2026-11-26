@@ -89,13 +89,18 @@ pub enum AiError {
 
 impl AiError {
     pub(crate) fn allows_provider_failover(&self) -> bool {
-        matches!(
-            self,
-            Self::Transport
-                | Self::Timeout
-                | Self::ProviderStatus(402 | 429 | 502 | 503 | 504 | 520 | 522 | 524)
-        )
+        match self {
+            Self::Transport | Self::Timeout => true,
+            Self::ProviderStatus(status) => {
+                matches!(status, 402 | 429) || provider_overloaded(*status)
+            }
+            _ => false,
+        }
     }
+}
+
+pub(crate) fn provider_overloaded(status: u16) -> bool {
+    matches!(status, 502 | 503 | 504 | 520 | 522 | 524)
 }
 
 impl fmt::Display for AiError {

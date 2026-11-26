@@ -79,6 +79,8 @@ let answer = responder.prompt("What can I do next?").await?;
 
 Connection failures, timeouts, rate limits, insufficient credits, and certain upstream overload statuses can trigger failover. Listen for `openrust_ai::events::AgentFailedOver` to correlate attempts by invocation ID. Setting `PromptOptions.provider` explicitly selects a single connection. A stream stays with its current connection once it delivers its first event. Tool streams can switch at startup. Tool results and subsequent model turns stay with the selected connection. Buffered calls with application tools or prompt middleware currently use only the first connection.
 
+For built-in text protocols, the SDK retries the same request once when a rate limit or supported overload response supplies an integer `Retry-After` from 0 to 10 seconds. An exhausted quota or credit response goes directly to failover handling. The retry keeps the original invocation ID and emits a failover event only if the connection changes.
+
 ### Connect to a Responses gateway {#responses-gateway}
 
 For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.

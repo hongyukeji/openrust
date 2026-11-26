@@ -655,7 +655,9 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 带工具的流在首个模型步骤交付事件前可切换。模拟上游用实际 Artisan 与 HTTP 核对了初始 503 和首帧前传输中断。切换成功后工具执行一次，续轮向选中连接发送结果，全部步骤与切换事件关联同一调用 ID。已执行工具后的续轮返回 503 时保留原流的工具结果并终止，未尝试备用连接。仓库回归覆盖初次切换成功、执行一次工具和续轮失败。
 
-待补 `Retry-After` 同连接重试、供应商错误代码与正文分类、带工具或应用中间件的非流式故障转移，以及剩余供应商和入口的逐项验收。
+按固定 Laravel 基线加入 `Retry-After` 同连接重试。实际 Artisan 与 HTTP 覆盖 OpenAI Responses、有序备选 Chat Completions、Anthropic Messages 和 Gemini GenerateContent。已验证等待 1 秒后重试、同连接最多重试一次、重试耗尽后切换、超长及日期格式不等待、401 不重试、不切换、额度代码和类型立即切换、事件与出站请求沿用原调用 ID。工具阶段复用同一内置文本传输规则，网关原生转发仍使用自己的重试策略。
+
+待补其余供应商错误正文分类、带工具或应用中间件的非流式故障转移，以及剩余供应商和入口的逐项验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [供应商与模型列表](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [故障分类和重试](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Concerns/HandlesFailoverErrors.php)
 

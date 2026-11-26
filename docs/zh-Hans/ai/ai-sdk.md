@@ -79,6 +79,8 @@ let answer = responder.prompt("What can I do next?").await?;
 
 连接失败、请求超时、限流、费用不足或指定的上游过载状态可触发切换。应用可监听 `openrust_ai::events::AgentFailedOver`，用调用 ID 关联已尝试的连接。使用 `PromptOptions.provider` 显式指定连接会仅调用该连接。流在交付首个事件后固定使用当前连接。带工具的流可在启动时切换，工具结果和后续模型步骤留在选中的连接。带应用工具或提示词中间件的非流式调用当前仅使用首选连接。
 
+内置文本协议遇到限流或指定的过载状态时，如果上游的 `Retry-After` 是 0 到 10 秒的整数，SDK 会等待后重试当前请求一次。上游报告额度或余额耗尽时直接按故障转移规则处理。切换事件只记录连接切换，同连接重试沿用原调用 ID。
+
 ### 接入 Responses 网关 {#responses-gateway}
 
 接入提供 OpenAI Responses 的 Sub2API 实例时，使用 `driver: "openai"` 和实例的 v1 基础地址。SDK 使用 `/models` 发现模型，通过 `/responses` 发起生成请求。设置 `store: false` 可请求上游关闭响应存储。

@@ -101,10 +101,9 @@ impl AnthropicTextProvider {
         if stream {
             body["stream"] = true.into();
         }
-        validate(Ok(self
-            .0
-            .send(TextEndpoint::Messages, &body, stream, prompt.text.timeout)
-            .await?))
+        self.0
+            .send_sdk_text(TextEndpoint::Messages, &body, stream, prompt.text.timeout)
+            .await
     }
 
     async fn list_models(&self) -> AiResult<Vec<ListedModel>> {
@@ -288,12 +287,12 @@ impl StepTextGateway for AnthropicTextProvider {
         Box::pin(async move {
             let body = Self::tool_payload(prompt, tools, history)?;
 
-            let response: Value = validate(Ok(self
+            let response: Value = self
                 .0
-                .send(TextEndpoint::Messages, &body, false, prompt.text.timeout)
-                .await?))?
-            .json()
-            .map_err(|_| AiError::InvalidResponse)?;
+                .send_sdk_text(TextEndpoint::Messages, &body, false, prompt.text.timeout)
+                .await?
+                .json()
+                .map_err(|_| AiError::InvalidResponse)?;
             parse_step(response)
         })
     }
@@ -307,10 +306,10 @@ impl StepTextGateway for AnthropicTextProvider {
         Box::pin(async move {
             let mut body = Self::tool_payload(prompt, tools, history)?;
             body["stream"] = true.into();
-            let response = validate(Ok(self
+            let response = self
                 .0
-                .send(TextEndpoint::Messages, &body, true, prompt.text.timeout)
-                .await?))?;
+                .send_sdk_text(TextEndpoint::Messages, &body, true, prompt.text.timeout)
+                .await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }
