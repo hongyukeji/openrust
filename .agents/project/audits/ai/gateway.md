@@ -64,3 +64,9 @@ HTTP Kernel 和独立网关进程验证分组 Key 的列表、模型交集、不
 `managed_keys` 独立启用，通过 Artisan 签发、列出、轮换及撤销。复用 Laravel Sanctum 的摘要存储原则和框架安全随机源，明文仅在签发／轮换命令输出。组授权沿用网关配置，按 Key ID 计限流，轮换不会重置限额。认证走写库连接且实时核对到期与撤销，轮换用旧摘要条件更新，撤销移除摘要。使用专用迁移表，不混用应用用户的访问令牌。迁移、发布与自定义连接由原生 Artisan 提供。
 
 本地 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 的独立运行验证迁移发布／回滚、摘要读回、立即轮换与撤销、过期、授权模型隔离和模型调用。数据库表不可用时托管 Key 返回脱敏 503，配置中的环境 Key 仍可鉴权。管理操作历史、按用量额度扣减和控制台页面待对应批次。
+
+## GW-03 Responses 与 Anthropic Messages 的非流式工具转换
+
+参考固定 Sub2API 的 [Anthropic 到 Responses](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/apicompat/anthropic_to_responses.go) 和 [Responses 到 Anthropic](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/apicompat/responses_to_anthropic.go)。转换标准客户端函数定义、工具选择、对象参数、文本结果和调用 ID。Anthropic 错误结果转为带错误标记的文本。拒绝重复、缺失或不匹配的工具历史，包含工具历史的上游调用不自动重放。
+
+HTTP Kernel 及独立网关验证两个方向的工具调用、上游鉴权、结果回送和普通生成。测试覆盖并行 ID、无效历史、流式工具拒绝以及原有文本 SSE。Artisan 检查两个协议路由。流式工具转换、非文本结果和服务端工具另列待办。

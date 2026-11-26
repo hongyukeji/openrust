@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 
 use crate::{
     accounts::Admission,
-    compatibility::Bridge,
+    compatibility::{Bridge, Translation},
     gateway::{Call, Gateway, Key, Target},
 };
 
@@ -449,6 +449,7 @@ async fn relay(
     let may_replay = data
         .get("tools")
         .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
+        && !includes_tool_history(&data)
         && data.get("store") != Some(&Value::Bool(true));
     let request_id = Str::ulid().to_string();
     let mut admitted = false;
@@ -465,17 +466,16 @@ async fn relay(
             std::mem::take(&mut data)
         };
         payload.insert("model".into(), json!(target.upstream_model));
-        let bridge = Bridge::between(endpoint, upstream_endpoint);
-        let payload = if let Some(bridge) = bridge {
+        let (payload, bridge) = if let Some(bridge) = Bridge::between(endpoint, upstream_endpoint) {
             match bridge.request(payload) {
-                Ok(payload) => payload,
+                Ok((payload, translation)) => (payload, Some(translation)),
                 Err(message) => {
                     conversion_error = Some(message);
                     continue;
                 }
             }
         } else {
-            Value::Object(payload)
+            (Value::Object(payload), None)
         };
         if let Some(cooldown) = target
             .account
@@ -563,6 +563,45 @@ async fn relay(
         "unsupported_conversion",
         conversion_error.unwrap_or("没有支持此请求的上游连接"),
     )
+}
+
+fn includes_tool_history(data: &serde_json::Map<String, Value>) -> bool {
+    let has_items = |field: &str, predicate: fn(&Value) -> bool| {
+        data.get(field)
+            .and_then(Value::as_array)
+            .is_some_and(|items| items.iter().any(predicate))
+    };
+    has_items("input", |item| {
+        matches!(
+            item["type"].as_str(),
+            Some(
+                "function_call"
+                    | "function_call_output"
+                    | "custom_tool_call"
+                    | "custom_tool_call_output"
+            )
+        )
+    }) || has_items("messages", |message| {
+        matches!(message["role"].as_str(), Some("tool" | "function"))
+            || message
+                .get("tool_calls")
+                .and_then(Value::as_array)
+                .is_some_and(|calls| !calls.is_empty())
+            || message["content"].as_array().is_some_and(|blocks| {
+                blocks.iter().any(|block| {
+                    matches!(
+                        block["type"].as_str(),
+                        Some("tool_use" | "tool_result" | "server_tool_use")
+                    )
+                })
+            })
+    }) || has_items("contents", |content| {
+        content["parts"].as_array().is_some_and(|parts| {
+            parts.iter().any(|part| {
+                part.get("functionCall").is_some() || part.get("functionResponse").is_some()
+            })
+        })
+    })
 }
 
 fn account_state_unavailable(protocol: Protocol) -> HttpResult {
@@ -680,7 +719,7 @@ async fn respond(
     endpoint: TextEndpoint,
     streaming: bool,
     protocol: Protocol,
-    bridge: Option<Bridge>,
+    bridge: Option<Translation>,
     mut call: Call,
 ) -> HttpResult {
     let status = upstream.status();
@@ -725,7 +764,7 @@ fn stream(
     name: String,
     mut call: Call,
     protocol: Protocol,
-    bridge: Option<Bridge>,
+    bridge: Option<Translation>,
 ) -> HttpResult {
     let status = upstream.status();
     let is_sse = upstream

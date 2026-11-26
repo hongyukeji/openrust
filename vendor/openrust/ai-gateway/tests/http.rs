@@ -673,3 +673,210 @@ async fn anthropic_clients_bridge_to_responses_with_text_and_usage() -> TestResu
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn bridged_tools_keep_call_ids_and_arguments_in_both_directions() -> TestResult {
+    fn load(
+        base: &std::path::Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut configuration = config(base, env)?;
+        let gateway = configuration.get_mut("ai_gateway").unwrap();
+        gateway["models"] = json!({
+            "public-claude":{"provider":"anthropic","model":"private-claude"},
+            "public-openai":{"provider":"openai","model":"private-openai"},
+        });
+        gateway["keys"] = json!({
+            "caller":{"key_env":"CALLER_GENERAL","models":["public-claude","public-openai"]}
+        });
+        Ok(configuration)
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let history = tokio::spawn(async move {
+        let jobs = [
+            (
+                "messages",
+                json!({"stop_reason":"tool_use","content":[
+                    {"type":"text","text":"I will check."},
+                    {"type":"tool_use","id":"toolu_claude","name":"lookup","input":{"sku":"red"}},
+                    {"type":"tool_use","id":"toolu_second","name":"lookup","input":{"sku":"blue"}}
+                ]}),
+            ),
+            (
+                "messages",
+                json!({"stop_reason":"end_turn","content":[{"type":"text","text":"two items"}]}),
+            ),
+            (
+                "responses",
+                json!({"status":"completed","output":[
+                    {"type":"function_call","call_id":"call_openai","name":"lookup","arguments":"{\"sku\":\"red\"}"}
+                ]}),
+            ),
+            (
+                "responses",
+                json!({"status":"completed","output":[{"type":"message","content":[
+                    {"type":"output_text","text":"request completed"}
+                ]}]}),
+            ),
+        ];
+        let mut requests = Vec::new();
+        for (path, body) in jobs {
+            let (socket, _) = timeout(Duration::from_secs(5), listener.accept())
+                .await
+                .unwrap()
+                .unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut line = String::new();
+            socket.read_line(&mut line).await.unwrap();
+            assert_eq!(line.trim_end(), format!("POST /private/v1/{path} HTTP/1.1"));
+            let mut size = 0;
+            let mut proper_auth = false;
+            loop {
+                line.clear();
+                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+                if line == "\r\n" {
+                    break;
+                }
+                let (key, value) = line.split_once(':').unwrap();
+                if key.eq_ignore_ascii_case("content-length") {
+                    size = value.trim().parse().unwrap();
+                }
+                if path == "messages" && key.eq_ignore_ascii_case("x-api-key") {
+                    proper_auth = value.trim() == "upstream-claude";
+                }
+                if path == "responses" && key.eq_ignore_ascii_case("authorization") {
+                    proper_auth = value.trim() == "Bearer upstream-openai";
+                }
+            }
+            assert!(proper_auth);
+            let mut bytes = vec![0; size];
+            socket.read_exact(&mut bytes).await.unwrap();
+            requests.push(serde_json::from_slice::<Value>(&bytes).unwrap());
+            let body = body.to_string();
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.get_mut().write_all(head.as_bytes()).await.unwrap();
+            socket.get_mut().write_all(body.as_bytes()).await.unwrap();
+        }
+        requests
+    });
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(load)
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nCALLER_GENERAL=caller-group\nANTHROPIC_URL=http://{address}/private/v1\nANTHROPIC_API_KEY=upstream-claude\nOPENAI_URL=http://{address}/private/v1\nOPENAI_API_KEY=upstream-openai\n"
+        ),
+    )?;
+    let bearer = Some("Bearer caller-group");
+    let schema = json!({"type":"object","properties":{"sku":{"type":"string"}},"required":["sku"]});
+    let request = json!({
+        "model":"public-claude","input":"Check inventory","tools":[
+            {"type":"function","name":"lookup","parameters":schema,"strict":false}
+        ],
+        "tool_choice":"required","parallel_tool_calls":true,
+    });
+    let mut streamed = request.clone();
+    streamed["stream"] = true.into();
+    assert_eq!(
+        send(&mut app, "/v1/responses", bearer, Some(streamed))
+            .await?
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    let first = send(&mut app, "/v1/responses", bearer, Some(request.clone()))
+        .await?
+        .json::<Value>()?;
+    assert_eq!(first["status"], "completed");
+    assert_eq!(first["model"], "public-claude");
+    assert_eq!(first["tools"], request["tools"]);
+    assert_eq!(first["tool_choice"], "required");
+    assert_eq!(first["parallel_tool_calls"], true);
+    let calls = first["output"].as_array().unwrap();
+    assert_eq!(calls[1]["call_id"], "toolu_claude");
+    assert_eq!(calls[2]["call_id"], "toolu_second");
+    let mut next = request;
+    next["input"] = json!([
+        {"role":"user","content":"Check inventory"},
+        {"role":"assistant","content":"I will check."},
+        calls[1], calls[2],
+        {"type":"function_call_output","call_id":"toolu_claude","output":"1"},
+        {"type":"function_call_output","call_id":"toolu_second","output":"1"},
+        {"role":"user","content":"How many in total?"}
+    ]);
+    let mut invalid = next.clone();
+    invalid["input"][5]["call_id"] = "toolu_claude".into();
+    assert_eq!(
+        send(&mut app, "/v1/responses", bearer, Some(invalid))
+            .await?
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
+    let second = send(&mut app, "/v1/responses", bearer, Some(next))
+        .await?
+        .json::<Value>()?;
+    assert_eq!(second["output"][0]["content"][0]["text"], "two items");
+
+    let request = json!({
+        "model":"public-openai","max_tokens":256,
+        "messages":[{"role":"user","content":"Check inventory"}],
+        "tools":[{"name":"lookup","input_schema":schema}],
+        "tool_choice":{"type":"tool","name":"lookup","disable_parallel_tool_use":true},
+    });
+    let first = send(&mut app, "/v1/messages", bearer, Some(request.clone()))
+        .await?
+        .json::<Value>()?;
+    assert_eq!(first["stop_reason"], "tool_use");
+    assert_eq!(first["model"], "public-openai");
+    assert_eq!(
+        first["content"][0],
+        json!({"type":"tool_use","id":"call_openai","name":"lookup","input":{"sku":"red"}})
+    );
+    let mut next = request;
+    next["messages"].as_array_mut().unwrap().extend([
+        json!({"role":"assistant","content":first["content"]}),
+        json!({"role":"user","content":[
+            {"type":"tool_result","tool_use_id":"call_openai","content":[{"type":"text","text":"not found"}],"is_error":true},
+            {"type":"text","text":"Continue"},
+        ]}),
+    ]);
+    let second = send(&mut app, "/v1/messages", bearer, Some(next))
+        .await?
+        .json::<Value>()?;
+    assert_eq!(second["content"][0]["text"], "request completed");
+    let requests = history.await?;
+    assert_eq!(requests[0]["tools"][0]["input_schema"], schema);
+    assert_eq!(requests[0]["tool_choice"]["type"], "any");
+    assert_eq!(
+        requests[1]["messages"][1]["content"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        requests[1]["messages"][2]["content"][1]["tool_use_id"],
+        "toolu_second"
+    );
+    assert_eq!(
+        requests[1]["messages"][2]["content"][2]["text"],
+        "How many in total?"
+    );
+    assert_eq!(requests[2]["tools"][0]["parameters"], schema);
+    assert_eq!(
+        requests[2]["tool_choice"],
+        json!({"type":"function","name":"lookup"})
+    );
+    assert_eq!(requests[2]["parallel_tool_calls"], false);
+    assert_eq!(
+        requests[3]["input"][2],
+        json!({"type":"function_call_output","call_id":"call_openai","output":"Tool error: not found"})
+    );
+    Ok(())
+}

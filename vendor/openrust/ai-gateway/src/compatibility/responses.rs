@@ -3,14 +3,25 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use openrust::support::Str;
 use serde_json::{Map, Value, json};
 
-/// 将 Responses 的无状态文本请求转换成 Anthropic Messages。
+use super::tools::{
+    ToolHistory, allowed_fields, arguments, response_choice, tool_definition, tool_id, tool_name,
+};
+
+/// 将 Responses 的无状态请求转换成 Anthropic Messages。
 pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static str> {
     let mut target = Map::new();
     target.insert("model".into(), request["model"].clone());
     target.insert("max_tokens".into(), json!(64_000));
     for (key, value) in &request {
         match key.as_str() {
-            "model" | "input" | "instructions" | "store" | "background" => {}
+            "model"
+            | "input"
+            | "instructions"
+            | "store"
+            | "background"
+            | "tools"
+            | "tool_choice"
+            | "parallel_tool_calls" => {}
             "stream" | "temperature" | "top_p" if !value.is_null() => {
                 target.insert(key.clone(), value.clone());
             }
@@ -22,7 +33,27 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
                 target.insert("max_tokens".into(), json!(count));
             }
             _ if value.is_null() => {}
-            _ => return Err("当前 Responses 到 Messages 转换只支持文本、流及基本采样参数"),
+            _ => return Err("当前 Responses 到 Messages 转换不支持该请求字段"),
+        }
+    }
+
+    let streaming = request.get("stream") == Some(&Value::Bool(true));
+    if let Some(tools) = request.get("tools").filter(|tools| !tools.is_null()) {
+        let tools = tools.as_array().ok_or("tools 必须是数组")?;
+        if !tools.is_empty() {
+            if streaming {
+                return Err("流式协议转换暂不支持工具");
+            }
+            let definitions = tools
+                .iter()
+                .map(|tool| tool_definition(tool, true))
+                .collect::<Result<Vec<_>, _>>()?;
+            let choice = response_choice(
+                request.get("tool_choice").unwrap_or(&Value::Null),
+                request.get("parallel_tool_calls").unwrap_or(&Value::Null),
+            )?;
+            target.insert("tools".into(), definitions.into());
+            target.insert("tool_choice".into(), choice);
         }
     }
 
@@ -41,9 +72,50 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
         messages.push(json!({"role":"user","content":input}));
     } else {
         let items = input.as_array().ok_or("input 必须是文本或消息数组")?;
+        let mut tools = ToolHistory::default();
         for item in items {
-            if !matches!(item.get("type"), None | Some(Value::Null)) && item["type"] != "message" {
-                return Err("input 只支持文本消息");
+            match item["type"].as_str() {
+                Some("function_call") if !streaming => {
+                    if !allowed_fields(
+                        item,
+                        &["type", "id", "call_id", "name", "arguments", "status"],
+                    ) || item["status"]
+                        .as_str()
+                        .is_some_and(|value| value != "completed")
+                    {
+                        return Err("工具调用状态或字段不受协议转换支持");
+                    }
+                    let id = tool_id(&item["call_id"]).ok_or("缺少有效的工具调用 ID")?;
+                    let name = tool_name(&item["name"]).ok_or("工具名称无效")?;
+                    let input = arguments(&item["arguments"]).ok_or("工具参数必须是 JSON 对象")?;
+                    tools.call(id)?;
+                    append_blocks(
+                        &mut messages,
+                        "assistant",
+                        vec![json!({"type":"tool_use","id":id,"name":name,"input":input})],
+                    );
+                    continue;
+                }
+                Some("function_call_output") if !streaming => {
+                    if !allowed_fields(item, &["type", "id", "call_id", "output", "status"]) {
+                        return Err("工具结果字段不受协议转换支持");
+                    }
+                    let id = tool_id(&item["call_id"]).ok_or("缺少有效的工具调用 ID")?;
+                    let output = item["output"].as_str().ok_or("工具结果必须是文本")?;
+                    tools.result(id)?;
+                    append_blocks(
+                        &mut messages,
+                        "user",
+                        vec![json!({"type":"tool_result","tool_use_id":id,"content":output})],
+                    );
+                    continue;
+                }
+                None if item["type"].is_null() => {}
+                Some("message") => {}
+                Some("function_call" | "function_call_output") => {
+                    return Err("流式协议转换暂不支持工具");
+                }
+                _ => return Err("input 只支持文本消息和客户端函数工具"),
             }
             if item.as_object().is_none_or(|item| {
                 item.keys()
@@ -54,15 +126,20 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
             let role = item["role"].as_str().ok_or("消息缺少 role")?;
             let content = text_parts(&item["content"], role)?;
             match role {
-                "user" | "assistant" => messages.push(json!({
-                    "role": role,
-                    "content": content.into_iter().map(|text| json!({"type":"text","text":text})).collect::<Vec<_>>()
-                })),
+                "user" | "assistant" => append_blocks(
+                    &mut messages,
+                    role,
+                    content
+                        .into_iter()
+                        .map(|text| json!({"type":"text","text":text}))
+                        .collect(),
+                ),
                 "system" | "developer" if messages.is_empty() => system.extend(content),
                 "system" | "developer" => return Err("系统指令必须位于对话消息之前"),
                 _ => return Err("消息 role 不受支持"),
             }
         }
+        tools.finish()?;
     }
     if messages.is_empty() {
         return Err("至少提供一条对话消息");
@@ -72,6 +149,18 @@ pub(crate) fn to_messages(request: Map<String, Value>) -> Result<Value, &'static
     }
     target.insert("messages".into(), messages.into());
     Ok(Value::Object(target))
+}
+
+fn append_blocks(messages: &mut Vec<Value>, role: &str, blocks: Vec<Value>) {
+    if let Some(content) = messages
+        .last_mut()
+        .filter(|message| message["role"] == role)
+        .and_then(|message| message["content"].as_array_mut())
+    {
+        content.extend(blocks);
+    } else {
+        messages.push(json!({"role":role,"content":blocks}));
+    }
 }
 
 fn text_parts(content: &Value, role: &str) -> Result<Vec<String>, &'static str> {
@@ -132,17 +221,36 @@ impl Response {
 
     pub(crate) fn buffered(mut self, message: &Value) -> Option<Value> {
         self.observe_usage(&message["usage"]);
-        let finish = Finish::parse(message["stop_reason"].as_str()?)?;
+        let reason = message["stop_reason"].as_str()?;
+        let finish = if reason == "tool_use" {
+            Finish::Complete
+        } else {
+            Finish::parse(reason)?
+        };
+        let mut calls = std::collections::HashSet::new();
         for content in message["content"].as_array()? {
-            let part = content["text"].as_str()?;
-            if content["type"] != "text" {
-                return None;
+            match content["type"].as_str()? {
+                "text" => self.output.push(output_item(
+                    &message_id(),
+                    finish.item_status(),
+                    vec![text_part(content["text"].as_str()?)],
+                )),
+                "tool_use" if reason == "tool_use" => {
+                    let id = tool_id(&content["id"])?;
+                    let name = tool_name(&content["name"])?;
+                    if !content["input"].is_object() || !calls.insert(id) {
+                        return None;
+                    }
+                    self.output.push(json!({
+                        "id":format!("fc_{}", Str::ulid()),"type":"function_call","status":"completed",
+                        "call_id":id,"name":name,"arguments":content["input"].to_string(),
+                    }));
+                }
+                _ => return None,
             }
-            self.output.push(output_item(
-                &message_id(),
-                finish.item_status(),
-                vec![text_part(part)],
-            ));
+        }
+        if reason == "tool_use" && calls.is_empty() {
+            return None;
         }
         if self.output.is_empty() && matches!(finish, Finish::Complete) {
             return None;

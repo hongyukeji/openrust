@@ -3,7 +3,11 @@ use std::collections::BTreeMap;
 use openrust::support::Str;
 use serde_json::{Map, Value, json};
 
-/// 将 Anthropic 的无状态文本请求转换成 OpenAI Responses。
+use super::tools::{
+    ToolHistory, allowed_fields, arguments, message_choice, tool_definition, tool_id, tool_name,
+};
+
+/// 将 Anthropic 的无状态请求转换成 OpenAI Responses。
 pub(crate) fn to_responses(request: Map<String, Value>) -> Result<Value, &'static str> {
     let max_tokens = request
         .get("max_tokens")
@@ -17,12 +21,36 @@ pub(crate) fn to_responses(request: Map<String, Value>) -> Result<Value, &'stati
     ]);
     for (key, value) in &request {
         match key.as_str() {
-            "model" | "messages" | "system" | "max_tokens" => {}
+            "model" | "messages" | "system" | "max_tokens" | "tools" | "tool_choice" => {}
             "stream" | "temperature" | "top_p" if !value.is_null() => {
                 target.insert(key.clone(), value.clone());
             }
             _ if value.is_null() => {}
-            _ => return Err("当前 Messages 到 Responses 转换只支持文本、流及基本采样参数"),
+            _ => return Err("当前 Messages 到 Responses 转换不支持该请求字段"),
+        }
+    }
+    let streaming = request.get("stream") == Some(&Value::Bool(true));
+    if let Some(tools) = request.get("tools").filter(|tools| !tools.is_null()) {
+        let tools = tools.as_array().ok_or("tools 必须是数组")?;
+        if !tools.is_empty() {
+            if streaming {
+                return Err("流式协议转换暂不支持工具");
+            }
+            let definitions = tools
+                .iter()
+                .map(|tool| tool_definition(tool, false))
+                .collect::<Result<Vec<_>, _>>()?;
+            target.insert("tools".into(), definitions.into());
+            if let Some(choice) = request
+                .get("tool_choice")
+                .filter(|choice| !choice.is_null())
+            {
+                let (choice, parallel) = message_choice(choice)?;
+                target.insert("tool_choice".into(), choice);
+                if let Some(parallel) = parallel {
+                    target.insert("parallel_tool_calls".into(), parallel.into());
+                }
+            }
         }
     }
     if let Some(system) = request.get("system").filter(|value| !value.is_null()) {
@@ -33,27 +61,90 @@ pub(crate) fn to_responses(request: Map<String, Value>) -> Result<Value, &'stati
         .and_then(Value::as_array)
         .filter(|messages| !messages.is_empty())
         .ok_or("至少提供一条消息")?;
-    let input = messages
-        .iter()
-        .map(|message| {
-            if message.as_object().is_none_or(|message| {
-                message
-                    .keys()
-                    .any(|key| !matches!(key.as_str(), "role" | "content"))
-            }) {
-                return Err("消息字段不受协议转换支持");
+    let mut input = Vec::new();
+    let mut tools = ToolHistory::default();
+    for message in messages {
+        if !allowed_fields(message, &["role", "content"]) {
+            return Err("消息字段不受协议转换支持");
+        }
+        let role = message["role"]
+            .as_str()
+            .filter(|role| matches!(*role, "user" | "assistant"))
+            .ok_or("消息 role 不受支持")?;
+        let content = &message["content"];
+        if let Some(text) = content.as_str() {
+            input.push(json!({"type":"message","role":role,"content":text}));
+            continue;
+        }
+        let blocks = content.as_array().ok_or("消息内容必须是文本或文本块")?;
+        let mut texts = Vec::new();
+        for block in blocks {
+            if block["type"] == "text" {
+                if !allowed_fields(block, &["type", "text"]) {
+                    return Err("文本块包含暂未支持的字段");
+                }
+                texts.push(block["text"].as_str().ok_or("文本块缺少 text")?);
+                continue;
             }
-            let role = message["role"]
-                .as_str()
-                .filter(|role| matches!(*role, "user" | "assistant"))
-                .ok_or("消息 role 不受支持")?;
-            let text = parts(&message["content"])?;
-            // Responses 的普通文本输入接受 user 和 assistant 两种角色。
-            Ok(json!({"type":"message","role":role,"content":text.join("\n")}))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            if streaming {
+                return Err("流式协议转换暂不支持工具和非文本块");
+            }
+            push_text(&mut input, role, &mut texts);
+            match block["type"].as_str() {
+                Some("tool_use")
+                    if role == "assistant"
+                        && allowed_fields(block, &["type", "id", "name", "input"]) =>
+                {
+                    let id = tool_id(&block["id"]).ok_or("缺少有效的工具调用 ID")?;
+                    let name = tool_name(&block["name"]).ok_or("工具名称无效")?;
+                    if !block["input"].is_object() {
+                        return Err("工具参数必须是 JSON 对象");
+                    }
+                    tools.call(id)?;
+                    input.push(json!({"type":"function_call","call_id":id,"name":name,"arguments":block["input"].to_string()}));
+                }
+                Some("tool_result")
+                    if role == "user"
+                        && allowed_fields(
+                            block,
+                            &["type", "tool_use_id", "content", "is_error"],
+                        ) =>
+                {
+                    let id = tool_id(&block["tool_use_id"]).ok_or("缺少有效的工具调用 ID")?;
+                    let mut output = if block["content"].is_null() {
+                        String::new()
+                    } else {
+                        parts(&block["content"])?.join("\n")
+                    };
+                    if !block["is_error"].is_null() {
+                        if !block["is_error"].is_boolean() {
+                            return Err("工具结果 is_error 必须是布尔值");
+                        }
+                        if block["is_error"] == true {
+                            output.insert_str(0, "Tool error: ");
+                        }
+                    }
+                    tools.result(id)?;
+                    input.push(json!({"type":"function_call_output","call_id":id,"output":output}));
+                }
+                _ => return Err("当前转换只接收文本及客户端函数工具块"),
+            }
+        }
+        push_text(&mut input, role, &mut texts);
+    }
+    tools.finish()?;
+    if input.is_empty() {
+        return Err("至少提供一条消息");
+    }
     target.insert("input".into(), input.into());
     Ok(Value::Object(target))
+}
+
+fn push_text(input: &mut Vec<Value>, role: &str, texts: &mut Vec<&str>) {
+    if !texts.is_empty() {
+        input.push(json!({"type":"message","role":role,"content":texts.join("\n")}));
+        texts.clear();
+    }
 }
 
 fn parts(content: &Value) -> Result<Vec<&str>, &'static str> {
@@ -92,11 +183,28 @@ impl Message {
     }
 
     pub(crate) fn buffered(&self, response: &Value) -> Option<Value> {
-        let reason = finish(response)?;
+        let mut reason = finish(response)?;
         let mut blocks = Vec::new();
+        let mut calls = std::collections::HashSet::new();
         for item in response["output"].as_array()? {
             match item["type"].as_str()? {
                 "reasoning" => {}
+                "function_call" if matches!(reason, "end_turn" | "tool_use") => {
+                    if item["status"]
+                        .as_str()
+                        .is_some_and(|status| status != "completed")
+                    {
+                        return None;
+                    }
+                    let id = tool_id(&item["call_id"])?;
+                    let name = tool_name(&item["name"])?;
+                    if !calls.insert(id) {
+                        return None;
+                    }
+                    let input = arguments(&item["arguments"])?;
+                    blocks.push(json!({"type":"tool_use","id":id,"name":name,"input":input}));
+                    reason = "tool_use";
+                }
                 "message" => {
                     for content in item["content"].as_array()? {
                         match content["type"].as_str()? {
