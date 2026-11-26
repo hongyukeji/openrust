@@ -60,6 +60,7 @@ mod ollama;
 mod on_demand;
 mod provider_options;
 mod provider_replay;
+mod provider_tool;
 mod request_context;
 mod reranking;
 mod similarity_search;
@@ -138,6 +139,7 @@ pub use middleware::{
 };
 pub use models::{ModelCatalog, ModelInfo};
 pub use provider_options::ProviderOptions;
+pub use provider_tool::ProviderTool;
 pub use request_context::{INVOCATION_HEADER, MODEL_TURN_HEADER};
 pub use reranking::{
     PendingReranking, RankedDocument, Reranking, RerankingOptions, RerankingPrompt,

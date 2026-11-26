@@ -117,7 +117,7 @@ pub(crate) fn openai(
                         }
                     }
                     Some("response.completed") => {
-                        let response = tool_protocol::responses_step(data["response"].take())?;
+                        let response = tool_protocol::responses_step(data["response"].take(), matches!(protocol, OpenAiProtocol::Xai))?;
                         let reason = if response.tool_calls.is_empty() { "stop" } else { "tool_calls" };
                         yield StepEvent::Finished { response: Box::new(response), reason: reason.into() };
                         return;

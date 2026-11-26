@@ -75,9 +75,15 @@ pub(crate) fn responses_request(
         }
         body["input"] = input.into();
     }
-    body["tools"] = tools.iter().map(|tool| json!({
+    let mut definitions = match body["tools"].take() {
+        Value::Null => Vec::new(),
+        Value::Array(tools) => tools,
+        _ => return Err(AiError::InvalidTools),
+    };
+    definitions.extend(tools.iter().map(|tool| json!({
         "type":"function","name":tool.name,"description":tool.description,"parameters":tool.schema,"strict":false,
-    })).collect::<Vec<_>>().into();
+    })));
+    body["tools"] = definitions.into();
     Ok(body)
 }
 
@@ -198,7 +204,7 @@ pub(crate) fn mistral_content(content: &Value) -> (String, String) {
     (text, reasoning)
 }
 
-pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
+pub(crate) fn responses_step(data: Value, xai: bool) -> AiResult<StepResponse> {
     if data["status"]
         .as_str()
         .is_some_and(|status| status != "completed")
@@ -254,24 +260,28 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
         usage: Usage::from_openai(&data["usage"]),
         citations,
         tool_calls,
-        provider_content: responses_replay(output),
+        provider_content: responses_replay(output, xai),
     })
 }
 
-fn responses_replay(output: &[Value]) -> Option<Value> {
+fn responses_replay(output: &[Value], xai: bool) -> Option<Value> {
     let encrypted = |item: &Value| {
         item["type"] == "reasoning"
             && item["encrypted_content"]
                 .as_str()
                 .is_some_and(|value| !value.is_empty())
     };
-    if !output.iter().any(encrypted) {
+    if !output
+        .iter()
+        .any(|item| encrypted(item) || (xai && crate::xai::is_tool_result(item)))
+    {
         return None;
     }
 
     let mut items = Vec::new();
     for item in output {
         let item = match item["type"].as_str()? {
+            "reasoning" if xai => item.clone(),
             "reasoning" if encrypted(item) => {
                 let mut reasoning = json!({
                     "type":"reasoning",
@@ -283,6 +293,7 @@ fn responses_replay(output: &[Value]) -> Option<Value> {
                 }
                 reasoning
             }
+            _ if xai && crate::xai::is_tool_result(item) => item.clone(),
             "file_search_call" => continue,
             "message"
                 if item["content"].as_array().is_some_and(|parts| {

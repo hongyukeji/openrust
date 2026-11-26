@@ -692,9 +692,17 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `xai` 连接复用 Responses 请求、SSE、模型目录与本地函数执行。支持显式模型和模型档位、原生 JSON Schema、图像内容、引用和上游 Token 明细。固定 Laravel 默认发送 `tool_choice: auto` 和封闭工具参数对象。按 xAI 官方无状态方案请求加密推理，在工具结果前回送同一连接返回的推理与调用条目。工具续步无需依赖 `previous_response_id`。加密推理沿用按连接和模型隔离的内部历史机制。
 
-独立 Artisan 与 HTTP 使用本地协议服务验证带前缀目录和请求端点、Bearer 鉴权、配置与上游模型合并、档位选择、图片字节、JSON Schema、两轮函数调用和加密推理回放、SSE、引用和用量合计。设置 `store: false` 后两种工具续步均成功。xAI 图像、20 项 SDK 回归、严格 Clippy 与三语文档站点复验通过。xAI 官方账户、供应商内置网页搜索、代码执行、文件搜索、响应 ID 续步及错误体为 `Incorrect API key` 的 400 特例仍待验收。
+独立 Artisan 与 HTTP 使用本地协议服务验证带前缀目录和请求端点、Bearer 鉴权、配置与上游模型合并、档位选择、图片字节、JSON Schema、两轮函数调用和加密推理回放、SSE、引用和用量合计。设置 `store: false` 后两种工具续步均成功。xAI 图像、20 项 SDK 回归、严格 Clippy 与三语文档站点复验通过。xAI 官方账户、响应 ID 续步及错误体为 `Incorrect API key` 的 400 特例仍待验收。
 
 - [固定 Laravel XaiGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiGateway.php) · [xAI Responses](https://docs.x.ai/developers/rest-api-reference/inference/responses) · [xAI 推理续步](https://docs.x.ai/developers/model-capabilities/text/best-practices) · [xAI 模型目录](https://docs.x.ai/developers/rest-api-reference/inference/models)
+
+### xAI 原生供应商工具
+
+`ProviderTool::options` 通过现有连接级 `with_provider_options` 提供网页搜索、代码执行和集合搜索，对应固定 Laravel 的 `WebSearch`、`CodeExecution` 和 `FileSearch`。网页搜索支持最多五个允许的域名，集合搜索使用已有 xAI 集合 ID 并可指定返回数量。xAI 适配器验证供应商工具定义，一次请求可另用 `with_tools` 加入本地函数。服务端工具条目随加密推理按原顺序回传，本地执行器只处理客户端函数调用。
+
+独立 Artisan 与 HTTP 在本地协议服务验证三类工具的请求结构、与本地函数合用、SSE、顺序回放、结构化响应、引用和非法定义不出站。实测 `ToolChoice::None` 会发送 `tool_choice: none`。按 xAI 约定拒绝集合元数据过滤。21 项 SDK 回归、严格 Clippy 与三语站点通过。供应商工具调用的公开结果与用量归集、其他驱动的工具映射、独立网关授权及 xAI 官方账户仍待验收。
+
+- [固定 Laravel MapsTools](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/Concerns/MapsTools.php) · [xAI 网页搜索](https://docs.x.ai/developers/tools/web-search) · [xAI 集合搜索](https://docs.x.ai/developers/tools/collections-search) · [xAI 混合工具续步](https://docs.x.ai/developers/tools/advanced-usage)
 
 ### Groq 文本与转录
 

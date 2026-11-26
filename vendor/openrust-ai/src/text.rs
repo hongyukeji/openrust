@@ -50,7 +50,7 @@ use crate::{
     stores::StoreProvider,
     transcription::{HttpTranscriptionProvider, TranscriptionProtocol, TranscriptionProvider},
     usage::OpenAiUsage,
-    xai::XaiImageProvider,
+    xai::{self, XaiImageProvider},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -679,7 +679,19 @@ impl OpenAiTextProvider {
                 inline_groq_schema(&mut body)?;
             }
         }
-        apply_provider_options(&mut body, prompt.provider_options, false)?;
+        if matches!(self.protocol, OpenAiProtocol::Xai) {
+            xai::apply_options(&mut body, prompt.provider_options)?;
+            if body.get("tools").is_some() {
+                body["tool_choice"] = if prompt.tool_choice == Some(&ToolChoice::None) {
+                    "none".into()
+                } else {
+                    "auto".into()
+                };
+            }
+        } else {
+            apply_provider_options(&mut body, prompt.provider_options, false)?;
+        }
+
         if self.protocol.endpoint() == TextEndpoint::Responses {
             include_encrypted_reasoning(
                 &mut body,
@@ -994,7 +1006,7 @@ impl OpenAiTextProvider {
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };
-        if tools.is_empty()
+        if body["tools"].as_array().is_some_and(Vec::is_empty)
             && (stream
                 || matches!(
                     self.protocol,
@@ -1010,7 +1022,10 @@ impl OpenAiTextProvider {
         }
         if matches!(self.protocol, OpenAiProtocol::Xai) && !tools.is_empty() {
             let definitions = body["tools"].as_array_mut().ok_or(AiError::InvalidTools)?;
-            for tool in definitions {
+            for tool in definitions
+                .iter_mut()
+                .filter(|tool| tool["type"] == "function")
+            {
                 tool["parameters"]["additionalProperties"] = false.into();
             }
         }
@@ -1071,7 +1086,10 @@ impl StepTextGateway for OpenAiTextProvider {
                 OpenAiProtocol::Mistral => crate::tool_protocol::mistral_step(response),
                 OpenAiProtocol::Groq => crate::tool_protocol::groq_step(response),
                 OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
-                    crate::tool_protocol::responses_step(response)
+                    crate::tool_protocol::responses_step(
+                        response,
+                        matches!(self.protocol, OpenAiProtocol::Xai),
+                    )
                 }
             }
         })

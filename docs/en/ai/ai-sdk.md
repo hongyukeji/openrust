@@ -831,6 +831,26 @@ For Groq, set `GROQ_API_KEY`, `AI_PROVIDER=groq` and `GROQ_MODEL`. To override t
 
 For xAI text, set `AI_PROVIDER=xai`, `XAI_API_KEY`, and `XAI_MODEL`. Override the default `https://api.x.ai/v1` with `XAI_URL`. Use `XAI_MODEL_CHEAPEST` and `XAI_MODEL_SMARTEST` for model tiers. The connection uses native Responses with SSE, structured output, local function calls, and image input on supported models. Local tool rounds carry encrypted reasoning in the request when the provider returns it. Run `./artisan ai:models xai` to see discovered and configured models.
 
+For provider-side tools on xAI, pass `ProviderTool::options` to `with_provider_options` for the connection. Available choices are `WebSearch` with up to five allowed domains, `CodeExecution` in the provider sandbox, and `FileSearch` over existing xAI collections. Use the collection IDs as `vector_store_ids`. The provider executes these tools, and the same agent can also run local functions configured through `with_tools`.
+
+```rust
+use openrust_ai::{ProviderTool, agent};
+
+let assistant = agent("").with_provider_options(
+    "xai",
+    ProviderTool::options([
+        ProviderTool::WebSearch {
+            allowed_domains: vec!["example.com".into()],
+        },
+        ProviderTool::FileSearch {
+            vector_store_ids: vec!["collection-id".into()],
+            max_num_results: Some(10),
+        },
+    ]),
+);
+```
+
+
 For Mistral’s native API, set `MISTRAL_API_KEY`, `AI_PROVIDER=mistral` and `MISTRAL_MODEL`. Override the base URL `https://api.mistral.ai/v1` with `MISTRAL_URL`. List models with `./artisan ai:models mistral`. Native chat supports buffered and SSE responses, structured output, tool rounds, images and document parts. The SDK separates reasoning chunks from answer text. For embeddings, set `AI_EMBEDDINGS_PROVIDER=mistral` and `MISTRAL_EMBEDDING_MODEL`. The SDK requests the model’s native vector size and validates any dimensions you specify.
 
 For the native Ollama SDK connection, set `AI_PROVIDER=ollama` and `OLLAMA_MODEL`. The default is `http://127.0.0.1:11434`. Override it with `OLLAMA_URL` and set `OLLAMA_API_KEY` for an authenticated proxy. The catalog uses `/api/tags`. Chat, structured output, and tool rounds use `/api/chat`, with both buffered and native NDJSON streaming responses. The SDK emits text and reasoning incrementally and executes tools only after the upstream sends a complete step. Set `AI_EMBEDDINGS_PROVIDER=ollama` and `OLLAMA_EMBEDDING_MODEL` to use `/api/embed`.

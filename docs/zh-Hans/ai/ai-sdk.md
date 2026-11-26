@@ -831,6 +831,26 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 使用 xAI 文本模型时，设置 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆盖默认地址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 配置模型档位。连接使用原生 Responses，支持 SSE、结构化输出、本地函数工具，以及受支持模型的图像输入。上游返回加密推理时，本地工具续步会把它随请求发回。运行 `./artisan ai:models xai` 查看发现的模型及已配置的模型。
 
+在 xAI 使用供应商工具时，将 `ProviderTool::options` 的结果通过 `with_provider_options` 传给对应连接。可选 `WebSearch`（最多指定五个允许的域名）、`CodeExecution`（供应商沙箱）和 `FileSearch`（搜索已有 xAI 集合）。`vector_store_ids` 填写 xAI 集合 ID。同一个 Agent 可通过 `with_tools` 添加本地函数。
+
+```rust
+use openrust_ai::{ProviderTool, agent};
+
+let assistant = agent("").with_provider_options(
+    "xai",
+    ProviderTool::options([
+        ProviderTool::WebSearch {
+            allowed_domains: vec!["example.com".into()],
+        },
+        ProviderTool::FileSearch {
+            vector_store_ids: vec!["collection-id".into()],
+            max_num_results: Some(10),
+        },
+    ]),
+);
+```
+
+
 使用 Mistral 原生 API 时，设置 `MISTRAL_API_KEY`、`AI_PROVIDER=mistral` 和 `MISTRAL_MODEL`。基础 URL 默认为 `https://api.mistral.ai/v1`，可用 `MISTRAL_URL` 覆盖。运行 `./artisan ai:models mistral` 查看模型。原生聊天支持普通与 SSE 响应、结构化输出、工具续步、图片和文档。SDK 分别交付推理块和答案文本。生成向量时设置 `AI_EMBEDDINGS_PROVIDER=mistral` 和 `MISTRAL_EMBEDDING_MODEL`。SDK 使用模型原生维度，并校验调用者显式指定的维度。
 
 选择 Ollama 原生 SDK 连接时，设置 `AI_PROVIDER=ollama` 和 `OLLAMA_MODEL`。默认连接 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆盖，带鉴权的代理可配置 `OLLAMA_API_KEY`。模型目录使用 `/api/tags`，普通聊天、结构化输出和工具续步使用 `/api/chat`，支持非流式响应和原生 NDJSON 流。SDK 增量交付文本和推理内容，并在收到上游步骤终帧后才执行该步骤的工具。向量入口使用 `AI_EMBEDDINGS_PROVIDER=ollama` 和 `OLLAMA_EMBEDDING_MODEL` 调用 `/api/embed`。

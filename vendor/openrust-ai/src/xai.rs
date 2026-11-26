@@ -4,9 +4,11 @@ use openrust::http::HttpFuture;
 use serde_json::{Value, json};
 
 use crate::{
-    AiError, AiResult, ImageAttachment, ImagePrompt, ImageProvider, ImageResponse,
+    AiError, AiResult, ImageAttachment, ImagePrompt, ImageProvider, ImageResponse, ProviderOptions,
+    ProviderTool,
     connection::Connection,
     image::parse_base64_image_response,
+    provider_options::apply_provider_options,
     text::{transport_error, validate},
 };
 
@@ -76,4 +78,31 @@ impl ImageProvider for XaiImageProvider {
 
 fn image_url(image: &ImageAttachment) -> Value {
     json!({"type": "image_url", "url": image.data_url()})
+}
+
+pub(crate) fn apply_options(body: &mut Value, options: Option<&ProviderOptions>) -> AiResult<()> {
+    let Some(options) = options.filter(|options| options.contains_key("tools")) else {
+        return apply_provider_options(body, options, false);
+    };
+    let mut options = options.clone();
+    let definitions = options
+        .remove("tools")
+        .ok_or(AiError::InvalidProviderOptions)?;
+    let tools: Vec<ProviderTool> =
+        serde_json::from_value(definitions).map_err(|_| AiError::InvalidProviderOptions)?;
+    if tools.iter().any(|tool| !tool.is_valid()) {
+        return Err(AiError::InvalidProviderOptions);
+    }
+    apply_provider_options(body, Some(&options), false)?;
+    if !tools.is_empty() {
+        body["tools"] = serde_json::to_value(tools).map_err(|_| AiError::InvalidProviderOptions)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn is_tool_result(item: &Value) -> bool {
+    matches!(
+        item["type"].as_str(),
+        Some("web_search_call" | "code_interpreter_call" | "file_search_call")
+    )
 }

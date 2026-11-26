@@ -17,8 +17,8 @@ use openrust::{
     validation::RuleSet,
 };
 use openrust_ai::{
-    Agent, AiError, AiResult, FinishReason, PromptOptions, ProviderTarget, StreamEventData, Tool,
-    ToolRequest, ToolResult, agent,
+    Agent, AiError, AiResult, FinishReason, PromptOptions, ProviderTarget, ProviderTool,
+    StreamEventData, Tool, ToolRequest, ToolResult, agent,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -447,6 +447,74 @@ async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
     assert_eq!(responses[1]["input"][2]["call_id"], "call_fixture");
     assert_eq!(responses[1]["input"][3]["type"], "function_call_output");
     assert_eq!(responses[1]["input"][3]["call_id"], "call_fixture");
+    Ok(())
+}
+
+#[tokio::test]
+async fn xai_provider_tools_coexist_with_local_functions_and_replay() -> TestResult {
+    let native =
+        json!({"type":"file_search_call","id":"fs_fixture","status":"completed","results":null});
+    let reasoning = json!({"type":"reasoning","id":"rs_fixture","encrypted_content":"fixture",
+        "status":"completed","summary":[]});
+    let function = json!({"type":"function_call","call_id":"call_fixture","name":"lookup",
+        "arguments":json!({"sku":"demo"}).to_string()});
+    let (url, requests) = fixture(
+        "responses",
+        vec![
+            json!({"status":"completed","output":[reasoning,native,function]}),
+            json!({"status":"completed","output":[{"type":"message","content":[
+                {"type":"output_text","text":"four remaining"}
+            ]}]}),
+        ],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/xai", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let response = agent("")
+                        .with_provider_options(
+                            "xai",
+                            ProviderTool::options([ProviderTool::FileSearch {
+                                vector_store_ids: vec!["collection-example".into()],
+                                max_num_results: Some(10),
+                            }]),
+                        )
+                        .with_tools(vec![tool.clone()])
+                        .prompt("Check demo.")
+                        .await
+                        .unwrap();
+                    assert_eq!(response.text, "four remaining");
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Ok(())
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=xai\nXAI_URL={url}\nXAI_MODEL=grok-fixture\nXAI_API_KEY=fixture-key\n"
+        ),
+    )?;
+    assert_eq!(app.get("/xai").await?.status(), StatusCode::OK);
+    let requests = requests.await?;
+    assert_eq!(requests[0]["tools"], requests[1]["tools"]);
+    assert_eq!(
+        requests[0]["tools"][0],
+        json!({
+            "type":"file_search","vector_store_ids":["collection-example"],"max_num_results":10,
+        })
+    );
+    assert_eq!(requests[0]["tools"][1]["name"], "lookup");
+    assert_eq!(
+        &requests[1]["input"].as_array().unwrap()[1..4],
+        &[reasoning, native, function]
+    );
+    assert_eq!(requests[1]["input"][4]["type"], "function_call_output");
+    assert_eq!(requests[1]["input"][4]["call_id"], "call_fixture");
     Ok(())
 }
 
