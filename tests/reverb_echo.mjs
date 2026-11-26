@@ -45,8 +45,10 @@ try {
             });
             return `https://localhost:${server.address().port}`;
         };
-        http = await proxy(http);
-        ws = await proxy(ws);
+        if (new URL(http).protocol === "http:") {
+            http = await proxy(http);
+            ws = await proxy(ws);
+        }
     }
     browser = await chromium.launch({ executablePath: process.env.DOCS_BROWSER_PATH, args: launchArgs });
     const page = await browser.newPage();

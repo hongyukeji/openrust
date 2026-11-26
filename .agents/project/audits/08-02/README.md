@@ -58,3 +58,13 @@ pusher-js 8.6.0 登录后订阅 `#server-to-user-<id>` 并在重连时重新认�
 基线 `d31032e98`，Rust 1.94.0。Reverb 包 12 项通过。真实 WebSocket 覆盖同一身份重复登录、签名改写与重放、无效 JSON 与 ID 类型、身份切换、跨应用阻断、客户端伪造与签名定向投递。Chrome 通过 Echo 2.2.6 和 pusher-js 8.6.0，用真实框架 HTTP 获取签名并重新登录，分别以 `reverb` 和具名 `pusher` 配置验收 HTTP／WS 及 HTTPS／WSS。Artisan 两次分别向登录和重连后的用户送达。HTTPS 替身拒绝默认未信任 CA、错误 CA 及主机名错配。真实二进制 `artisan reverb:start` 检查调试脱敏；同主机两个实际进程、专用 Redis 8.10.3，实测跨节点定向投递、未登录连接阻断、在另一节点重连及重新认证。修改范围格式、严格 Clippy 和三语站点构建与浏览器导航通过。
 
 本轮验收范围是用户登录、相应身份隔离、定向发送和重连。托管 Pusher 实例、跨物理主机、Pusher Watchlist、基于用户 ID 的远端断连管理以及在线频道用户资料继承分别保留原支持范围。一次磁盘停线由项目守卫处理，清理后冷构建。TLS 首轮夹具提前解析了账户而缓存默认传输，在配置 TLS 后再注册解析回调并复验。
+
+<a id="nginx-tls-acceptance"></a>
+
+## Nginx HTTPS 与 WSS 复验
+
+在 `f2c05a42e` 的干净归档中叠加验收入口，Rust 1.94.0。使用本机 Docker Desktop 的 Nginx 1.30.7 镜像 `sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3`。沿用仓库 Nginx 模板的 Host 和转发头、HTTP/1.1 Upgrade 及关闭缓冲设置，临时增加测试证书和 `/socket/` 分流。授权与用户认证进入应用 HTTP 监听器，WebSocket 与签名发布进入 Reverb 监听器。试跑使用默认桥接网络时发布超时，切换为与 Compose 同类型的独立网络后复验通过。 [Nginx WebSocket 转发](https://nginx.org/en/docs/http/websocket.html) · [固定 Reverb 部署指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/reverb.md#web-server)
+
+Chrome 使用 Echo 2.2.6 和 pusher-js 8.6.0，通过实际代理验证 `reverb` 和具名 `pusher` 的公开、私有和在线频道，用户认证在自动重连后重新执行，重连前后的 Artisan 定向发布均送达。Rust 发布额外验证信任测试 CA 后送达、未信任 CA／错误 CA／主机名错配时拒绝。普通 HTTP、原 TLS 转发器和 Nginx 三种入口各通过 6 项。独立应用二进制和两项 `artisan reverb:start` 进程复跑 Redis 扩展、签名投递、登录和跨节点重连。
+
+复验入口为 `tests/reverb_tls_acceptance.py --nginx IMAGE -- <transport 测试二进制>`，使用本机 Docker Desktop 镜像和既有 Echo 夹具参数。包装器清理本批证书、容器和独立网络。格式、包全目标严格 Clippy、三语站点构建和浏览器检查通过。证据位于 `target/tmp/reverb-nginx/`。正式域名证书、选定发布入口及物理跨节点部署仍保留验收。

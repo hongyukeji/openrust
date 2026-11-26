@@ -27,6 +27,8 @@
 
 設定 `BROADCAST_CONNECTION=reverb`，依[廣播文件](../digging-deeper/broadcasting.md)啟用私人與在線頻道授權。Pusher 通訊協定用戶端連線至設定前綴下的 `/app/{key}`。正式環境可在應用程式的 `allowed_origins` 設定受信任的主機名稱，由反向代理終止 TLS。
 
+將設定的 Reverb 前綴轉送至 Reverb 監聽器，保留請求路徑、查詢字串和 WebSocket 升級。頻道授權與使用者驗證路由轉送至應用程式 HTTP 監聽器。廣播驅動程式透過 TLS 代理發佈時，設定 `REVERB_SCHEME=https`。
+
 `reverb` 和 `pusher` 連線透過 HTTPS 發布時，預設校驗憑證及主機名稱。使用私有 CA 時，在 `config/broadcasting.rs` 對應連線的 `client_options.verify` 中設定 PEM CA 憑證包的絕對路徑：
 
 ```rust

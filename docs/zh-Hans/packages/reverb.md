@@ -27,6 +27,8 @@
 
 设置 `BROADCAST_CONNECTION=reverb`，按[广播文档](../digging-deeper/broadcasting.md)启用私有和在线频道授权。Pusher 协议客户端连接配置前缀下的 `/app/{key}`。生产环境可在应用的 `allowed_origins` 设置受信任的主机名，由反向代理终止 TLS。
 
+将配置的 Reverb 前缀转发到 Reverb 监听器，保留请求路径、查询串和 WebSocket 升级。频道授权和用户认证路由转发到应用 HTTP 监听器。广播驱动经 TLS 代理发布时，设置 `REVERB_SCHEME=https`。
+
 `reverb` 和 `pusher` 连接通过 HTTPS 发布时，默认校验证书及主机名。使用私有 CA 时，在 `config/broadcasting.rs` 对应连接的 `client_options.verify` 中设置 PEM CA 证书包的绝对路径：
 
 ```rust

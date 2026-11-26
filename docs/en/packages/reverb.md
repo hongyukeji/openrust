@@ -27,6 +27,8 @@ The restart command writes a signal to the application's cache. Use a shared cac
 
 Set `BROADCAST_CONNECTION=reverb` and follow the [broadcasting guide](../digging-deeper/broadcasting.md) to enable private and presence authorization. Connect a Pusher protocol client to `/app/{key}` with the configured server path prefix. Set the application's `allowed_origins` to trusted host names for production and terminate TLS at the reverse proxy.
 
+Forward the configured Reverb prefix to the Reverb listener, preserving the path, query string, and WebSocket upgrade. Keep the channel and user authorization routes on the application HTTP listener. Set `REVERB_SCHEME=https` when the broadcaster publishes through the TLS proxy.
+
 For outbound HTTPS publishing through the `reverb` or `pusher` connection, certificates and host names are verified by default. For a private CA, set `client_options.verify` in that connection in `config/broadcasting.rs` to an absolute PEM CA bundle path:
 
 ```rust

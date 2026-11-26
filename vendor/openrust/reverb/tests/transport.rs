@@ -627,19 +627,20 @@ async fn framework_application(
 struct TlsProxy(std::process::Child);
 
 impl TlsProxy {
-    fn start(port: u16) -> (Self, u16) {
+    fn start(port: u16, http_port: Option<u16>) -> (Self, u16) {
         use std::io::BufRead;
         let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../tests/reverb_tls_acceptance.py");
-        let mut child = Self(
-            std::process::Command::new("python3")
-                .args(["-B", "-u"])
-                .arg(script)
-                .args(["--proxy", &port.to_string()])
-                .stdout(std::process::Stdio::piped())
-                .spawn()
-                .unwrap(),
-        );
+        let mut command = std::process::Command::new("python3");
+        command
+            .args(["-B", "-u"])
+            .arg(script)
+            .args(["--proxy", &port.to_string()])
+            .stdout(std::process::Stdio::piped());
+        if let Some(http_port) = http_port {
+            command.args(["--http-port", &http_port.to_string()]);
+        }
+        let mut child = Self(command.spawn().unwrap());
         let mut address = String::new();
         std::io::BufReader::new(child.0.stdout.take().unwrap())
             .read_line(&mut address)
@@ -656,19 +657,23 @@ impl Drop for TlsProxy {
     }
 }
 
-async fn configure_tls_publishing(app: &openrust::foundation::Application, port: u16) {
+async fn configure_tls_publishing(
+    app: &openrust::foundation::Application,
+    driver: &str,
+    port: u16,
+) {
     use openrust::contracts::foundation::Application as _;
     app.config()
         .unwrap()
         .set(
-            "broadcasting.connections.pusher.options",
+            &format!("broadcasting.connections.{driver}.options"),
             json!({"host":"localhost", "scheme":"https", "port":port, "path":PREFIX}),
         )
         .unwrap();
     app.config()
         .unwrap()
         .set(
-            "broadcasting.connections.pusher.client_options.verify",
+            &format!("broadcasting.connections.{driver}.client_options.verify"),
             json!(std::env::var("OPENRUST_REVERB_TLS_CA").unwrap()),
         )
         .unwrap();
@@ -697,12 +702,16 @@ async fn verify_framework_broadcast(driver: &'static str) {
     let reverb = Running::start(vec![configuration]).await;
     let root = std::env::temp_dir();
     let reverb_port = reverb.address.port();
-    let tls = (driver == "pusher" && std::env::var_os("OPENRUST_REVERB_TLS_CERT").is_some())
-        .then(|| TlsProxy::start(reverb_port));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let nginx = std::env::var_os("OPENRUST_REVERB_TLS_NGINX_IMAGE").is_some();
+    let tls = (nginx
+        || (driver == "pusher" && std::env::var_os("OPENRUST_REVERB_TLS_CERT").is_some()))
+    .then(|| TlsProxy::start(reverb_port, nginx.then_some(address.port())));
     let publish_port = tls.as_ref().map(|(_, port)| *port);
     let app = framework_application(&root, reverb_port, driver).await;
     if let Some(port) = publish_port {
-        configure_tls_publishing(&app, port).await;
+        configure_tls_publishing(&app, driver, port).await;
     }
     app.call(
         openrust::container::Callback::new(&[], |_| async {
@@ -734,8 +743,6 @@ async fn verify_framework_broadcast(driver: &'static str) {
 
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
     let test_root = root.clone();
     let router = axum::Router::new()
         .route(
@@ -747,7 +754,7 @@ async fn verify_framework_broadcast(driver: &'static str) {
                     async move {
                         let artisan = framework_application(&test_root, reverb_port, driver).await;
                         if let Some(port) = publish_port {
-                            configure_tls_publishing(&artisan, port).await;
+                            configure_tls_publishing(&artisan, driver, port).await;
                         }
                         let mut arguments =
                             vec!["pusher:probe".into(), sequence.to_string().into()];
@@ -827,11 +834,11 @@ async fn verify_framework_broadcast(driver: &'static str) {
         .await
         .unwrap();
     assert_eq!(expected(&mut websocket, "message").await, json!({"id":9}));
-    if let Some(port) = publish_port {
+    if let Some(port) = publish_port.filter(|_| driver == "pusher") {
         use openrust::contracts::foundation::Application as _;
         for failure in ["default", "wrong-ca", "hostname"] {
             let rejected = framework_application(&root, reverb_port, driver).await;
-            configure_tls_publishing(&rejected, port).await;
+            configure_tls_publishing(&rejected, driver, port).await;
             let config = rejected.config().unwrap();
             match failure {
                 "default" => config
@@ -893,8 +900,15 @@ async fn verify_framework_broadcast(driver: &'static str) {
         );
     }
     if std::env::var_os("OPENRUST_REVERB_ECHO_MODULES").is_some() {
-        let endpoint = format!("http://{}", reverb.address);
-        let auth = format!("http://{address}");
+        let (auth, endpoint) = if let Some(port) = publish_port.filter(|_| nginx) {
+            let base = format!("https://localhost:{port}");
+            (base.clone(), base)
+        } else {
+            (
+                format!("http://{address}"),
+                format!("http://{}", reverb.address),
+            )
+        };
         let script =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/reverb_echo.mjs");
         let result = tokio::task::spawn_blocking(move || {
