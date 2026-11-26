@@ -476,7 +476,7 @@ Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pu
 
 macOS 使用本批完整源码，以实际编译器重映射验证五种路径。SQLite 通过 Git 框架包、普通第三方注册表包、同名前缀第三方注册表包、Pulse 注册表包和标准发布路径的 HTTP 测试。标准路径的 Pulse Provider 17 项及 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项通过。Pulse 和 Telescope 的 Provider／Watcher 共 48 项，独占 Redis 8.10.3 的 Telescope 原生命令专项、共享识别规则单项、快照全仓格式和相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-{macos,redis}.log`。
 
-同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次 Linux／Windows 结果使用测试构建。修复版在 macOS 默认 Release 通过上述五种 SQLite 路径、Pulse Provider 17 项，以及标准重映射下的 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-macos-release.log`。Linux／Windows Pulse Release 与 Telescope 自定义路径 Release 继续验收。
+同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次 Linux／Windows 结果使用测试构建。修复版在 macOS 默认 Release 通过上述五种 SQLite 路径、Pulse Provider 17 项，以及标准重映射下的 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-macos-release.log`。macOS 的 Telescope 自定义 Cargo registry 与 Git checkout 也在修复版 Release 各通过 Gate 与 Query 两项真实 HTTP 和 SQLite 测试。证据为 `target/tmp/observability-parity/telescope-cargo-source-exact-macos-release.log`。Linux／Windows Release 继续验收。
 
 ### Pulse Servers 默认主机名与配置缓存
 
