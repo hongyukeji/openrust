@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::{AiError, AiResult, EmbeddingProvider, EmbeddingsPrompt, EmbeddingsResponse, Usage};
+use crate::{
+    AiError, AiResult, EmbeddingProvider, EmbeddingsPrompt, EmbeddingsResponse, Usage,
+    embeddings::{valid_vector, valid_vectors},
+};
 
 const DEFAULT_SECONDS: i64 = 60 * 60 * 24 * 30;
 
@@ -261,17 +264,5 @@ fn collect(
 }
 
 fn valid_batch(embeddings: &[Vec<f32>], prompt: EmbeddingsPrompt<'_>) -> bool {
-    embeddings.len() == prompt.inputs.len()
-        && embeddings.first().is_some_and(|first| {
-            let dimensions = prompt.dimensions.or(Some(first.len()));
-            embeddings
-                .iter()
-                .all(|vector| valid_vector(vector, dimensions))
-        })
-}
-
-fn valid_vector(vector: &[f32], dimensions: Option<usize>) -> bool {
-    !vector.is_empty()
-        && dimensions.is_none_or(|dimensions| dimensions == vector.len())
-        && vector.iter().all(|value| value.is_finite())
+    valid_vectors(embeddings, prompt.inputs.len(), prompt.dimensions)
 }

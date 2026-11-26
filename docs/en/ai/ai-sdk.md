@@ -141,3 +141,16 @@ let vectors = response.embeddings;
 Use `dimensions(n)` when the selected model supports explicit dimensions. For an OpenAI-compatible connection, configure its `models.embeddings` before using it for embeddings. To publish a vector model through `POST /v1/embeddings`, map its public name and set `"endpoints": ["embeddings"]` on that mapping. Grant the alias to the client Key as with a text model.
 
 Call `cache(Some(600), None)` to cache embeddings for 600 seconds. The configuration under `ai.caching.embeddings` defines the default lifetime, the cache store and whether to enable caching for all SDK calls. Individual caching reuses each vector across batches and sends only misses to the provider. Pass `Some(false)` as the second argument to cache the full, ordered batch. Use `cache(Some(0), None)` to bypass caching for an individual call. Usage on a partial hit reflects the inputs sent upstream.
+
+### Testing embeddings {#embeddings-fake}
+
+Register `Embeddings::fake` with one vector batch per expected generation. Use `fake_with` to build the vectors from the recorded request. A Fake with an empty sequence generates unit vectors when you specify a dimension. Turn on `prevent_stray_embeddings(true)` to require a scripted response for every call.
+
+```rust
+let fake = Embeddings::fake([vec![vec![0.5, 0.2]]])?;
+fake.prevent_stray_embeddings(true);
+let result = Embeddings::r#for(["Shipping"])?.dimensions(2).generate().await?;
+Embeddings::assert_generated(|call| call.inputs == ["Shipping"]);
+```
+
+Faked calls are recorded by the SDK and do not contact the provider or write to the configured embeddings cache.

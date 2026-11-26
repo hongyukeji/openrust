@@ -141,3 +141,16 @@ let vectors = response.embeddings;
 所選模型支援指定維度時，可使用 `dimensions(n)`。使用 OpenAI 相容連線產生向量前，先設定該連線的 `models.embeddings`。透過 `POST /v1/embeddings` 發佈向量模型時，對應公開名稱並為該模型設定 `"endpoints": ["embeddings"]`，再把公開名稱授權給下游 Key。
 
 呼叫 `cache(Some(600), None)` 可將向量快取 600 秒。在 `ai.caching.embeddings` 設定預設有效期、快取存放位置，以及是否為所有 SDK 呼叫啟用快取。逐筆快取可跨批次重用向量，只將未命中的輸入送給供應商。第二個參數傳入 `Some(false)` 會依原順序快取整批。單次呼叫可使用 `cache(Some(0), None)` 略過快取。部分命中時，用量只記錄實際送往上游的輸入。
+
+### 測試 Embeddings {#embeddings-fake}
+
+用 `Embeddings::fake` 依預期呼叫順序提供向量批次，或用 `fake_with` 根據記錄的請求產生向量。空序列在指定維度時產生單位向量。啟用 `prevent_stray_embeddings(true)` 可要求每次呼叫都使用預設回應。
+
+```rust
+let fake = Embeddings::fake([vec![vec![0.5, 0.2]]])?;
+fake.prevent_stray_embeddings(true);
+let result = Embeddings::r#for(["配送"])?.dimensions(2).generate().await?;
+Embeddings::assert_generated(|call| call.inputs == ["配送"]);
+```
+
+SDK 會記錄 Fake 呼叫。Fake 不聯絡模型供應商，也不讀寫設定的向量快取。

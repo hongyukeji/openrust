@@ -3,8 +3,8 @@ use std::sync::Arc;
 use openrust::{container::ServiceKey, support::facades::Facade};
 
 use crate::{
-    Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeTextGateway, ModelCatalog,
-    TextProvider,
+    Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeEmbeddingGateway, FakeTextGateway,
+    ModelCatalog, TextProvider,
 };
 
 pub struct Ai;
@@ -33,6 +33,16 @@ impl Ai {
 
     pub fn text_provider(name: Option<&str>) -> AiResult<Arc<dyn TextProvider>> {
         Self::manager()?.text_provider(name)
+    }
+
+    pub fn fake_embeddings(
+        responses: impl IntoIterator<Item = Vec<Vec<f32>>>,
+    ) -> AiResult<Arc<FakeEmbeddingGateway>> {
+        Ok(Self::manager()?.fake_embeddings(responses))
+    }
+
+    pub fn embeddings_are_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.embeddings_fake().is_some())
     }
 
     pub fn embedding_provider(name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {

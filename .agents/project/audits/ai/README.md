@@ -133,3 +133,9 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 固定 `PendingEmbeddingsGeneration::cache` 的禁用、启用、有效期、指定 Cache Store 和整批／逐条两种模式均进入正常 SDK 入口。逐条命中只请求缺失输入并恢复原顺序，重复输入保持原位置。全命中没有上游用量，部分命中只记录实际调用量。缓存键覆盖具名连接、端点、凭证摘要、模型与维度，按需连接重建时不会复用其他连接的结果；自定义驱动可提供缓存隔离标识。
 
 HTTP Kernel 和 TCP 上游覆盖全命中、部分命中、顺序、重复输入、按调用关闭、整批与按需连接重建。独立 Artisan 与 HTTP 进程共享 File、Redis 8、SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 的真实缓存，验证同一个模型只收到初始批次和缺失输入。Embeddings Fake、队列、附件输入与数据库向量检索仍待各自批次。
+
+## AI-05 Embeddings Fake
+
+固定 `Embeddings::fake`、`isFaked`、生成断言与 `fakeEmbedding` 进入 SDK 公开调用；Rust 的闭包配置入口为 `fake_with`。替身支持脚本批次、回调、正维度自动单位向量和未配置响应时的拦截。记录输入顺序、维度、超时、连接及模型。替身在缓存前执行并按应用隔离，保留正常响应的向量数量和类型校验。
+
+包测试验证响应、元数据、断言、耗尽、归一化及跨应用隔离。独立 Artisan 与 HTTP 各走正常 SDK 入口，隔离监听器确认没有出站请求。排队替身与排队断言归生成队列批次。

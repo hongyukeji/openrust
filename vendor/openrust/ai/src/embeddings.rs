@@ -5,7 +5,7 @@ use openrust::http::{HttpFuture, client::Response};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Ai, AiError, AiResult, TextEndpoint, Usage,
+    Ai, AiError, AiResult, FakeEmbeddingGateway, RecordedEmbeddings, TextEndpoint, Usage,
     connection::Connection,
     embedding_cache::{CacheOverride, EmbeddingCache},
     text::validate,
@@ -27,6 +27,48 @@ impl Embeddings {
             timeout: Duration::from_secs(30),
             cache: None,
         })
+    }
+    pub fn fake(
+        responses: impl IntoIterator<Item = Vec<Vec<f32>>>,
+    ) -> AiResult<Arc<FakeEmbeddingGateway>> {
+        Ai::fake_embeddings(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&RecordedEmbeddings) -> AiResult<Vec<Vec<f32>>> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeEmbeddingGateway>> {
+        Ok(Ai::manager()?.fake_embeddings_with(resolve))
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::embeddings_are_faked()
+    }
+
+    #[track_caller]
+    pub fn assert_generated(predicate: impl Fn(&RecordedEmbeddings) -> bool) {
+        Self::installed_fake().assert_generated(predicate);
+    }
+
+    #[track_caller]
+    pub fn assert_not_generated(predicate: impl Fn(&RecordedEmbeddings) -> bool) {
+        Self::installed_fake().assert_not_generated(predicate);
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_generated() {
+        Self::installed_fake().assert_nothing_generated();
+    }
+
+    pub fn fake_embedding(dimensions: usize) -> AiResult<Vec<f32>> {
+        crate::fake_embedding_gateway::fake_embedding(dimensions)
+    }
+
+    #[track_caller]
+    fn installed_fake() -> Arc<FakeEmbeddingGateway> {
+        Ai::manager()
+            .expect("当前应用未装配 AI SDK")
+            .embeddings_fake()
+            .expect("请先安装 Embeddings Fake")
     }
 }
 
@@ -76,10 +118,33 @@ impl PendingEmbeddingsGeneration {
             ));
         }
         let manager = Ai::manager()?;
+        if model.is_some_and(|model| model.trim().is_empty()) {
+            return Err(AiError::MissingModel);
+        }
+        if let Some(fake) = manager.embeddings_fake() {
+            let selected = manager.embedding_provider(provider).ok();
+            let dimensions = self.dimensions.or_else(|| {
+                selected
+                    .as_ref()
+                    .and_then(|provider| provider.default_embeddings_dimensions())
+            });
+            let model = model.map(str::to_owned).or_else(|| {
+                selected
+                    .as_ref()
+                    .and_then(|provider| provider.default_embeddings_model().ok())
+                    .map(str::to_owned)
+            });
+            return fake.respond(RecordedEmbeddings {
+                inputs: self.inputs,
+                dimensions,
+                timeout: self.timeout,
+                provider: manager.embedding_provider_name(provider).ok(),
+                model,
+            });
+        }
         let provider = manager.embedding_provider(provider)?;
         let model = match model {
-            Some(model) if !model.trim().is_empty() => model,
-            Some(_) => return Err(AiError::MissingModel),
+            Some(model) => model,
             None => provider.default_embeddings_model()?,
         };
         let prompt = EmbeddingsPrompt {
@@ -217,26 +282,12 @@ fn parse_embeddings(
     if payload.data.len() != prompt.inputs.len() {
         return Err(AiError::InvalidResponse);
     }
-    let dimensions = prompt.dimensions.unwrap_or(
-        payload
-            .data
-            .first()
-            .ok_or(AiError::InvalidResponse)?
-            .embedding
-            .len(),
-    );
-    if dimensions == 0 {
-        return Err(AiError::InvalidResponse);
-    }
     let mut vectors = vec![None; prompt.inputs.len()];
     for vector in payload.data {
         let slot = vectors
             .get_mut(vector.index)
             .ok_or(AiError::InvalidResponse)?;
-        if slot.is_some()
-            || vector.embedding.len() != dimensions
-            || vector.embedding.iter().any(|value| !value.is_finite())
-        {
+        if slot.is_some() {
             return Err(AiError::InvalidResponse);
         }
         *slot = Some(vector.embedding);
@@ -245,6 +296,9 @@ fn parse_embeddings(
         .into_iter()
         .collect::<Option<Vec<_>>>()
         .ok_or(AiError::InvalidResponse)?;
+    if !valid_vectors(&embeddings, prompt.inputs.len(), prompt.dimensions) {
+        return Err(AiError::InvalidResponse);
+    }
     Ok(EmbeddingsResponse {
         embeddings,
         usage: Usage {
@@ -254,4 +308,24 @@ fn parse_embeddings(
         provider: provider.into(),
         model: payload.model.unwrap_or_else(|| prompt.model.into()),
     })
+}
+
+pub(crate) fn valid_vectors(
+    embeddings: &[Vec<f32>],
+    count: usize,
+    dimensions: Option<usize>,
+) -> bool {
+    embeddings.len() == count
+        && embeddings.first().is_some_and(|first| {
+            let dimensions = dimensions.or(Some(first.len()));
+            embeddings
+                .iter()
+                .all(|vector| valid_vector(vector, dimensions))
+        })
+}
+
+pub(crate) fn valid_vector(vector: &[f32], dimensions: Option<usize>) -> bool {
+    !vector.is_empty()
+        && dimensions.is_none_or(|dimensions| dimensions == vector.len())
+        && vector.iter().all(|value| value.is_finite())
 }

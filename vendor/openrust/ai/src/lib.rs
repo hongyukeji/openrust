@@ -21,6 +21,7 @@ mod embeddings;
 mod error;
 mod facade;
 mod fake;
+mod fake_embedding_gateway;
 mod gemini;
 mod manager;
 mod messages;
@@ -42,6 +43,7 @@ pub use embeddings::{
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
+pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};

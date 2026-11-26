@@ -14,8 +14,9 @@ use openrust::{
 use serde_json::Value;
 
 use crate::{
-    Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeTextGateway,
-    PromptOptions, StreamableAgentResponse, StructuredOutput, TextPrompt, TextProvider,
+    Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
+    FakeTextGateway, PromptOptions, RecordedEmbeddings, StreamableAgentResponse, StructuredOutput,
+    TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     gemini::GeminiTextProvider,
     on_demand::{OnDemandProviders, reserved_name},
@@ -31,6 +32,7 @@ pub struct AiManager {
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
+    embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
     on_demand: Arc<OnDemandProviders>,
 }
 
@@ -45,6 +47,7 @@ impl AiManager {
             factories: RwLock::default(),
             providers: Mutex::default(),
             fakes: RwLock::default(),
+            embeddings_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
         };
         for (driver, protocol) in [
@@ -212,18 +215,45 @@ impl AiManager {
     }
 
     pub fn embedding_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn EmbeddingProvider>> {
-        let default = if name.is_none() {
-            match self.config.get("ai.default_for_embeddings") {
-                Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
-                None | Some(Value::Null) => None,
-                _ => return Err(AiError::InvalidConfiguration("default_for_embeddings")),
-            }
-        } else {
-            None
-        };
-        self.text_provider(name.or(default.as_deref()))?
+        let name = self.embedding_provider_name(name)?;
+        self.text_provider(Some(&name))?
             .embedding_provider()
             .ok_or(AiError::EmbeddingsNotSupported)
+    }
+
+    pub(crate) fn embedding_provider_name(&self, name: Option<&str>) -> AiResult<String> {
+        match name {
+            Some(name) => Ok(name.into()),
+            None => match self.config.get("ai.default_for_embeddings") {
+                Some(Value::String(name)) if !name.trim().is_empty() => Ok(name),
+                None | Some(Value::Null) => self.get_default_instance(),
+                _ => Err(AiError::InvalidConfiguration("default_for_embeddings")),
+            },
+        }
+    }
+
+    pub fn fake_embeddings(
+        &self,
+        responses: impl IntoIterator<Item = Vec<Vec<f32>>>,
+    ) -> Arc<FakeEmbeddingGateway> {
+        self.install_embeddings_fake(FakeEmbeddingGateway::new(responses))
+    }
+
+    pub fn fake_embeddings_with(
+        &self,
+        resolve: impl Fn(&RecordedEmbeddings) -> AiResult<Vec<Vec<f32>>> + Send + Sync + 'static,
+    ) -> Arc<FakeEmbeddingGateway> {
+        self.install_embeddings_fake(FakeEmbeddingGateway::with(resolve))
+    }
+
+    fn install_embeddings_fake(&self, fake: FakeEmbeddingGateway) -> Arc<FakeEmbeddingGateway> {
+        let fake = Arc::new(fake);
+        *self.embeddings_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn embeddings_fake(&self) -> Option<Arc<FakeEmbeddingGateway>> {
+        self.embeddings_fake.read().unwrap().clone()
     }
 
     pub fn text_provider_for(
