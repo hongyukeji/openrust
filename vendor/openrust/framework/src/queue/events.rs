@@ -33,7 +33,11 @@ queue_event!(
 
 queue_event!(
     /// A monitored queue has reached its configured size threshold.
-    QueueBusy { connection_name: String, queue: String, size: u64 }
+    QueueBusy {
+        connection_name: String,
+        queue: String,
+        size: u64
+    }
 );
 
 queue_event!(
@@ -42,7 +46,10 @@ queue_event!(
 );
 queue_event!(
     /// An individual queue pause was removed.
-    QueueResumed { connection: String, queue: String }
+    QueueResumed {
+        connection: String,
+        queue: String
+    }
 );
 queue_event!(
     /// The global pause was written.
@@ -54,11 +61,17 @@ queue_event!(
 );
 queue_event!(
     /// A worker observed a queue entering a pause.
-    WorkerQueuePaused { connection: String, queue: String }
+    WorkerQueuePaused {
+        connection: String,
+        queue: String
+    }
 );
 queue_event!(
     /// A worker observed a queue leaving a pause.
-    WorkerQueueResumed { connection: String, queue: String }
+    WorkerQueueResumed {
+        connection: String,
+        queue: String
+    }
 );
 
 queue_event!(
@@ -162,22 +175,39 @@ impl JobSnapshot {
 
 queue_event!(
     /// A payload is ready for dispatch, before the selected transport executes or stores it.
-    JobQueueing { connection_name: String, queue: String, job: Payload }
+    JobQueueing {
+        connection_name: String,
+        queue: String,
+        job: Payload
+    }
 );
 
 queue_event!(
     /// A queue accepted a new or delayed job after the transport stored it.
-    JobQueued { connection_name: String, queue: String, id: String, job: Payload }
+    JobQueued {
+        connection_name: String,
+        queue: String,
+        id: String,
+        job: Payload
+    }
 );
 
 queue_event!(
     /// Redis 已准备好投递 ID，即将写入即时或延迟队列。
-    RedisJobQueueing { connection_name: String, queue: String, id: String, job: Payload }
+    RedisJobQueueing {
+        connection_name: String,
+        queue: String,
+        id: String,
+        job: Payload
+    }
 );
 
 queue_event!(
     /// Redis 已将任务移入保留队列。
-    RedisJobReserved { connection_name: String, job: JobSnapshot }
+    RedisJobReserved {
+        connection_name: String,
+        job: JobSnapshot
+    }
 );
 
 queue_event!(
@@ -187,17 +217,30 @@ queue_event!(
 
 queue_event!(
     /// Redis 已将保留任务重新放入延迟队列。
-    RedisJobReleased { connection_name: String, job: JobSnapshot, delay: Duration }
+    RedisJobReleased {
+        connection_name: String,
+        job: JobSnapshot,
+        delay: Duration
+    }
 );
 
 queue_event!(
     /// Redis 已确认删除保留任务。
-    RedisJobDeleted { connection_name: String, job: JobSnapshot, failed: bool, duration: Duration }
+    RedisJobDeleted {
+        connection_name: String,
+        job: JobSnapshot,
+        failed: bool,
+        duration: Duration
+    }
 );
 
 queue_event!(
     /// 真实 Redis 保留任务已确认失败。
-    RedisJobFailed { connection_name: String, job: JobSnapshot, exception: String }
+    RedisJobFailed {
+        connection_name: String,
+        job: JobSnapshot,
+        exception: String
+    }
 );
 
 queue_event!(
@@ -317,5 +360,9 @@ pub(super) fn attempt_exception_message(error: &QueueError) -> String {
 
 queue_event!(
     /// A dispatch failed on one connection in a failover queue.
-    QueueFailedOver { connection: String, job: Payload, exception: String }
+    QueueFailedOver {
+        connection: String,
+        job: Payload,
+        exception: String
+    }
 );

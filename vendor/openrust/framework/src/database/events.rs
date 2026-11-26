@@ -475,12 +475,18 @@ use crate::contracts::database::events::MigrationEvent;
 
 database_event!(
     /// A nonempty batch is about to run.
-    MigrationsStarted { method: MigrationMethod, options: MigrationOptions },
+    MigrationsStarted {
+        method: MigrationMethod,
+        options: MigrationOptions
+    },
     MigrationEvent::NAME
 );
 database_event!(
     /// All migrations in the batch have been processed.
-    MigrationsEnded { method: MigrationMethod, options: MigrationOptions },
+    MigrationsEnded {
+        method: MigrationMethod,
+        options: MigrationOptions
+    },
     MigrationEvent::NAME
 );
 database_event!(
@@ -495,25 +501,41 @@ database_event!(
 );
 database_event!(
     /// The command found no pending migrations in this direction.
-    NoPendingMigrations { method: MigrationMethod },
+    NoPendingMigrations {
+        method: MigrationMethod
+    },
     MigrationEvent::NAME
 );
 database_event!(
     /// 迁移通过 `should_run` 钩子选择不执行。
-        MigrationSkipped { migration_name: String },
+    MigrationSkipped {
+        migration_name: String
+    },
     MigrationEvent::NAME
 );
 database_event!(
     /// A schema snapshot was persisted at the given path.
-        SchemaDumped { connection: Connection, connection_name: String, path: std::path::PathBuf }
+    SchemaDumped {
+        connection: Connection,
+        connection_name: String,
+        path: std::path::PathBuf
+    }
 );
 database_event!(
     /// A schema snapshot was loaded before remaining migrations.
-        SchemaLoaded { connection: Connection, connection_name: String, path: std::path::PathBuf }
+    SchemaLoaded {
+        connection: Connection,
+        connection_name: String,
+        path: std::path::PathBuf
+    }
 );
 database_event!(
     /// Application migration sources were pruned after a dump.
-        MigrationsPruned { connection: Connection, connection_name: String, path: std::path::PathBuf }
+    MigrationsPruned {
+        connection: Connection,
+        connection_name: String,
+        path: std::path::PathBuf
+    }
 );
 database_event!(
     /// A fresh or refreshed schema is ready, before optional seeding.
