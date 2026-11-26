@@ -16,7 +16,7 @@ SDK 已验证四种原生文本协议、结构化输出、流式工具与回调�
 | `src/AiManager.php` 的 `getDefaultInstance`、`setDefaultInstance`、`getInstanceConfig`、`textProvider`、`textProviderFor` 及继承的实例缓存、扩展 | `AiManager` 对应的 Rust 方法为 `get_default_instance`、`set_default_instance`、`get_instance_config`、`text_provider`、`text_provider_for`、`extend`、`forget_instance`。按具名配置惰性解析，应用缺默认连接时错误留在调用时。尚待核对基本方法完整的消费者覆盖、驱动别名及其他能力和生命周期。按需实例在下方单独记录。 |
 | `src/Contracts/Agent.php`、`src/Promptable.php`、`functions.php` 的 `instructions`、`prompt`、`agent()` | `Agent::instructions`、`Agent::prompt` 与 `agent()` 可用于单条文本；Rust 以 `prompt_with` 加 `PromptOptions` 实现 Provider／模型／超时覆盖。普通和显式配置验收见包测试。Trait 的 `provider`／`model` 钩子保留单连接的选择优先级。普通用户和助手历史消息在 AI-02 实现。待补 schema、数组／按需 Provider 选择、附件、事件及其余成员。 |
 | `src/Providers/OpenAiProvider.php`、`OpenAiCompatibleProvider.php` 和对应 Gateway 的非流式请求与响应 | 用 `async-openai` 的请求类型，OpenRust HTTP 工厂实际发送两种协议。由内部投影解析文本及上游用量，非成功状态返回不带上游载荷的错误。用户确认预设不指定默认模型，各上游模型需显式选择。待补高级模型选项、普通与流式终止细节、响应元数据完整契约和供应商实机。 |
-| `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 可从 `Agent::fake` 或 `Ai::fake` 在作用域内对 Agent 类型安装字符串序列，也可用 `fake_with` 按记录的请求返回文本、JSON 对象或完整响应。已提供记录、匹配、反向、计数、防止非预期请求及流式事件。待补模型步骤脚本、默认结构化样本、真实中间件装配与排队 Fake。 |
+| `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 可从 `Agent::fake` 或 `Ai::fake` 在作用域内对 Agent 类型安装字符串序列，也可用 `fake_with` 在每个步骤根据请求和工具历史返回文本、JSON 对象或完整响应。复用真实中间件、工具执行和流，按调用记录一次。待补默认结构化样本、按序提供类型化响应与排队 Fake。 |
 
 包级验收通过正常 HTTP Kernel 调用 `Agent::prompt`，实际向本地 TCP 协议服务发出请求。覆盖鉴权、保留基础路径、请求体、模型优先级、返回文本、用量、HTTP 429 错误脱敏和两个应用间 Fake 隔离。独立应用的 Artisan 验收包发现后的配置查询、发布和缓存，检查缓存无原始凭证以及清除缓存后 URL 环境变量覆盖生效。供应商实机与对外网关尚待验收。
 
@@ -143,6 +143,8 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 ### AI-03 Agent 文本替身
 
 `Agent::fake_with` 及 `Ai::fake_with` 在应用范围内根据 `RecordedPrompt` 解析文本、JSON 对象或完整的 `AgentResponse`。真实 Artisan 和 HTTP 确认闭包收到已选定的供应商与模型、结构化 Schema 可读、对象按通用入口解码，Rust 类型不匹配时由 `decode` 返回错误。完整响应的实际模型、7 输入／3 输出 Token、摘要、引文与预设工具结果通过原生／Vercel／AG-UI 输出，测试上游收到零请求。SDK 回归 14 项、严格 Clippy 和三语站点通过。
+
+Fake 作为模型步骤网关接入正常的 Agent 运行链。Artisan 和 HTTP 实测非流式与流式中间件各自改写模型、两步脚本真实执行一次应用工具、下一步在 `prompt.steps` 中读到结果、顶层汇总 9 输入／6 输出 Token。Fake 按固定上游在每次调用进入时记录一次提示，包含后续失败的调用。三种 SSE 与零模型出站复验通过。SDK 回归 14 项、严格 Clippy 和三语站点通过。
 
 - [固定 Laravel FakeTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeTextGateway.php)
 
@@ -683,7 +685,7 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 ### AI-02 Agent 生成事件
 
-非流式 SDK 每次供应商尝试分派 `PromptingAgent`，成功后交付含逐步响应的 `AgentPrompted`，失败时交付含原类型错误的 `AgentFailed`。事件使用已解析的连接与请求模型、当前 Agent 类型及出站请求的调用 ID。提示参数为步骤中间件执行前的快照。由 SDK Fake 直接提供结果的路径沿用各自的断言入口。
+非流式 SDK 每次供应商尝试分派 `PromptingAgent`，成功后交付含逐步响应的 `AgentPrompted`，失败时交付含原类型错误的 `AgentFailed`。事件使用已解析的连接与请求模型、当前 Agent 类型及出站请求的调用 ID。提示参数为步骤中间件执行前的快照。SDK Fake 复用相同调用链，并提供提示断言入口。
 
 隔离服务经实际 Artisan 及 HTTP 验证普通和结构化请求、401、跨协议切换、全部候选失败、两步工具成功和续轮失败。监听器看到每次尝试先开始、再成功或失败，出站请求与监听器记录的调用 ID 一致。两步工具成功事件带两个步骤及一个工具结果。续轮 503 后只分派原连接的失败事件。SDK 文本、工具和会话回归及严格 Clippy 通过。
 

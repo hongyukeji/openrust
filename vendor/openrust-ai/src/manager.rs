@@ -660,41 +660,6 @@ impl AiManager {
             return Err(AiError::InvalidPrompt);
         }
         crate::attachments::validate_prompt_attachments(attachments)?;
-        if let Some(fake) = self.text_fake::<A>() {
-            let provider = options
-                .provider
-                .or_else(|| primary_provider(agent))
-                .map(str::to_owned)
-                .or_else(|| self.get_default_instance().ok());
-            let model = primary_model(agent, options)
-                .map(str::to_owned)
-                .or_else(|| {
-                    self.text_provider(provider.as_deref())
-                        .ok()
-                        .and_then(|resolved| {
-                            resolved
-                                .text_model(agent.model_tier())
-                                .ok()
-                                .map(str::to_owned)
-                        })
-                });
-            return fake.respond(crate::RecordedPrompt {
-                text: prompt.into(),
-                options: generation,
-                provider_options: provider
-                    .as_deref()
-                    .map(|provider| agent.provider_options(provider))
-                    .unwrap_or_default(),
-                tool_choice: choice,
-                messages: messages.to_vec(),
-                attachments: attachments.to_vec(),
-                schema: structured_output
-                    .as_ref()
-                    .map(|output| output.schema.clone()),
-                provider,
-                model,
-            });
-        }
         let request = AgentPrompt {
             text: TextPrompt {
                 instructions: agent.instructions(),
@@ -837,12 +802,6 @@ impl AiManager {
             return Err(AiError::InvalidPrompt);
         }
         crate::attachments::validate_prompt_attachments(attachments)?;
-        if self.text_fake::<A>().is_some() {
-            return self
-                .prompt_with_history(agent, prompt, options, structured_output, messages)
-                .await
-                .map(StreamableAgentResponse::from_text);
-        }
         let middleware = agent.middleware();
         let tools = crate::load_skill::tools_for(agent)?;
         if tools.is_empty()
@@ -968,6 +927,48 @@ impl AiManager {
         ) -> HttpFuture<'a, Result<T, ProviderAttemptError>>,
     ) -> AiResult<T> {
         let invocation_id = Str::ulid().to_string();
+        if let Some(fake) = self.text_fake::<A>() {
+            let name = options
+                .provider
+                .or_else(|| primary_provider(agent))
+                .map(str::to_owned)
+                .or_else(|| self.get_default_instance().ok());
+            let model = primary_model(agent, options)
+                .map(str::to_owned)
+                .or_else(|| {
+                    self.text_provider(name.as_deref())
+                        .ok()
+                        .and_then(|provider| {
+                            provider
+                                .text_model(agent.model_tier())
+                                .ok()
+                                .map(str::to_owned)
+                        })
+                });
+            let provider_options = name
+                .as_deref()
+                .map(|provider| agent.provider_options(provider))
+                .unwrap_or_default();
+            let fake = Arc::new(crate::fake::FakeTextProvider::new(fake, name, model));
+            let provider: Arc<dyn TextProvider> = fake.clone();
+            let attempt = AgentPrompt {
+                text: TextPrompt {
+                    model: fake.model(),
+                    ..request.text
+                },
+                provider_options: Some(&provider_options),
+                ..request
+            };
+            fake.record_prompt(&attempt);
+            return crate::request_context::in_agent_invocation(
+                &invocation_id,
+                0,
+                Some(std::any::type_name::<A>()),
+                send(&provider, attempt, approvals, false),
+            )
+            .await
+            .map_err(ProviderAttemptError::into_error);
+        }
         let targets = agent.providers();
         let mut next = targets.iter().skip(1).peekable();
         let mut name = options.provider.or_else(|| primary_provider(agent));

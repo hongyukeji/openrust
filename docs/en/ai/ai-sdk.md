@@ -758,7 +758,7 @@ Call `result.response().await` to inspect a complete step before returning it. T
 
 ### Testing Agents {#agent-fake}
 
-Use `SupportAgent::fake` to supply an ordered list of strings, or `SupportAgent::fake_with` to return a result based on the `RecordedPrompt`. A callback can return text, a JSON object, or a complete `AgentResponse` using `.into()`. The Fake records successful prompt resolutions for `assert_prompted` and `assert_prompted_times`. A streamed response keeps the supplied model, usage, public reasoning, citations, and tool outcomes.
+Use `SupportAgent::fake` to supply an ordered list of strings, or `SupportAgent::fake_with` to return a result based on the `RecordedPrompt`. A callback can return text, a JSON object, or a complete `AgentResponse` using `.into()`. The Fake records each invocation once for `assert_prompted` and `assert_prompted_times`, including callbacks that return an error. The callback runs for each model step and sees the model selected by middleware plus any preceding tool results in `prompt.steps`. A fake model response that requests a registered tool goes through the normal tool handler. A streamed response keeps the supplied model, usage, public reasoning, citations, and tool outcomes.
 
 ## Embeddings {#embeddings}
 

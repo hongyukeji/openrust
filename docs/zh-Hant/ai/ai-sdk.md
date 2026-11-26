@@ -758,7 +758,7 @@ Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組
 
 ### 測試 Agent {#agent-fake}
 
-使用 `SupportAgent::fake` 提供有序字串，也可用 `SupportAgent::fake_with` 根據 `RecordedPrompt` 決定結果。回呼可用 `.into()` 回傳文字、JSON 物件或完整的 `AgentResponse`。Fake 記錄成功取得結果的提示，可透過 `assert_prompted` 和 `assert_prompted_times` 驗證。串流回應保留所提供的模型、用量、公開推理摘要、引文和工具結果。
+使用 `SupportAgent::fake` 提供有序字串，也可用 `SupportAgent::fake_with` 根據 `RecordedPrompt` 決定結果。回呼可用 `.into()` 回傳文字、JSON 物件或完整的 `AgentResponse`。Fake 為每次呼叫記錄一條提示，包括回呼回傳錯誤的呼叫，可透過 `assert_prompted` 和 `assert_prompted_times` 驗證。回呼在每個模型步驟執行，可看到中介層選定的模型及 `prompt.steps` 中先前的工具結果。模擬模型回應要求已註冊的工具時，會經過正常工具處理器。串流回應保留所提供的模型、用量、公開推理摘要、引文和工具結果。
 
 ## Embeddings {#embeddings}
 

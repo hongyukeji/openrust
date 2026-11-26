@@ -758,7 +758,7 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 ### 测试 Agent {#agent-fake}
 
-使用 `SupportAgent::fake` 提供有序字符串，也可用 `SupportAgent::fake_with` 根据 `RecordedPrompt` 决定结果。回调可用 `.into()` 返回文本、JSON 对象或完整的 `AgentResponse`。Fake 记录成功取得结果的提示，可通过 `assert_prompted` 和 `assert_prompted_times` 断言。流式响应保留所提供的模型、用量、公开推理摘要、引文和工具结果。
+使用 `SupportAgent::fake` 提供有序字符串，也可用 `SupportAgent::fake_with` 根据 `RecordedPrompt` 决定结果。回调可用 `.into()` 返回文本、JSON 对象或完整的 `AgentResponse`。Fake 为每次调用记录一条提示，包括回调返回错误的调用，可通过 `assert_prompted` 和 `assert_prompted_times` 断言。回调在每个模型步骤运行，可看到中间件选定的模型及 `prompt.steps` 中此前的工具结果。模拟模型响应请求已注册的工具时，会经过正常工具处理器。流式响应保留所提供的模型、用量、公开推理摘要、引文和工具结果。
 
 ## Embeddings {#embeddings}
 

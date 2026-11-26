@@ -1,16 +1,19 @@
 use std::{
     collections::VecDeque,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 
+use openrust::http::HttpFuture;
 use serde_json::{Map, Value};
 
 use crate::{
-    AgentResponse, AiError, AiResult, Attachment, Message, ProviderOptions, TextGenerationOptions,
-    ToolChoice, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, Attachment, FinishReason, Message,
+    ProviderOptions, Step, StepEventStream, StepResponse, StepResult, StepTextGateway,
+    StreamableAgentResponse, TextGenerationOptions, TextPrompt, TextProvider, ToolChoice,
+    ToolDefinition, ToolStep, Usage,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +27,7 @@ pub struct RecordedPrompt {
     pub schema: Option<Value>,
     pub provider: Option<String>,
     pub model: Option<String>,
+    pub steps: Vec<Step>,
 }
 
 pub enum FakeTextResult {
@@ -130,7 +134,7 @@ impl FakeTextGateway {
         self.assert_prompted_times(0);
     }
 
-    pub(super) fn respond(&self, prompt: RecordedPrompt) -> AiResult<AgentResponse> {
+    fn respond(&self, prompt: RecordedPrompt) -> AiResult<AgentResponse> {
         let result = match &self.source {
             FakeTextSource::Sequence(responses) => responses.lock().unwrap().pop_front(),
             FakeTextSource::Callback(resolve) => Some(resolve(&prompt)?),
@@ -166,7 +170,151 @@ impl FakeTextGateway {
                 )
             }
         };
-        self.prompts.lock().unwrap().push(prompt);
         Ok(response)
+    }
+}
+
+pub(crate) struct FakeTextProvider {
+    gateway: Arc<FakeTextGateway>,
+    provider: Option<String>,
+    model: Option<String>,
+}
+
+impl FakeTextProvider {
+    pub(crate) fn new(
+        gateway: Arc<FakeTextGateway>,
+        provider: Option<String>,
+        model: Option<String>,
+    ) -> Self {
+        Self {
+            gateway,
+            provider,
+            model,
+        }
+    }
+
+    pub(crate) fn model(&self) -> &str {
+        self.model.as_deref().unwrap_or("fake")
+    }
+
+    pub(crate) fn record_prompt(&self, prompt: &AgentPrompt<'_>) {
+        self.gateway
+            .prompts
+            .lock()
+            .unwrap()
+            .push(self.recorded(prompt, &[]));
+    }
+
+    fn recorded(&self, prompt: &AgentPrompt<'_>, history: &[ToolStep]) -> RecordedPrompt {
+        RecordedPrompt {
+            text: prompt.text.prompt.into(),
+            options: prompt.options,
+            provider_options: prompt.provider_options.cloned().unwrap_or_default(),
+            tool_choice: prompt.tool_choice.cloned(),
+            messages: prompt.messages.to_vec(),
+            attachments: prompt.attachments.to_vec(),
+            schema: prompt.structured_output.map(|output| output.schema.clone()),
+            provider: self.provider.clone(),
+            model: (self.model.is_some() || prompt.text.model != self.model())
+                .then(|| prompt.text.model.to_owned()),
+            steps: history
+                .iter()
+                .map(|step| step.public_step(self.name()))
+                .collect(),
+        }
+    }
+
+    fn respond_to_step(
+        &self,
+        prompt: &AgentPrompt<'_>,
+        history: &[ToolStep],
+    ) -> AiResult<StepResponse> {
+        let response = self.gateway.respond(self.recorded(prompt, history))?;
+        let reason = response.steps.last().map_or_else(
+            || {
+                if response.tool_calls.is_empty() {
+                    FinishReason::Stop
+                } else {
+                    FinishReason::ToolCalls
+                }
+            },
+            |step| step.finish_reason,
+        );
+        Ok(StepResponse {
+            model: Some(response.model),
+            text: Some(response.text),
+            finish_reason: reason,
+            reasoning: response.reasoning,
+            usage: response.usage,
+            citations: response.citations,
+            tool_calls: response.tool_calls,
+            provider_content: None,
+        })
+    }
+}
+
+impl TextProvider for FakeTextProvider {
+    fn name(&self) -> &str {
+        self.provider.as_deref().unwrap_or("fake")
+    }
+
+    fn default_text_model(&self) -> AiResult<&str> {
+        Ok(self.model())
+    }
+
+    fn generate_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        self.generate(prompt.into())
+    }
+
+    fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        Box::pin(async move { self.gateway.respond(self.recorded(&prompt, &[])) })
+    }
+
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        prompt: AgentPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        Box::pin(async move {
+            self.gateway
+                .respond(self.recorded(&prompt, &[]))
+                .map(StreamableAgentResponse::from_text)
+        })
+    }
+
+    fn step_text_gateway(&self) -> Option<&dyn StepTextGateway> {
+        Some(self)
+    }
+}
+
+impl StepTextGateway for FakeTextProvider {
+    fn generate_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        _: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        Box::pin(async move { self.respond_to_step(prompt, history) })
+    }
+
+    fn stream_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        _: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
+        Box::pin(async move {
+            self.respond_to_step(prompt, history)
+                .map(|response| StepResult::from_response(response).into_stream())
+        })
     }
 }
