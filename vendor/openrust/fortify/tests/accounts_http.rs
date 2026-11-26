@@ -124,6 +124,7 @@ async fn registration_profile_and_password_updates_use_native_eloquent_sessions_
             200,
         )
         .await;
+    server.close().await;
 }
 
 #[tokio::test]
@@ -167,6 +168,7 @@ async fn container_account_actions_web_intended_and_broker_failure_preserve_effe
             200,
         )
         .await;
+    server.close().await;
 }
 
 struct CustomProfileResponse;
@@ -231,6 +233,7 @@ async fn configured_account_paths_csrf_and_response_replacements_use_the_updated
         client.send("GET", "/state", "", 200).await.body["status"],
         "password-updated"
     );
+    server.close().await;
 }
 
 #[tokio::test]
@@ -326,4 +329,28 @@ async fn fixed_php_account_controllers_match_native_mysql_effect_and_event_order
                 .unwrap();
         }
     }
+    server.close().await;
+}
+
+#[tokio::test]
+async fn account_http_apps_do_not_share_session_tables() {
+    if !mysql() {
+        return;
+    }
+    let _serial = SERIAL.lock().await;
+    let first = start(settings(), true, |_| {}).await;
+    let mut client = Client::new(&first);
+    let before = client.send("GET", "/state", "", 200).await.body;
+    let second = start(settings(), true, |_| {}).await;
+    second
+        .database
+        .statement("DROP TABLE fortify_account_sessions", &[])
+        .await
+        .unwrap();
+
+    let after = client.send("GET", "/state", "", 200).await.body;
+    assert_eq!(after["id"], before["id"]);
+    assert_eq!(after["csrf"], before["csrf"]);
+    second.close().await;
+    first.close().await;
 }

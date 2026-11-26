@@ -124,6 +124,7 @@ async fn signed_email_verification_uses_native_mysql_sessions_and_rejects_wrong_
     client
         .send("POST", "/email/verification-notification", "{}", 204)
         .await;
+    server.close().await;
 }
 
 #[tokio::test]
@@ -162,7 +163,7 @@ async fn email_verification_preserves_save_failure_csrf_throttling_paths_and_fea
         .await
         .unwrap();
     client.send("GET", &url, "", 204).await;
-    drop(server);
+    server.close().await;
     let server = start(
         json!({"features":["registration","email-verification"],"lowercase_usernames":true,"limiters":{"verification":"1,1"}}),
         true,
@@ -177,7 +178,7 @@ async fn email_verification_preserves_save_failure_csrf_throttling_paths_and_fea
     client
         .send("POST", "/email/verification-notification", "{}", 429)
         .await;
-    drop(server);
+    server.close().await;
     let server = start(settings(), true, |_| {}).await;
     let mut client = Client::new(&server);
     signup(&mut client).await;
@@ -185,6 +186,7 @@ async fn email_verification_preserves_save_failure_csrf_throttling_paths_and_fea
     client
         .send("POST", "/email/verification-notification", "{}", 404)
         .await;
+    server.close().await;
 }
 
 #[tokio::test]
@@ -315,6 +317,7 @@ async fn fixed_php_email_verification_controllers_and_responses_match_native_htt
         }
     }
     MARK_EMAIL_RETURNS_FALSE.store(false, std::sync::atomic::Ordering::Relaxed);
+    server.close().await;
 }
 
 struct UpdatedVerificationResponse;
@@ -370,7 +373,7 @@ async fn verification_response_replacements_observe_updated_user_and_event_failu
         client.send("GET", &url, "", 200).await.body,
         json!({"verified":true})
     );
-    drop(server);
+    server.close().await;
     let server = start(email_settings(), true, |app| {
         app.container()
             .make::<openrust::events::Dispatcher>()
@@ -395,4 +398,5 @@ async fn verification_response_replacements_observe_updated_user_and_event_failu
         .unwrap();
     assert_ne!(row.get("email_verified_at"), Some(&Value::Null));
     client.send("GET", &url, "", 204).await;
+    server.close().await;
 }

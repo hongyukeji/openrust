@@ -275,6 +275,11 @@ impl TestApp {
         &self.app
     }
 
+    /// 为测试应用创建可供真实 HTTP 监听器使用的内核。
+    pub fn http_kernel(&self) -> Kernel {
+        Kernel::new(self.app.share())
+    }
+
     /// 关闭HTTP异常处理，例外类型仍委托原处理器渲染；不丢弃已安装的Fake记录。
     pub async fn without_exception_handling(
         &mut self,

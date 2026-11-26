@@ -17,6 +17,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::RoutingError,
     support::facades::{Route, Validator},
+    testing::TestApp,
 };
 use openrust_fortify::{Fortify, FortifyServiceProvider};
 use serde_json::{Value as Json, json};
@@ -39,6 +40,7 @@ use openrust::http::RequestValue;
 use openrust::validation::{Data, RuleSet, ValidationException};
 use openrust_fortify::contracts;
 static RESET_NOTIFICATIONS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+// 保护同一进程内共享的通知观察状态。
 static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static MARK_EMAIL_RETURNS_FALSE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
@@ -402,11 +404,24 @@ async fn transport(
 struct Server {
     address: SocketAddr,
     task: tokio::task::JoinHandle<()>,
+    fixture: Option<TestApp>,
     database: openrust::database::Connection,
     fortify: Arc<Fortify>,
     events: Arc<Mutex<Vec<String>>>,
     #[allow(dead_code, reason = "Shared fixture also supports password HTTP tests")]
     hasher: Arc<dyn Hasher>,
+}
+impl Server {
+    async fn close(mut self) {
+        self.task.abort();
+        let stopped = (&mut self.task).await;
+        let fixture = self.fixture.take().unwrap();
+        drop(self);
+        fixture.close().await.unwrap();
+        if let Err(error) = stopped {
+            assert!(error.is_cancelled(), "{error}");
+        }
+    }
 }
 impl Drop for Server {
     fn drop(&mut self) {
@@ -464,15 +479,39 @@ impl Listener for Observe {
     }
 }
 async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Application)) -> Server {
-    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
-        ("app".into(),json!({"key":"a".repeat(32),"timezone":"UTC","url":"http://localhost","debug":true})),
-        ("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}})),
-        ("session".into(),json!({"driver":"database","table":"fortify_account_sessions","cookie":"fortify_session","lottery":[0,100]})),
-        ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
-        ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
-        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"AccountUser"}},"passwords":{"users":{"driver":"database","provider":"users","table":"fortify_default_resets","expire":60,"throttle":60},"accounts":{"driver":"database","provider":"users","table":"fortify_named_resets","expire":60,"throttle":60}}})),
-    ].into())).with_providers(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
-    app.boot().await.unwrap();
+    let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+    let mut fixture = TestApp::mysql(&url, |builder| {
+        builder
+            .with_config(|_, _| {
+                Ok([
+                    ("app".into(), json!({
+                        "key": "a".repeat(32), "timezone": "UTC",
+                        "url": "http://localhost", "debug": true
+                    })),
+                    ("session".into(), json!({
+                        "driver": "database", "table": "fortify_account_sessions",
+                        "cookie": "fortify_session", "lottery": [0, 100]
+                    })),
+                    ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
+                    ("hashing".into(), json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
+                    ("auth".into(), json!({
+                        "defaults": {"guard": "web", "passwords": "users"},
+                        "guards": {"web": {"driver": "session", "provider": "users"}},
+                        "providers": {"users": {"driver": "eloquent", "model": "AccountUser"}},
+                        "passwords": {
+                            "users": {"driver": "database", "provider": "users", "table": "fortify_default_resets", "expire": 60, "throttle": 60},
+                            "accounts": {"driver": "database", "provider": "users", "table": "fortify_named_resets", "expire": 60, "throttle": 60}
+                        }
+                    })),
+                ].into())
+            })
+            .with_providers(vec![Box::new(Settings(settings)), Box::new(FortifyServiceProvider)])
+            .with_routing(Routing::default().web(routes))
+    })
+    .await
+    .unwrap();
+    let database = fixture.database().await.unwrap();
+    let app = fixture.app();
     let passwords: BTreeMap<String, openrust::localization::Line> = serde_json::from_str(
         include_str!("../../../framework/src/localization/stubs/passwords.json"),
     )
@@ -488,12 +527,6 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
             None,
         )
         .unwrap();
-    let database = app
-        .make::<openrust::database::DatabaseManager>()
-        .await
-        .unwrap()
-        .connection(None)
-        .unwrap();
     let version = database
         .select_one("SELECT VERSION() AS version", &[])
         .await
@@ -501,10 +534,6 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         .unwrap();
     assert!(matches!(version.get("version"),Some(Value::Text(v)) if v.starts_with("8.4.")));
     for sql in [
-        "DROP TABLE IF EXISTS fortify_account_users",
-        "DROP TABLE IF EXISTS fortify_account_sessions",
-        "DROP TABLE IF EXISTS fortify_default_resets",
-        "DROP TABLE IF EXISTS fortify_named_resets",
         "CREATE TABLE fortify_account_users(identity VARCHAR(20) PRIMARY KEY,name VARCHAR(255),email VARCHAR(255) UNIQUE,password VARCHAR(255),remember_token VARCHAR(100) NULL,email_verified_at DATETIME NULL)",
         "CREATE TABLE fortify_account_sessions(id VARCHAR(255) PRIMARY KEY,user_id VARCHAR(255) NULL,ip_address VARCHAR(45) NULL,user_agent TEXT NULL,payload LONGTEXT NOT NULL,last_activity BIGINT NOT NULL)",
         "CREATE TABLE fortify_default_resets(email VARCHAR(255) PRIMARY KEY,token VARCHAR(255),created_at DATETIME)",
@@ -557,8 +586,8 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
             openrust::events::Delivery::Sync,
         )
         .unwrap();
-    configure(&app);
-    let mut kernel = Kernel::new(app);
+    configure(app);
+    let mut kernel = fixture.http_kernel();
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -566,6 +595,7 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
     Server {
         address,
         task: tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
+        fixture: Some(fixture),
         database,
         fortify,
         events,

@@ -199,3 +199,9 @@ PHP 局部参考探针退出码 0；本报告所有问题行的 Rust/固定上�
 ## 2026-11-22 清理后复验补充
 
 后续独立复核发现 L02 的浮点 integer 尚需经过 PHP precision=14 标量转换，L07 的 regex 尚需拒绝 bool/null；本轮已分别复用既有 php_float_string 和限定 regex 类型修复，并通过公开 Factory／Validator 正反回归 9 项及实际消费者复验。详细结果与原始失败映射见 [清理后全面验收](08-04/clean-full-acceptance-2026-11-22.md)，原独立复核报告保留。该补充修正此前列明行为的遗漏，不扩展为全部 PHP 规则等价证明。
+
+## Fortify Session 夹具隔离
+
+2026-11-26 在隔离 MySQL 8.4.13 上复现。旧夹具在同一 schema 删建固定名称的表，进程内的串行锁无法隔离其他测试进程。两个同时存活的 HTTP 应用共享会话表时，第二个应用删除该表后，第一个应用查询得到 MySQL `1146 / 42S02`，随后 `GET /state` 返回 HTTP 500 `session storage is unavailable`。历史失败日志没有记录该请求的 SQL 错误链，本次证据确认的是可复现的夹具故障。
+
+现用 `TestApp::mysql` 为每个应用分配独占 schema，关闭监听后等待夹具清理。Rust 1.94.0 下，`accounts_http`、`email_verification_http`、`password_reset_http` 在同一隔离实例并行执行，15 项通过。新回归额外跨进程并行执行 12 次，全部通过，结束后无残留的测试 schema。原始记录保存在项目内 `target/tmp/fortify-session-isolation/before-sql-verified.log` 和 `after.log`。

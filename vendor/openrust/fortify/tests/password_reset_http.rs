@@ -143,6 +143,7 @@ async fn password_reset_uses_named_broker_rotates_remember_token_and_keeps_guest
         )
         .await;
     guest.send("POST", "/forgot-password", LOGIN, 302).await;
+    server.close().await;
 }
 #[tokio::test]
 async fn password_reset_action_validation_and_save_failures_preserve_retryable_tokens() {
@@ -183,6 +184,7 @@ async fn password_reset_action_validation_and_save_failures_preserve_retryable_t
         .send("POST", "/reset-password", &reset_body(&token), 200)
         .await;
     assert_eq!(token_count(&server, "fortify_named_resets").await, 0);
+    server.close().await;
 }
 #[tokio::test]
 async fn password_reset_views_web_responses_prefixes_and_csrf_follow_routes() {
@@ -260,6 +262,7 @@ async fn password_reset_views_web_responses_prefixes_and_csrf_follow_routes() {
         "{}",
         done.headers
     );
+    server.close().await;
 }
 
 struct RejectReset;
@@ -411,6 +414,7 @@ async fn fixed_php_password_reset_responses_and_completion_match_mysql_http() {
             usize::from(expected),
             "{case}"
         );
+        server.close().await;
     }
 }
 
@@ -513,6 +517,7 @@ async fn password_reset_concurrent_token_claim_and_event_failure_keep_native_bro
     assert!(a.headers.starts_with("HTTP/1.1 422 ") || b.headers.starts_with("HTTP/1.1 422 "));
     assert_eq!(token_count(&server, "fortify_named_resets").await, 0);
     assert_eq!(*server.events.lock().unwrap(), ["PasswordReset"]);
+    server.close().await;
 }
 #[tokio::test]
 async fn password_reset_feature_views_and_response_replacement_are_application_scoped() {
@@ -540,7 +545,7 @@ async fn password_reset_feature_views_and_response_replacement_are_application_s
             .body,
         json!({"status":"passwords.reset","guest":true})
     );
-    drop(server);
+    server.close().await;
     let mut config = reset_settings();
     config["views"] = json!(false);
     let server = start(config, true, |_| {}).await;
@@ -558,9 +563,10 @@ async fn password_reset_feature_views_and_response_replacement_are_application_s
         "{}",
         response.headers
     );
-    drop(server);
+    server.close().await;
     let server = start(settings(), true, |_| {}).await;
     let mut guest = Client::new(&server);
     guest.send("POST", "/forgot-password", LOGIN, 404).await;
     guest.send("POST", "/reset-password", "{}", 404).await;
+    server.close().await;
 }
