@@ -293,3 +293,11 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 分别用独立 Artisan 上传，再用独立 HTTP 应用连接本地 TCP 协议服务，验证原生认证、文件元数据和时间戳、上传限制、两页游标、生成文件的私有存盘与回读、上传文件拒绝下载、删除后 404。OpenAI Files 重跑独立 HTTP 与 Artisan 通过。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。真实供应商凭证、区域 OpenRouter 端点、其他资源驱动和 Fake 继续单列。
 
 - [固定 Laravel Anthropic File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicFileGateway.php) · [固定 Laravel OpenRouter File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenRouter/OpenRouterFileGateway.php) · [Anthropic Files API](https://platform.claude.com/docs/en/build-with-claude/files) · [OpenRouter Files API](https://openrouter.ai/docs/api/api-reference/files/list-files)
+
+## AI-06 Gemini 文件
+
+`Files` 支持 Gemini 原生上传、元数据、状态刷新、分页和删除。上传依据 Google 的 resumable 协议创建会话，然后在同源的上传端点发送文件字节。拒绝其他来源、路径重写及跳转。资源支持 `files/` 前缀及短 ID，列表使用不透明令牌。上传文件的内容读取返回 `FileNotDownloadable`。供应商自定义认证头标记为敏感，由框架 HTTP 诊断快照过滤。
+
+独立 Artisan 和 HTTP 通过本地 TCP 验证标头、JSON、二进制上传、异源会话拒绝、诊断移除 Key／会话查询／正文、`PROCESSING` 刷新为 `ACTIVE`、过期时间、带符号的分页令牌和删除后 404。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。Gemini 向量仓库、提示词文件引用、供应商生成文件下载和授权 Gemini 实机仍待独立验收。
+
+- [固定 Laravel Gemini File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiFileGateway.php) · [Google Files API](https://ai.google.dev/gemini-api/docs/files)

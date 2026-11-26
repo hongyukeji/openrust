@@ -168,18 +168,18 @@ impl Connection {
         if let Some(token) = self.credential()? {
             request = match self.authorization {
                 Authorization::Bearer => request.with_token(token),
-                Authorization::Anthropic | Authorization::Gemini => request.with_header(
-                    (if matches!(self.authorization, Authorization::Anthropic) {
+                Authorization::Anthropic | Authorization::Gemini => {
+                    let name = if matches!(self.authorization, Authorization::Anthropic) {
                         "x-api-key"
                     } else {
                         "x-goog-api-key"
-                    })
-                    .parse()
-                    .expect("valid header name"),
-                    token
+                    };
+                    let mut value: http::HeaderValue = token
                         .parse()
-                        .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?,
-                ),
+                        .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?;
+                    value.set_sensitive(true);
+                    request.with_header(name.parse().expect("valid header name"), value)
+                }
             };
         }
         Ok(request)

@@ -4597,6 +4597,7 @@ dependencies = [
  "bytes",
  "eventsource-stream",
  "futures-util",
+ "http 1.5.0",
  "md-5 0.11.0",
  "openrust-framework",
  "serde",

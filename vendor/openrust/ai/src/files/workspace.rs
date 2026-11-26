@@ -1,17 +1,14 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use openrust::{
-    http::{HttpFuture, Method, client::PendingRequest},
-    support::{Date, DateTimezone},
-};
+use openrust::http::{HttpFuture, Method, client::PendingRequest};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{AiError, AiResult, connection::Connection, text::validate};
 
 use super::{
-    FileInfo, FileProvider, FileUpload, OpenAiPage, ProviderFilePage, file_path,
+    FileInfo, FileProvider, FileUpload, OpenAiPage, ProviderFilePage, file_path, parse_timestamp,
     read_file_contents, validate_id,
 };
 
@@ -151,23 +148,12 @@ impl TryFrom<Metadata> for FileInfo {
             mime_type: file.mime_type,
             bytes: file.size_bytes,
             purpose: None,
-            created_at: timestamp(file.created_at)?,
-            expires_at: timestamp(file.expires_at)?,
+            created_at: parse_timestamp(file.created_at)?,
+            expires_at: parse_timestamp(file.expires_at)?,
             downloadable: file.downloadable,
             status: None,
         })
     }
-}
-
-fn timestamp(value: Option<String>) -> AiResult<Option<u64>> {
-    value
-        .map(|input| {
-            let parsed = input.parse().map_err(|_| AiError::InvalidResponse)?;
-            let date = Date::from_utc(parsed, DateTimezone::UTC);
-            u64::try_from(date.as_date_time().timestamp().as_second())
-                .map_err(|_| AiError::InvalidResponse)
-        })
-        .transpose()
 }
 
 #[derive(Deserialize)]

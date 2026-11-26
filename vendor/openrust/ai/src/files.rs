@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{borrow::Cow, path::Path, sync::Arc};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt;
@@ -8,6 +8,7 @@ use openrust::{
         HttpFuture, Method, UploadedFile,
         client::{Part, Response},
     },
+    support::{Date, DateTimezone},
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,9 @@ use crate::{
     text::{transport_error, validate},
 };
 
+mod gemini;
 mod workspace;
+pub(crate) use gemini::GeminiFileProvider;
 pub(crate) use workspace::{WorkspaceFileProtocol, WorkspaceFileProvider};
 
 const FILE_LIMIT: usize = 100 * 1024 * 1024;
@@ -27,9 +30,9 @@ pub struct Files;
 
 impl Files {
     pub async fn get(id: &str, provider: Option<&str>) -> AiResult<FileResponse> {
-        validate_id(id)?;
         let provider = Ai::file_provider(provider)?;
-        let file = provider.get_file(id).await?;
+        let id = provider.canonical_id(id)?;
+        let file = provider.get_file(&id).await?;
         if file.id != id {
             return Err(AiError::InvalidResponse);
         }
@@ -58,8 +61,9 @@ impl Files {
     }
 
     pub async fn delete(id: &str, provider: Option<&str>) -> AiResult<bool> {
-        validate_id(id)?;
-        Ai::file_provider(provider)?.delete_file(id).await
+        let provider = Ai::file_provider(provider)?;
+        let id = provider.canonical_id(id)?;
+        provider.delete_file(&id).await
     }
 
     pub async fn list(
@@ -67,13 +71,13 @@ impl Files {
         limit: u16,
         provider: Option<&str>,
     ) -> AiResult<FilePage> {
-        if let Some(cursor) = after {
-            validate_id(cursor)?;
-        }
         if !(1..=100).contains(&limit) {
             return Err(AiError::InvalidConfiguration("files.limit"));
         }
         let provider = Ai::file_provider(provider)?;
+        if let Some(cursor) = after {
+            provider.validate_cursor(cursor)?;
+        }
         let page = provider.list_files(after, limit).await?;
         let files = page
             .data
@@ -81,7 +85,9 @@ impl Files {
             .map(|file| FileResponse::new(file, provider.clone()))
             .collect::<AiResult<_>>()?;
         if let Some(cursor) = &page.next_cursor {
-            validate_id(cursor).map_err(|_| AiError::InvalidResponse)?;
+            provider
+                .validate_cursor(cursor)
+                .map_err(|_| AiError::InvalidResponse)?;
             if Some(cursor.as_str()) == after {
                 return Err(AiError::InvalidResponse);
             }
@@ -215,7 +221,12 @@ pub struct FileResponse {
 
 impl FileResponse {
     fn new(file: FileInfo, provider: Arc<dyn FileProvider>) -> AiResult<Self> {
-        validate_id(&file.id).map_err(|_| AiError::InvalidResponse)?;
+        let id = provider
+            .canonical_id(&file.id)
+            .map_err(|_| AiError::InvalidResponse)?;
+        if id != file.id {
+            return Err(AiError::InvalidResponse);
+        }
         Ok(Self { file, provider })
     }
 
@@ -247,7 +258,6 @@ impl FileResponse {
         if self.file.downloadable == Some(false) {
             return Err(AiError::FileNotDownloadable);
         }
-        validate_id(self.id())?;
         self.provider.file_contents(self.id()).await
     }
 
@@ -270,7 +280,6 @@ impl FileResponse {
     }
 
     pub async fn delete(&self) -> AiResult<bool> {
-        validate_id(self.id())?;
         self.provider.delete_file(self.id()).await
     }
 }
@@ -289,6 +298,15 @@ pub trait FileProvider: Send + Sync {
     fn name(&self) -> &str;
     fn resource_scope(&self) -> Option<&Arc<()>> {
         None
+    }
+
+    fn canonical_id<'a>(&self, id: &'a str) -> AiResult<Cow<'a, str>> {
+        validate_id(id)?;
+        Ok(Cow::Borrowed(id))
+    }
+
+    fn validate_cursor(&self, cursor: &str) -> AiResult<()> {
+        validate_id(cursor)
     }
 
     fn get_file<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<FileInfo>>;
@@ -387,6 +405,17 @@ impl FileProvider for OpenAiFileProvider {
             Ok(ProviderFilePage { data, next_cursor })
         })
     }
+}
+
+fn parse_timestamp(value: Option<String>) -> AiResult<Option<u64>> {
+    value
+        .map(|input| {
+            let parsed = input.parse().map_err(|_| AiError::InvalidResponse)?;
+            let date = Date::from_utc(parsed, DateTimezone::UTC);
+            u64::try_from(date.as_date_time().timestamp().as_second())
+                .map_err(|_| AiError::InvalidResponse)
+        })
+        .transpose()
 }
 
 async fn read_file_contents(response: Response) -> AiResult<Bytes> {

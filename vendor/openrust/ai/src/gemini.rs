@@ -17,6 +17,7 @@ use crate::{
     ToolCall, ToolDefinition, ToolStep, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
+    files::{FileProvider, GeminiFileProvider},
     models::ListedModel,
     text::{transport_error, validate},
 };
@@ -149,6 +150,10 @@ impl TextProvider for GeminiTextProvider {
 
     fn default_text_model(&self) -> AiResult<&str> {
         self.0.default_text_model()
+    }
+
+    fn file_provider(&self) -> Option<Arc<dyn FileProvider>> {
+        Some(Arc::new(GeminiFileProvider(self.0.clone())))
     }
 
     fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {

@@ -410,7 +410,7 @@ let assigned = department
 
 ## 供应商文件 {#provider-files}
 
-用 `AI_FILE_PROVIDER` 指定支持 Files API 的具名连接，也可以沿用 AI 默认连接。OpenAI、Anthropic 和 OpenRouter 全球端点原生支持。自定义 OpenAI 兼容连接提供同一 Files API 时可设置 `files: true`。
+用 `AI_FILE_PROVIDER` 指定支持 Files API 的具名连接，也可以沿用 AI 默认连接。OpenAI、Anthropic、Gemini 和 OpenRouter 全球端点原生支持。自定义 OpenAI 兼容连接提供同一 Files API 时可设置 `files: true`。
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -425,6 +425,8 @@ let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 HTTP 上传使用 `FileUpload::from_upload`，内存字节使用 `from_bytes`，已配置磁盘上的文件可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆盖名称、MIME 类型和上传用途，默认用途为 `user_data`。Anthropic 和 OpenRouter 在服务端管理用途，上传时使用默认设置。
 
 `Files::get` 读取元数据，`Files::list` 按游标分页。返回的文件对象沿用原连接下载、刷新和删除。`store_as` 将内容存入私有磁盘路径。用户提供文件 ID 时，先在应用中校验其文件归属。 供应商返回 `downloadable: false` 时，读取或存盘返回 `AiError::FileNotDownloadable`。Anthropic 和 OpenRouter 对用户上传的文件使用此限制。
+
+Gemini 返回类似 `files/policy` 的资源名。`Files::get` 和 `Files::delete` 也接受短 ID。上传后用 `refresh()` 检查状态是否为 `ACTIVE`，分页时原样传回令牌。Gemini 驱动支持上传与元数据操作，应用后续需要读取上传原件时，将原件保存在 Storage。
 
 ## 向量仓库 {#vector-stores}
 

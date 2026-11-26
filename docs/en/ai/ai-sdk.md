@@ -410,7 +410,7 @@ In tests, use `Classification::fake([])` for generated typed answers, supply a s
 
 ## Provider files {#provider-files}
 
-Set `AI_FILE_PROVIDER` to a named Files API connection, or use the default AI connection. OpenAI, Anthropic, and the global OpenRouter endpoint support files directly. Set `files: true` on a custom OpenAI-compatible connection if its endpoint exposes the same Files API.
+Set `AI_FILE_PROVIDER` to a named Files API connection, or use the default AI connection. OpenAI, Anthropic, Gemini, and the global OpenRouter endpoint support files directly. Set `files: true` on a custom OpenAI-compatible connection if its endpoint exposes the same Files API.
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -425,6 +425,8 @@ let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory data, or `Files::put_from_storage` for a configured disk. Change the upload filename, MIME type, or purpose on `FileUpload`. The default purpose is `user_data`. Anthropic and OpenRouter manage purpose on the server and accept the default setting.
 
 `Files::get` retrieves metadata and `Files::list` supplies a cursor with each page. Handles retain their original connection for downloading, refreshing, and deleting. `store_as` writes the downloaded file to a private disk location. Before accepting a file ID from a user, check that the file belongs to that user in the application. If the provider reports `downloadable: false`, reading or storing the file returns `AiError::FileNotDownloadable`. Anthropic and OpenRouter apply this rule to user uploads.
+
+Gemini returns a resource name such as `files/policy`. You can pass the resource name or its short ID to `Files::get` and `Files::delete`. Use `refresh()` to check for `ACTIVE` after upload, and pass the pagination token back unchanged. The Gemini adapter covers upload and metadata operations. Keep the uploaded original in Storage if the application needs to read it later.
 
 ## Vector stores {#vector-stores}
 
