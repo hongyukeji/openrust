@@ -62,3 +62,7 @@
 用 `7dd141aac` 的干净归档执行独立发布许可预检。Windows PowerShell 原生创建 ZIP 并解包，核对根许可证、根发行声明以及两个 Webhook 包的声明和许可证，共 10 个文件与源码逐字节一致。三语部署说明补齐复制清单，VitePress 构建成功，Playwright 核对两种部署前缀下的六个页面。完整 ZIP 与组合 PE 的运行验收继续单列。
 
 同一归档首次把 Cargo 输出写入虚机共享盘，Rust 构建探针清理目录时收到 Windows 错误 87。切换到专用 NTFS 构建盘后，续跑触及 32 GB 停线。停止本次构建树后持锁清理八个项目编译目录，释放 10,256,171,008 字节，可用空间恢复到 42,202,472,448 字节。源码与锁文件沿用同一归档，构建进程和磁盘停线同时在虚机内受监控。预检和构建日志保存在 `target/tmp/goal-extension-combined-windows/`。
+
+## Windows x64 组合预检
+
+在同一 Windows 11 ARM64 虚机核对 `7dd141aac` 归档。Rust 1.94.0 已安装 `x86_64-pc-windows-msvc` 标准库，MSVC HostARM64 的 x64 链接器及 Windows SDK 的 x64 库均可用。针对 x64 执行 `cargo tree --locked --offline`，九个扩展依赖均出现。以 `rustc --target x86_64-pc-windows-msvc` 编译最小探针，核对 PE 机器类型为 `0x8664`，在虚机的 x64 兼容层执行成功。此项验证工具链及兼容层加载，完整应用、发布归档、实际运行行为和原生 x64 主机仍需独立验收。
