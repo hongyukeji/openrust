@@ -4,6 +4,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 
 use openrust::http::HttpFuture;
@@ -30,6 +31,16 @@ pub struct RecordedPrompt {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub steps: Vec<Step>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordedQueuedPrompt {
+    pub text: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub timeout: Option<Duration>,
+    pub attachments: Vec<Attachment>,
+    pub broadcast: bool,
 }
 
 pub enum FakeTextResult {
@@ -80,6 +91,7 @@ enum FakeTextSource {
 pub struct FakeTextGateway {
     source: FakeTextSource,
     prompts: Mutex<Vec<RecordedPrompt>>,
+    queued: Mutex<Vec<RecordedQueuedPrompt>>,
     prevent_stray: AtomicBool,
 }
 
@@ -100,6 +112,7 @@ impl FakeTextGateway {
         Self {
             source,
             prompts: Mutex::default(),
+            queued: Mutex::default(),
             prevent_stray: AtomicBool::new(false),
         }
     }
@@ -141,6 +154,35 @@ impl FakeTextGateway {
     #[track_caller]
     pub fn assert_never_prompted(&self) {
         self.assert_prompted_times(0);
+    }
+
+    pub fn recorded_queued(&self) -> Vec<RecordedQueuedPrompt> {
+        self.queued.lock().unwrap().clone()
+    }
+
+    pub(crate) fn record_queued(&self, prompt: RecordedQueuedPrompt) {
+        self.queued.lock().unwrap().push(prompt);
+    }
+
+    #[track_caller]
+    pub fn assert_queued(&self, predicate: impl Fn(&RecordedQueuedPrompt) -> bool) {
+        assert!(
+            self.recorded_queued().iter().any(predicate),
+            "未发现匹配的排队 AI 提示"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_not_queued(&self, predicate: impl Fn(&RecordedQueuedPrompt) -> bool) {
+        assert!(
+            !self.recorded_queued().iter().any(predicate),
+            "发现了不应排队的 AI 提示"
+        );
+    }
+
+    #[track_caller]
+    pub fn assert_never_queued(&self) {
+        assert!(self.queued.lock().unwrap().is_empty(), "发现了排队 AI 提示");
     }
 
     fn respond(&self, prompt: RecordedPrompt) -> AiResult<AgentResponse> {

@@ -3,11 +3,17 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, FakeTextResult,
-    Message, ProviderOptions, QueueableAgent, QueuedAgentResponse, RecordedPrompt,
-    StreamableAgentResponse, StructuredAnonymousAgent, TextGenerationOptions, TextModelTier, Tool,
-    ToolChoice, agent_broadcast::StreamBroadcast,
+    AgentMiddleware, AgentResponse, Ai, AiError, AiResult, Attachment, FakeTextGateway,
+    FakeTextResult, Message, ProviderOptions, QueueableAgent, QueuedAgentResponse, RecordedPrompt,
+    RecordedQueuedPrompt, StreamableAgentResponse, StructuredAnonymousAgent, TextGenerationOptions,
+    TextModelTier, Tool, ToolChoice, agent_broadcast::StreamBroadcast,
 };
+
+fn installed_fake<A: Agent>() -> AiResult<Arc<FakeTextGateway>> {
+    Ai::manager()?
+        .text_fake::<A>()
+        .ok_or(AiError::FakeNotInstalled)
+}
 
 #[derive(Clone, Copy, Default)]
 pub struct PromptOptions<'a> {
@@ -123,6 +129,68 @@ pub trait Agent: Send + Sync + 'static {
         Self: Sized,
     {
         Ok(Ai::manager()?.text_fake::<Self>().is_some())
+    }
+
+    #[track_caller]
+    fn assert_prompted(predicate: impl Fn(&RecordedPrompt) -> bool) -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_prompted(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_not_prompted(predicate: impl Fn(&RecordedPrompt) -> bool) -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_not_prompted(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_prompted_times(count: usize) -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_prompted_times(count);
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_never_prompted() -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        Self::assert_prompted_times(0)
+    }
+
+    #[track_caller]
+    fn assert_queued(predicate: impl Fn(&RecordedQueuedPrompt) -> bool) -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_not_queued(predicate: impl Fn(&RecordedQueuedPrompt) -> bool) -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_not_queued(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_never_queued() -> AiResult<()>
+    where
+        Self: Sized,
+    {
+        installed_fake::<Self>()?.assert_never_queued();
+        Ok(())
     }
 
     fn prompt<'a>(&'a self, prompt: &'a str) -> HttpFuture<'a, AiResult<AgentResponse>>

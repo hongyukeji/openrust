@@ -11,7 +11,10 @@ use openrust::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{Agent, AgentResponse, AiError, PromptOptions, agent_broadcast::QueuedBroadcast};
+use crate::{
+    Agent, AgentResponse, Ai, AiError, PromptOptions, RecordedQueuedPrompt,
+    agent_broadcast::QueuedBroadcast,
+};
 
 pub type AgentQueueThen<A> =
     for<'a> fn(&'a A, &'a AgentResponse) -> QueueFuture<'a, QueueResult<()>>;
@@ -135,6 +138,18 @@ impl<'a, A: QueueableAgent> QueuedAgentResponse<'a, A> {
         }
         validate_callbacks::<A>(&self.invocation.then, &self.invocation.catch)?;
         let payload = Payload::new(A::QUEUE_JOB, &self.invocation)?.with_options(self.job);
+        if let Ok(manager) = Ai::manager()
+            && let Some(fake) = manager.text_fake::<A>()
+        {
+            fake.record_queued(RecordedQueuedPrompt {
+                text: self.invocation.text.clone(),
+                provider: self.invocation.provider.clone(),
+                model: self.invocation.model.clone(),
+                timeout: self.invocation.timeout,
+                attachments: self.invocation.agent.attachments().to_vec(),
+                broadcast: self.invocation.broadcast.is_some(),
+            });
+        }
         Queue::dispatch(payload, self.dispatch, None).await
     }
 }

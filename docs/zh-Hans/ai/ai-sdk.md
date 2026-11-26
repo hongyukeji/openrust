@@ -762,6 +762,8 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 使用 `SupportAgent::fake_responses` 可按序混合文本、JSON 对象、完整响应和 `ToolCall`。序列为空或耗尽时，结构化提示会按属性、枚举、默认值、长度及数值范围生成样本。启用 `prevent_stray_prompts(true)` 可要求每个模型步骤都有显式结果。
 
+用 `SupportAgent::assert_queued`、`assert_not_queued` 和 `assert_never_queued` 核对派发的提示。排队提示和已执行提示分别记录。独立启动的 Worker 使用所属应用中注册的 Fake。
+
 ## Embeddings {#embeddings}
 
 设置 `AI_EMBEDDINGS_PROVIDER=openai`，并将供应商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批量发送文本，按输入顺序返回向量。

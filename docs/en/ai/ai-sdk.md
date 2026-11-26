@@ -762,6 +762,8 @@ Use `SupportAgent::fake` to supply an ordered list of strings, or `SupportAgent:
 
 Use `SupportAgent::fake_responses` for an ordered list that mixes text, JSON objects, full responses, and `ToolCall` values. An empty or exhausted sequence supplies a sample for a structured prompt. The sample follows declared properties, enum values, defaults, sizes, and numeric bounds. Enable `prevent_stray_prompts(true)` to require a supplied result for each model step.
 
+Use `SupportAgent::assert_queued`, `assert_not_queued`, and `assert_never_queued` to check dispatched prompts. Queued prompts and executed prompts have separate records. A separately started Worker uses its own application’s Fake registration.
+
 ## Embeddings {#embeddings}
 
 Set `AI_EMBEDDINGS_PROVIDER=openai` and `OPENAI_EMBEDDING_MODEL` to the model ID from your provider. The SDK sends text inputs as a batch and orders the vectors by the original input index.

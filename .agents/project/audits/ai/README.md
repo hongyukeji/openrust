@@ -16,7 +16,7 @@ SDK 已验证四种原生文本协议、结构化输出、流式工具与回调�
 | `src/AiManager.php` 的 `getDefaultInstance`、`setDefaultInstance`、`getInstanceConfig`、`textProvider`、`textProviderFor` 及继承的实例缓存、扩展 | `AiManager` 对应的 Rust 方法为 `get_default_instance`、`set_default_instance`、`get_instance_config`、`text_provider`、`text_provider_for`、`extend`、`forget_instance`。按具名配置惰性解析，应用缺默认连接时错误留在调用时。尚待核对基本方法完整的消费者覆盖、驱动别名及其他能力和生命周期。按需实例在下方单独记录。 |
 | `src/Contracts/Agent.php`、`src/Promptable.php`、`functions.php` 的 `instructions`、`prompt`、`agent()` | `Agent::instructions`、`Agent::prompt` 与 `agent()` 可用于单条文本；Rust 以 `prompt_with` 加 `PromptOptions` 实现 Provider／模型／超时覆盖。普通和显式配置验收见包测试。Trait 的 `provider`／`model` 钩子保留单连接的选择优先级。普通用户和助手历史消息在 AI-02 实现。待补 schema、数组／按需 Provider 选择、附件、事件及其余成员。 |
 | `src/Providers/OpenAiProvider.php`、`OpenAiCompatibleProvider.php` 和对应 Gateway 的非流式请求与响应 | 用 `async-openai` 的请求类型，OpenRust HTTP 工厂实际发送两种协议。由内部投影解析文本及上游用量，非成功状态返回不带上游载荷的错误。用户确认预设不指定默认模型，各上游模型需显式选择。待补高级模型选项、普通与流式终止细节、响应元数据完整契约和供应商实机。 |
-| `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 应用范围内支持字符串序列、`fake_responses` 类型化序列与 `fake_with` 步骤闭包。闭包可读取此前工具结果。结构化提示在耗尽后按 Schema 生成样本。复用真实中间件、工具执行和流，按调用记录一次。排队断言待补。 |
+| `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 应用范围内支持字符串序列、`fake_responses` 类型化序列与 `fake_with` 步骤闭包。闭包可读取此前工具结果。结构化提示在耗尽后按 Schema 生成样本。复用真实中间件、工具执行和流，按调用记录一次。静态提示及排队断言经真实应用、HTTP、Artisan 与 Worker 验收。 |
 
 包级验收通过正常 HTTP Kernel 调用 `Agent::prompt`，实际向本地 TCP 协议服务发出请求。覆盖鉴权、保留基础路径、请求体、模型优先级、返回文本、用量、HTTP 429 错误脱敏和两个应用间 Fake 隔离。独立应用的 Artisan 验收包发现后的配置查询、发布和缓存，检查缓存无原始凭证以及清除缓存后 URL 环境变量覆盖生效。供应商实机与对外网关尚待验收。
 
@@ -265,6 +265,8 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 独立 HTTP、Artisan、SQLite Worker、模型协议服务和真实 Reverb WebSocket 联测三种方式。通过框架频道授权接口得到订阅签名，未授权请求收到 403，未订阅客户端无事件。超过 Reverb 10 KB 入口限制的中文文本事件仍完整到达 HTTP SSE，前后的正常广播保留，拒绝投递写日志。Worker 对同一调用标识发出完成和终态失败事件，实际用量交给回调。三语构建、AI 页面在两种部署前缀的桌面与移动检查以及全站导航页渲染通过。全站浏览器脚本的安装页语言切换保留查询和锚点断言在该轮超时，独立记录于验收日志。
 
 Worker 复用流完成回调的响应汇总，发布期间逐帧处理。新增独立 Reverb 实测中，两步分别报告 11 输入／3 输出和 7 输入／4 输出 Token，Worker 完成回调汇总为 18／7，保留工具结果、合并文本和各步终帧实际模型。订阅者仍按步骤收到原始用量。原三种广播、403、进程隔离、终态失败和大小限制场景同步复验。SDK 回归 14 项、严格 Clippy 与三语站点通过。
+
+Agent 类型可直接断言提示与排队请求。排队断言记录校验后的普通任务和队列广播，任务仍交给配置的队列后端执行。SQLite、PostgreSQL 18.7、MySQL 8.4.13 各由 Artisan 与 HTTP 派发四个任务，验证非法提示和未知回调未记入，排队和已执行记录相互独立。单独启动的 Worker 从自身应用安装 Fake，消费四个任务并调用正常完成回调，模型模拟上游收到零请求。SDK 回归 14 项、严格 Clippy 与三语站点通过。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel BroadcastAgent](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Jobs/BroadcastAgent.php)
 
