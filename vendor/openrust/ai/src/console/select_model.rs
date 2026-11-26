@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use crate::{Ai, AiError, AiManager, localization};
 
-use super::{console_error, write_line};
+use super::{console_error, error_message, write_line};
 
 pub(super) fn register() -> Result<(), ConsoleError> {
     Artisan::add(Box::new(SelectModel {
@@ -223,7 +223,7 @@ async fn choose(
 ) -> Result<String, ConsoleError> {
     let catalog = Ai::models(Some(provider)).await.map_err(console_error)?;
     if let Some(error) = catalog.discovery_error {
-        output.error(&error.to_string());
+        output.error(&error_message(&error));
     }
     let mut io = input.io(output);
     let models: Vec<String> = catalog

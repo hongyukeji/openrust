@@ -7,5 +7,19 @@
     "consumed": "De goedkeuring voor de AI-tool is al ingediend of wordt uitgevoerd.",
     "paused": "De uitvoering van AI-tools wacht op goedkeuring.",
     "not_resumable": "Deze tool vereist goedkeuring en deze aanroep kan daarna niet worden hervat."
+  },
+  "console": {
+    "default_not_configured": "Er is geen standaard AI-verbinding ingesteld.",
+    "provider_not_configured": "De AI-verbinding is niet ingesteld.",
+    "missing_credential": "De inloggegevens voor de verbinding ontbreken in de omgeving.",
+    "missing_model": "Selecteer een AI-model of stel een standaardmodel in voor deze verbinding.",
+    "models_not_supported": "Deze protocoldriver biedt geen modellencatalogus.",
+    "transport": "Het verzoek aan de AI-aanbieder is mislukt.",
+    "timeout": "Het verzoek aan de AI-aanbieder is verlopen.",
+    "provider_status": "De AI-aanbieder heeft HTTP :status geretourneerd.",
+    "invalid_response": "De AI-aanbieder heeft een ongeldig antwoordformaat geretourneerd.",
+    "refused": "De AI-aanbieder heeft het generatieverzoek geweigerd.",
+    "invalid_schema": "Het schema voor gestructureerde uitvoer is ongeldig.",
+    "invalid_prompt": "De AI-prompt mag niet leeg zijn."
   }
 }

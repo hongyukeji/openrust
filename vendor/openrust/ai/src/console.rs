@@ -6,7 +6,10 @@ use openrust::{
 };
 use serde_json::json;
 
-use crate::{Agent, Ai, Message, PromptOptions, StructuredAgentResponse, StructuredOutput, agent};
+use crate::{
+    Agent, Ai, AiError, Message, PromptOptions, StructuredAgentResponse, StructuredOutput, agent,
+    localization,
+};
 
 mod make;
 mod select_model;
@@ -65,7 +68,7 @@ impl Command for Models {
                     write_line(output, &model.id)?;
                 }
                 if let Some(error) = catalog.discovery_error {
-                    output.error(&error.to_string());
+                    output.error(&error_message(&error));
                 }
             }
             Ok(status)
@@ -160,8 +163,37 @@ impl Command for Prompt {
     }
 }
 
-fn console_error(error: crate::AiError) -> ConsoleError {
-    ConsoleError::new(error.to_string())
+fn console_error(error: AiError) -> ConsoleError {
+    ConsoleError::new(error_message(&error))
+}
+
+fn error_message(error: &AiError) -> String {
+    let key = match error {
+        AiError::DefaultNotConfigured => "default_not_configured",
+        AiError::ProviderNotConfigured => "provider_not_configured",
+        AiError::MissingCredential => "missing_credential",
+        AiError::MissingModel => "missing_model",
+        AiError::ModelsNotSupported => "models_not_supported",
+        AiError::Transport => "transport",
+        AiError::Timeout => "timeout",
+        AiError::ProviderStatus(status) => {
+            return localization::text(
+                "ai::errors.console.provider_status",
+                &[("status".into(), status.to_string())].into(),
+                &error.to_string(),
+            );
+        }
+        AiError::InvalidResponse => "invalid_response",
+        AiError::Refused => "refused",
+        AiError::InvalidSchema => "invalid_schema",
+        AiError::InvalidPrompt => "invalid_prompt",
+        _ => return error.to_string(),
+    };
+    localization::text(
+        &format!("ai::errors.console.{key}"),
+        &Default::default(),
+        &error.to_string(),
+    )
 }
 
 fn write_line(output: &mut Output, line: &str) -> Result<(), ConsoleError> {

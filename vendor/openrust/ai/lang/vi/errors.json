@@ -7,5 +7,19 @@
     "consumed": "Phê duyệt công cụ AI đã được gửi hoặc đang thực thi.",
     "paused": "Công cụ AI đang chờ được phê duyệt để thực thi.",
     "not_resumable": "Công cụ này cần được phê duyệt và lượt gọi này không thể tiếp tục sau khi phê duyệt."
+  },
+  "console": {
+    "default_not_configured": "Chưa cấu hình kết nối AI mặc định.",
+    "provider_not_configured": "Chưa cấu hình kết nối AI này.",
+    "missing_credential": "Thông tin xác thực của kết nối không có trong môi trường.",
+    "missing_model": "Chọn mô hình AI hoặc cấu hình mô hình mặc định cho kết nối này.",
+    "models_not_supported": "Trình điều khiển giao thức này không cung cấp danh mục mô hình.",
+    "transport": "Yêu cầu tới nhà cung cấp AI thất bại.",
+    "timeout": "Yêu cầu tới nhà cung cấp AI đã hết thời gian chờ.",
+    "provider_status": "Nhà cung cấp AI trả về HTTP :status.",
+    "invalid_response": "Nhà cung cấp AI trả về phản hồi có định dạng không hợp lệ.",
+    "refused": "Nhà cung cấp AI từ chối yêu cầu tạo nội dung.",
+    "invalid_schema": "Lược đồ đầu ra có cấu trúc không hợp lệ.",
+    "invalid_prompt": "Lời nhắc AI không được để trống."
   }
 }

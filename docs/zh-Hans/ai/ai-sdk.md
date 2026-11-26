@@ -39,6 +39,8 @@ AI 命令帮助使用应用当前语言。运行 `./artisan help ai:select-model
 
 交互式连接和模型选择以及校验提示使用应用当前语言。数字选项和最终输出的模型 ID 在各语言下保持一致。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆写交互和校验提示。
 
+Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/vendor/ai/<locale>/errors.json` 的 `console` 下覆写文案。`ai:models --json` 继续输出原有的模型目录数据。
+
 通过 `agent(instructions).with_messages(history)` 带上历史对话。按顺序使用 `Message::user(text)` 和 `Message::assistant(text)` 构建历史消息，`prompt` 和 `stream` 会先发送历史，再发送本次提示词。Artisan 的 `--messages` 接受由 `role` 和 `content` 组成的 JSON 消息数组。
 
 在 HTTP 路由中，可使用 `agent(instructions).stream(prompt).await?.to_response()` 返回 SDK 的默认 SSE 事件。也可以通过 `into_stream()` 消费事件。

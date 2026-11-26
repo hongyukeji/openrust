@@ -39,6 +39,8 @@ AI 命令說明使用應用程式目前的語言。執行 `./artisan help ai:sel
 
 互動式連線與模型選擇及驗證提示使用應用程式目前的語言。各語言共用相同的數字選項和最終輸出的模型 ID。可在 `lang/vendor/ai/<locale>/console.json` 的 `select_model` 下覆寫互動及驗證提示。
 
+Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在 `lang/vendor/ai/<locale>/errors.json` 的 `console` 下覆寫文字。`ai:models --json` 繼續輸出原有的模型目錄資料。
+
 透過 `agent(instructions).with_messages(history)` 帶入歷史對話。依序使用 `Message::user(text)` 和 `Message::assistant(text)` 建立歷史訊息，`prompt` 和 `stream` 會先傳送歷史，再傳送本次提示詞。Artisan 的 `--messages` 接受由 `role` 和 `content` 組成的 JSON 訊息陣列。
 
 在 HTTP 路由中，可使用 `agent(instructions).stream(prompt).await?.to_response()` 回傳 SDK 的預設 SSE 事件。也可透過 `into_stream()` 消費事件。

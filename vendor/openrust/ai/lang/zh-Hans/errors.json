@@ -7,5 +7,19 @@
     "consumed": "AI 工具审批已提交或正在执行",
     "paused": "AI 工具执行等待审批",
     "not_resumable": "该工具须经审批，当前调用没有审批恢复入口"
+  },
+  "console": {
+    "default_not_configured": "未配置 AI 默认连接",
+    "provider_not_configured": "AI 连接未配置",
+    "missing_credential": "AI 连接的环境凭证未配置",
+    "missing_model": "请选择 AI 模型，或为当前连接配置默认模型",
+    "models_not_supported": "该 AI 协议驱动未提供模型目录",
+    "transport": "AI 供应商请求失败",
+    "timeout": "AI 供应商请求超时",
+    "provider_status": "AI 供应商返回 HTTP :status",
+    "invalid_response": "AI 供应商响应格式无效",
+    "refused": "AI 供应商拒绝了生成请求",
+    "invalid_schema": "AI 结构化输出模式无效",
+    "invalid_prompt": "AI 提示词不能为空"
   }
 }

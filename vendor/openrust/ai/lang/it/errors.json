@@ -7,5 +7,19 @@
     "consumed": "L’approvazione dello strumento IA è già stata inviata o è in esecuzione.",
     "paused": "L’esecuzione degli strumenti IA è in attesa di approvazione.",
     "not_resumable": "Questo strumento richiede un’approvazione e la chiamata non può riprendere dopo averla ricevuta."
+  },
+  "console": {
+    "default_not_configured": "Nessuna connessione IA predefinita è configurata.",
+    "provider_not_configured": "La connessione IA non è configurata.",
+    "missing_credential": "La credenziale della connessione manca nell’ambiente.",
+    "missing_model": "Seleziona un modello IA o configurane uno predefinito per questa connessione.",
+    "models_not_supported": "Questo driver di protocollo non offre un catalogo dei modelli.",
+    "transport": "La richiesta al fornitore IA non è riuscita.",
+    "timeout": "La richiesta al fornitore IA è scaduta.",
+    "provider_status": "Il fornitore IA ha restituito HTTP :status.",
+    "invalid_response": "Il fornitore IA ha restituito una risposta in formato non valido.",
+    "refused": "Il fornitore IA ha rifiutato la richiesta di generazione.",
+    "invalid_schema": "Lo schema dell’output strutturato non è valido.",
+    "invalid_prompt": "Il prompt IA non può essere vuoto."
   }
 }

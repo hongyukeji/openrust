@@ -7,5 +7,19 @@
     "consumed": "AI 도구 승인이 이미 제출되었거나 실행 중입니다.",
     "paused": "AI 도구 실행이 승인을 기다리고 있습니다.",
     "not_resumable": "이 도구는 승인이 필요하며 이 호출은 승인 후 재개할 수 없습니다."
+  },
+  "console": {
+    "default_not_configured": "기본 AI 연결이 구성되어 있지 않습니다.",
+    "provider_not_configured": "AI 연결이 구성되어 있지 않습니다.",
+    "missing_credential": "연결의 인증 정보가 환경 변수에 없습니다.",
+    "missing_model": "AI 모델을 선택하거나 이 연결의 기본 모델을 구성하세요.",
+    "models_not_supported": "이 프로토콜 드라이버는 모델 목록을 제공하지 않습니다.",
+    "transport": "AI 제공업체에 보낸 요청이 실패했습니다.",
+    "timeout": "AI 제공업체에 보낸 요청 시간이 초과되었습니다.",
+    "provider_status": "AI 제공업체가 HTTP :status 상태를 반환했습니다.",
+    "invalid_response": "AI 제공업체의 응답 형식이 올바르지 않습니다.",
+    "refused": "AI 제공업체가 생성 요청을 거부했습니다.",
+    "invalid_schema": "구조화된 출력 스키마가 올바르지 않습니다.",
+    "invalid_prompt": "AI 프롬프트는 비워 둘 수 없습니다."
   }
 }

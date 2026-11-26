@@ -7,5 +7,19 @@
     "consumed": "The AI tool approval has already been submitted or is running.",
     "paused": "AI tool execution is waiting for approval.",
     "not_resumable": "This tool requires approval, and this call cannot resume after approval."
+  },
+  "console": {
+    "default_not_configured": "No default AI connection is configured.",
+    "provider_not_configured": "The AI connection is not configured.",
+    "missing_credential": "The connection's credential is missing from the environment.",
+    "missing_model": "Select an AI model or configure a default model for this connection.",
+    "models_not_supported": "This protocol driver does not provide a model catalog.",
+    "transport": "The request to the AI provider failed.",
+    "timeout": "The request to the AI provider timed out.",
+    "provider_status": "The AI provider returned HTTP :status.",
+    "invalid_response": "The AI provider returned an invalid response format.",
+    "refused": "The AI provider refused the generation request.",
+    "invalid_schema": "The structured output schema is invalid.",
+    "invalid_prompt": "The AI prompt must not be empty."
   }
 }

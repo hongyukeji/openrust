@@ -7,5 +7,19 @@
     "consumed": "AI ツールの承認はすでに送信されたか実行中です。",
     "paused": "AI ツールの実行は承認待ちです。",
     "not_resumable": "このツールには承認が必要ですが、この呼び出しは承認後に再開できません。"
+  },
+  "console": {
+    "default_not_configured": "既定の AI 接続が設定されていません。",
+    "provider_not_configured": "AI 接続が設定されていません。",
+    "missing_credential": "接続の認証情報が環境変数に設定されていません。",
+    "missing_model": "AI モデルを選択するか、この接続の既定モデルを設定してください。",
+    "models_not_supported": "このプロトコルドライバーはモデルカタログを提供していません。",
+    "transport": "AI プロバイダーへのリクエストが失敗しました。",
+    "timeout": "AI プロバイダーへのリクエストがタイムアウトしました。",
+    "provider_status": "AI プロバイダーが HTTP :status を返しました。",
+    "invalid_response": "AI プロバイダーの応答形式が無効です。",
+    "refused": "AI プロバイダーが生成リクエストを拒否しました。",
+    "invalid_schema": "構造化出力のスキーマが無効です。",
+    "invalid_prompt": "AI プロンプトは空にできません。"
   }
 }

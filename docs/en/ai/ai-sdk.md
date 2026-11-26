@@ -39,6 +39,8 @@ AI command help follows the application locale. Run `./artisan help ai:select-mo
 
 Interactive connection and model selection, including validation messages, follow the application locale. Numeric menu choices and the returned model ID stay stable across languages. Override the prompts and validation messages through `lang/vendor/ai/<locale>/console.json` under `select_model`.
 
+Artisan displays connection and provider diagnostics in the application locale. To override a message, use `console` in `lang/vendor/ai/<locale>/errors.json`. Scripts that call `ai:models --json` continue to receive the same discovery data.
+
 Use `agent(instructions).with_messages(history)` to include earlier turns. Build the history in order with `Message::user(text)` and `Message::assistant(text)`. Both `prompt` and `stream` send those turns before the latest prompt. Artisan accepts the same history as a JSON array of `role` and `content` entries in `--messages`.
 
 In an HTTP route, return the default SDK SSE events with `agent(instructions).stream(prompt).await?.to_response()`. Use `into_stream()` to consume the events directly.

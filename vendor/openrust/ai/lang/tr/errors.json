@@ -7,5 +7,19 @@
     "consumed": "Yapay zekâ aracı onayı zaten gönderildi veya yürütülüyor.",
     "paused": "Yapay zekâ araçlarının çalıştırılması onay bekliyor.",
     "not_resumable": "Bu araç onay gerektiriyor ve bu çağrı onaydan sonra sürdürülemiyor."
+  },
+  "console": {
+    "default_not_configured": "Varsayılan bir yapay zekâ bağlantısı yapılandırılmamış.",
+    "provider_not_configured": "Yapay zekâ bağlantısı yapılandırılmamış.",
+    "missing_credential": "Bağlantının kimlik bilgisi ortamda yok.",
+    "missing_model": "Bir yapay zekâ modeli seçin veya bu bağlantı için varsayılan modeli yapılandırın.",
+    "models_not_supported": "Bu protokol sürücüsü bir model kataloğu sunmuyor.",
+    "transport": "Yapay zekâ sağlayıcısına gönderilen istek başarısız oldu.",
+    "timeout": "Yapay zekâ sağlayıcısına gönderilen istek zaman aşımına uğradı.",
+    "provider_status": "Yapay zekâ sağlayıcısı HTTP :status döndürdü.",
+    "invalid_response": "Yapay zekâ sağlayıcısı geçersiz biçimde yanıt verdi.",
+    "refused": "Yapay zekâ sağlayıcısı üretim isteğini reddetti.",
+    "invalid_schema": "Yapılandırılmış çıktı şeması geçersiz.",
+    "invalid_prompt": "Yapay zekâ istemi boş olamaz."
   }
 }

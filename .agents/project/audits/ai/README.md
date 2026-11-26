@@ -563,6 +563,12 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 实际 Artisan 与并发 HTTP 验证 18 语、法语覆写和回退。SQLite 验收覆盖审批键隔离、错误渲染的 404／409／410／422 状态、应用审批理由、跨进程暂停和恢复、三种流式协议，以及持久化后的审批事件。会话、工具、UI 回归、严格 Clippy 和三语文档通过。
 
+### AI-01 Artisan 连接与供应商诊断
+
+`ai:models`、`ai:prompt` 和 `ai:select-model` 的连接配置、凭证、模型目录、供应商状态、响应及结构化输入诊断通过 `ai::errors.console` 渲染，HTTP 状态号原样传入。解析错误类型及 `ai:models --json` 的目录数据沿用原契约。
+
+实际 Artisan 与并发 HTTP 验证 18 语、应用覆写、回退及退出码。使用本地 HTTP 上游返回推理 429 和目录 503，检查错误脱敏、配置模型保留、选择输出和机器 JSON 一致。文本、模型选择回归、严格 Clippy 和三语文档通过。
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。

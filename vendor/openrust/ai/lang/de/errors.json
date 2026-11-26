@@ -7,5 +7,19 @@
     "consumed": "Die Werkzeugfreigabe wurde bereits übermittelt oder wird ausgeführt.",
     "paused": "Die Ausführung der KI-Werkzeuge wartet auf Freigabe.",
     "not_resumable": "Das Werkzeug benötigt eine Freigabe. Dieser Aufruf kann danach nicht fortgesetzt werden."
+  },
+  "console": {
+    "default_not_configured": "Es ist keine Standardverbindung für KI konfiguriert.",
+    "provider_not_configured": "Die KI-Verbindung ist nicht konfiguriert.",
+    "missing_credential": "Die Zugangsdaten für die Verbindung fehlen in der Umgebung.",
+    "missing_model": "Wählen Sie ein Modell oder konfigurieren Sie ein Standardmodell für diese Verbindung.",
+    "models_not_supported": "Der Protokolltreiber bietet keinen Modellkatalog an.",
+    "transport": "Die Anfrage an den KI-Anbieter ist fehlgeschlagen.",
+    "timeout": "Die Anfrage an den KI-Anbieter hat das Zeitlimit überschritten.",
+    "provider_status": "Der KI-Anbieter hat HTTP :status zurückgegeben.",
+    "invalid_response": "Das Antwortformat des KI-Anbieters ist ungültig.",
+    "refused": "Der KI-Anbieter hat die Generierungsanfrage abgelehnt.",
+    "invalid_schema": "Das Schema für strukturierte Ausgaben ist ungültig.",
+    "invalid_prompt": "Der KI-Prompt darf nicht leer sein."
   }
 }

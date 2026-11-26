@@ -7,5 +7,19 @@
     "consumed": "AI 工具審批已提交或正在執行",
     "paused": "AI 工具執行正在等候審批",
     "not_resumable": "此工具須經審批，目前的呼叫沒有審批恢復入口"
+  },
+  "console": {
+    "default_not_configured": "尚未設定 AI 預設連線",
+    "provider_not_configured": "AI 連線尚未設定",
+    "missing_credential": "尚未設定 AI 連線的環境憑證",
+    "missing_model": "請選擇 AI 模型，或為目前的連線設定預設模型",
+    "models_not_supported": "此 AI 協定驅動程式未提供模型目錄",
+    "transport": "向 AI 供應商發出的請求失敗",
+    "timeout": "向 AI 供應商發出的請求逾時",
+    "provider_status": "AI 供應商傳回 HTTP :status",
+    "invalid_response": "AI 供應商的回應格式無效",
+    "refused": "AI 供應商拒絕了產生請求",
+    "invalid_schema": "AI 結構化輸出結構描述無效",
+    "invalid_prompt": "AI 提示詞不可為空"
   }
 }

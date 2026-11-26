@@ -7,5 +7,19 @@
     "consumed": "L’approbation d’outil d’IA a déjà été soumise ou est en cours d’exécution.",
     "paused": "L’exécution des outils d’IA attend une approbation.",
     "not_resumable": "Cet outil nécessite une approbation et cet appel ne peut pas reprendre après celle-ci."
+  },
+  "console": {
+    "default_not_configured": "Aucune connexion IA par défaut n’est configurée.",
+    "provider_not_configured": "La connexion IA n’est pas configurée.",
+    "missing_credential": "L’identifiant de la connexion est absent de l’environnement.",
+    "missing_model": "Sélectionnez un modèle d’IA ou configurez un modèle par défaut pour cette connexion.",
+    "models_not_supported": "Ce pilote de protocole ne fournit pas de catalogue de modèles.",
+    "transport": "La requête au fournisseur d’IA a échoué.",
+    "timeout": "La requête au fournisseur d’IA a dépassé le délai imparti.",
+    "provider_status": "Le fournisseur d’IA a renvoyé HTTP :status.",
+    "invalid_response": "Le fournisseur d’IA a renvoyé une réponse dans un format invalide.",
+    "refused": "Le fournisseur d’IA a refusé la demande de génération.",
+    "invalid_schema": "Le schéma de sortie structurée est invalide.",
+    "invalid_prompt": "L’invite IA ne doit pas être vide."
   }
 }

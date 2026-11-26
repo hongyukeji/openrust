@@ -7,5 +7,19 @@
     "consumed": "Persetujuan alat AI sudah dikirim atau sedang dijalankan.",
     "paused": "Eksekusi alat AI sedang menunggu persetujuan.",
     "not_resumable": "Alat ini memerlukan persetujuan dan pemanggilan ini tidak dapat dilanjutkan setelah disetujui."
+  },
+  "console": {
+    "default_not_configured": "Koneksi AI default belum dikonfigurasi.",
+    "provider_not_configured": "Koneksi AI belum dikonfigurasi.",
+    "missing_credential": "Kredensial koneksi tidak tersedia di lingkungan.",
+    "missing_model": "Pilih model AI atau konfigurasikan model default untuk koneksi ini.",
+    "models_not_supported": "Driver protokol ini tidak menyediakan katalog model.",
+    "transport": "Permintaan ke penyedia AI gagal.",
+    "timeout": "Permintaan ke penyedia AI melewati batas waktu.",
+    "provider_status": "Penyedia AI mengembalikan HTTP :status.",
+    "invalid_response": "Penyedia AI mengembalikan format respons yang tidak valid.",
+    "refused": "Penyedia AI menolak permintaan pembuatan keluaran.",
+    "invalid_schema": "Skema keluaran terstruktur tidak valid.",
+    "invalid_prompt": "Prompt AI tidak boleh kosong."
   }
 }

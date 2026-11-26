@@ -7,5 +7,19 @@
     "consumed": "La aprobación de herramientas de IA ya se ha enviado o se está ejecutando.",
     "paused": "La ejecución de las herramientas de IA está pendiente de aprobación.",
     "not_resumable": "Esta herramienta requiere aprobación y esta llamada no se puede reanudar después de aprobarla."
+  },
+  "console": {
+    "default_not_configured": "No se ha configurado una conexión de IA predeterminada.",
+    "provider_not_configured": "La conexión de IA no está configurada.",
+    "missing_credential": "Falta la credencial de la conexión en el entorno.",
+    "missing_model": "Selecciona un modelo de IA o configura uno predeterminado para esta conexión.",
+    "models_not_supported": "Este controlador de protocolo no ofrece un catálogo de modelos.",
+    "transport": "Falló la solicitud al proveedor de IA.",
+    "timeout": "Se agotó el tiempo de espera de la solicitud al proveedor de IA.",
+    "provider_status": "El proveedor de IA devolvió HTTP :status.",
+    "invalid_response": "El proveedor de IA devolvió una respuesta con un formato no válido.",
+    "refused": "El proveedor de IA rechazó la solicitud de generación.",
+    "invalid_schema": "El esquema de salida estructurada no es válido.",
+    "invalid_prompt": "El mensaje para la IA no puede estar vacío."
   }
 }
