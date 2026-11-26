@@ -1441,8 +1441,9 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
         .assert_successful();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let message = format!("{}TAIL", "中文".repeat(400));
+    let context = format!("{}CONTEXT_END", "中文".repeat(400));
     let entry = IncomingEntry::make(
-        json!({"level":"error","message":message})
+        json!({"level":"error","message":message,"context":context})
             .as_object()
             .unwrap()
             .clone(),
@@ -1458,10 +1459,12 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
     assert!(!listed.stdout.contains("TAIL"));
     let short = app.artisan(["telescope:show", &id]).await;
     short.assert_successful();
-    assert!(!short.stdout.contains("TAIL"));
+    assert!(short.stdout.contains(&message));
+    assert!(!short.stdout.contains("CONTEXT_END"));
     let full = app.artisan(["telescope:show", &id, "--full"]).await;
     full.assert_successful();
     assert!(full.stdout.contains(&message));
+    assert!(full.stdout.contains(&context));
     let json = app.artisan(["telescope:show", &id, "--json"]).await;
     json.assert_successful();
     assert_eq!(
@@ -2104,6 +2107,163 @@ async fn request_watcher_records_plain_text_and_nested_upload_metadata_without_r
     }
     assert_eq!(records[1].content["payload"], "Plain\n正文");
     assert!(records[0].content["payload"].is_null());
+}
+
+#[tokio::test]
+async fn console_show_renders_fixed_details_for_remaining_entry_types() {
+    use EntryType::*;
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let long_message = format!("{}TAIL", "界".repeat(500));
+    let cases = [
+        (
+            Query,
+            json!({"connection":"default","time":"2.5","slow":true,"sql":"select ?","bindings":[42],"file":"/app/query.rs","line":17}),
+            "Query",
+            &[
+                "Connection\tdefault",
+                "Duration\t2.5ms  SLOW",
+                "Source\t/app/query.rs:17",
+                "SQL\tselect ?",
+                "Bindings",
+            ][..],
+        ),
+        (
+            Cache,
+            json!({"type":"set","key":"metrics","expiration":0,"value":{"count":3}}),
+            "Cache: set",
+            &["Key\tmetrics", "Expiration\t0s", "Value", "\"count\": 3"],
+        ),
+        (
+            Log,
+            json!({"level":"warning","message":long_message,"context":{"limit":3}}),
+            "Log: warning",
+            &["Message\t", "TAIL", "Context", "\"limit\": 3"],
+        ),
+        (
+            Mail,
+            json!({"mailable":"App::AuditMail","subject":"Audit","queued":true,"to":{"m@example.org":"Reader","b@example.org":""},"from":{"s@example.org":"System"}}),
+            "Mail: Audit",
+            &[
+                "Mailable\tApp::AuditMail",
+                "Queued\tYes",
+                "To\tReader <m@example.org>, b@example.org",
+                "From\tSystem <s@example.org>",
+            ],
+        ),
+        (
+            Event,
+            json!({"name":"Changed","broadcast":true,"listeners":[{"name":"sync"},{"name":"async","queued":true}],"payload":{"id":42}}),
+            "Event: Changed",
+            &["Broadcast\tYes", "Listeners", "async (queued)", "Payload"],
+        ),
+        (
+            Command,
+            json!({"command":"audit:run","exit_code":0,"arguments":{"id":42},"options":{"verbose":true}}),
+            "Command: audit:run",
+            &["Exit Code\t0", "Arguments", "Options"],
+        ),
+        (
+            ScheduledTask,
+            json!({"command":"audit:run","expression":"* * * * *","timezone":"UTC","description":"nightly","output":"done"}),
+            "Scheduled Task: audit:run",
+            &[
+                "Expression\t* * * * *",
+                "Timezone\tUTC",
+                "Description\tnightly",
+                "Output",
+            ],
+        ),
+        (
+            ClientRequest,
+            json!({"method":"PATCH","uri":"https://example.org","duration":0,"payload":{"visible":true},"response":"document"}),
+            "Client Request: PATCH https://example.org",
+            &["Status\tN/A", "Duration\t0ms", "Payload", "Response"],
+        ),
+        (
+            Gate,
+            json!({"ability":"audit","result":"allowed","file":"/app/policy.rs","line":4,"arguments":[42]}),
+            "Gate: audit: allowed",
+            &["Source\t/app/policy.rs:4", "Arguments"],
+        ),
+        (
+            Model,
+            json!({"model":"App::Article","action":"updated","count":0,"changes":{"name":"new"}}),
+            "Model: App::Article: updated",
+            &["Count\t0", "Changes"],
+        ),
+        (
+            Notification,
+            json!({"notification":"App::Alert","channel":"mail","notifiable":"App::Account:42","queued":true}),
+            "Notification: Alert",
+            &[
+                "Channel\tmail",
+                "Notifiable\tApp::Account:42",
+                "Queued\tYes",
+            ],
+        ),
+        (
+            View,
+            json!({"name":"sample","path":"/app/views/sample.blade.html","composers":[{"name":"Bound","type":"class"}],"data":{"visible":true}}),
+            "View: sample",
+            &[
+                "Path\t/app/views/sample.blade.html",
+                "Composers",
+                "Bound (class)",
+                "Data",
+            ],
+        ),
+        (
+            Redis,
+            json!({"connection":"default","time":1.5,"command":"GET audit"}),
+            "Redis",
+            &[
+                "Connection\tdefault",
+                "Duration\t1.5ms",
+                "Command\tGET audit",
+            ],
+        ),
+        (
+            Dump,
+            json!({"dump":"debug snapshot"}),
+            "Dump",
+            &["Content", "\"dump\": \"debug snapshot\""],
+        ),
+        (
+            Batch,
+            json!({"id":"aggregate","total_jobs":2}),
+            "Batch",
+            &["Content", "\"total_jobs\": 2"],
+        ),
+    ];
+    for (kind, content, heading, expected) in cases {
+        let entry = IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(uuid::Uuid::now_v7());
+        let id = entry.uuid.to_string();
+        repository.store(&[entry]).await.unwrap();
+        let result = app.artisan(["telescope:show", &id]).await;
+        result.assert_successful();
+        assert!(
+            result
+                .stdout
+                .lines()
+                .any(|line| line.trim() == format!("INFO  {heading}")),
+            "{}",
+            result.stdout
+        );
+        for value in expected {
+            assert!(
+                result.stdout.contains(value),
+                "{kind:?} {value}: {}",
+                result.stdout
+            );
+        }
+    }
 }
 
 impl openrust::contracts::auth::Authenticatable for ObservedModel {

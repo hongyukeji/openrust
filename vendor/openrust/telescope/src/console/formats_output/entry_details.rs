@@ -1,24 +1,26 @@
+mod generic;
+
 use super::{basename, limit, more, single_line, text, unit, write_row};
 use crate::{EntryResult, EntryType};
 use openrust::{console::Output, support::php_value_truthy};
 use serde_json::Value;
 
-pub(super) fn heading(entry: &EntryResult) -> Option<String> {
+pub(super) fn heading(entry: &EntryResult) -> String {
     let c = &entry.content;
     match entry.r#type {
-        EntryType::Request => Some(format!(
+        EntryType::Request => format!(
             "Request: {} {} -> {}",
             text(c, "method"),
             text(c, "uri"),
             text(c, "response_status")
-        )),
-        EntryType::Exception => Some(format!("Exception: {}", basename(&text(c, "class")))),
-        EntryType::Job => Some(format!(
+        ),
+        EntryType::Exception => format!("Exception: {}", basename(&text(c, "class"))),
+        EntryType::Job => format!(
             "Job: {} [{}]",
             basename(&text(c, "name")),
             text_or(c, "status", "pending")
-        )),
-        _ => None,
+        ),
+        _ => generic::heading(entry),
     }
 }
 
@@ -29,7 +31,7 @@ pub(super) fn render(output: &mut Output, entry: &EntryResult, full: bool) {
         EntryType::Request => request(output, c, full),
         EntryType::Exception => exception(output, c),
         EntryType::Job => job(output, c, full),
-        _ => unreachable!(),
+        _ => generic::render(output, entry, full),
     }
 }
 

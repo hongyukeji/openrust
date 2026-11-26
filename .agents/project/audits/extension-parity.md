@@ -4,11 +4,13 @@
 
 ## 2026-11-26 三扩展检查点
 
-Telescope 的原生命令已验证批次查询统计和请求、异常、任务详情。请求完成链路已在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对可信代理地址、脱敏会话、请求筛选、缓冲响应和 Blade 模板来源。已缓存纯文本与 multipart 上传元数据通过相同三库，余下条目类别继续从同一账本接续。 [Telescope 专项审计](telescope/README.md)
+Telescope 的原生命令已验证批次查询统计和全部 18 类条目详情。请求完成链路已在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对可信代理地址、脱敏会话、请求筛选、缓冲响应和 Blade 模板来源。已缓存纯文本与 multipart 上传元数据通过相同三库。 [Telescope 专项审计](telescope/README.md)
 
 Pulse 的慢操作、用量、异常、缓存、队列和服务器卡片复用五秒查询快照。查询耗时与执行时间和缓存结果一起刷新，已授权 HTTP 和原生浏览器均有专项证据。 [Pulse 卡片查询审计](pulse/README.md#查询耗时和执行时间)
 
 Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化构建验证独占 Redis、三个 Sentinel 和真实故障切换；Windows 11 ARM64 有原生开发构建的进程矩阵。正式目标服务管理器、物理 x86_64、目标 Redis 拓扑和最终发布快照仍按部署条件验收。 [Horizon 专项审计](horizon/README.md) [平台与发布条件](../todo.md#平台与发布条件)
+
+同一 macOS 隔离快照使用真实 Redis 8.10.3 复验 Horizon 运行时 20 项、Pulse 具名卡片查询缓存与 Telescope Redis 命令诊断。证据为 `target/tmp/observability-parity/observability-request-redis-macos-retry.log`。本批验证实际本地组件入口，发布仍按锁定交付组合执行。
 
 ## 来源和取舍
 

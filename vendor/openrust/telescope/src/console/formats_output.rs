@@ -178,11 +178,7 @@ pub(super) fn show(
     kinds: &[EntryType],
     full: bool,
 ) {
-    let heading = entry_details::heading(entry);
-    let structured = heading.is_some();
-    let heading =
-        heading.unwrap_or_else(|| format!("{}: {}", entry.r#type.as_str(), summary(entry, full)));
-    output.info(&single_line(&heading));
+    output.info(&single_line(&entry_details::heading(entry)));
     output.stdout.push_str(&format!(
         "UUID\t{}\nTime\t{}\nBatch\t{}\n",
         entry.id, entry.created_at, entry.batch_id
@@ -192,31 +188,7 @@ pub(super) fn show(
             .stdout
             .push_str(&format!("Tags\t{}\n", entry.tags.join(", ")));
     }
-    if structured {
-        entry_details::render(output, entry, full);
-    } else if let Some(content) = entry.content.as_object() {
-        for (key, value) in content {
-            if value.is_null() {
-                continue;
-            }
-            output.info(key);
-            let value = value
-                .as_str()
-                .map(str::to_owned)
-                .unwrap_or_else(|| serde_json::to_string_pretty(value).expect("JSON value"));
-            output.stdout.push_str(&single_line(&limit(
-                &value,
-                if key == "response" { 1000 } else { 500 },
-                full,
-            )));
-            output.stdout.push('\n');
-        }
-    } else {
-        output
-            .stdout
-            .push_str(&limit(&entry.content.to_string(), 1000, full));
-        output.stdout.push('\n');
-    }
+    entry_details::render(output, entry, full);
     show_batch(output, batch_id, batch, kinds, full);
 }
 

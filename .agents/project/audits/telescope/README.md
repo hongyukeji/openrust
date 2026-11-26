@@ -63,7 +63,7 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 - 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
 - Gate 已覆盖授权入口及同应用嵌套授权。Query 已覆盖核心数据库、分页、模型写入、直接关系读取、关联写入、模型与集合关系加载、多对多中间表和常规 Schema。普通异步包装器、关系变体和驱动特有的 Schema 操作仍待核对。源码重映射的已验范围与部署条件见[发布构建的源码路径重映射](../extension-parity.md#发布构建的源码路径重映射)。EventWatcher 默认忽略框架事件，应用内共享的 ignoreFrameworkEvents 开关已在下节补齐。
 - 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP 客户端记录构建器提供的 multipart 元数据，来源边界见下文。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
-- 命令以原生纯文本表格输出，尚待核对上游颜色、相对时间和条目分类详情。批次统计见[同批次统计](#show-命令的同批次统计)。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
+- 命令以原生纯文本表格和绝对时间戳输出，18 类条目详情和批次统计已通过专项验收。相对时间和上游终端颜色仍在对账。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
 - 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
 
 缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
@@ -101,7 +101,7 @@ Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会
 
 固定 `ListCommand::tableColumns` 的 PHP 8.5.12 探针读取实际列和值。入站 Request 缺状态时显示 `0`，出站 ClientRequest 缺状态时显示 `N/A`，已有数值文本按整数输出。缓存动作显示 `HIT`、`MISS`、`SET` 和 `FORGET`，未知值原样保留。41 列以上的宽字符 URI 按显示宽度截断后追加省略号。证据为 `target/tmp/observability-parity/telescope-list-cells-upstream.log`。 [固定 ListCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ListCommand.php#L110-L208)
 
-Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。命令使用原生纯文本表格及时间戳。输出中的相对时间、颜色和 `show` 分类详情仍按各自契约核对。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
+Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。命令使用原生纯文本表格及时间戳。相对时间与颜色继续对账，`show` 分类详情见后续专项。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
 
 ## 出站 multipart
 
@@ -173,7 +173,9 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过实际 Blade 响应及 Telescope �
 
 ### Show 命令其余条目的分类详情
 
-固定 PHP 8.5.12 对查询、缓存、日志、邮件、事件、命令、调度、出站请求、Gate、模型、通知、View、Redis、Dump 和 Batch 十五类运行实际 `ShowCommand::renderEntry`。对账结果包含零值、源位置、联系人、监听器、组合器、正文分区及兜底内容。日志消息与 SQL 属于详情字段，单独的正文区块按 `--full` 控制。原生其余分类仍待补齐，固定证据为 `target/tmp/observability-parity/telescope-show-generic-upstream.log`。
+固定 PHP 8.5.12 对查询、缓存、日志、邮件、事件、命令、调度、出站请求、Gate、模型、通知、View、Redis、Dump 和 Batch 十五类运行实际 `ShowCommand::renderEntry`。对账结果包含零值、源位置、联系人、监听器、组合器、正文分区及兜底内容。日志消息与 SQL 属于详情字段，单独的正文区块按 `--full` 控制。Rust 使用原生详情表格呈现同样的分类和字段，保留捕获内容中的实际值。 [固定 ShowCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ShowCommand.php#L217-L355)
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 经实际 Artisan 验证十五类详情和长日志消息。Unicode 回归区分列表摘要、完整消息和可截断的上下文区块，同时验证 `--full` 和 JSON。Telescope Provider 27 项、Pulse Provider 24 项、仓储 14 项、隔离快照全仓格式、三扩展相关严格 Clippy、三语构建及六组浏览器检查通过。实际 Redis 专项见[三扩展检查点](../extension-parity.md#2026-11-26-三扩展检查点)。证据为 `target/tmp/observability-parity/telescope-show-generic-{upstream,macos-baseline,macos-final,docs}.log`。
 
 ### Query 事务和保存点的调用来源
 
