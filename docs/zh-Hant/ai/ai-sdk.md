@@ -64,7 +64,7 @@ let answer = response.text;
 
 兩個方向的轉換都支援一般 JSON 和 SSE，並向用戶端回傳公開模型名稱。上游回報快取讀寫用量時，閘道會依目標協定回傳相應的計數。
 
-同一個 Anthropic 發佈模型可以由 Messages 和 Responses 用戶端呼叫。轉換支援文字、系統指示、基本取樣參數和用戶端函式工具，支援 JSON 和 SSE。工具呼叫 ID、串流參數增量與文字結果可雙向傳遞。結構化輸出和附件使用對應的原生端點。
+同一個 Anthropic 發佈模型可供 Messages、Responses 和 Chat Completions 用戶端呼叫。轉換支援文字、系統指示、基本取樣參數和用戶端函式工具，支援 JSON 和 SSE。工具呼叫 ID、串流參數增量與文字結果可雙向傳遞。結構化輸出和附件使用對應的原生端點。
 
 Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key。閘道列出已授權的 Gemini 模型，並支援 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中選擇 `gemini` 連線，模型 ID 可以帶 `models/` 前綴。
 

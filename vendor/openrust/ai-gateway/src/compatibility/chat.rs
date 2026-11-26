@@ -2,7 +2,7 @@ use serde_json::{Map, Value, json};
 
 use super::{
     chat_tools::{self, History, StreamTools},
-    responses::{Finish, Response, text_parts},
+    responses::{Finish, Frame, Response, text_parts},
     tools::allowed_fields,
 };
 
@@ -167,7 +167,7 @@ impl StreamState {
         }
     }
 
-    pub(crate) fn convert(&mut self, data: &Value) -> Option<(Vec<String>, bool)> {
+    pub(super) fn convert(&mut self, data: &Value) -> Option<(Vec<Frame>, bool)> {
         let mut frames = Vec::new();
         if !data["error"].is_null() {
             return None;
@@ -225,7 +225,7 @@ impl StreamState {
         Some((frames, false))
     }
 
-    pub(crate) fn finish(&mut self) -> Option<(Vec<String>, bool)> {
+    pub(super) fn finish(&mut self) -> Option<(Vec<Frame>, bool)> {
         let finish = self.finish.take()?;
         if (matches!(finish, Finish::ToolUse) == self.tools.is_empty())
             || (self.text.is_none() && matches!(finish, Finish::Complete))

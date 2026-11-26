@@ -168,6 +168,7 @@ fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Opti
     }
     let translated: &[TextEndpoint] = match endpoint {
         TextEndpoint::Responses => &[TextEndpoint::Messages, TextEndpoint::ChatCompletions],
+        TextEndpoint::ChatCompletions => &[TextEndpoint::Messages],
         TextEndpoint::Messages => &[TextEndpoint::Responses],
         _ => &[],
     };

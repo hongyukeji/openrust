@@ -1,4 +1,5 @@
 mod chat;
+mod chat_messages;
 mod chat_tools;
 mod messages;
 mod responses;
@@ -11,6 +12,7 @@ use serde_json::{Map, Value};
 pub(super) enum Bridge {
     ResponsesToMessages,
     ResponsesToChat,
+    ChatToMessages,
     MessagesToResponses,
 }
 
@@ -19,6 +21,7 @@ impl Bridge {
         match (inbound, upstream) {
             (TextEndpoint::Responses, TextEndpoint::Messages) => Some(Self::ResponsesToMessages),
             (TextEndpoint::Responses, TextEndpoint::ChatCompletions) => Some(Self::ResponsesToChat),
+            (TextEndpoint::ChatCompletions, TextEndpoint::Messages) => Some(Self::ChatToMessages),
             (TextEndpoint::Messages, TextEndpoint::Responses) => Some(Self::MessagesToResponses),
             _ => None,
         }
@@ -57,9 +60,12 @@ impl Bridge {
         {
             response_fields.insert("text".into(), text.clone());
         }
+        let include_usage =
+            matches!(self, Self::ChatToMessages) && chat_messages::include_usage(&data)?;
         let request = match self {
             Self::ResponsesToMessages => responses::to_messages(data)?,
             Self::ResponsesToChat => chat::from_responses(data)?,
+            Self::ChatToMessages => chat_messages::to_messages(data)?,
             Self::MessagesToResponses => messages::to_responses(data)?,
         };
         Ok((
@@ -68,6 +74,7 @@ impl Bridge {
                 bridge: self,
                 response_fields: (!response_fields.is_empty()).then_some(response_fields),
                 allows_tools,
+                include_usage,
             },
         ))
     }
@@ -77,6 +84,7 @@ pub(super) struct Translation {
     bridge: Bridge,
     response_fields: Option<Map<String, Value>>,
     allows_tools: bool,
+    include_usage: bool,
 }
 
 impl Translation {
@@ -88,6 +96,8 @@ impl Translation {
             Bridge::ResponsesToChat => {
                 chat::response(name, self.response_fields, self.allows_tools, data)
             }
+            Bridge::ChatToMessages => chat_messages::Completion::new(name, self.include_usage)
+                .buffered(data, self.allows_tools),
             Bridge::MessagesToResponses => {
                 messages::Message::new(name, self.allows_tools).buffered(data)
             }
@@ -105,6 +115,9 @@ impl Translation {
                 self.response_fields,
                 self.allows_tools,
             ))),
+            Bridge::ChatToMessages => Stream::ChatClient(Box::new(
+                chat_messages::StreamState::new(name, self.include_usage, self.allows_tools),
+            )),
             Bridge::MessagesToResponses => Stream::Messages(
                 messages::Message::new(name, self.allows_tools),
                 messages::StreamState::default(),
@@ -116,21 +129,30 @@ impl Translation {
 pub(super) enum Stream {
     Responses(Box<responses::Response>, responses::StreamState),
     Chat(Box<chat::StreamState>),
+    ChatClient(Box<chat_messages::StreamState>),
     Messages(messages::Message, messages::StreamState),
 }
 
 impl Stream {
     pub(super) fn convert(&mut self, data: &Value) -> Option<(Vec<String>, bool)> {
         match self {
-            Self::Responses(response, state) => state.convert(response, data),
-            Self::Chat(state) => state.convert(data),
+            Self::Responses(response, state) => state.convert(response, data).map(response_wire),
+            Self::Chat(state) => state.convert(data).map(response_wire),
+            Self::ChatClient(state) => state.convert(data),
             Self::Messages(message, state) => state.convert(message, data),
         }
     }
     pub(super) fn finish(&mut self) -> Option<(Vec<String>, bool)> {
         match self {
-            Self::Chat(state) => state.finish(),
+            Self::Chat(state) => state.finish().map(response_wire),
             _ => None,
         }
     }
+}
+
+fn response_wire((frames, terminal): (Vec<responses::Frame>, bool)) -> (Vec<String>, bool) {
+    (
+        frames.into_iter().map(responses::Frame::wire).collect(),
+        terminal,
+    )
 }

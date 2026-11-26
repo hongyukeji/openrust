@@ -320,7 +320,7 @@ impl Response {
         ));
     }
 
-    pub(super) fn start(&mut self) -> [String; 2] {
+    pub(super) fn start(&mut self) -> [Frame; 2] {
         let body = json!({"response":self.response(None)});
         [
             self.frame("response.created", body.clone()),
@@ -328,7 +328,7 @@ impl Response {
         ]
     }
 
-    pub(super) fn start_text(&mut self, text: String) -> (TextOutput, [String; 2]) {
+    pub(super) fn start_text(&mut self, text: String) -> (TextOutput, [Frame; 2]) {
         let id = message_id();
         let output_index = self.output.len();
         let frames = [
@@ -338,11 +338,11 @@ impl Response {
         (TextOutput { id, text }, frames)
     }
 
-    pub(super) fn text_delta(&mut self, id: &str, delta: &str) -> String {
+    pub(super) fn text_delta(&mut self, id: &str, delta: &str) -> Frame {
         self.frame("response.output_text.delta", json!({"output_index":self.output.len(),"content_index":0,"item_id":id,"delta":delta,"logprobs":[]}))
     }
 
-    fn text_done(&mut self, id: &str, text: &str, status: &str) -> (Value, Vec<String>) {
+    fn text_done(&mut self, id: &str, text: &str, status: &str) -> (Value, Vec<Frame>) {
         let output_index = self.output.len();
         let part = text_part(text);
         let item = output_item(id, status, vec![part.clone()]);
@@ -353,7 +353,7 @@ impl Response {
         (item, frames)
     }
 
-    fn push_item(&mut self, item: Value) -> String {
+    fn push_item(&mut self, item: Value) -> Frame {
         let output_index = self.output.len();
         self.output.push(item.clone());
         self.frame(
@@ -362,7 +362,7 @@ impl Response {
         )
     }
 
-    pub(super) fn end_text(&mut self, text: TextOutput, finish: Finish) -> Vec<String> {
+    pub(super) fn end_text(&mut self, text: TextOutput, finish: Finish) -> Vec<Frame> {
         let (item, mut frames) = self.text_done(&text.id, &text.text, finish.item_status());
         frames.push(self.push_item(item));
         frames
@@ -384,7 +384,7 @@ impl Response {
         output_index: usize,
         call_id: &str,
         name: &str,
-    ) -> (String, String) {
+    ) -> (String, Frame) {
         let item_id = format!("fc_{}", Str::ulid());
         let item = function_item(&item_id, call_id, name, "", "in_progress");
         let frame = self.frame(
@@ -399,7 +399,7 @@ impl Response {
         output_index: usize,
         item_id: &str,
         delta: &str,
-    ) -> String {
+    ) -> Frame {
         self.frame(
             "response.function_call_arguments.delta",
             json!({"output_index":output_index,"item_id":item_id,"delta":delta}),
@@ -412,7 +412,7 @@ impl Response {
         call_id: &str,
         name: &str,
         arguments: &str,
-    ) -> [String; 2] {
+    ) -> [Frame; 2] {
         let done = self.frame(
             "response.function_call_arguments.done",
             json!({"output_index":self.output.len(),"item_id":item_id,"name":name,"arguments":arguments}),
@@ -421,7 +421,7 @@ impl Response {
         [done, self.push_item(item)]
     }
 
-    pub(super) fn terminal(&mut self, finish: Finish) -> String {
+    pub(super) fn terminal(&mut self, finish: Finish) -> Frame {
         let kind = if finish.incomplete_reason().is_some() {
             "response.incomplete"
         } else {
@@ -431,11 +431,22 @@ impl Response {
         self.frame(kind, body)
     }
 
-    fn frame(&mut self, kind: &str, mut payload: Value) -> String {
+    fn frame(&mut self, kind: &'static str, mut payload: Value) -> Frame {
         payload["type"] = kind.into();
         payload["sequence_number"] = self.sequence.into();
         self.sequence += 1;
-        format!("event: {kind}\ndata: {payload}\n\n")
+        Frame { kind, payload }
+    }
+}
+
+pub(super) struct Frame {
+    pub(super) kind: &'static str,
+    pub(super) payload: Value,
+}
+
+impl Frame {
+    pub(super) fn wire(self) -> String {
+        format!("event: {}\ndata: {}\n\n", self.kind, self.payload)
     }
 }
 
@@ -517,11 +528,11 @@ enum BlockContent {
 
 impl StreamState {
     /// 返回同一上游事件产生的 Responses 帧。最后一项给出是否收到终止事件。
-    pub(crate) fn convert(
+    pub(super) fn convert(
         &mut self,
         response: &mut Response,
         event: &Value,
-    ) -> Option<(Vec<String>, bool)> {
+    ) -> Option<(Vec<Frame>, bool)> {
         let frames = match event["type"].as_str()? {
             "ping" => vec![],
             "message_start" if !self.started => {

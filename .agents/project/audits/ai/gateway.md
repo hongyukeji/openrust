@@ -98,3 +98,11 @@ HTTP Kernel 验证非法和重复 ID、Key／模型别名隔离、首选失败�
 带函数 Schema 的 Responses 工具转换为 Chat 的具名函数。支持工具选择、并行选项、历史调用和匹配的文本结果。缺失、重复或未配对的结果在出站前拒绝。普通响应与 SSE 提供原始调用 ID，SSE 可同时转发多个工具的参数增量。只有确认结束且每个工具参数是完整 JSON 对象后才交付最终事件，错误流不产生假的完成帧。
 
 包测试验证多工具交错、无结果的调用历史、参数截断和 JSON 响应。独立 Artisan 调用 SDK，经 Responses 网关和 Chat 上游获得函数调用，使用框架参数验证执行后回传结果，最后得到文本。独立 HTTP 进程确认参数增量先于上游终止到达，随后验证完整参数、调用 ID 与用量。
+
+## GW-03 Chat Completions 到 Anthropic Messages
+
+同一 Anthropic 公开模型可接 Chat Completions。原生 Chat 仍优先，缺少原生支持时才转换。参考固定 Sub2API 的 Responses 中间映射，共用现有的文本、函数历史和 Anthropic 事件解析，再生成 Chat Completion JSON 或 SSE。转换覆盖停止词、生成 Token 参数、工具选择、调用 ID、参数片段、工具结果及可选的末尾用量帧。分段重放及跨协议工具结果必须完整且配对。
+
+包测试验证原生上游认证、正常 JSON、工具回送、真实 SSE 和截断错误。独立 Chat SDK Artisan 调用网关并经 Anthropic 上游执行业务工具；独立 HTTP 验证首段工具参数早于终止到达，且最终用量准确合并缓存 Token。文本与客户端函数以本地真实 TCP 上游验收，附件、签名推理块和供应商实机另列。
+
+- [Sub2API 固定 Chat Completions handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_chat_completions.go) · [Anthropic Messages SSE](https://platform.claude.com/docs/en/build-with-claude/streaming)

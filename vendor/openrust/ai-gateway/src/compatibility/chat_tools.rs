@@ -1,5 +1,6 @@
 use serde_json::{Map, Value, json};
 
+use super::responses::Frame;
 use super::tools::{
     ToolHistory, allowed_fields, arguments, response_choice, tool_definition, tool_id, tool_name,
 };
@@ -174,7 +175,7 @@ impl StreamTools {
         response: &mut super::responses::Response,
         calls: &Value,
         offset: usize,
-    ) -> Option<Vec<String>> {
+    ) -> Option<Vec<Frame>> {
         let mut frames = Vec::new();
         let calls = calls.as_array()?;
         for call in calls {
@@ -219,7 +220,7 @@ impl StreamTools {
     pub(super) fn finish(
         &mut self,
         response: &mut super::responses::Response,
-    ) -> Option<Vec<String>> {
+    ) -> Option<Vec<Frame>> {
         for tool in &self.outputs {
             serde_json::from_str::<Map<String, Value>>(&tool.arguments).ok()?;
         }
