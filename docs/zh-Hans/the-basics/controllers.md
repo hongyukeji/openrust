@@ -91,6 +91,68 @@ Route::resources([
 ])?;
 ```
 
+### 部分资源路由 {#restful-partial-resource-routes}
+
+用 `only` 选择动作，或用 `except` 排除指定动作。为最终保留的动作提供处理器。
+
+```rust
+Route::resource(
+    "partial/photos",
+    controller.only(&[ResourceAction::Index, ResourceAction::Show]),
+)?;
+```
+
+### 嵌套资源 {#restful-nested-resources}
+
+用点号表示嵌套关系。项目笔记的成员路径为 `/projects/{project}/notes/{note}`。
+
+```rust
+Route::resource("projects.notes", controller)?;
+```
+
+### 浅层嵌套 {#shallow-nesting}
+
+当子资源标识足以定位成员时，用 `shallow`。集合路由保留父路径，成员路由使用 `/comments/{comment}`。
+
+```rust
+Route::resource("photos.comments", controller.shallow())?;
+```
+
+### 命名资源路由 {#restful-naming-resource-routes}
+
+用 `names` 设置整组路由名称覆盖。用 `name` 更改一个动作的名称并保留其他覆盖。
+
+```rust
+Route::resource(
+    "titles/photos",
+    controller
+        .names(&[(ResourceAction::Create, "photos.build")])
+        .name(ResourceAction::Show, "photos.exhibit"),
+)?;
+```
+
+### 命名资源路由参数 {#restful-naming-resource-route-parameters}
+
+用 `parameters` 设置整组参数别名。用 `parameter` 更改一个资源的别名并保留其他别名。
+
+```rust
+Route::resource(
+    "custom/accounts.users",
+    controller
+        .parameters(&[("accounts", "tenant"), ("users", "admin_user")])
+        .parameter("users", "operator"),
+)?;
+```
+
+### 补充资源路由 {#restful-supplementing-resource-controllers}
+
+在资源路由之前注册补充路径。这样 `/photos/popular` 会进入专用动作，成员路由稍后才会尝试把 popular 当作照片标识。
+
+```rust
+Route::get("/photos/popular", popular)?;
+Route::resource("photos", controller)?;
+```
+
 ### 限定嵌套资源的模型绑定 {#scoping-nested-resources}
 
 用 `scoped(&[])` 确保嵌套模型属于已绑定的父模型。空列表保留模型各自的默认路由键。为每个参数注册对应的模型类型。

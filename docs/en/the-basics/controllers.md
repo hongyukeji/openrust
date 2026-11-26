@@ -91,6 +91,68 @@ Route::resources([
 ])?;
 ```
 
+### Partial Resource Routes {#restful-partial-resource-routes}
+
+Select the actions with `only`, or remove specific actions with `except`. Provide handlers for the actions that remain.
+
+```rust
+Route::resource(
+    "partial/photos",
+    controller.only(&[ResourceAction::Index, ResourceAction::Show]),
+)?;
+```
+
+### Nested Resources {#restful-nested-resources}
+
+Use dot notation to register nested resources. A project note can then be addressed at `/projects/{project}/notes/{note}`.
+
+```rust
+Route::resource("projects.notes", controller)?;
+```
+
+### Shallow Nesting {#shallow-nesting}
+
+Use `shallow` when the child identifier suffices for member actions. Collection routes keep the parent path and member routes use `/comments/{comment}`.
+
+```rust
+Route::resource("photos.comments", controller.shallow())?;
+```
+
+### Naming Resource Routes {#restful-naming-resource-routes}
+
+Use `names` to replace the route-name overrides. Use `name` to change one action’s name and keep the other overrides.
+
+```rust
+Route::resource(
+    "titles/photos",
+    controller
+        .names(&[(ResourceAction::Create, "photos.build")])
+        .name(ResourceAction::Show, "photos.exhibit"),
+)?;
+```
+
+### Naming Resource Route Parameters {#restful-naming-resource-route-parameters}
+
+Use `parameters` to replace the parameter aliases. Use `parameter` to change one resource’s alias and keep the other aliases.
+
+```rust
+Route::resource(
+    "custom/accounts.users",
+    controller
+        .parameters(&[("accounts", "tenant"), ("users", "admin_user")])
+        .parameter("users", "operator"),
+)?;
+```
+
+### Supplemental Resource Routes {#restful-supplementing-resource-controllers}
+
+Register a supplemental path before the resource routes. This lets `/photos/popular` reach the dedicated action before the member route can interpret “popular” as the photo identifier.
+
+```rust
+Route::get("/photos/popular", popular)?;
+Route::resource("photos", controller)?;
+```
+
 ### Scoping Nested Resources {#scoping-nested-resources}
 
 Use `scoped(&[])` to require each nested model to belong to its bound parent. The empty list keeps the models’ default route keys. Register each model type on its parameter.

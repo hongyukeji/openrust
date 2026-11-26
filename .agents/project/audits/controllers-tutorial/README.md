@@ -43,3 +43,9 @@ Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，
 旧实现实际允许错误父模型的请求返回 200。修复后 SQLite 和 MySQL 8.4.13 各 10 次固定对照通过，覆盖普通绑定、空选项、两级关系、替换字段、跨父子拒绝及退出作用域。三语正文的 6 个 Rust 片段直接提取，在真实 SQLite HTTP 中执行对应的 15 次请求。应用内实际 route:cache、独立 Artisan、浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-nested-scopes.json)。
 
 教程的关系名推断仍待独立接通。目前使用已有的类型化关系回调，测试明确声明父子关系。
+
+## 96. 资源动作选取、命名和补充路由
+
+直接运行固定 PHP Router 得到 23 条路由以及 5 条实际匹配。原生对照发现重复 names 和 parameters 保留旧映射，先在未修复的实际 Router 上复现，再使整组设置覆盖旧值。单独的 name 和 parameter 保留其他条目。动作选择、点号嵌套、浅层路径与成员匹配继续复用注册器。
+
+Rust Router 与实际 Artisan route:list 的 23 条方法、路径、名称和动作一致。5 次真实 HTTP 验证补充路由登记先后、父子参数名和浅层成员。三语正文 18 个片段直接提取成路由并发出 18 次真实 HTTP，9 项外围回归、独立 Artisan、三语站点、12 组浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-route-options.json)。

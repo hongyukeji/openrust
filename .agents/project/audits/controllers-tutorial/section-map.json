@@ -102,9 +102,10 @@
     },
     {
       "anchor": "restful-partial-resource-routes",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 only 和 except"
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
       ]
     },
     {
@@ -119,9 +120,10 @@
     },
     {
       "anchor": "restful-nested-resources",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 嵌套与浅层路由；另见本批生成消费者"
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
       ]
     },
     {
@@ -134,23 +136,26 @@
     },
     {
       "anchor": "shallow-nesting",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 浅层成员路由"
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
       ]
     },
     {
       "anchor": "restful-naming-resource-routes",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 路由名称与 Artisan 对照"
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
       ]
     },
     {
       "anchor": "restful-naming-resource-route-parameters",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 参数别名与 Artisan 对照"
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
       ]
     },
     {
@@ -171,8 +176,11 @@
     },
     {
       "anchor": "restful-supplementing-resource-controllers",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "resource-route-options-oracle.json",
+        "accepted-resource-route-options.json"
+      ]
     },
     {
       "anchor": "singleton-resource-controllers",

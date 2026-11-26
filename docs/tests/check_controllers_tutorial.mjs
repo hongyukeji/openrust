@@ -48,6 +48,14 @@ try {
                     assert.equal(await page.locator('#scoping-nested-resources').count(),1);
                     assert.equal(await page.locator('#restful-scoping-resource-routes').count(),1);
                     assert(text.includes('controller.scoped(&[])'));
+                    for (const anchor of [
+                        'restful-partial-resource-routes', 'restful-nested-resources', 'shallow-nesting',
+                        'restful-naming-resource-routes', 'restful-naming-resource-route-parameters',
+                        'restful-supplementing-resource-controllers',
+                    ]) {
+                        assert.equal(await page.locator(`#${anchor}`).count(),1);
+                    }
+                    assert(text.includes('.parameter("users", "operator")'));
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();

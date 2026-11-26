@@ -216,21 +216,33 @@ impl<C> ResourceController<C> {
         self
     }
 
+    /// 替换整个动作名称覆盖表。
     pub fn names(mut self, names: &[(ResourceAction, &str)]) -> Self {
-        self.names.extend(
-            names
-                .iter()
-                .map(|(action, name)| (*action, (*name).to_owned())),
-        );
+        self.names = names
+            .iter()
+            .map(|(action, name)| (*action, (*name).to_owned()))
+            .collect();
         self
     }
 
+    /// 为单个动作设置路由名。
+    pub fn name(mut self, action: ResourceAction, name: impl Into<String>) -> Self {
+        self.names.insert(action, name.into());
+        self
+    }
+
+    /// 替换整个资源参数别名表。
     pub fn parameters(mut self, parameters: &[(&str, &str)]) -> Self {
-        self.parameters.extend(
-            parameters
-                .iter()
-                .map(|(resource, parameter)| ((*resource).to_owned(), (*parameter).to_owned())),
-        );
+        self.parameters = parameters
+            .iter()
+            .map(|(resource, parameter)| ((*resource).to_owned(), (*parameter).to_owned()))
+            .collect();
+        self
+    }
+
+    /// 为单个资源设置路径参数别名。
+    pub fn parameter(mut self, resource: impl Into<String>, parameter: impl Into<String>) -> Self {
+        self.parameters.insert(resource.into(), parameter.into());
         self
     }
 

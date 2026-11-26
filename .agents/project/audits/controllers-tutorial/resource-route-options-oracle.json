@@ -1,0 +1,179 @@
+{
+    "routes": [
+        {
+            "methods": "GET|HEAD",
+            "uri": "only\/photos",
+            "name": "photos.index",
+            "action": "index"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "only\/photos\/{photo}",
+            "name": "photos.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "except\/photos",
+            "name": "photos.index",
+            "action": "index"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "except\/photos\/{photo}",
+            "name": "photos.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "except\/photos\/{photo}\/edit",
+            "name": "photos.edit",
+            "action": "edit"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "projects\/{project}\/notes",
+            "name": "projects.notes.index",
+            "action": "index"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "projects\/{project}\/notes\/{note}",
+            "name": "projects.notes.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "photos\/{photo}\/comments",
+            "name": "photos.comments.index",
+            "action": "index"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "photos\/{photo}\/comments\/create",
+            "name": "photos.comments.create",
+            "action": "create"
+        },
+        {
+            "methods": "POST",
+            "uri": "photos\/{photo}\/comments",
+            "name": "photos.comments.store",
+            "action": "store"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "comments\/{comment}",
+            "name": "comments.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "comments\/{comment}\/edit",
+            "name": "comments.edit",
+            "action": "edit"
+        },
+        {
+            "methods": "PUT|PATCH",
+            "uri": "comments\/{comment}",
+            "name": "comments.update",
+            "action": "update"
+        },
+        {
+            "methods": "DELETE",
+            "uri": "comments\/{comment}",
+            "name": "comments.destroy",
+            "action": "destroy"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "titles\/photos",
+            "name": "photos.index",
+            "action": "index"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "titles\/photos\/create",
+            "name": "photos.build",
+            "action": "create"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "titles\/photos\/{photo}",
+            "name": "photos.exhibit",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "admin\/users\/{user}",
+            "name": "users.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "custom\/accounts\/{tenant}\/users\/{operator}",
+            "name": "accounts.users.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "early\/photos\/popular",
+            "name": null,
+            "action": "Closure"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "early\/photos\/{photo}",
+            "name": "photos.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "late\/photos\/{photo}",
+            "name": "photos.show",
+            "action": "show"
+        },
+        {
+            "methods": "GET|HEAD",
+            "uri": "late\/photos\/popular",
+            "name": null,
+            "action": "Closure"
+        }
+    ],
+    "requests": [
+        {
+            "uri": "\/early\/photos\/popular",
+            "action": "Closure",
+            "parameters": []
+        },
+        {
+            "uri": "\/late\/photos\/popular",
+            "action": "show",
+            "parameters": {
+                "photo": "popular"
+            }
+        },
+        {
+            "uri": "\/custom\/accounts\/3\/users\/2",
+            "action": "show",
+            "parameters": {
+                "tenant": "3",
+                "operator": "2"
+            }
+        },
+        {
+            "uri": "\/projects\/2\/notes\/4",
+            "action": "show",
+            "parameters": {
+                "project": "2",
+                "note": "4"
+            }
+        },
+        {
+            "uri": "\/comments\/4",
+            "action": "show",
+            "parameters": {
+                "comment": "4"
+            }
+        }
+    ]
+}

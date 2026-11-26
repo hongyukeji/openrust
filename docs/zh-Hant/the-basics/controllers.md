@@ -91,6 +91,68 @@ Route::resources([
 ])?;
 ```
 
+### 部分資源路由 {#restful-partial-resource-routes}
+
+用 `only` 選取動作，或用 `except` 排除指定動作。請為最後保留的動作提供處理器。
+
+```rust
+Route::resource(
+    "partial/photos",
+    controller.only(&[ResourceAction::Index, ResourceAction::Show]),
+)?;
+```
+
+### 巢狀資源 {#restful-nested-resources}
+
+用點號表示巢狀關係。專案筆記的成員路徑為 `/projects/{project}/notes/{note}`。
+
+```rust
+Route::resource("projects.notes", controller)?;
+```
+
+### 淺層巢狀 {#shallow-nesting}
+
+當子資源識別碼足以定位成員時，用 `shallow`。集合路由保留父路徑，成員路由使用 `/comments/{comment}`。
+
+```rust
+Route::resource("photos.comments", controller.shallow())?;
+```
+
+### 命名資源路由 {#restful-naming-resource-routes}
+
+用 `names` 設定整組路由名稱覆寫。用 `name` 更改一個動作的名稱並保留其他覆寫。
+
+```rust
+Route::resource(
+    "titles/photos",
+    controller
+        .names(&[(ResourceAction::Create, "photos.build")])
+        .name(ResourceAction::Show, "photos.exhibit"),
+)?;
+```
+
+### 命名資源路由參數 {#restful-naming-resource-route-parameters}
+
+用 `parameters` 設定整組參數別名。用 `parameter` 更改一個資源的別名並保留其他別名。
+
+```rust
+Route::resource(
+    "custom/accounts.users",
+    controller
+        .parameters(&[("accounts", "tenant"), ("users", "admin_user")])
+        .parameter("users", "operator"),
+)?;
+```
+
+### 補充資源路由 {#restful-supplementing-resource-controllers}
+
+在資源路由之前註冊補充路徑。這樣 `/photos/popular` 會進入專用動作，成員路由稍後才會嘗試把 popular 當作相片識別碼。
+
+```rust
+Route::get("/photos/popular", popular)?;
+Route::resource("photos", controller)?;
+```
+
 ### 限制巢狀資源的模型繫結 {#scoping-nested-resources}
 
 用 `scoped(&[])` 確保巢狀模型隸屬於已繫結的父模型。空清單保留模型各自的預設路由鍵。請為每個參數註冊對應的模型型別。
