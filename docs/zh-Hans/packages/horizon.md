@@ -180,7 +180,7 @@ Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回�
 
 Redis 队列事件记录 ID、任务名、连接、队列、尝试次数、状态、耗时与 Redis 服务端时间。授权后的任务详情还提供序列化载荷、标签和异常文本。`Repository::recent(1..=100)` 保持纯元数据投影，近期索引最多 1000 个任务身份；`retention`（60–86400 秒，默认 3600）控制近期元数据和滚动 60 分钟尝试指标。
 
-`horizon.trim` 按分钟控制任务列表保留时间：`recent`、`pending`、`completed` 默认为 60，`recent_failed`、`failed`、`monitored` 默认为 10080。任务列表每页返回 50 条。`horizon.metrics.trim_snapshots.job` 与 `.queue` 默认各保留 24 个快照。平均耗时和吞吐量只计算成功完成的任务，失败、释放和等待重试不参与计算。重复结束事件在下一次处理事件前忽略；手动重试重置尝试次数时开始新的观测。
+`horizon.trim` 按分钟控制任务列表保留时间：`recent`、`pending`、`completed` 默认为 60，`recent_failed`、`failed`、`monitored` 默认为 10080。任务列表每页返回 50 条。`horizon.metrics.trim_snapshots.job` 与 `.queue` 默认各保留 24 个快照。平均耗时和吞吐量只计算成功完成的任务，失败、释放和等待重试不参与计算。每次完成事件的耗时以毫秒保留两位小数再计入汇总。重复结束事件在下一次处理事件前忽略；手动重试重置尝试次数时开始新的观测。
 
 `Repository::jobs()`、`tags()`、`metrics_repository()`、`master_supervisors()`、`supervisor_repository()`、`processes()` 与 `workload()` 提供独立仓储操作。监控标签按元数据前缀保存。每个指标的快照写入与当前计数重置原子执行。Master 心跳 15 秒后过期，监督器心跳 30 秒后过期。元数据服务错误会暂停领取新任务并结束 Master，由操作系统进程管理器恢复。监控记录会过期，不作为持久执行账本。
 

@@ -321,7 +321,8 @@ impl Listener for JobListener {
                         &e.job,
                         "finalize",
                         None,
-                        e.duration.as_secs_f64() * 1_000.,
+                        // Redis 内建计时使用纳秒，换算成百分之一毫秒后再存储。
+                        ((e.duration.as_nanos() + 5_000) / 10_000) as f64 / 100.,
                     )
                 } else if let Some(e) = event.downcast_ref::<JobFailed>() {
                     (
@@ -339,7 +340,7 @@ impl Listener for JobListener {
                         &e.job,
                         "finalize",
                         e.exception.as_deref(),
-                        e.duration.unwrap_or_default(),
+                        (e.duration.unwrap_or_default() * 100.).round() / 100.,
                     )
                 } else {
                     return Ok(None);

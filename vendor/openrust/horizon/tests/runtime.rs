@@ -1137,6 +1137,60 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_completion_metrics_keep_hundredths_of_a_millisecond() {
+    use openrust::{
+        queue::{Payload, events::JobSnapshot},
+        support::facades::{Event, Route},
+    };
+    use openrust_horizon::JobDeleted;
+
+    fn complete(_: &mut Request) -> HttpFuture<'_, Result<openrust::http::Response, HttpError>> {
+        Box::pin(async {
+            for (id, nanos) in [("low", 1_234_900), ("tie", 1_235_000), ("high", 1_235_100)] {
+                Event::dispatch(JobDeleted {
+                    connection_name: "redis".into(),
+                    job: JobSnapshot {
+                        id: id.into(),
+                        queue: id.into(),
+                        attempts: 1,
+                        payload: Payload::new(id, json!({})).unwrap(),
+                    },
+                    failed: false,
+                    duration: Duration::from_nanos(nanos),
+                })
+                .await?;
+            }
+            Ok(openrust::http::Response::from("observed"))
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/complete", complete)?;
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.get("/api/complete").await.unwrap().assert_ok();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let metrics = repository.metrics_repository();
+    for (key, expected) in [("low", 1.23), ("tie", 1.24), ("high", 1.24)] {
+        assert_eq!(metrics.runtime_for_job(key).await.unwrap(), expected);
+        assert_eq!(
+            metrics
+                .runtime_for_queue(&format!("redis:{key}"))
+                .await
+                .unwrap(),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_queue_names_and_reservation_observer_errors_preserve_delivery() {
     use openrust::{
         contracts::events::Dispatcher as _,
