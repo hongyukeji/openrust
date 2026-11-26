@@ -38,6 +38,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     features="standalone $APP_BUILD_FEATURES"; \
     cargo build --locked --release --jobs "$APP_BUILD_JOBS" --bin main --target "$triple" --features "$features"; \
     install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main; \
+    install -m 0644 "$(rustc --print sysroot)/share/doc/rust/COPYRIGHT-library.html" /out/COPYRIGHT-library.html; \
     packages="$(cargo tree --locked --offline --target "$triple" --features "$features" \
       --edges normal --prefix none --format '{p}')"; \
     for package in webhook-client webhook-server; do \

@@ -12,12 +12,14 @@ ROOT=Path(__file__).resolve().parents[1]
 PACKAGES = ("webhook-client", "webhook-server")
 
 
-def verify_image(image, packages):
+def verify_image(image, packages, rust_copyright):
     """比对容器实际用户可以读取的声明和原文，包含未选包的排除。"""
     expected = {
         name: (ROOT / name).read_bytes()
         for name in ("LICENSE", "THIRD_PARTY_NOTICES.md")
     }
+    if rust_copyright:
+        expected["COPYRIGHT-library.html"] = rust_copyright.read_bytes()
     for package in packages:
         package_root = ROOT / "vendor/openrust" / package
         files = [package_root / "THIRD_PARTY_NOTICES.md", *(package_root / "LICENSES").glob("*.txt")]
@@ -27,8 +29,8 @@ def verify_image(image, packages):
     raw = subprocess.check_output([
         "docker", "run", "--rm", "--pull", "never", "--network", "none", "--read-only",
         "--entrypoint", "/bin/sh", image, "-ec",
-        'cd /app; set -- LICENSE THIRD_PARTY_NOTICES.md; '
-        'if [ -d licenses ]; then set -- "$@" licenses; fi; tar -cf - "$@"',
+        'cd /app; if [ -d licenses ]; then set -- "$@" licenses; fi; tar -cf - "$@"',
+        "sh", *(name for name in expected if "/" not in name),
     ])
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive:
         found = {member.name: archive.extractfile(member).read() for member in archive if member.isfile()}
@@ -43,9 +45,10 @@ def verify_image(image, packages):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--image", help="比对指定的本地 Docker 运行镜像")
 parser.add_argument("--package", action="append", choices=PACKAGES, default=[], help="镜像实际选用的 Webhook 包")
+parser.add_argument("--rust-copyright", type=Path, help="构建工具链的 Rust 标准库版权报告原件")
 args = parser.parse_args()
-if args.package and not args.image:
-    parser.error("--package 需要 --image")
+if (args.package or args.rust_copyright) and not args.image:
+    parser.error("--package 和 --rust-copyright 需要 --image")
 
 lock=tomllib.loads((ROOT/"Cargo.lock").read_text())["package"]
 pins=json.loads((ROOT/".agents/project/audits/webhooks/dependency-pins.json").read_text())
@@ -62,4 +65,4 @@ for pin in pins:
         assert "1.3.0" in (root/"THIRD_PARTY_NOTICES.md").read_text()
 print("两项新增依赖的版本／校验和及两个包的 MIT／ISC 许可原文通过")
 if args.image:
-    verify_image(args.image, args.package)
+    verify_image(args.image, args.package, args.rust_copyright)

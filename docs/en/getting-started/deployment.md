@@ -9,6 +9,8 @@ cargo +1.94.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
+cp LICENSE THIRD_PARTY_NOTICES.md release/
+cp "$(rustc +1.94.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
 ```
 
 For a standalone macOS release, prefix the Cargo command with `PCRE2_SYS_STATIC=1` to use the locked bundled PCRE2. Check `otool -L release/main` before shipping to catch dependencies on Homebrew paths.
@@ -146,6 +148,7 @@ New-Item -ItemType Directory -Path release, release/database, release/storage/ap
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
+Copy-Item (Join-Path (rustc +1.94.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'
@@ -224,7 +227,7 @@ Build settings use `APP_BUILD_FEATURES` and `APP_BUILD_JOBS` (default `4`), pass
 
 Separate optional features with commas, for example `APP_BUILD_FEATURES=webhook-client,webhook-server,reverb`. Run `artisan package:discover` in the staging container to verify the package list before deployment. Run HTTP and standalone queue workers from the same image so they load the same package providers.
 
-The image includes distribution notices at `/app/THIRD_PARTY_NOTICES.md`, including SQLite's source identification, the license for its Rust wrapper, and the notices for bundled PCRE2, AWS-LC, and ring. When the build includes `webhook-client` or `webhook-server`, directly or as a dependency, its notices and license texts are under `/app/licenses/<package>/`.
+The image includes distribution notices at `/app/THIRD_PARTY_NOTICES.md`, including SQLite's source identification, the license for its Rust wrapper, and the notices for bundled PCRE2, AWS-LC, and ring. The build toolchain's Rust standard library copyright report is at `/app/COPYRIGHT-library.html`. When the build includes `webhook-client` or `webhook-server`, directly or as a dependency, its notices and license texts are under `/app/licenses/<package>/`.
 
 Nginx permits request bodies up to 8 MiB, matching the framework input limit. Proxy read and send timeouts use the Nginx default of 60 seconds; streaming and WebSocket connections should exchange data or heartbeats promptly. Configure longer idle timeouts in `docker/nginx/default.conf` only when needed.
 

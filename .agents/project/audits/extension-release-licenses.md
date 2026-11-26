@@ -183,3 +183,13 @@ ARM64 的 BLAKE3 NEON 对象在 PDB 中可见，`.text` 贡献为空。x64 两�
 此前逐字节对照的 10 个随附许可文件覆盖根与两个 Webhook 包的既有声明，未随附 Rust 标准库的发行版权报告。本机固定工具链随附的 `share/doc/rust/COPYRIGHT-library.html` 为 425661 字节，SHA-256 为 `af70aaabed1b73e872f14f9130db37e09f3f4d73a5f7c598b9173697a5d2729f`。后续打包需按实际构建工具链带入该报告，并对最终归档单独做字节验收。见 [固定 Rust 源码的版权说明](https://github.com/rust-lang/rust/blob/4a4ef493e3a1488c6e321570238084b38948f6db/COPYRIGHT)。
 
 本轮使用已验收候选的映射和调试记录，未重建或改动可执行文件。三组本地证据目录各自保留 `check-toolchain.py` 及输出 `toolchain.log`，两种 Linux 的日志分别位于架构子目录。
+
+### 标准库版权报告随附验证
+
+Docker 构建从实际 Rust sysroot 复制版权报告，由既有运行层带到 `/app/COPYRIGHT-library.html`。三语独立部署示例也从对应的构建工具链复制报告。在固定的 Linux ARM64 构建镜像、本机 macOS ARM64 和 Windows 11 虚机读取的原件均为上文记录的 SHA-256。macOS 和 Windows 复制到打包目录后通过字节或哈希对照。
+
+Linux ARM64 九扩展 Release 首次重建达到 32 GB 磁盘停线，构建守卫停止进程并释放项目编译空间。同步隔离验收将相同 Docker 复制步骤应用于本机已有的默认应用镜像。两份镜像的 `/app/main` SHA-256 相同，版权报告和两个根发行文件与原件逐字节一致。两边各从空 SQLite 执行四项迁移，配置和路由缓存前后 `/up`、`/` 均为 200，该基准镜像的 `/api` 均为 404。SIGTERM 以状态 0 退出，独立 `artisan queue:work database --once` 完成，队列保持为空。此轮隔离验收覆盖打包步骤及默认应用行为。九扩展完整镜像另行复验。三语部署文档的 VitePress 构建和三个部署页面的报告路径通过。
+
+从旧候选使用的 ARM64 构建基础镜像复查软件包归属，`libc6-dev:arm64` 版本 `2.36-9+deb12u13` 提供 glibc 启动文件与 `libc_nonshared.a`，`libgcc-12-dev:arm64` 版本 `12.2.0-14+deb12u1` 提供 GCC 启动文件。两个开发包的版权文件与对应候选运行镜像里记录的同来源运行库版权文件 SHA-256 各自相同。AMD64 交叉工具链开发包的版权文件仍需按实际构建镜像核对。
+
+证据位于本机 `target/tmp/goal-extension-rust-notices/`。

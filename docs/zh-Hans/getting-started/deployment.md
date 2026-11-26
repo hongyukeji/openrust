@@ -9,6 +9,8 @@ cargo +1.94.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
+cp LICENSE THIRD_PARTY_NOTICES.md release/
+cp "$(rustc +1.94.0 --print sysroot)/share/doc/rust/COPYRIGHT-library.html" release/
 ```
 
 构建 macOS 独立发布产物时，在 Cargo 命令前加上 `PCRE2_SYS_STATIC=1`，使用锁定的内嵌 PCRE2。发布前用 `otool -L release/main` 检查是否链接了 Homebrew 路径下的动态库。
@@ -146,6 +148,7 @@ New-Item -ItemType Directory -Path release, release/database, release/storage/ap
 Copy-Item target/release/main.exe release/
 Copy-Item resources, public release/ -Recurse
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md release/
+Copy-Item (Join-Path (rustc +1.94.0 --print sysroot) 'share/doc/rust/COPYRIGHT-library.html') release/
 Copy-Item .env.example release/.env
 New-Item -ItemType File release/database/database.sqlite
 $env:APP_ENV = 'production'
@@ -224,7 +227,7 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 
 多个可选功能用逗号分隔，例如 `APP_BUILD_FEATURES=webhook-client,webhook-server,reverb`。部署前在预发布容器执行 `artisan package:discover`，核对实际包清单。HTTP 服务与独立队列 Worker 使用同一镜像，以加载相同的包 Provider。
 
-镜像的发行声明位于 `/app/THIRD_PARTY_NOTICES.md`，包括 SQLite 源码标识、其 Rust 封装的许可证，以及随包分发的 PCRE2、AWS-LC 和 ring 声明。构建直接或通过依赖引入 `webhook-client` 或 `webhook-server` 时，对应包的第三方声明和许可证原文位于 `/app/licenses/<包名>/`。
+镜像的发行声明位于 `/app/THIRD_PARTY_NOTICES.md`，包括 SQLite 源码标识、其 Rust 封装的许可证，以及随包分发的 PCRE2、AWS-LC 和 ring 声明。构建工具链的 Rust 标准库版权报告位于 `/app/COPYRIGHT-library.html`。构建直接或通过依赖引入 `webhook-client` 或 `webhook-server` 时，对应包的第三方声明和许可证原文位于 `/app/licenses/<包名>/`。
 
 Nginx 请求体上限为 8 MiB，与框架输入限制一致。代理读取和发送超时使用 Nginx 默认的 60 秒；流式响应与 WebSocket 应及时传送数据或心跳。确需更长空闲等待时，在 `docker/nginx/default.conf` 中按需设置相应超时。
 
