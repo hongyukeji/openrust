@@ -125,7 +125,7 @@ Rust 真实 HTTP 挂起并恢复事务内的查询。修复前忽略助手文件
 
 Rust 1.94.0 的独立双次轮询探针在含调试信息的构建中可以看到普通异步包装器及外层源文件行号，同一代码经优化且无调试信息时收不到这些位置。普通应用异步包装器的透明来源仍开放。证据为 `target/tmp/observability-parity/query-ordinary-async-probe-{debug,release}.log`。
 
-macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五条 SQL 的精确文件与行号。默认 Watcher 17 项及框架数据库 32 项通过，涵盖事务事件、保存点和取消测试。隔离快照全仓格式及所涉目标严格 Clippy 通过。Linux ARM64 Release 和其他目标平台继续验收。证据为 `target/tmp/observability-parity/query-transaction-macos-final.log`。
+macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五条 SQL 的精确文件与行号。默认 Watcher 17 项及框架数据库 32 项通过，涵盖事务事件、保存点和取消测试。隔离快照全仓格式及所涉目标严格 Clippy 通过。Linux 7.0.14 ARM64 使用 Rust 1.94.0 的 Release 构建通过 SQLite 上全部 17 项 Watcher 回归，包括同样的事务调用来源测试。其他目标平台继续验收。证据为 `target/tmp/observability-parity/query-transaction-{macos-final,linux-release}.log`。
 
 ### 出站响应内容形状与大小限制
 
