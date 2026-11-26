@@ -35,6 +35,16 @@ Rust 1.94.0 全工作区格式检查与 macOS ARM64 的验收应用严格 Clippy
 
 全工作区格式检查、macOS ARM64 的应用目标严格 Clippy、Python 夹具加载、三语站点构建与两种挂载路径的浏览器检查通过。Linux 冷构建在 `jixel` 代码生成阶段以 SIGKILL 结束，八组结果来自原生 macOS 实跑。确认 Linux 容器和原生服务退出后，已回收隔离源码、证书、样本和文档产物。执行日志位于 `target/tmp/moderation-provider-media-https/`。本次使用厂商协议夹具和私有测试 CA。正式访问权限、域名、公信证书及实际厂商出站下载继续在目标环境验收。
 
+## 本机 HTTPS 回调入口复验 {#provider-callback-https}
+
+在 `894955da7` 快照上，用 Rust 1.94.0 构建 macOS ARM64 验收应用，同时启用 `content-moderation` 和 `webhook-client`。复用原有供应商协议、固定素材和回调消费规则。Nginx 1.30.7 使用私有 CA 签发的 `callback.example.test` 证书，只绑定回环地址。客户端保留原 SNI。信任测试 CA 时可连接，系统 CA 拒绝握手。代理保持原请求体与签名头，访问日志不记录载荷。素材由同机独立 SeaweedFS 4.53 提供。[Sightengine 验签说明](https://sightengine.com/docs/callback-signature) · [腾讯云回调配置](https://cloud.tencent.com/document/product/1265/104001) · [Hive 异步回调说明](https://docs.thehive.ai/reference/submit-a-task-asynchronously)
+
+- 阿里云、腾讯云和 Sightengine 经 HTTPS 接收提前回调。独立 Artisan 数据库 Worker 先延期，收到原任务 ID 后再关联并经认证查单。在相关用例中，正文被改动、缺失或重复签名、错误 UID 与内容类型均按各供应商契约拒绝，重复投递不触发额外查单。
+- Hive 提交时登记的 URL 与实测 HTTPS 路由一致。该入口接受匹配任务的无签名提示，拒绝伪造签名和超大正文，并实测去重、限流及租户隔离。只有独立 Worker 的认证查单推进审核，数据库中无已验签回调记录。
+- Sightengine 另经 HTTPS 验收终态后的迟到通知与撤回后墓碑清理。最终六组 HTTPS 用例和阿里云直连、Hive 直连、Hive 点播三组回归通过，使用独立 SQLite 数据库队列及实际 HTTP、Artisan 和 Worker。
+
+全工作区格式检查、应用严格 Clippy、Python 加载与三语站点构建通过。内容审核页面在根路径与 `/docs/` 下的六项浏览器检查通过。全站浏览器检查在快照既有的英语 AI SDK 页面因缺少原生参考链接失败，该页面没有改动。日志位于 `target/tmp/moderation-provider-callback-https/`。正式域名、公信证书及供应商出站回调仍待授权环境验证。
+
 ## 真实验收的前置条件
 
 本轮环境没有配置专用凭据目录。需要以下测试项目及权限，凭据通过受保护目录挂载，勿写入仓库或验收日志。

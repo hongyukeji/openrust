@@ -198,6 +198,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 啟用儲存素材審核前，確認供應商能透過該 HTTPS 入口下載簽章對應的物件版本，且未簽章請求會被拒絕。
 
+在反向代理終止回呼 TLS 時，保留原始請求本文、內容型別和供應商簽章標頭。代理應避免解析後重新編碼 JSON 或表單，也應避免將回呼本文和簽章寫入存取日誌。
+
 需要延後查詢時，在 `moderation.profile_revisions.<名稱>.<修訂>` 下宣告完整設定，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可用的模態為 `text`、`visual`、`speech` 和 `ocr`。`account` 填寫部署時與該憑證配對的帳號或專案別名。位址、模型、策略或憑證修訂變更時建立新設定修訂，並保留未完成任務參照的舊設定。
 
 提交前用 `Moderation::pin_profile(name, revision)` 固定設定，用 `Moderation::driver_for_revision(&profile)` 解析驅動。應用程式將傳回的設定定位符、遠端 `TaskId` 和原始物件版本一起持久化，查詢時依該定位符重新解析。原設定遭直接修改、移除或對應憑證無法讀取時，復原失敗。待處理、失敗或必檢涵蓋不完整時均無法核准發布。

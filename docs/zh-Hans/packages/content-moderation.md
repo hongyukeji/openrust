@@ -198,6 +198,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 启用存储素材审核前，确认厂商能通过该 HTTPS 入口下载签名对应的对象版本，且无签名请求会被拒绝。
 
+在反向代理终止回调 TLS 时，保留原始请求体、内容类型和厂商签名头。代理应避免解析后重新编码 JSON 或表单，也应避免把回调正文和签名写入访问日志。
+
 需要延后查单时，在 `moderation.profile_revisions.<名称>.<修订>` 下声明完整配置，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可选模态为 `text`、`visual`、`speech` 和 `ocr`。`account` 填部署时与该凭据配对的账号或项目别名。地址、模型、策略或凭据修订发生变化时创建新配置修订，并保留未完成任务引用的旧配置。
 
 提交前用 `Moderation::pin_profile(name, revision)` 固定配置，用 `Moderation::driver_for_revision(&profile)` 解析驱动。应用将返回的配置定位符、远端 `TaskId` 和原对象版本一起持久化，查单时按该定位符重新解析。原配置被原地修改、移除或对应凭据无法读取时，恢复失败。待处理、失败或必检覆盖不完整时均无法批准发布。

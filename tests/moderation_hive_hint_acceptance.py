@@ -1,7 +1,6 @@
 """真实 HTTP、Artisan、独立 Worker 验收 Hive 的无签名点播查单提示。"""
 
 import argparse
-import http.client
 import http.server
 import json
 import os
@@ -16,6 +15,7 @@ from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INGRESS = runpy.run_path(str(ROOT / "tests/support/moderation_callback_ingress.py"))
 HIVE = runpy.run_path(str(ROOT / "tests/moderation_hive_video_acceptance.py"))
 DATABASE, HTTP, VIDEO = (HIVE[key] for key in ("DATABASE", "HTTP", "VIDEO"))
 HINT_QUEUE = "moderation-hive-fixture"
@@ -30,6 +30,8 @@ def exercise(binary, driver, url, root, storage_env, storage):
     vendor.calls, vendor.mode, vendor.lock = [], "accepted", threading.Lock()
     vendor.summary_calls, vendor.query_mode = [], "finished"
     vendor.project, vendor.token, vendor.video_model = HIVE["PROJECT"], HIVE["TOKEN"], "CATEGORIZATION"
+    vendor.expected_callback = (f"https://{INGRESS['HOST']}{PATH}"
+                                if os.environ.get("OPENRUST_TEST_MODERATION_CALLBACK_NGINX") else HIVE["CALLBACK"])
     thread = threading.Thread(target=vendor.serve_forever, daemon=True)
     thread.start()
     with socket.socket() as listener:
@@ -55,7 +57,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
         "DB_DATABASE": str(db) if driver == "sqlite" else "openrust_acceptance",
         "MODERATION_CREDENTIAL_DIRECTORY": str(mount),
         "MODERATION_FIXTURE_HIVE_VIDEO": f"http://127.0.0.1:{vendor.server_port}",
-        "MODERATION_FIXTURE_HIVE_CALLBACK": HIVE["CALLBACK"],
+        "MODERATION_FIXTURE_HIVE_CALLBACK": vendor.expected_callback,
         "MODERATION_FIXTURE_HIVE_VIDEO_QUERY": "v1-task-summary",
         "MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": "hive-videos",
         "MODERATION_CALLBACK_FIXTURE_HIVE": "1", "MODERATION_FIXTURE_RECOVERY_QUEUE": "database",
@@ -92,7 +94,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if signature is not None:
             headers["Signature"] = signature
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=12)
+        connection = open_callback()
         try:
             connection.request("POST", PATH, body, headers=headers)
             response = connection.getresponse()
@@ -112,7 +114,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
         intent = json.loads(artisan("drivers:moderation-review", "stage", "app", "tenant", "hint-original", first))
         foreign = json.loads(artisan("drivers:moderation-review", "stage", "app", "other", "hint-foreign", first))
         assert review("submit", foreign["id"], tenant="other")["submission"]["task"] == HIVE["TASK"]
-        with (root / "http.log").open("w+") as log:
+        with (root / "http.log").open("w+") as log, INGRESS["callback_ingress"](root, port) as open_callback:
             app = HTTP["serve"](binary, env | {"MODERATION_FIXTURE_HIVE_VIDEO": "http://127.0.0.1:1"}, log)
             try:
                 notify()

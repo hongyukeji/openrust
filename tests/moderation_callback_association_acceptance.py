@@ -3,7 +3,6 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
-import http.client
 import http.server
 import json
 import os
@@ -19,6 +18,7 @@ from urllib.parse import urlencode, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 CALLBACK = runpy.run_path(str(ROOT / "tests/moderation_callback_acceptance.py"))
+INGRESS = runpy.run_path(str(ROOT / "tests/support/moderation_callback_ingress.py"))
 SUBMISSION = runpy.run_path(str(ROOT / "tests/moderation_submission_acceptance.py"))
 DATABASE, HTTP = CALLBACK["DATABASE"], CALLBACK["HTTP"]
 VIDEO = SUBMISSION["VIDEO"]
@@ -182,7 +182,7 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
         if fault == "changed" and not aliyun:
             body += b" "
         path += "-other" if other else ""
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=12)
+        connection = open_callback()
         try:
             connection.putrequest("POST", path)
             connection.putheader("Content-Type", content_type)
@@ -290,7 +290,7 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
         assert all(secret not in (root / "config.json").read_text() for secret in protected)
         finish = "FINISH" if tencent else "200" if aliyun else "finished"
         early = json.loads(artisan(REVIEW, "stage", "app", "tenant", "early-callback", version))
-        with (root / "http.log").open("w+") as log:
+        with (root / "http.log").open("w+") as log, INGRESS["callback_ingress"](root, port) as open_callback:
             app = HTTP["serve"](binary, env, log)
             try:
                 if test_late:

@@ -40,7 +40,8 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         assert self.headers["Authorization"] == f"Token {self.server.token}"
         assert self.headers["Content-Type"] == "application/x-www-form-urlencoded"
         fields = parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode(), strict_parsing=True)
-        assert fields.pop("callback_url") == [CALLBACK] and set(fields) == {"url"}
+        callback = getattr(self.server, "expected_callback", CALLBACK)
+        assert fields.pop("callback_url") == [callback] and set(fields) == {"url"}
         source = urlsplit(fields["url"][0])
         assert f"{source.scheme}://{source.netloc}" == VIDEO["ORIGIN"]
         assert source.path.endswith("/" + VIDEO["KEY"])
@@ -52,7 +53,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         with self.server.lock:
             self.server.calls.append((version, content))
             mode = self.server.mode
-        response = {"id": TASK, "project_id": self.server.project, "callback": CALLBACK}
+        response = {"id": TASK, "project_id": self.server.project, "callback": callback}
         status = 200
         if mode == "wrong-project":
             response["project_id"] += 1
