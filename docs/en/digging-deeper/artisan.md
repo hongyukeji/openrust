@@ -2113,3 +2113,40 @@ fn register_component_sizes() -> Result<(), ConsoleError> {
 Width arguments retain their numeric or text representation. Mixed fraction/minimum-width expressions compare those representations before resolving columns: `w-full min-w-2` selects two columns. Prefer numeric limits and verify composed layouts rather than treating every combination as CSS computed-width arithmetic.
 
 A flexible item first renders and caches its nested content; changing the item's width then reformats that cached content. Nested full-width children can therefore behave differently from assigning all flex widths before rendering descendants. Each call has its own tree and inherited-property snapshots. Invalid layout errors propagate through the same renderer and do not poison later requests. General style-method dispatch and the remaining specialized HTML renderers are still incomplete.
+
+### Component text transformations {#component-text-transforms}
+
+`snakecase` inserts underscores at camel-case boundaries while preserving existing whitespace. `prepend-[X]` and `append-[Y]` retain the brackets: the example prints `[X]mixed_words[Y]`. Repeating one transformation updates its argument without changing its original execution position. `truncate-4` uses a four-column limit including the default `…` suffix, producing `Mix…`; without a positive limit it uses the element width minus padding. Fractional widths are resolved before truncation.
+
+Style method names use ASCII case-insensitive dispatch: `W-1/2` and `FONT-BOLD` work. The original class string remains significant for layout markers such as `flex-1`; changing its case or adding a responsive prefix does not create that exact marker. Numeric class arguments are converted to integers before checking the destination parameter type. Thus `prepend-1` returns an error rather than silently converting a number into text. `font-normal` explicitly disables inherited bold, while a `<b>` tag applies its own bold style after classes.
+
+The built-in text path does not expose the renderer dependency's standalone style objects or custom style/color repository. Specialized table, code and list elements remain outside the implemented HTML subset.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct TextCompiler;
+impl ComponentViewCompiler for TextCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "text" => Ok("<span class='snakecase prepend-[X] append-[Y]'>MixedWords</span>".into()),
+            "short" => Ok("<span class='truncate-4'>MixedWords</span>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_text() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:text", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(TextCompiler)));
+            component.render_view("text", json!({}))?;
+            component.render_view("short", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

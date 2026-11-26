@@ -77,6 +77,7 @@ try {
                     assert.equal(await page.locator('h3#component-markup-rendering').count(),1);
                     assert.equal(await page.locator('h3#component-color-breakpoints').count(),1);
                     assert.equal(await page.locator('h3#component-sizes-and-alignment').count(),1);
+                    assert.equal(await page.locator('h3#component-text-transforms').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

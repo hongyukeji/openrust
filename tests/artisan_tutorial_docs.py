@@ -308,6 +308,9 @@ async fn formal_progress_example(){
     sizing_code=re.search(r'```rust\n(.*?)```',text.split('{#component-sizes-and-alignment}',1)[1],re.S).group(1)
     sizing_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_component_sizes_example').replace('register_progress)', 'register_component_sizes)').replace('"reports:progress"','"components:sizes"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("A                  B"));assert!(output.stdout.contains("Half"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_component_sizes{\n'+sizing_code+sizing_checks+'}\n')
+    methods_code=re.search(r'```rust\n(.*?)```',text.split('{#component-text-transforms}',1)[1],re.S).group(1)
+    methods_checks=sizing_checks.replace('formal_component_sizes_example','formal_component_text_example').replace('register_component_sizes)','register_component_text)').replace('"components:sizes"','"components:text"').replace('assert!(output.stdout.contains("A                  B"));assert!(output.stdout.contains("Half"));','assert!(output.stdout.contains("[X]mixed_words[Y]"));assert!(output.stdout.contains("Mix…"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_text{\n'+methods_code+methods_checks+'}\n')
 
 
 

@@ -4,6 +4,7 @@ mod dom;
 mod layout;
 mod palette;
 mod style;
+mod style_methods;
 mod style_tokens;
 mod tree;
 use super::ComponentContext;

@@ -769,3 +769,16 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 实现在独立源码先验收，通过后核对根目录13个核定路径仍等于基线才落回，保护其他在途改动。兄弟有效位置改为一次边界扫描，避免每个注释/节点重复扫描；补200注释来源场景及前后空白/space-x反例，不声称未测性能收益。沿项目独占缓存与TMPDIR，观察到共享profile回收后按正常并发重建，不另开缓存或变更磁盘规则；没有数据库/持久服务变更，Source容器--rm、浏览器/HTTP/CLI进程正常收尾。前两簇闲置私有Git索引已回收1,323,344字节，真实索引和验收证据保留。
 
 来源还实证max--w、FLEX--1、W-1/2、font-normal、snakecase、truncate、prepend/append等52场景，保存为component-style-resolver-oracle.json，尚未计原生通过。Styles71/Element7/Style5/Repository4声明及完整参数/返回可见性存component-styles-inventory.json，标明独立公开扩展对象的原生映射未完成，不能以当前私有后端推断专用公开类型已交付。下一簇补完整样式方法解析与剩余变换，再专用HTML/仓库；Factory容器覆盖和Helper/HelperSet/Time继续。命令与SHA见accepted-component-sizing.json，只本地提交，不推送。
+
+
+## 54. 样式方法解析、有序文本变换与显式粗体继承（2026-11-26）
+
+53已本地提交afc0c21da3556210aeeb4b151d5cf1ef02c78d3c，未推送。按固定Styles/StyleToMethod/HtmlRenderer补通默认已支持标签的统一方法分发。方法名ASCII大小写不敏感、方括号保护连字符、保留空段并从长方法名向参数递归解析，数值参数先转int，string目标不静默接收数字。已保存的非规范max--w/W-1/2/FLEX--1等反例重新核对；原flex-1标记不被大小写或媒体前缀归一化。固定71声明表只表示解析边界，不能据此宣称独立扩展对象71入口已交付。
+
+新增snakecase/truncate/prepend/append；复用既有Str、标量、宽度/截断及格式器。snakecase保留空白，与Str::snake不同，使用源两个ASCII驼峰边界正则；变换顺序按首次登记，重复更新参数不重排。truncate按实际分数宽度扣原始水平margin/padding并包含默认省略号，宽度无效仍失败。prepend/append保留方括号，contentRepeat单独解引号。font-normal用Option<bool>表达显式false以阻断父粗体，Raw保留options=,；b/Anchor属性在类样式后覆盖，空href不清除先前目标。setStyle保留原名标记，addStyle按源重新应用标签默认样式并设递归上限。具体组件快路径/公开API/机器契约不改，没有新依赖。
+
+真实PHP固定来源840场景（244错误）在宽20/80、ANSI开/关、Raw/Normal逐字核对；源警告用真实HandleExceptions处理，仅省略弃用日志。五框架目标20父测试通过，原914渲染/2288调色/1948尺寸等既有来源回归仍通过。5真实Artisan、17HTTP含失败后恢复和12并发、5PTY ioctl20列移除COLUMNS并核退出0/1；三语正式文档直接提取165消费者、三语站点12手机/桌面浏览器、workspace/all-targets严格Clippy及全workspace格式通过。辅助ignore驱动由父实际调用，不额外计独立通过。
+
+初轮编译遗漏颜色错误插值变量，已修；初轮CLI夹具沿用上一单元“分母”错误文案，定位后仅修夹具为真实文本参数错误，不屏蔽产品错误。两轮失败日志保留，不计通过。扩展到边距/内距分数截断后按源扣边距，全部重新验收。先独立快照验收，再逐路径检查根工作区仍等于基线才回写13路径，保留其他在途内容。构建沿现有缓存与TMPDIR，未触及磁盘停线；无数据库/持久服务，来源容器--rm、HTTP/Artisan/浏览器正常退出。
+
+此簇不关闭全终端SDK：table/code/pre/list/dl/hr专用元素、样式/颜色仓库、独立公开Styles/Element/Style/Repository对象、HTML恢复差异、Factory容器覆盖及Helper/HelperSet/Time继续。来源方法表里对象/数组参数或非Styles返回值不能作为有效标量类字符串，不用no-op伪装支持。证据和最终SHA见accepted-component-style-methods.json；只本地提交、不推送。

@@ -2113,3 +2113,40 @@ fn register_component_sizes() -> Result<(), ConsoleError> {
 寬度參數保留數值或文字表示。分數與最小寬度混用時，先比較這些表示，再解析列數：`w-full min-w-2` 會選擇兩列。建議使用數值限制並驗收組合佈局，不把所有組合當作 CSS 計算後寬度比較。
 
 彈性項目先渲染並快取巢狀內容，再調整自身寬度、重新格式化該快取。因此巢狀的完整寬度子節點，可能不同於先分配所有 flex 寬度再渲染後代的結果。每次呼叫使用獨立的樹和繼承屬性快照。無效佈局沿原渲染器傳播錯誤，不影響後續請求。完整樣式方法分派及其他專用 HTML 渲染器仍未完成。
+
+### 元件文字變換 {#component-text-transforms}
+
+`snakecase` 在駝峰邊界插入底線，保留原有空白。`prepend-[X]` 和 `append-[Y]` 保留方括號：範例輸出 `[X]mixed_words[Y]`。重複同一種變換只更新參數，不改變首次登記的執行位置。`truncate-4` 的四欄限制包含預設 `…` 後綴，輸出 `Mix…`；沒有正數限制時使用元素寬度減去內距。分數寬度在截斷前解析。
+
+樣式方法名按 ASCII 大小寫不敏感分派：`W-1/2` 和 `FONT-BOLD` 可用。佈局標記仍保留原始類名語義，例如修改 `flex-1` 大小寫或加回應式前綴，不會建立該精確標記。數字類參數先轉整數，再檢查目標參數型別，所以 `prepend-1` 回傳錯誤，不會靜默轉成文字。`font-normal` 明確關閉繼承的粗體，`<b>` 標籤則在類樣式之後設定自身粗體。
+
+預設文字管線不代表已提供渲染依賴的獨立樣式物件或自訂樣式／顏色倉庫。表格、程式碼和列表等專用元素仍不屬於已實作的 HTML 子集。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct TextCompiler;
+impl ComponentViewCompiler for TextCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "text" => Ok("<span class='snakecase prepend-[X] append-[Y]'>MixedWords</span>".into()),
+            "short" => Ok("<span class='truncate-4'>MixedWords</span>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_text() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:text", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(TextCompiler)));
+            component.render_view("text", json!({}))?;
+            component.render_view("short", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

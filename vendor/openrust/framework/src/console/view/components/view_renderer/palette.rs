@@ -1,22 +1,6 @@
 // 第三方许可见 ../LICENSE.renderer。
-use crate::{
-    console::ConsoleError,
-    support::{Str, input_scalars},
-};
-/// 将动态数值参数按现有标量规则转换；额外参数与固定样式调用一致地忽略。
-pub(super) fn arguments(value: &str) -> Result<(&str, i64), ConsoleError> {
-    let mut parts = value.trim_start_matches('-').split('-');
-    let base = parts.next().unwrap_or("");
-    let variant = parts.next().unwrap_or("0");
-    if input_scalars::numeric_prefix(variant) != Some(variant) {
-        return Err(ConsoleError::new(format!(
-            "控制台颜色变体不是数值：{variant}"
-        )));
-    }
-    Ok((base, input_scalars::integer_string(variant)))
-}
-pub(super) fn color(value: &str) -> Result<String, ConsoleError> {
-    let (base, variant) = arguments(value)?;
+use crate::{console::ConsoleError, support::Str};
+pub(super) fn color_value(base: &str, variant: i64) -> Result<String, ConsoleError> {
     let name = if variant > 0 {
         format!("{base}_{variant}")
     } else {
@@ -261,6 +245,6 @@ pub(super) fn color(value: &str) -> Result<String, ConsoleError> {
         "ROSE_900" => Ok("#881337".to_owned()),
         "MAGENTA" => Ok("magenta".to_owned()),
         "BRIGHTMAGENTA" => Ok("bright-magenta".to_owned()),
-        _ => Err(ConsoleError::new(format!("控制台颜色不存在：{value}"))),
+        _ => Err(ConsoleError::new(format!("控制台颜色不存在：{name}"))),
     }
 }

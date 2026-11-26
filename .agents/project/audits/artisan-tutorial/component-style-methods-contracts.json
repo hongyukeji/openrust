@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "verified_generic_style_method_dispatch_and_text_mutators_specialized_types_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer",
+  "bindings": {
+    "StyleToMethod::__invoke/multiple": "style_methods::resolve/Argument plus style_tokens::tokens and style::apply",
+    "snakecase/truncate/prepend/append/contentRepeat": "style::format ordered keyed transformations",
+    "fontBold/fontNormal/inheritFromStyles": "Style::bold Option<bool> and Prepared::inherit",
+    "setStyle/addStyle": "original marker list plus bounded recursive style::apply with default styles",
+    "href and b/a constructors": "tag override after class styles; empty href retains prior style target"
+  },
+  "verified_scope": [
+    "固定71方法名称表仅确定解析边界；ASCII大小写不敏感、连续连字符和方括号分段、从长到短方法选择、数值转整数、目标参数类型校验与额外参数忽略。",
+    "默认已支持标签的显示/对齐/尺寸/颜色/边距/内距经统一分发，保留原始flex-1标记，新增snakecase/truncate/有序prepend/append及font-normal。",
+    "文本变换按首次方法登记顺序执行，重复更新参数不重排；prepend/append方括号保留，contentRepeat单独去引号，truncate包含后缀和分数宽度/原始边距/内距。",
+    "显式bold=false阻断继承且Raw输出options=,；b和a标签属性按源在类样式后处理。",
+    "公开源getProperties/defaultStyles等返回非Styles，或需要对象/数组参数的类字符串调用保持失败，不能把内部方法表当作公开原生扩展类型已齐。"
+  ],
+  "source_oracle": {
+    "file": "component-style-methods-oracle.json",
+    "cases": 840,
+    "errors": 244,
+    "warning_policy": "real HandleExceptions; only deprecation logging omitted"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 165,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "使用既有input_scalars、Str、visible_width/trim_text和原格式器；没有新依赖、PHP运行时或第二输出机制。",
+    "方法表按固定依赖声明生成后人工核对；下划线不是连字符别名。原始标记与解析后方法分开，响应式原名语义不改变。",
+    "沿用1,000,000尺寸/填充和256递归边界，不宣称无限资源输入等价。专用HTML仍明确错误，不伪装正常文本。",
+    "旧v0.x无对应终端HTML样式组件，沿用51-53调研和现行原生消费者。必要第三方MIT许可保留。"
+  ],
+  "remaining": [
+    "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

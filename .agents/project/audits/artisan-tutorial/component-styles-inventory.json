@@ -5,7 +5,8 @@
   "verified_backend_evidence": [
     "component-render-contracts.json",
     "component-palette-contracts.json",
-    "component-sizing-contracts.json"
+    "component-sizing-contracts.json",
+    "component-style-methods-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1313,7 +1314,8 @@
     ]
   },
   "remaining": [
-    "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
-    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
-  ]
+    "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes."
 }

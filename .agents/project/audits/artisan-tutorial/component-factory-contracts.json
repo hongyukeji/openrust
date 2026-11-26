@@ -70,21 +70,22 @@
         "mutate",
         "usingQuestionHelper"
       ],
-      "status": "partial_owned_bindings_sizing_cache_justify_verified_full_styles_pending",
+      "status": "partial_generic_styles_verified_specialized_renderers_extensions_pending",
       "native": "console::view::components::Component",
       "evidence": [
         "component-core-contracts.json",
         "component-compile-contracts.json",
         "component-render-contracts.json",
         "component-palette-contracts.json",
-        "component-sizing-contracts.json"
+        "component-sizing-contracts.json",
+        "component-style-methods-contracts.json"
       ],
       "owned_bindings": {
         "__construct": "verified_new/from_context",
         "mutate": "verified_named_constructors_and_value_pipeline",
         "usingQuestionHelper": "verified_lending_scope_original_identity_and_finally",
         "compile": "verified_embedded_blade_templates_and_owned_compiler_override",
-        "renderView": "verified_default_sizing_justification_and_prepared_content_full_style_dispatch_pending"
+        "renderView": "verified_generic_style_method_dispatch_and_text_mutators_specialized_types_pending"
       }
     },
     {
@@ -122,8 +123,8 @@
         "factory-registry-contracts.json"
       ],
       "remaining": [
-        "终端SDK继续完整样式方法分发与剩余变换：已实证max--w/FLEX--1/W-1/2等非规范别名、font-normal、snakecase、truncate、prepend/append；table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异。不能以规范尺寸/对齐类验收代替完整Styles公开扩展契约。",
-        "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放；已验默认视图、调色/断点、规范尺寸和分布对齐不重开。"
+        "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+        "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
       ]
     },
     {
@@ -197,7 +198,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "Recorded Component rendering, preset/media, default sizing/cache/distribution semantics verified; full style-method resolution/extension objects, specialized renderers, Factory container override and helper/time SDK remain open.",
+  "inheritance": "Recorded default markup/style/layout/text methods verified; specialized renderers, standalone extension objects, custom style/color repositories, Factory container override and helper/time SDK remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -252,5 +253,13 @@
   "terminal_styles_inventory": {
     "status": "source_inventory_complete_native_extension_mapping_pending",
     "evidence": "component-styles-inventory.json"
+  },
+  "component_style_methods": {
+    "status": "verified_generic_style_method_dispatch_and_text_mutators_specialized_types_pending",
+    "contract": "component-style-methods-contracts.json",
+    "remaining": [
+      "终端SDK继续table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库及HTML4/HTML5恢复差异；默认样式分发/文本变换已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射，不以私有后端通过代替。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+    ]
   }
 }

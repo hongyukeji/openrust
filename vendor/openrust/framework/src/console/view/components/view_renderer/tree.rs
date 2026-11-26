@@ -38,8 +38,8 @@ impl Prepared {
                 style.fg = parent.fg.clone();
                 style.color_order.push("fg");
             }
-            if !style.options.contains(&"bold") && parent.options.contains(&"bold") {
-                style.options.push("bold");
+            if style.bold.is_none() {
+                style.bold = parent.bold;
             }
         }
     }

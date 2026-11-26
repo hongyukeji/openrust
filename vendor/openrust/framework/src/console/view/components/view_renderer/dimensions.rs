@@ -12,25 +12,6 @@ pub(super) enum Dimension {
     Text(String),
 }
 impl Dimension {
-    pub fn parse(value: &str) -> Result<Self, ConsoleError> {
-        let value = value
-            .trim_start_matches('-')
-            .split('-')
-            .next()
-            .unwrap_or("");
-        if value.is_empty() {
-            return Err(ConsoleError::new("组件尺寸缺少参数"));
-        }
-        if input_scalars::numeric_prefix(value) == Some(value) {
-            let n = input_scalars::integer_string(value);
-            if n.unsigned_abs() > 1_000_000 {
-                return Err(ConsoleError::new("组件尺寸超出安全范围"));
-            }
-            Ok(Self::Integer(n))
-        } else {
-            Ok(Self::Text(value.to_owned()))
-        }
-    }
     pub fn integer(&self) -> i64 {
         match self {
             Self::Integer(n) => *n,
@@ -75,7 +56,7 @@ pub(super) struct Constraint {
 fn overflow() -> ConsoleError {
     ConsoleError::new("组件尺寸运算超出范围")
 }
-fn fraction(value: &str, width: i64) -> Result<Option<i64>, ConsoleError> {
+pub(super) fn fraction(value: &str, width: i64) -> Result<Option<i64>, ConsoleError> {
     static FRACTION: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"([0-9]+)/([0-9]+)").expect("合法分数宽度表达式"));
     let Some(parts) = FRACTION.captures(value) else {
