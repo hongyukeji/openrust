@@ -2,11 +2,39 @@ use crate::{
     EntryType, EntryUpdate, IncomingEntry, IncomingExceptionEntry, Result,
     contracts::EntriesRepository,
 };
+use openrust::{
+    cache::{Cache, CacheError, Ttl, Value as CachedValue},
+    support::php_value_truthy,
+};
 use std::sync::{
     Arc, Mutex, RwLock,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use uuid::Uuid;
+
+const PAUSE_RECORDING_KEY: &str = "telescope:pause-recording";
+
+pub(crate) async fn recording_paused() -> std::result::Result<bool, CacheError> {
+    Ok(match Cache::get(PAUSE_RECORDING_KEY).await? {
+        Some(CachedValue::Json(value)) => php_value_truthy(&value),
+        Some(CachedValue::Bytes(value)) => !matches!(value.as_slice(), b"" | b"0"),
+        None => false,
+    })
+}
+
+pub(crate) async fn set_recording_paused(paused: bool) -> std::result::Result<(), CacheError> {
+    if paused {
+        Cache::put(
+            PAUSE_RECORDING_KEY,
+            &CachedValue::Json(true.into()),
+            Some(Ttl::Seconds(30 * 24 * 60 * 60)),
+        )
+        .await?;
+    } else {
+        Cache::forget(PAUSE_RECORDING_KEY).await?;
+    }
+    Ok(())
+}
 
 type EntryFilter = Arc<dyn Fn(&IncomingEntry) -> bool + Send + Sync>;
 type BatchFilter = Arc<dyn Fn(&[IncomingEntry]) -> bool + Send + Sync>;
@@ -246,12 +274,7 @@ impl Telescope {
         if load_monitored_tags {
             self.repository.load_monitored_tags().await;
         }
-        let paused = matches!(
-            openrust::cache::Cache::get("telescope:pause-recording").await,
-            Ok(Some(openrust::cache::Value::Json(serde_json::Value::Bool(
-                true
-            ))))
-        );
+        let paused = recording_paused().await.unwrap_or(false);
         self.enabled.store(!paused, Ordering::Release);
     }
     pub(crate) async fn initialize(&self) {

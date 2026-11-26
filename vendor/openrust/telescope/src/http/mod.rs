@@ -1,6 +1,7 @@
 use crate::{
     EntryType, EntryUpdate, Error, Telescope, facades,
     storage::{EntryQueryOptions, has_string_filter},
+    telescope::{recording_paused, set_recording_paused},
 };
 use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
@@ -232,16 +233,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 return Ok(Response::empty(StatusCode::OK));
             }
             ("POST", "toggle-recording") => {
-                if paused().await? {
-                    openrust::cache::Cache::forget("telescope:pause-recording").await?;
-                } else {
-                    openrust::cache::Cache::put(
-                        "telescope:pause-recording",
-                        &openrust::cache::Value::Json(json!(true)),
-                        Some(openrust::cache::Ttl::Seconds(30 * 24 * 60 * 60)),
-                    )
-                    .await?;
-                }
+                set_recording_paused(!recording_paused().await?).await?;
                 return Ok(Response::empty(StatusCode::OK));
             }
             ("DELETE", "entries") => {
@@ -319,12 +311,6 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         ))
     })
 }
-async fn paused() -> Result<bool, HttpError> {
-    Ok(matches!(
-        openrust::cache::Cache::get("telescope:pause-recording").await?,
-        Some(openrust::cache::Value::Json(Value::Bool(true)))
-    ))
-}
 async fn status(watcher: &str) -> Result<&'static str, HttpError> {
     if watcher == "DumpWatcher" {
         let store = openrust::cache::Cache::get_default_driver()?;
@@ -342,7 +328,7 @@ async fn status(watcher: &str) -> Result<&'static str, HttpError> {
     if config.get("telescope.enabled") != Some(json!(true)) {
         return Ok("disabled");
     }
-    if paused().await? {
+    if recording_paused().await? {
         return Ok("paused");
     }
     let enabled = match config.get(&format!("telescope.watchers.{watcher}")) {

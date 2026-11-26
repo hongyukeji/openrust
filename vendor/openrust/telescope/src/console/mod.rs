@@ -4,6 +4,7 @@ use crate::{
     EntryType,
     contracts::{ClearableRepository, EntriesRepository, PrunableRepository},
     storage::{EntryQueryOptions, has_string_filter},
+    telescope::{recording_paused, set_recording_paused},
 };
 use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
@@ -130,32 +131,15 @@ impl Command for TelescopeCommand {
                     return Artisan::call("vendor:publish", &args, output).await;
                 }
                 "telescope:pause" => {
-                    if !matches!(
-                        openrust::cache::Cache::get("telescope:pause-recording")
-                            .await
-                            .map_err(error)?,
-                        Some(openrust::cache::Value::Json(serde_json::Value::Bool(true)))
-                    ) {
-                        openrust::cache::Cache::put(
-                            "telescope:pause-recording",
-                            &openrust::cache::Value::Json(json!(true)),
-                            Some(openrust::cache::Ttl::Seconds(30 * 24 * 60 * 60)),
-                        )
-                        .await
-                        .map_err(error)?;
+                    if !recording_paused().await.map_err(error)? {
+                        set_recording_paused(true).await.map_err(error)?;
                     }
                     output.info("Telescope watchers paused successfully.");
                     return Ok(0);
                 }
                 "telescope:resume" => {
-                    if openrust::cache::Cache::get("telescope:pause-recording")
-                        .await
-                        .map_err(error)?
-                        .is_some()
-                    {
-                        openrust::cache::Cache::forget("telescope:pause-recording")
-                            .await
-                            .map_err(error)?;
+                    if recording_paused().await.map_err(error)? {
+                        set_recording_paused(false).await.map_err(error)?;
                     }
                     output.info("Telescope watchers resumed successfully.");
                     return Ok(0);

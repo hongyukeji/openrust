@@ -124,17 +124,7 @@ async fn native_redis_commands_preserve_connection_parameters_and_elapsed_time()
     }));
 }
 
-#[tokio::test]
-async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
-    let mut app = application();
-    app.boot().await.unwrap();
-    let connection = app
-        .app()
-        .make::<openrust::database::DatabaseManager>()
-        .await
-        .unwrap()
-        .connection(None)
-        .unwrap();
+async fn install_database_cache_tables(connection: &openrust::database::Connection) {
     if std::env::var("TELESCOPE_TEST_CACHE_DRIVER").as_deref() == Ok("database") {
         connection
             .get_schema_builder()
@@ -155,6 +145,20 @@ async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
             .await
             .unwrap();
     }
+}
+
+#[tokio::test]
+async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
+    let mut app = application();
+    app.boot().await.unwrap();
+    let connection = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    install_database_cache_tables(&connection).await;
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
@@ -1547,6 +1551,101 @@ async fn api_call(
     .await
     .unwrap()
 }
+
+#[tokio::test]
+async fn recording_pause_uses_the_cached_value_for_artisan_and_http() {
+    use openrust::{
+        cache::{CacheManager, Value as Cached},
+        contracts::cache::Repository as _,
+    };
+
+    let mut app = application();
+    app.boot().await.unwrap();
+    let connection = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    install_database_cache_tables(&connection).await;
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.auth(|_| Box::pin(async { Ok(true) }));
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let cache = app
+        .app()
+        .make::<CacheManager>()
+        .await
+        .unwrap()
+        .store(None)
+        .unwrap();
+    let key = "telescope:pause-recording";
+    let enabled = Cached::Json(json!(true));
+    let mut events = 0;
+    for (value, pauses) in [
+        (enabled.clone(), true),
+        (Cached::Json(json!(false)), false),
+        (Cached::Json(json!(1)), true),
+        (Cached::Json(json!(0)), false),
+        (Cached::Json(json!("false")), true),
+        (Cached::Json(json!("0")), false),
+        (Cached::Json(json!("")), false),
+        (Cached::Json(json!([])), false),
+        (Cached::Json(json!([0])), true),
+        (Cached::Bytes(vec![0xff]), true),
+        (Cached::Bytes(b"0".to_vec()), false),
+    ] {
+        cache.put(key, &value, None).await.unwrap();
+        app.get("/api/probe").await.unwrap().assert_ok();
+        events += usize::from(!pauses);
+        let recorded = repository
+            .get(Some(EntryType::Event), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(recorded.len(), events, "{value:?}");
+        let listed = api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/events",
+            json!({}),
+        )
+        .await;
+        listed.assert_ok();
+        assert_eq!(
+            listed.json::<serde_json::Value>().unwrap()["status"],
+            if pauses { "paused" } else { "enabled" }
+        );
+
+        app.artisan(["telescope:pause"]).await.assert_successful();
+        let stored = if pauses { &value } else { &enabled };
+        assert_eq!(cache.get(key).await.unwrap().as_ref(), Some(stored));
+
+        cache.put(key, &value, None).await.unwrap();
+        app.artisan(["telescope:resume"]).await.assert_successful();
+        assert_eq!(
+            cache.get(key).await.unwrap().as_ref(),
+            (!pauses).then_some(&value)
+        );
+
+        cache.put(key, &value, None).await.unwrap();
+        api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/toggle-recording",
+            json!({}),
+        )
+        .await
+        .assert_ok();
+        assert_eq!(
+            cache.get(key).await.unwrap().as_ref(),
+            (!pauses).then_some(&enabled)
+        );
+    }
+}
+
 #[tokio::test]
 async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutations() {
     let mut app = application();

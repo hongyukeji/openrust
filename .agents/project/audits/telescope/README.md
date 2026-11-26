@@ -111,6 +111,12 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 实际 SQLite、PostgreSQL 18.7、MySQL 8.4.13 写入同一 Job，抑制回调、录制与存储回调均保留待处理状态，恢复后更新为已处理。Telescope Provider 35 项、存储 8 项、快照格式及相关严格 Clippy 通过。独立 Redis Provider 用例按环境跳过。证据为 `target/tmp/observability-parity/telescope-suppressed-update-{upstream,macos-baseline}.log` 和 `pulse-server-sort-telescope-updates-macos-verified.log`。
 
+### 暂停状态的缓存值
+
+固定 PHP 8.5.12 实跑采集启动、两个 Artisan 命令处理器与面板切换控制器。原有非布尔缓存值依 PHP 真值判断，例如整数 `1` 和字符串 `"false"` 暂停采集，字符串 `"0"` 和空数组允许采集。已暂停时再运行 `telescope:pause` 保留原值，`telescope:resume` 只清除表示暂停的值。Rust 将采集、Artisan 与面板切换统一到同一缓存判定。 [固定 PauseCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/PauseCommand.php) [固定 RecordingController](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Http/Controllers/RecordingController.php)
+
+macOS 通过真实应用事件、授权列表、面板切换和实际 Artisan 核对 11 组值。驱动覆盖文件缓存、SQLite／PostgreSQL 18.7／MySQL 8.4.13 数据库缓存及隔离 Redis 8.10.3。Telescope Provider 默认 36 项、存储 8 项、Watcher 21 项和相关严格 Clippy 通过，Redis 观察用例单独通过。证据为 `target/tmp/observability-parity/telescope-pause-values-{upstream,macos-baseline,macos-verified}.log`。
+
 ## prune 命令的截止时间
 
 固定 Telescope `PruneCommand::handle` 通过应用时钟计算截止时间。PHP 8.5.12 实际调用该命令、使用固定时钟和可观察的 PrunableRepository，确认默认 24 小时、半小时、小数、负值、可转换的科学计数法和微秒舍入。`--keep-exceptions` 原样传给仓储。非数值和无法转换成 Carbon 区间的值在调用仓储前失败。证据为 `target/tmp/observability-parity/telescope-prune-{hour-options-upstream,fraction-precision-upstream}.log`。 [固定 PruneCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/PruneCommand.php)
