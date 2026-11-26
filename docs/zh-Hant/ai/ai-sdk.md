@@ -127,7 +127,7 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 ### Codex 模型目錄 {#codex-model-catalog}
 
-使用 Bearer 憑證請求 `/v1/models?client_version=0.170.0` 可取得 Codex 模型目錄。`/backend-api/codex/models` 提供相同格式。目錄僅列出目前 Key 能透過 Responses 呼叫的公開模型。一般 OpenAI 和 Anthropic 模型端點沿用各自格式。
+使用 Bearer 憑證請求 `/v1/models?client_version=0.170.0` 可取得 Codex 模型目錄。Codex 也可將基礎 URL 設為 `https://your-app.example/backend-api/codex`。此前綴提供 `/models`、HTTP 與 WebSocket 的 `/responses`，以及 `/responses/input_tokens`。目錄僅列出目前 Key 能透過 Responses 呼叫的公開模型。一般 OpenAI 和 Anthropic 模型端點沿用各自格式。
 
 在公開模型對應中可選填 `codex` 物件，用來設定顯示名稱、說明、上下文視窗、輸入類型和推理選項。預設使用公開模型名稱作為顯示名稱，並宣告文字輸入。用戶端可帶上 `If-None-Match` 重複使用已授權的目錄。
 

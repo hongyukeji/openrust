@@ -127,7 +127,7 @@ Text frames are limited to 2 MiB. Reconnect after one hour.
 
 ### Codex model catalog {#codex-model-catalog}
 
-A Bearer-authenticated request to `/v1/models?client_version=0.170.0` returns the Codex catalog. The `/backend-api/codex/models` alias serves the same format. Only aliases available to the current Key through the Responses endpoint appear. The ordinary OpenAI and Anthropic model endpoints keep their original formats.
+A Bearer-authenticated request to `/v1/models?client_version=0.170.0` returns the Codex catalog. Codex clients can also set the base URL to `https://your-app.example/backend-api/codex`. That prefix serves `/models`, `/responses` over HTTP and WebSocket, and `/responses/input_tokens`. Only aliases available to the current Key through the Responses endpoint appear. The ordinary OpenAI and Anthropic model endpoints keep their original formats.
 
 Add an optional `codex` object to a public model mapping to set its display name, description, context window, input modalities and reasoning choices. By default the catalog uses the public alias for its display name and advertises text input. A conditional request with `If-None-Match` can reuse the existing authorized catalog.
 

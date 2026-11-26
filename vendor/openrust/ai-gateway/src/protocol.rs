@@ -37,7 +37,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
     })?;
     Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {
         router.get("/models", codex_models)?;
-        Ok(())
+        responses_routes(router)
     })?;
     Route::group(RouteGroup::new().prefix("/v1beta"), |router| {
         router.get("/models", gemini_models)?;
@@ -55,11 +55,15 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/models", models)?;
     router.get("/models/{model}", model)?;
     router.post("/chat/completions", chat_completions)?;
+    router.post("/embeddings", embeddings)?;
+    router.post("/messages/count_tokens", count_message_tokens)?;
+    responses_routes(router)
+}
+
+fn responses_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/responses", responses)?;
     router.get("/responses", websocket)?;
     router.post("/responses/input_tokens", count_response_tokens)?;
-    router.post("/embeddings", embeddings)?;
-    router.post("/messages/count_tokens", count_message_tokens)?;
     Ok(())
 }
 
