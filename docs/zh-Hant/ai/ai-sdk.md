@@ -586,6 +586,8 @@ let assistant = agent("").with_tools(vec![Arc::new(tool)]);
 
 可用 `with_approval` 為工具呼叫指定應用程式審批策略。`annotations()` 會傳回 MCP 服務公布的提示。
 
+使用 Streamable HTTP 時，在應用程式的 `rmcp` 依賴啟用 `transport-streamable-http-client-reqwest`，透過 `StreamableHttpClientTransport` 建立連線。共用同一個 MCP 工作階段的 Agent 呼叫可重複使用該連線對端。
+
 若要將應用程式自身的 MCP 服務工具直接提供給 Agent，可將工具定義和非同步處理函式傳給 `McpServerTool::new`。處理函式接收 `CallToolRequestParams` 並傳回 `AiResult<CallToolResult>`。Agent 使用工具原名，並可沿用應用程式審批策略。
 
 ### Agent 技能 {#agent-skills}

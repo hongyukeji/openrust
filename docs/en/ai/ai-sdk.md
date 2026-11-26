@@ -586,6 +586,8 @@ let assistant = agent("").with_tools(vec![Arc::new(tool)]);
 
 Use `with_approval` to apply an application policy to the tool call. `annotations()` returns the hints published by the MCP server.
 
+For Streamable HTTP, enable `transport-streamable-http-client-reqwest` on the application’s `rmcp` dependency and connect with `StreamableHttpClientTransport`. Reuse the connected peer across Agent calls when they share the same MCP session.
+
 To expose an application-owned MCP server tool directly to an Agent, pass its definition and async handler to `McpServerTool::new`. The handler receives `CallToolRequestParams` and returns `AiResult<CallToolResult>`. The Agent uses the tool’s declared name and can apply the same approval policy.
 
 ### Skills {#agent-skills}

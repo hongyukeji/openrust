@@ -611,9 +611,11 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 `McpTool` 接收应用已连接的官方 Rust MCP 对端及选定的工具定义。模型侧使用固定 Laravel 的 `mcp_tools_` 前缀，MCP 请求使用原工具名与原参数。服务器描述、标题与名称依次用于工具说明，应用可读取 annotations 并设置审批策略。结构化结果优先输出 JSON，普通内容合并文本，工具错误按当前语言保留服务返回的正文，协议错误走 SDK 通用失败路径。
 
-复用框架 JSON Schema 的本地引用解析及类型转换。适配器构造时，当前无法表示的 Schema 返回 `AiError::InvalidSchema`。固定 Laravel 的剩余归一化规则及失败时空 Schema 的行为需要继续复核。外部 MCP 长连接保持待验收。
+复用框架 JSON Schema 的本地引用解析及类型转换。适配器构造时，当前无法表示的 Schema 返回 `AiError::InvalidSchema`。固定 Laravel 的剩余归一化规则及失败时空 Schema 的行为需要继续复核。
 
 实际 Artisan 与并发 HTTP 经本地 Responses 上游和官方 RMCP 双向字节流核对会话协商、工具发现、Schema 中的本地引用、出站参数、结果、协议故障、先审批后执行及 18 语覆写和回退。框架 JSON Schema 回归、SDK 严格 Clippy 和三语文档通过。
+
+独立 Artisan 进程启动官方 RMCP Streamable HTTP 服务。另一个 Artisan 进程连接、发现工具，并用同一会话完成两次 Agent 调用，服务端记录核对了会话复用。真实 HTTP 流式应用也经独立 MCP 服务调用，核对结果、错误回传和审批边界。传输由消费应用启用，三语文档记录对接方式。
 
 - [固定 Laravel McpTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/McpTool.php) · [MCP Tools 契约](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) · [官方 RMCP 3.12.0](https://docs.rs/crate/rmcp/3.12.0)
 
