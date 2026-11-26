@@ -8,6 +8,13 @@ use crate::database::query::{Record, UpdateValue, UpsertUpdate, ValueOperand, gr
 mod json;
 
 impl Builder<'_> {
+    /// 将指定插入列中的字节参数按数据库的文本列规则写入。
+    #[doc(hidden)]
+    pub fn with_binary_text_column(mut self, column: &str) -> Self {
+        self.binary_text_column = Some(column.into());
+        self
+    }
+
     #[track_caller]
     pub fn insert(mut self, rows: &[Record]) -> impl Future<Output = DatabaseResult<bool>> {
         crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
@@ -260,7 +267,7 @@ impl Builder<'_> {
         let first = &rows[0];
         let keys = first.keys().map(String::as_str).collect::<Vec<_>>();
         let columns = self.write_columns(keys.iter().copied())?;
-        let (values, mut bindings) = value_parameters(rows)?;
+        let (values, mut bindings) = value_parameters(rows, None)?;
         let table = self.grammar.table(self.source.table_name()?)?;
         let mut match_columns = Vec::with_capacity(unique_by.len());
         for key in unique_by {
@@ -769,7 +776,15 @@ impl Builder<'_> {
             };
             return Ok((format!("{sql}{default}{conflict}"), Vec::new()));
         }
-        let (values, bindings) = value_parameters(rows)?;
+        let binary_text = self.binary_text_column.as_deref().and_then(|column| {
+            let expression = match self.get_connection().get_driver_name() {
+                "sqlite" => "cast(? as text)",
+                "pgsql" => "convert_from(?, 'UTF8')",
+                _ => return None,
+            };
+            Some((column, expression))
+        });
+        let (values, bindings) = value_parameters(rows, binary_text)?;
         let columns = self.write_columns(first.keys().map(String::as_str))?;
         Ok((
             format!("{sql} ({columns}) values {values}{conflict}"),
@@ -815,13 +830,35 @@ impl Builder<'_> {
     }
 }
 
-fn value_parameters(rows: &[Record]) -> DatabaseResult<(String, Vec<Value>)> {
+fn value_parameters(
+    rows: &[Record],
+    binary_text: Option<(&str, &str)>,
+) -> DatabaseResult<(String, Vec<Value>)> {
     let first = &rows[0];
     if first.is_empty() || rows.iter().any(|row| !row.keys().eq(first.keys())) {
         return Err(DatabaseError::InvalidQuery("insert row columns"));
     }
-    let placeholders = format!("({})", vec!["?"; first.len()].join(", "));
-    let values = vec![placeholders.as_str(); rows.len()].join(", ");
+    let values = if let Some((column, expression)) = binary_text.filter(|(column, _)| {
+        rows.iter()
+            .any(|row| matches!(row.get(*column), Some(Value::Bytes(_))))
+    }) {
+        rows.iter()
+            .map(|row| {
+                let placeholders = row.iter().map(|(name, value)| {
+                    if name == column && matches!(value, Value::Bytes(_)) {
+                        expression
+                    } else {
+                        "?"
+                    }
+                });
+                format!("({})", placeholders.collect::<Vec<_>>().join(", "))
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else {
+        let placeholders = format!("({})", vec!["?"; first.len()].join(", "));
+        vec![placeholders.as_str(); rows.len()].join(", ")
+    };
     let bindings = rows.iter().flat_map(|row| row.values().cloned()).collect();
     Ok((values, bindings))
 }

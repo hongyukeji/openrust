@@ -433,3 +433,199 @@ async fn pulse_work_and_check_use_their_own_iteration_schedules() {
         .assert_successful();
     listener.assert_interval(Duration::from_secs(1));
 }
+
+#[tokio::test]
+async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics_rows() {
+    use openrust::database::Value;
+    use openrust::support::facades::Cache;
+    use openrust_pulse::{Entry, Pulse};
+
+    fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        let key = match request.uri().path().rsplit('/').next() {
+            Some("first") => "é",
+            Some("second") => "ê",
+            _ => "valid",
+        };
+        Box::pin(async move {
+            assert!(Cache::get(key).await?.is_none());
+            Ok(Response::from("ok"))
+        })
+    }
+
+    let redis_ingest = std::env::var_os("PULSE_TEST_INGEST_REDIS").is_some();
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                values.get_mut("app").unwrap()["key"] =
+                    "01234567890123456789012345678901".into();
+                values.get_mut("app").unwrap()["cipher"] = "AES-256-CBC".into();
+                values.get_mut("database").unwrap()["connections"]["test"]["max_connections"] =
+                    json!(1);
+                values.get_mut("pulse").unwrap()["recorders"]["CacheInteractions"] =
+                    json!({"sample_rate":1,"ignore":[],"groups":[["/(?=)/","X"]]});
+                if std::env::var_os("PULSE_TEST_INGEST_REDIS").is_some() {
+                    values.get_mut("database").unwrap()["redis"] = json!({
+                        "client": "redis",
+                        "options": {"prefix": format!("pulse-ingest-binary-{:032x}:", fastrand::u128(..))},
+                        "default": {"url": std::env::var("OPENRUST_TEST_REDIS_URL").expect("isolated Redis URL required")},
+                    });
+                    values.get_mut("pulse").unwrap()["ingest"]["driver"] = "redis".into();
+                    values.get_mut("pulse").unwrap()["ingest"]["redis"] = json!({"chunk": 2});
+                }
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/binary-group/first", probe)?;
+                Route::get("/binary-group/second", probe)?;
+                Route::get("/binary-group/valid", probe)?;
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let db = storage.connection();
+    let driver = db.get_driver_name();
+    let non_strict = driver == "mysql" && std::env::var_os("PULSE_TEST_MYSQL_NON_STRICT").is_some();
+    if driver == "mysql" {
+        let sql = if non_strict {
+            "set session sql_mode=''"
+        } else {
+            "set session sql_mode='STRICT_TRANS_TABLES'"
+        };
+        db.statement(sql, &[]).await.unwrap();
+    }
+
+    let errors = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured = errors.clone();
+    app.app()
+        .make::<Pulse>()
+        .await
+        .unwrap()
+        .handle_exceptions_using(move |error| {
+            if let openrust_pulse::Error::Database(openrust::database::DatabaseError::Driver {
+                source,
+                ..
+            }) = error
+            {
+                captured.lock().unwrap().push(
+                    source
+                        .as_database_error()
+                        .unwrap()
+                        .code()
+                        .unwrap()
+                        .into_owned(),
+                );
+            } else {
+                panic!("分组键应进入数据库：{error}");
+            }
+        });
+    for route in ["first", "second", "valid"] {
+        app.get(&format!("/api/binary-group/{route}"))
+            .await
+            .unwrap()
+            .assert_ok();
+    }
+    if redis_ingest {
+        assert_eq!(
+            app.app()
+                .make::<Pulse>()
+                .await
+                .unwrap()
+                .digest()
+                .await
+                .unwrap(),
+            3
+        );
+    }
+    let rows = db
+        .table("pulse_entries")
+        .order_by("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    let valid = Value::from("XvXaXlXiXdX");
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    assert_eq!(
+        response.status().as_u16(),
+        200,
+        "{}",
+        String::from_utf8_lossy(response.body())
+    );
+    let cards: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
+    let cache = cards["cache"].as_array().unwrap();
+
+    match driver {
+        "sqlite" => {
+            let first = vec![b'X', 0xc3, b'X', 0xa9, b'X'];
+            let second = vec![b'X', 0xc3, b'X', 0xaa, b'X'];
+            assert_eq!(rows.len(), 3);
+            for (row, raw) in rows.iter().zip([first, second]) {
+                let hash = format!("{:x}", md5::compute(&raw));
+                assert_eq!(row.get("key"), Some(&Value::Bytes(raw)));
+                assert_eq!(row.get("key_hash"), Some(&Value::from(hash)));
+            }
+            assert_eq!(rows[2].get("key"), Some(&valid));
+            let storage_type = db
+                .scalar(
+                    "select typeof(key) as kind from pulse_entries order by id limit 1",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(storage_type, Value::from("text"));
+            let display = cache
+                .iter()
+                .filter(|row| row["key"] == "X�X�X")
+                .collect::<Vec<_>>();
+            assert_eq!(display.len(), 2);
+            assert!(
+                display
+                    .iter()
+                    .all(|row| row["cache_miss"].as_f64() == Some(1.0))
+            );
+            assert!(errors.lock().unwrap().is_empty());
+        }
+        "mysql" if non_strict => {
+            assert_eq!(rows.len(), 3);
+            assert!(
+                rows[..2]
+                    .iter()
+                    .all(|row| row.get("key") == Some(&Value::from("X")))
+            );
+            let truncated = cache.iter().find(|row| row["key"] == "X").unwrap();
+            let misses = &truncated["cache_miss"];
+            assert_eq!(
+                misses.as_f64().or_else(|| misses.as_str()?.parse().ok()),
+                Some(2.0),
+                "{truncated}"
+            );
+            assert!(errors.lock().unwrap().is_empty());
+        }
+        "pgsql" | "mysql" => {
+            let state = if driver == "pgsql" { "22021" } else { "HY000" };
+            assert_eq!(*errors.lock().unwrap(), [state, state]);
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get("key"), Some(&valid));
+
+            let now = jiff::Timestamp::now().as_second();
+            let storage = DatabaseStorage::new(db.clone()).with_chunk(1).unwrap();
+            let batch = [
+                Entry::new(now, "cache_miss", "batch-valid", None)
+                    .count()
+                    .into(),
+                Entry::from_key_bytes(now, "cache_miss", vec![b'X', 0xc3, b'X'], None)
+                    .count()
+                    .into(),
+            ];
+            assert!(storage.store(&batch).await.is_err());
+            assert_eq!(db.table("pulse_entries").count("*").await.unwrap(), 1);
+            assert_eq!(db.table("pulse_aggregates").count("*").await.unwrap(), 4);
+        }
+        other => panic!("{other}"),
+    }
+}

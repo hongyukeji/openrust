@@ -127,6 +127,7 @@ pub struct Builder<'connection> {
     before_query: Vec<Arc<BeforeQuery>>,
     after_query: Vec<Arc<AfterQuery>>,
     binding_changes: Option<Box<bindings::Changes>>,
+    binary_text_column: Option<String>,
 }
 
 impl<'connection> Builder<'connection> {
@@ -186,6 +187,7 @@ impl<'connection> Builder<'connection> {
             before_query: Vec::new(),
             after_query: Vec::new(),
             binding_changes: None,
+            binary_text_column: None,
         }
     }
 
@@ -581,6 +583,7 @@ impl<'connection> Builder<'connection> {
             before_query: self.before_query.clone(),
             after_query: self.after_query.clone(),
             binding_changes: self.binding_changes.clone(),
+            binary_text_column: self.binary_text_column.clone(),
         }
     }
     pub fn apply_before_query_callbacks(&mut self) -> DatabaseResult<()> {

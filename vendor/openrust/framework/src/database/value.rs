@@ -189,9 +189,12 @@ fn sqlite_value(row: &SqliteRow, index: usize, kind: &str) -> DatabaseResult<Val
         "INTEGER" => row.try_get_unchecked::<i64, _>(index).map(Value::Integer),
         "BOOLEAN" => row.try_get_unchecked::<bool, _>(index).map(Value::Bool),
         "REAL" => row.try_get_unchecked::<f64, _>(index).map(Value::Real),
-        "TEXT" | "DATE" | "TIME" | "DATETIME" => {
-            row.try_get_unchecked::<String, _>(index).map(Value::Text)
-        }
+        "TEXT" => row.try_get_unchecked::<Vec<u8>, _>(index).map(|bytes| {
+            String::from_utf8(bytes)
+                .map(Value::Text)
+                .unwrap_or_else(|error| Value::Bytes(error.into_bytes()))
+        }),
+        "DATE" | "TIME" | "DATETIME" => row.try_get_unchecked::<String, _>(index).map(Value::Text),
         "BLOB" => row.try_get_unchecked::<Vec<u8>, _>(index).map(Value::Bytes),
         _ => return Err(DatabaseError::UnsupportedColumnType(kind.to_owned())),
     };

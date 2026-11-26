@@ -11,6 +11,7 @@ pub struct Entry {
     pub r#type: String,
     pub key: String,
     pub value: Option<i64>,
+    original_key_bytes: Option<Vec<u8>>,
     aggregations: Arc<RwLock<Vec<String>>>,
     only_buckets: Arc<AtomicBool>,
 }
@@ -26,9 +27,40 @@ impl Entry {
             r#type: r#type.into(),
             key: key.into(),
             value,
+            original_key_bytes: None,
             aggregations: Arc::default(),
             only_buckets: Arc::default(),
         }
+    }
+
+    /// 保留非 UTF-8 分组键。文本字段仍可供现有读取方显示和编辑。
+    pub fn from_key_bytes(
+        timestamp: i64,
+        r#type: impl Into<String>,
+        key: Vec<u8>,
+        value: Option<i64>,
+    ) -> Self {
+        match String::from_utf8(key) {
+            Ok(key) => Self::new(timestamp, r#type, key, value),
+            Err(error) => {
+                let bytes = error.into_bytes();
+                let mut entry =
+                    Self::new(timestamp, r#type, String::from_utf8_lossy(&bytes), value);
+                entry.original_key_bytes = Some(bytes);
+                entry
+            }
+        }
+    }
+
+    /// 用于聚合和持久化的键。显式编辑文本字段后，以编辑值为准。
+    pub fn key_bytes(&self) -> &[u8] {
+        self.non_utf8_key().unwrap_or(self.key.as_bytes())
+    }
+
+    pub(crate) fn non_utf8_key(&self) -> Option<&[u8]> {
+        self.original_key_bytes
+            .as_deref()
+            .filter(|bytes| String::from_utf8_lossy(bytes) == self.key)
     }
     fn aggregate(self, name: &str) -> Self {
         self.aggregations
@@ -85,10 +117,17 @@ impl Entry {
     }
 }
 #[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum SerializedKey {
+    Text(String),
+    Bytes(Vec<u8>),
+}
+
+#[derive(Serialize, Deserialize)]
 struct SerializedEntry {
     timestamp: i64,
     r#type: String,
-    key: String,
+    key: SerializedKey,
     value: Option<i64>,
     aggregations: Vec<String>,
     #[serde(rename = "onlyBuckets")]
@@ -99,7 +138,10 @@ impl Serialize for Entry {
         SerializedEntry {
             timestamp: self.timestamp,
             r#type: self.r#type.clone(),
-            key: self.key.clone(),
+            key: match self.non_utf8_key() {
+                Some(bytes) => SerializedKey::Bytes(bytes.to_vec()),
+                None => SerializedKey::Text(self.key.clone()),
+            },
             value: self.value,
             aggregations: self.aggregations(),
             only_buckets: self.is_only_buckets(),
@@ -116,7 +158,10 @@ impl<'de> Deserialize<'de> for Entry {
         {
             return Err(serde::de::Error::custom("invalid Pulse aggregation"));
         }
-        let entry = Self::new(e.timestamp, e.r#type, e.key, e.value);
+        let entry = match e.key {
+            SerializedKey::Text(key) => Self::new(e.timestamp, e.r#type, key, e.value),
+            SerializedKey::Bytes(key) => Self::from_key_bytes(e.timestamp, e.r#type, key, e.value),
+        };
         *entry
             .aggregations
             .write()

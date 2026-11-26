@@ -254,14 +254,14 @@ impl Recorders {
                 .lazy(move |pulse| {
                     Box::pin(async move {
                         if recorder.accepts("CacheInteractions", &key, None, None)? {
-                            let key = concerns::group(
+                            let key = concerns::group_bytes(
                                 recorder
                                     .options("CacheInteractions")
                                     .get("groups")
                                     .unwrap_or(&Value::Null),
                                 &key,
                             )?;
-                            pulse.record(kind, key, None, Some(now)).await.count();
+                            pulse.record_key_bytes(kind, key, None, now).await.count();
                         }
                         Ok(())
                     })

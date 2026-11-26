@@ -122,6 +122,10 @@ fn rules(value: &Value) -> Result<Vec<(&str, &Value)>> {
     }
 }
 pub fn group(groups: &Value, value: &str) -> Result<String> {
+    String::from_utf8(group_bytes(groups, value)?).map_err(|_| Error::StateUnavailable)
+}
+
+pub(crate) fn group_bytes(groups: &Value, value: &str) -> Result<Vec<u8>> {
     for (pattern, replacement) in rules(groups)? {
         let Some(replacement) = replacement.as_str() else {
             return Err(Error::InvalidConfiguration(
@@ -204,10 +208,10 @@ pub fn group(groups: &Value, value: &str) -> Result<String> {
         }
         if changed {
             output.extend_from_slice(&subject[last..]);
-            return String::from_utf8(output).map_err(|_| Error::StateUnavailable);
+            return Ok(output);
         }
     }
-    Ok(value.into())
+    Ok(value.as_bytes().to_vec())
 }
 pub fn threshold(config: &Value, key: &str) -> Result<f64> {
     if let Some(n) = config.as_f64() {

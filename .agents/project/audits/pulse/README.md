@@ -82,15 +82,23 @@ macOS 隔离快照通过 PCRE2 库 24 项、三扩展默认 97 项、快照全�
 
 同源码在 Linux 7.0.14 ARM64 和 Windows 11 ARM64 各通过 Pulse 模式 4 项和 Provider 15 项，覆盖 SQLite 上的真实文件缓存行为。Linux 同批通过 Telescope Provider 15 项，按条件跳过 1 项。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{linux,windows}-verified.log`。
 
-分组键仍使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 字节键表示、持久化及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。
+分组键原先仅使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 字节键表示、持久化及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。
 
-固定 PHP 8.5.12 的真实 CacheInteractions、Pulse 迁移与 DatabaseStorage 补验了 PostgreSQL 18.7 和 MySQL 8.4.13。两条分组规则产生的非法序列分别为 `58c358a958` 和 `59c359a959`。UTF-8 PostgreSQL 拒绝两条写入（SQLSTATE `22021`），严格 `utf8mb4` MySQL 返回 `HY000/1366`。混合合法与非法条目的批次也报错，预先存入的一条事件与四条聚合完整保留，混合批次的新条目和聚合均未留下。MySQL 显式关闭严格模式时，同样两个输入截断为 `X` 和 `Y` 并成功入库。以上是数据库实际处理分组原始字节的结果。Rust 的公开文本分组函数当前在存储前拒绝此输入，SQLite、非严格 MySQL、错误阶段及面板仍有差距。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-database-upstream.log`。
+固定 PHP 8.5.12 的真实 CacheInteractions、Pulse 迁移与 DatabaseStorage 补验了 PostgreSQL 18.7 和 MySQL 8.4.13。两条分组规则产生的非法序列分别为 `58c358a958` 和 `59c359a959`。UTF-8 PostgreSQL 拒绝两条写入（SQLSTATE `22021`），严格 `utf8mb4` MySQL 返回 `HY000/1366`。混合合法与非法条目的批次也报错，预先存入的一条事件与四条聚合完整保留，混合批次的新条目和聚合均未留下。MySQL 显式关闭严格模式时，同样两个输入截断为 `X` 和 `Y` 并成功入库。以上是数据库实际处理分组原始字节的结果。修复前 Rust 的文本分组路径在存储前拒绝此输入，SQLite、非严格 MySQL、错误阶段及面板均有差距。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-database-upstream.log`。
 
 固定 PHP、Predis 2.4.0 和实际 Redis 8.10.3 补验。同一 Recorder 通过上游 RedisIngest 将两个分组键按原始字节写入 Stream。用一次受控存储失败确认两条仍留在 Stream，再用固定 SQLite DatabaseStorage 重试，成功保存后两条均被移除。SQLite 的 `typeof(key)` 为 `text`。固定聚合按原始键分别返回一次 miss，Cache Blade 模板的实际键插值经固定框架编译后显示 `X�X�X` 和 `Y�Y�Y`。探针覆盖实际插值，整个 Livewire 请求和快照序列化继续验证。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-redis-display-upstream.log`。 [固定 RedisIngest](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Ingests/RedisIngest.php)
 
 Rust 的真实文件缓存 HTTP 路由复现了缺口。两个请求均完成，但触发 Pulse 错误回调并丢弃观测条目，只有同一消费者的合法键对照入库。错误分别是文本转换失败及 PCRE2 非法 UTF 偏移。固定 PHP 多次匹配会跳过 UTF 检查。PCRE2 对可用起始偏移仍有前置条件，兼容方案需单独验证，避免从码点内部用未经验证的偏移调用底层匹配器。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-native-baseline.log`。 [固定 PHP 替换循环](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L1757-L1819) [PCRE2 API](https://www.pcre.org/current/doc/html/pcre2api.html)
 
 原生 Rust 三库夹具验证了后续存储改动可使用的参数语义。SQLite 将二进制参数显式转换为 TEXT 后保持原字节及 TEXT 类型。PostgreSQL 的 `convert_from` 将字节转换为 UTF-8，数据库返回同一 `22021`。MySQL 将二进制参数直接赋给文本列时，严格模式报错而非严格模式截断，PHP PDO 的对照表明显式 `convert` 会改变严格模式的错误类型，需保留直接赋值。后续需在批量写入和 upsert 使用这些候选绑定并复验完整路径，Redis 的兼容编码与面板按字节区分聚合行也继续验证。证据为 `target/tmp/observability-parity/pulse-byte-key-{parameter-drivers,native-binding}.log`。
+
+#### 缓存分组字节键进入原生消费者
+
+CacheInteractions 的 PCRE 字节模式现在基于原始字节创建 Entry。有效 UTF-8 继续使用文本字段与既有 JSON 形式。原始字节可经 `Entry::key_bytes()` 读取，编辑后与原显示值不同的公开 `key` 按编辑值持久化。Redis Stream 仅将非 UTF-8 键编码为字节数组，旧读端无法将其解码为字符串并保留待消费项。旧文本条目可由新读端读取。数据库批量插入与 upsert 实际绑定原始字节。SQLite 转换成 TEXT 并按原字节生成哈希，读取非法 TEXT 时保留字节。PostgreSQL 在执行中按 UTF-8 转换，MySQL 按连接的严格模式决定拒绝或截断。原生 Cache 指标在展示边界替换无法显示的字节，两个显示相同的原始键仍保留独立计数。
+
+macOS 真实 HTTP 文件缓存、SQLite、PostgreSQL 18.7 及 MySQL 8.4.13 专项通过。严格模式两库在存储触发错误回调，跨写入批次的合法项一并回滚。非严格 MySQL 的两组键按数据库行为截断并合并计数。独占 Redis 8.10.3 验证失败保留、重试、裁剪、旧文本载荷和原字节往返。另用实际 HTTP 缓存、原生 Redis ingest、SQLite 与面板 API 验证完整链路。Pulse 和 Telescope 默认 78 项通过、两项按环境跳过，Redis ingest 跳过项单独实跑通过。框架两个数据库目标、隔离快照格式、相关严格 Clippy、三语文档构建及桌面／移动检查通过。证据位于 `target/tmp/observability-parity/pulse-byte-key-{storage-macos,framework-regressions,storage-docs,storage-docs-chapter}.log`。
+
+仅写 `(*UTF)` 的模式仍受 PCRE2 安全起始偏移约束。该变体、含字节键的通用 Graph／Value 契约、完整 Livewire 请求对照及本批目标平台 Release 仍待核对。
 
 ## SlowJobs 任务尝试计时
 

@@ -172,6 +172,9 @@ fn row(row: openrust::database::Row) -> serde_json::Value {
                     match v {
                         Sql::Null => serde_json::Value::Null,
                         Sql::Text(v) => v.clone().into(),
+                        Sql::Bytes(v) if k == "key" => {
+                            String::from_utf8_lossy(v).into_owned().into()
+                        }
                         Sql::Integer(v) => (*v).into(),
                         Sql::Unsigned(v) => (*v).into(),
                         Sql::Real(v) => (*v).into(),

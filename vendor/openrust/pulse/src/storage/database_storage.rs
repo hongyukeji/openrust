@@ -6,7 +6,7 @@ use openrust::database::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-type AggregateKey = (String, i64, i64, String);
+type AggregateKey = (String, i64, i64, Vec<u8>);
 type AggregateGroups = BTreeMap<String, IndexMap<AggregateKey, Record>>;
 
 pub struct DatabaseStorage {
@@ -62,25 +62,29 @@ impl DatabaseStorage {
             identifier.replace(quote, &format!("{quote}{quote}"))
         )
     }
-    fn key_hash(&self, key: &str, row: &mut Record) {
+    fn key_hash(&self, key: &[u8], row: &mut Record) {
         if self.connection.get_driver_name() == "sqlite" {
-            row.insert(
-                "key_hash".into(),
-                format!("{:x}", md5::compute(key.as_bytes())).into(),
-            );
+            row.insert("key_hash".into(), format!("{:x}", md5::compute(key)).into());
         }
     }
+    fn entry_key(entry: &Entry) -> Sql {
+        match entry.non_utf8_key() {
+            Some(key) => Sql::Bytes(key.to_vec()),
+            None => Sql::Text(entry.key.clone()),
+        }
+    }
+
     fn entry_row(&self, entry: &Entry) -> Record {
         let mut row = Record::from([
             ("timestamp".into(), entry.timestamp.into()),
             ("type".into(), entry.r#type.clone().into()),
-            ("key".into(), entry.key.clone().into()),
+            ("key".into(), Self::entry_key(entry)),
             (
                 "value".into(),
                 entry.value.map(Sql::Integer).unwrap_or(Sql::Null),
             ),
         ]);
-        self.key_hash(&entry.key, &mut row);
+        self.key_hash(entry.key_bytes(), &mut row);
         row
     }
     fn preaggregate(&self, items: &[Item]) -> BTreeMap<String, Vec<Record>> {
@@ -94,7 +98,12 @@ impl DatabaseStorage {
                         continue;
                     }
                     let bucket = entry.timestamp.div_euclid(period) * period;
-                    let key = (entry.r#type.clone(), period, bucket, entry.key.clone());
+                    let key = (
+                        entry.r#type.clone(),
+                        period,
+                        bucket,
+                        entry.key_bytes().to_vec(),
+                    );
                     let row = groups
                         .entry(aggregate.clone())
                         .or_default()
@@ -105,9 +114,9 @@ impl DatabaseStorage {
                                 ("period".into(), period.into()),
                                 ("type".into(), entry.r#type.clone().into()),
                                 ("aggregate".into(), aggregate.clone().into()),
-                                ("key".into(), entry.key.clone().into()),
+                                ("key".into(), Self::entry_key(entry)),
                             ]);
-                            self.key_hash(&entry.key, &mut row);
+                            self.key_hash(entry.key_bytes(), &mut row);
                             row
                         });
                     let previous = row.get("value").and_then(number);
@@ -240,7 +249,7 @@ impl DatabaseStorage {
                             ("key".into(), value.key.clone().into()),
                             ("value".into(), value.value.clone().into()),
                         ]);
-                        self.key_hash(&value.key, &mut row);
+                        self.key_hash(value.key.as_bytes(), &mut row);
                         row
                     });
             }
@@ -266,12 +275,17 @@ impl DatabaseStorage {
                     let updates = updates.clone();
                     Box::pin(async move {
                         for rows in entries.chunks(chunk) {
-                            transaction.table("pulse_entries").insert(rows).await?;
+                            transaction
+                                .table("pulse_entries")
+                                .with_binary_text_column("key")
+                                .insert(rows)
+                                .await?;
                         }
                         for (rows, assignments) in updates.iter() {
                             for rows in rows.chunks(chunk) {
                                 transaction
                                     .table("pulse_aggregates")
+                                    .with_binary_text_column("key")
                                     .upsert_with(
                                         rows,
                                         &["bucket", "period", "type", "aggregate", "key_hash"],

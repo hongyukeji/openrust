@@ -82,7 +82,7 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
     let ingest = RedisIngest::new(connection.clone()).with_chunk(2).unwrap();
     let sink = Sink::default();
     let now = jiff::Timestamp::now().as_second();
-    let items: Vec<Item> = (0..5)
+    let mut items: Vec<Item> = (0..5)
         .map(|i| {
             Entry::new(now, "redis", i.to_string(), Some(i))
                 .count()
@@ -90,6 +90,20 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
                 .into()
         })
         .collect();
+    let original = vec![b'X', 0xc3, b'X', 0xa9, b'X'];
+    let raw = Entry::from_key_bytes(now, "redis", original.clone(), Some(4))
+        .count()
+        .only_buckets();
+    items[4] = raw.clone().into();
+    let text = serde_json::to_value(&items[0]).unwrap();
+    assert_eq!(text["data"]["key"], "0");
+    let encoded = serde_json::to_value(&items[4]).unwrap();
+    assert_eq!(encoded["data"]["key"], json!(original));
+    assert!(serde_json::from_value::<String>(encoded["data"]["key"].clone()).is_err());
+    let mut edited = raw;
+    edited.key = "edited".into();
+    assert_eq!(edited.key_bytes(), b"edited");
+    assert_eq!(serde_json::to_value(edited).unwrap()["key"], "edited");
     ingest.ingest(&items).await.unwrap();
     assert_eq!(
         connection.command("XLEN", &[key.as_bytes()]).await.unwrap(),
@@ -107,8 +121,13 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
     {
         let stored = sink.items.lock().unwrap();
         assert_eq!(stored.len(), 5);
-        for item in stored.iter() {
+        for (index, item) in stored.iter().enumerate() {
             let Item::Entry(e) = item else { panic!() };
+            if index == 4 {
+                assert_eq!(e.key_bytes(), original);
+            } else {
+                assert_eq!(e.key, index.to_string());
+            }
             assert!(e.is_count());
             assert!(e.is_only_buckets());
         }

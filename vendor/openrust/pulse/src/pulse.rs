@@ -290,7 +290,27 @@ impl Pulse {
         value: Option<i64>,
         timestamp: Option<i64>,
     ) -> Entry {
-        let entry = Entry::new(timestamp.unwrap_or_else(Self::now), r#type, key, value);
+        self.buffer_entry(Entry::new(
+            timestamp.unwrap_or_else(Self::now),
+            r#type,
+            key,
+            value,
+        ))
+        .await
+    }
+
+    pub(crate) async fn record_key_bytes(
+        &self,
+        r#type: &str,
+        key: Vec<u8>,
+        value: Option<i64>,
+        timestamp: i64,
+    ) -> Entry {
+        self.buffer_entry(Entry::from_key_bytes(timestamp, r#type, key, value))
+            .await
+    }
+
+    async fn buffer_entry(&self, entry: Entry) -> Entry {
         if self.is_recording() {
             self.entries
                 .lock()
