@@ -88,14 +88,15 @@ try {
     Remove-Item Env:HORIZON_PROBE_WRAPPER_CONTROL
 }
 
-foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 'file-queue')) {
+foreach ($mode in @('idle', 'wait', 'fast', 'restart-fast', 'parent-exit', 'handlers', 'queue', 'file-queue')) {
     $customQueue = $mode -in @('queue', 'file-queue')
-    $emptyPlan = $customQueue -or $mode -in @('idle', 'handlers')
+    $fastRestart = $mode -eq 'restart-fast'
+    $emptyPlan = $customQueue -or $mode -in @('idle', 'handlers', 'restart-fast')
     $fixture = Join-Path $TempRoot "horizon-$mode-$([guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory $fixture | Out-Null
     New-Item -ItemType File (Join-Path $fixture 'database.sqlite') | Out-Null
     $env:APP_BASE_PATH = $fixture
-    $env:HORIZON_PROBE_FAST_TERMINATION = if ($mode -in @('wait', 'fast')) { '1' } else { '0' }
+    $env:HORIZON_PROBE_FAST_TERMINATION = if ($mode -in @('wait', 'fast', 'restart-fast')) { '1' } else { '0' }
     $env:HORIZON_PROBE_EMPTY_DEFAULTS = if ($emptyPlan) { '1' } else { '0' }
     $env:HORIZON_PROBE_COMMAND_HANDLERS = if ($mode -eq 'handlers') { '1' } else { $null }
     $env:HORIZON_PROBE_CUSTOM_COMMAND_QUEUE = switch ($mode) {
@@ -159,7 +160,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
         }
         $null = Artisan horizon:supervisor-status $name
 
-        if ($customQueue -or $mode -eq 'idle') {
+        if ($customQueue -or $mode -in @('idle', 'restart-fast')) {
             $dynamic = Dispatch 20 'windows-native'
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
             Wait-For 'both Worker streams on Master stdout' {
@@ -170,7 +171,8 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
             } | Out-Null
             'PASS: Windows native Horizon streamed both Worker output streams through the Master'
 
-            $draining = Dispatch 6000
+            $duration = if ($fastRestart) { 12000 } else { 6000 }
+            $draining = Dispatch $duration
             Wait-For 'job running before Master restart' { Recorded 'started.log' $draining } | Out-Null
             $null = Artisan horizon:pause
             Wait-For 'paused Master' { (Status).status -eq 'paused' } | Out-Null
@@ -182,6 +184,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
                     @($row.workers).Count -eq 1 -and $row.workers[0].pid -ne $worker.Id) { $row }
             }
             if (!$supervisor.WaitForExit(15000) -or $supervisor.ExitCode -ne 1) { throw 'Master restart did not exit the old Supervisor with status 1.' }
+            Wait-For 'job on the replacement Worker' { Recorded 'completed.log' $queued } | Out-Null
             if (!$worker.WaitForExit(15000)) { throw 'The previous Worker remained alive.' }
             $worker = Get-Process -Id $restarted.workers[0].pid
             $null = $worker.Handle
@@ -189,11 +192,14 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
             if ($parent.ParentProcessId -eq $supervisor.Id) { throw 'Master restart kept the previous Supervisor.' }
             $supervisor = Get-Process -Id $parent.ParentProcessId
             $null = $supervisor.Handle
-            Wait-For 'job on the replacement Worker' { Recorded 'completed.log' $queued } | Out-Null
             $finished = @(Get-Content (Join-Path $fixture 'completed.log'))
-            if ([array]::IndexOf($finished, $draining) -lt 0 -or
-                [array]::IndexOf($finished, $draining) -ge [array]::IndexOf($finished, $queued)) {
-                throw 'Master restart did not drain the active job before the pending job.'
+            if (@($finished | Where-Object { $_ -eq $draining }).Count -ne 1 -or
+                @($finished | Where-Object { $_ -eq $queued }).Count -ne 1) {
+                throw 'Master restart did not finish both jobs exactly once.'
+            }
+            $drainedFirst = [array]::IndexOf($finished, $draining) -lt [array]::IndexOf($finished, $queued)
+            if ($drainedFirst -eq $fastRestart) {
+                throw "Unexpected job completion order during Master restart ($mode)."
             }
             'PASS: Windows native Master restart resumed and replaced the managed process tree'
 
@@ -277,6 +283,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
             'file-queue' { $null = Artisan horizon:terminate }
             'wait' { $null = Artisan horizon:terminate --wait }
             'fast' { $null = Artisan horizon:terminate }
+            'restart-fast' { $null = Artisan horizon:terminate }
             'parent-exit' { $master.Kill() }
         }
         if (!$master.WaitForExit(25000)) { throw 'Master did not exit.' }

@@ -115,6 +115,18 @@ impl SupervisorProcess {
     }
 
     async fn poll_exit(&mut self) -> Result<Option<(i32, Option<u32>)>> {
+        #[cfg(windows)]
+        if self.restarting
+            && let Some(process) = self
+                .process
+                .take_if(|process| process.leader_exit_code() == Some(1))
+        {
+            self.exit = Some((1, process.spawned_id()));
+            // Supervisor 已退出，允许接替它的进程启动，原输出继续读取到管道关闭。
+            tokio::spawn(async move {
+                let _ = process.wait().await;
+            });
+        }
         if self
             .process
             .as_ref()

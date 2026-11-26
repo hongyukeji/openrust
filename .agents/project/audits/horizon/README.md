@@ -100,7 +100,11 @@ macOS 与 Linux ARM64 用真实 Artisan Supervisor、Worker 与 Redis 验证了�
 
 Rust 的 `MasterSupervisor::restart().await` 通过该实例的命令队列提交请求。独立应用进程也可向目标 Master 队列提交 `RESTART`。Master 在 Redis 比对所有权后一次写入各子进程的暂停状态及终止命令，并清除自己的暂停状态。已开始的任务继续执行。默认模式下，Supervisor 排空后以状态码 1 退出。同一 Master 按原部署选项重新拉起子树，主动产生的状态码 1 不计入异常退出。
 
-macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中的任务只完成一次、待处理任务随后执行、两个 Supervisor 及其 Worker 更换 PID，Master 保持原 PID。Windows 11 ARM64 原生进程验证同一流程，并直接检查旧 Supervisor 以状态码 1 退出。macOS 的公开实例方法和所有权竞争也在 20 项 Redis 运行时测试中通过，完整进程回归、Horizon 全目标严格 Clippy、格式和三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-master-restart-{macos-final,macos-regression,linux,windows-final,docs}.log`。快速终止模式下的 Master 重启和正式部署组合仍待验证。
+macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中的任务只完成一次、待处理任务随后执行、两个 Supervisor 及其 Worker 更换 PID，Master 保持原 PID。Windows 11 ARM64 原生进程验证同一流程，并直接检查旧 Supervisor 以状态码 1 退出。macOS 的公开实例方法和所有权竞争也在 20 项 Redis 运行时测试中通过，完整进程回归、Horizon 全目标严格 Clippy、格式和三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-master-restart-{macos-final,macos-regression,linux,windows-final,docs}.log`。快速终止模式的专项见下文，正式部署组合继续验收。
+
+固定 PHP 8.5.12 的重启命令始终传入退出码 1。通过固定 Supervisor 的真实命令入口验证，默认及显式等待配置先停止领取并等待旧 Worker。启用快速终止且无等待标记时，Supervisor 发出终止后即退出。macOS 实测两种配置，Linux 7.0.14 ARM64 实测快速配置。后者经真实 Artisan 和独占 Redis 8.10.3 保证两个待处理结果各写一次，接替 Worker 能在原任务结束前完成新任务。证据为 `target/tmp/observability-parity/horizon-{fast-restart-upstream,default-restart-macos,fast-restart-macos,fast-restart-linux}.log`。
+
+Windows 11 ARM64 复现了输出管道与退出状态耦合。操作系统记录旧 Supervisor 在发送重启后约 0.8 秒退出，旧 Worker 约 11.4 秒后退出，替代 Worker 直到约 14.1 秒后可见。已定位到 Master 以进程输出读取任务完成为退出信号，旧 Worker 仍持有输出管道时阻塞替代进程。证据为 `target/tmp/observability-windows/horizon-fast-restart-arm64-exit-times.log`。现在 Master 使用退出码 1 确认旧 Supervisor 已退出，并继续异步读取旧输出。Windows ARM64 的同一 Rust 1.94.0 原生构建在专用 Redis 8.10.3 中通过八组进程矩阵。快速重启组实际验证同一 Master 更换子树，两项任务各成功一次，新任务在旧任务完成前结束。独立构建成品重跑通过，初轮剩余场景因项目磁盘清理移除了 Cargo 产物而中断。证据为 `target/tmp/observability-windows/horizon-fast-restart-arm64-{repaired,isolated}.log`。Windows x64、Windows Release 和实际服务组合继续验收。
 
 ### Master 与 Supervisor 输出回调
 

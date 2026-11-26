@@ -53,6 +53,8 @@ impl Output {
 struct LiveOutput {
     data: Mutex<Output>,
     changed: Notify,
+    #[cfg(windows)]
+    leader_exit_code: std::sync::OnceLock<i32>,
 }
 
 #[derive(Clone, Copy)]
@@ -191,6 +193,12 @@ impl InvokedProcess {
             return true;
         }
         self.id.is_some() && self.task.as_ref().is_some_and(|task| !task.is_finished())
+    }
+
+    /// 返回 Windows 子进程本身的退出码。其后代仍可能持有输出管道。
+    #[cfg(windows)]
+    pub fn leader_exit_code(&self) -> Option<i32> {
+        self.output.leader_exit_code.get().copied()
     }
 
     pub fn output(&self) -> Vec<u8> {
@@ -470,7 +478,12 @@ async fn drive_with_pipes(
             break None;
         }
         tokio::select! {
-            result = group.wait(), if status.is_none() => status = Some(result?),
+            result = group.wait(), if status.is_none() => {
+                let exit = result?;
+                #[cfg(windows)]
+                let _ = output.leader_exit_code.set(exit_code(exit));
+                status = Some(exit);
+            },
             result = &mut input, if writing => {
                 result?;
                 writing = false;

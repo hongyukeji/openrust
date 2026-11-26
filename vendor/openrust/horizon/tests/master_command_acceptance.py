@@ -11,6 +11,7 @@ import time
 
 def main():
     assert os.environ['HORIZON_REQUIRE_REDIS'] == '1'
+    fast_termination = os.environ.get('HORIZON_PROBE_FAST_TERMINATION') == '1'
     binary = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory(prefix='horizon-master-command-') as base:
         root = Path(base)
@@ -106,7 +107,8 @@ def main():
 
             before = worker_tree(live)
             assert before.keys() == {child, planned}, live
-            active_job = run(HORIZON_PROBE_DISPATCH='{"record_start":true,"sleep_ms":6000}',
+            delay = 10000 if fast_termination else 6000
+            active_job = run(HORIZON_PROBE_DISPATCH=json.dumps({'record_start': True, 'sleep_ms': delay}),
                              HORIZON_PROBE_DISPATCH_UUID='1', HORIZON_PROBE_DISPATCH_QUEUE='added')
             started = root / 'started.log'
             until(lambda: started.exists() and active_job in started.read_text())
@@ -134,9 +136,17 @@ def main():
             assert all(old[1] != after[supervisor][1] for supervisor, old in before.items()), after
             assert replacement['unexpected_exits'] == live['unexpected_exits'], replacement
             until(lambda: pending_job in completed.read_text())
-            assert completed.read_text().splitlines().count(active_job) == 1
-            assert completed.read_text().splitlines().index(active_job) < completed.read_text().splitlines().index(pending_job)
-            print('PASS: Master restart resumes a paused deployment, drains a real job and replaces both Supervisor and Worker trees')
+            if fast_termination:
+                assert active_job not in completed.read_text()
+            until(lambda: active_job in completed.read_text())
+            completions = completed.read_text().splitlines()
+            assert completions.count(active_job) == completions.count(pending_job) == 1
+            if fast_termination:
+                assert completions.index(pending_job) < completions.index(active_job)
+                print('PASS: fast Master restart starts replacement workers while the old job drains')
+            else:
+                assert completions.index(active_job) < completions.index(pending_job)
+                print('PASS: Master restart drains the active job before replacements process pending jobs')
 
             print(run(HORIZON_PROBE_SUPERVISOR_MONITOR=name))
             rebuilt = []
