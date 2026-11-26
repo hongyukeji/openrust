@@ -610,6 +610,45 @@ impl Route {
     }
 
     #[track_caller]
+    pub fn resources(
+        resources: impl IntoIterator<Item = crate::routing::ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resources(resources, crate::routing::ResourceKind::Resource, false)
+    }
+
+    #[track_caller]
+    pub fn api_resources(
+        resources: impl IntoIterator<Item = crate::routing::ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resources(resources, crate::routing::ResourceKind::ApiResource, false)
+    }
+
+    #[track_caller]
+    pub fn soft_deletable_resources(
+        resources: impl IntoIterator<Item = crate::routing::ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resources(resources, crate::routing::ResourceKind::Resource, true)
+    }
+
+    #[track_caller]
+    fn register_resources(
+        resources: impl IntoIterator<Item = crate::routing::ResourceRegistration>,
+        kind: crate::routing::ResourceKind,
+        allow_trashed: bool,
+    ) -> Result<(), RoutingError> {
+        let definition = std::panic::Location::caller();
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .register_resources(resources, kind, allow_trashed, definition)
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
+    #[track_caller]
     pub fn resource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,

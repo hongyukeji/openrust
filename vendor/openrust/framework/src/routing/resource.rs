@@ -271,7 +271,76 @@ impl<C> ResourceController<C> {
     }
 }
 
+type RegisterResource = dyn FnOnce(
+    &mut Router,
+    ResourceKind,
+    bool,
+    &'static Location<'static>,
+) -> Result<(), RoutingError>;
+
+/// 一个可与不同控制器一起批量登记的资源。
+pub struct ResourceRegistration(Box<RegisterResource>);
+
+impl ResourceRegistration {
+    pub fn new<C: Send + Sync + 'static>(
+        name: impl Into<String>,
+        controller: ResourceController<C>,
+    ) -> Self {
+        let name = name.into();
+        Self(Box::new(move |router, kind, allow_trashed, definition| {
+            let controller = if allow_trashed {
+                controller.with_trashed()
+            } else {
+                controller
+            };
+            router.register_resource(&name, controller, kind, definition)
+        }))
+    }
+}
+
 impl Router {
+    #[track_caller]
+    pub fn resources(
+        &mut self,
+        resources: impl IntoIterator<Item = ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        self.register_resources(resources, ResourceKind::Resource, false, Location::caller())
+    }
+
+    #[track_caller]
+    pub fn api_resources(
+        &mut self,
+        resources: impl IntoIterator<Item = ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        self.register_resources(
+            resources,
+            ResourceKind::ApiResource,
+            false,
+            Location::caller(),
+        )
+    }
+
+    #[track_caller]
+    pub fn soft_deletable_resources(
+        &mut self,
+        resources: impl IntoIterator<Item = ResourceRegistration>,
+    ) -> Result<(), RoutingError> {
+        self.register_resources(resources, ResourceKind::Resource, true, Location::caller())
+    }
+
+    pub(crate) fn register_resources(
+        &mut self,
+        resources: impl IntoIterator<Item = ResourceRegistration>,
+        kind: ResourceKind,
+        allow_trashed: bool,
+        definition: &'static Location<'static>,
+    ) -> Result<(), RoutingError> {
+        for ResourceRegistration(register) in resources {
+            register(self, kind, allow_trashed, definition)?;
+        }
+        Ok(())
+    }
+
     #[track_caller]
     pub fn resource<C: Send + Sync + 'static>(
         &mut self,

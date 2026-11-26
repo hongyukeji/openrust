@@ -52,6 +52,15 @@ fn register() -> Result<(), RoutingError> {
 
 用 `only`、`except` 选择动作，用 `names` 覆盖路由名，用 `parameters` 覆盖参数名。`albums.photos` 这样的点号资源会生成嵌套路径。`shallow` 保留嵌套集合路径，并将成员路由注册到 `photos/{photo}`。`scoped` 设置绑定字段，`configure` 可为单条路由接入中间件或类型化绑定。
 
+批量注册时，用 `ResourceRegistration::new` 传入每个资源名和类型化控制器描述符。同一批可以混用不同控制器类型，框架按数组顺序注册。
+
+```rust
+Route::resources([
+    ResourceRegistration::new("photos", photos()),
+    ResourceRegistration::new("posts", posts()),
+])?;
+```
+
 ### 自定义模型未命中的行为 {#customizing-missing-model-behavior}
 
 用 `missing` 处理查看、编辑、更新或删除路由中未找到的模型。回调在模型绑定阶段运行。列表、创建表单和保存保留默认处理，嵌套资源找不到父模型时也一样。
@@ -86,6 +95,15 @@ fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
 }
 ```
 
+用 `Route::soft_deletable_resources` 为整批资源应用默认的软删除动作集合。各控制器描述符仍须注册对应的模型类型。
+
+```rust
+Route::soft_deletable_resources([
+    ResourceRegistration::new("archive/photos", photos()),
+    ResourceRegistration::new("archive/posts", posts()),
+])?;
+```
+
 ### 指定资源模型 {#specifying-the-resource-model}
 
 传入 `--model=Photo`，生成的成员动作会从路由读取类型化的 `Photo`。注册资源时，对对应路由的 `photo` 参数配置模型绑定。缺少模型时，生成器可调用 `make:model` 创建。
@@ -105,6 +123,17 @@ fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
 ```
 
 嵌套模板继续使用普通请求参数，并生成表单请求文件供应用使用。已有请求文件会保留，使用 `--force` 重新生成控制器时也是如此。
+
+### API 资源路由 {#api-resource-routes}
+
+用 `Route::api_resources` 批量注册 API 控制器，默认省略创建和编辑表单。用 `./artisan make:controller PhotoController --api` 生成 API 控制器动作。
+
+```rust
+Route::api_resources([
+    ResourceRegistration::new("api/photos", photos()),
+    ResourceRegistration::new("api/posts", posts()),
+])?;
+```
 
 ### 单例资源
 

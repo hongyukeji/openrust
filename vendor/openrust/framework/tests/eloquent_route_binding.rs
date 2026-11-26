@@ -19,8 +19,8 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
     routing::{
-        BindingContext, ResourceAction, ResourceController, RouteParameter, RoutingError,
-        SignatureMode, UrlError,
+        BindingContext, ResourceAction, ResourceController, ResourceRegistration, RouteParameter,
+        RoutingError, SignatureMode, UrlError,
     },
     support::facades::{Route, Url},
 };
@@ -378,6 +378,19 @@ fn resource_routes() -> Result<(), RoutingError> {
                 Ok(())
             }),
     )?;
+    let archived = |name: &'static str| {
+        ResourceRegistration::new(
+            name,
+            resource()
+                .only(&[Show, Edit, Update, Destroy])
+                .parameters(&[(name, "item")])
+                .configure(|_, route| {
+                    route.model::<Post>("item")?;
+                    Ok(())
+                }),
+        )
+    };
+    Route::soft_deletable_resources([archived("archived"), archived("historic")])?;
     Route::api_resource(
         "accounts.archive",
         resource()
@@ -550,6 +563,13 @@ async fn verify(config: Value) {
     }
     request(address, "/items", 204).await;
     request(address, "/accounts/42/archive", 404).await;
+    for path in ["archived", "historic"] {
+        for (method, suffix) in [("GET", ""), ("GET", "/edit"), ("PUT", "")] {
+            exchange(address, method, &format!("/{path}/deleted{suffix}"), 200).await;
+        }
+        exchange(address, "DELETE", &format!("/{path}/deleted"), 404).await;
+    }
+
     let generated: Value =
         serde_json::from_str(&request(address, "/posts/first", 200).await).unwrap();
     assert_eq!(generated["by_id"], "/api/id/1");

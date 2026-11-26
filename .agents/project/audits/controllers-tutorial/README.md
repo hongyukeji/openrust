@@ -17,3 +17,9 @@
 Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，资源描述符把设置应用到各个实际路由。与普通路由一样，显式类型注册负责绑定模型。资源成员命中缺失回调时，实际生成指向命名列表路由的 302。嵌套集合找不到父模型保持 404。软删除、显式动作列表及 GET／PUT／PATCH／DELETE 接入 SQLite 和 MySQL 8.4.13，实际 route:cache 后各 12 次 HTTP 通过。两个数据库均为临时夹具，MySQL 容器已删除。
 
 三语正文的 6 个 Rust 示例直接提取、编译并接到实际 HTTP 路由，验证 9 次请求。5 个路由目标 12 项回归、独立 Artisan route:list 和 inspire、实际 /up 与 SIGTERM、三语构建和 12 组浏览器、格式及隔离仓严格 Clippy 通过。详见[验收记录](accepted-resource-model-binding.json)。
+
+## 92. 批量注册资源
+
+用固定 PHP Router 执行普通、API 和软删除三类批量入口。真实 Router 和实际 Artisan route:list 的 38 条方法、路径、名称与控制器动作全部对账。Rust 使用 ResourceRegistration 为不同的控制器类型保留类型化描述，在同一批次中按序注册。后续条目注册失败时保留此前成功条目，失败条目未插入残缺动作。
+
+实际 TCP 逐条访问 38 条路由并确认进入各自控制器。SQLite 与 MySQL 8.4.13 分别运行 8 次批量软删除资源请求，核对默认 show、edit、update 可绑定且 destroy 返回 404。正式三语的 9 段示例直接提取到实际应用中运行，另通过 114 次 TCP 请求。站点构建、12 组浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-batches.json)。

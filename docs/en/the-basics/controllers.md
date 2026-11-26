@@ -52,6 +52,15 @@ Register conventional routes with `Route::resource("photos", controller)` or `Ro
 
 Use `only` and `except` to select actions, `names` to override route names, and `parameters` to override wildcard names. Dot-separated resources such as `albums.photos` register nested paths. `shallow` keeps collection routes nested and exposes member routes under `photos/{photo}`. `scoped` sets route binding fields. Use the descriptor's `configure` method to attach middleware or typed bindings to individual routes.
 
+To register resource controllers together, wrap each resource name and typed controller descriptor with `ResourceRegistration::new`. The batch accepts different controller types and registers them in the order you supply.
+
+```rust
+Route::resources([
+    ResourceRegistration::new("photos", photos()),
+    ResourceRegistration::new("posts", posts()),
+])?;
+```
+
 ### Customizing Missing Model Behavior {#customizing-missing-model-behavior}
 
 Use `missing` to handle an unresolved model on the show, edit, update, or destroy route. The callback runs during model binding. The index, create, and store routes keep their default handling, including when a nested resource cannot bind its parent.
@@ -86,6 +95,15 @@ fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
 }
 ```
 
+Use `Route::soft_deletable_resources` to apply the default soft-delete action set to all resources in a batch. Continue to register the model type in each controller descriptor.
+
+```rust
+Route::soft_deletable_resources([
+    ResourceRegistration::new("archive/photos", photos()),
+    ResourceRegistration::new("archive/posts", posts()),
+])?;
+```
+
 ### Specifying the Resource Model {#specifying-the-resource-model}
 
 Pass `--model=Photo` to have the generated member actions read a typed `Photo` from the route. In your resource registration, configure model binding for the `photo` parameter on the corresponding routes. The generator can create a missing model using `make:model`.
@@ -105,6 +123,17 @@ Use `--requests` with a model to generate `StorePhotoRequest` and `UpdatePhotoRe
 ```
 
 Nested templates keep the ordinary request argument and generate the requested FormRequest files for application use. Existing request files are preserved, including when you regenerate the controller with `--force`.
+
+### API Resource Routes {#api-resource-routes}
+
+Use `Route::api_resources` for a batch of API controllers. The default action set excludes create and edit form routes. Use `./artisan make:controller PhotoController --api` to generate the API controller actions.
+
+```rust
+Route::api_resources([
+    ResourceRegistration::new("api/photos", photos()),
+    ResourceRegistration::new("api/posts", posts()),
+])?;
+```
 
 ### Singleton Resources
 

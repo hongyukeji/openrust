@@ -52,6 +52,15 @@ fn register() -> Result<(), RoutingError> {
 
 使用 `only`、`except` 選取動作，透過 `names` 覆寫路由名稱，透過 `parameters` 覆寫參數名稱。`albums.photos` 這類點號資源會產生巢狀路徑。`shallow` 保留巢狀集合路徑，並將成員路由註冊於 `photos/{photo}`。`scoped` 設定繫結欄位，`configure` 可為個別路由加入中介層或型別化繫結。
 
+批次註冊時，用 `ResourceRegistration::new` 傳入每個資源名稱和型別化控制器描述元。同一批可混用不同控制器型別，框架依陣列順序註冊。
+
+```rust
+Route::resources([
+    ResourceRegistration::new("photos", photos()),
+    ResourceRegistration::new("posts", posts()),
+])?;
+```
+
 ### 自訂找不到模型時的行為 {#customizing-missing-model-behavior}
 
 用 `missing` 處理檢視、編輯、更新或刪除路由中找不到的模型。回呼在模型繫結階段執行。清單、建立表單與儲存保留預設處理，巢狀資源找不到父模型時也一樣。
@@ -86,6 +95,15 @@ fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
 }
 ```
 
+用 `Route::soft_deletable_resources` 為整批資源套用預設的軟刪除動作集合。各控制器描述元仍須註冊對應的模型型別。
+
+```rust
+Route::soft_deletable_resources([
+    ResourceRegistration::new("archive/photos", photos()),
+    ResourceRegistration::new("archive/posts", posts()),
+])?;
+```
+
 ### 指定資源模型 {#specifying-the-resource-model}
 
 傳入 `--model=Photo`，產生的成員動作會從路由讀取型別化的 `Photo`。註冊資源時，請在對應路由的 `photo` 參數設定模型繫結。缺少模型時，產生器可呼叫 `make:model` 建立。
@@ -105,6 +123,17 @@ fn show_trashed<C>(controller: ResourceController<C>) -> ResourceController<C> {
 ```
 
 巢狀範本繼續使用一般請求參數，並產生表單請求檔案供應用程式使用。既有請求檔案會保留，使用 `--force` 重新產生控制器時也一樣。
+
+### API 資源路由 {#api-resource-routes}
+
+用 `Route::api_resources` 批次註冊 API 控制器，預設省略建立與編輯表單。用 `./artisan make:controller PhotoController --api` 產生 API 控制器動作。
+
+```rust
+Route::api_resources([
+    ResourceRegistration::new("api/photos", photos()),
+    ResourceRegistration::new("api/posts", posts()),
+])?;
+```
 
 ### 單例資源
 

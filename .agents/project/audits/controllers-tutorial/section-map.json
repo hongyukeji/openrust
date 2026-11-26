@@ -47,16 +47,22 @@
     },
     {
       "anchor": "resource-controllers",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 常规和 API 资源；批量及软删除未覆盖"
+        "../04-02/README.md",
+        "resource-batches-oracle.json",
+        "accepted-resource-batches.json",
+        "../artisan-tutorial/artisan-controller-make-oracle.json"
       ]
     },
     {
       "anchor": "actions-handled-by-resource-controllers",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 常规资源注册与 11 条 Artisan 路由对照"
+        "../04-02/README.md",
+        "resource-batches-oracle.json",
+        "accepted-resource-batches.json",
+        "../artisan-tutorial/artisan-controller-make-oracle.json"
       ]
     },
     {
@@ -100,9 +106,12 @@
     },
     {
       "anchor": "api-resource-routes",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 API 剪裁；Artisan 88 实际 --api 生成；批量尚缺"
+        "../04-02/README.md",
+        "resource-batches-oracle.json",
+        "accepted-resource-batches.json",
+        "../artisan-tutorial/artisan-controller-make-oracle.json"
       ]
     },
     {

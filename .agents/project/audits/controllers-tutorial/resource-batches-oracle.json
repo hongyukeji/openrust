@@ -1,0 +1,268 @@
+[
+    {
+        "methods": "GET|HEAD",
+        "uri": "photos",
+        "name": "photos.index",
+        "action": "Photos@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "photos\/create",
+        "name": "photos.create",
+        "action": "Photos@create",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "photos",
+        "name": "photos.store",
+        "action": "Photos@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "photos\/{photo}",
+        "name": "photos.show",
+        "action": "Photos@show",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "photos\/{photo}\/edit",
+        "name": "photos.edit",
+        "action": "Photos@edit",
+        "with_trashed": false
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "photos\/{photo}",
+        "name": "photos.update",
+        "action": "Photos@update",
+        "with_trashed": false
+    },
+    {
+        "methods": "DELETE",
+        "uri": "photos\/{photo}",
+        "name": "photos.destroy",
+        "action": "Photos@destroy",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "posts",
+        "name": "posts.index",
+        "action": "Posts@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "posts\/create",
+        "name": "posts.create",
+        "action": "Posts@create",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "posts",
+        "name": "posts.store",
+        "action": "Posts@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "posts\/{post}",
+        "name": "posts.show",
+        "action": "Posts@show",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "posts\/{post}\/edit",
+        "name": "posts.edit",
+        "action": "Posts@edit",
+        "with_trashed": false
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "posts\/{post}",
+        "name": "posts.update",
+        "action": "Posts@update",
+        "with_trashed": false
+    },
+    {
+        "methods": "DELETE",
+        "uri": "posts\/{post}",
+        "name": "posts.destroy",
+        "action": "Posts@destroy",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api\/photos",
+        "name": "photos.index",
+        "action": "Photos@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "api\/photos",
+        "name": "photos.store",
+        "action": "Photos@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api\/photos\/{photo}",
+        "name": "photos.show",
+        "action": "Photos@show",
+        "with_trashed": false
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "api\/photos\/{photo}",
+        "name": "photos.update",
+        "action": "Photos@update",
+        "with_trashed": false
+    },
+    {
+        "methods": "DELETE",
+        "uri": "api\/photos\/{photo}",
+        "name": "photos.destroy",
+        "action": "Photos@destroy",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api\/posts",
+        "name": "posts.index",
+        "action": "Posts@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "api\/posts",
+        "name": "posts.store",
+        "action": "Posts@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "api\/posts\/{post}",
+        "name": "posts.show",
+        "action": "Posts@show",
+        "with_trashed": false
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "api\/posts\/{post}",
+        "name": "posts.update",
+        "action": "Posts@update",
+        "with_trashed": false
+    },
+    {
+        "methods": "DELETE",
+        "uri": "api\/posts\/{post}",
+        "name": "posts.destroy",
+        "action": "Posts@destroy",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/photos",
+        "name": "photos.index",
+        "action": "Photos@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/photos\/create",
+        "name": "photos.create",
+        "action": "Photos@create",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "archive\/photos",
+        "name": "photos.store",
+        "action": "Photos@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/photos\/{photo}",
+        "name": "photos.show",
+        "action": "Photos@show",
+        "with_trashed": true
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/photos\/{photo}\/edit",
+        "name": "photos.edit",
+        "action": "Photos@edit",
+        "with_trashed": true
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "archive\/photos\/{photo}",
+        "name": "photos.update",
+        "action": "Photos@update",
+        "with_trashed": true
+    },
+    {
+        "methods": "DELETE",
+        "uri": "archive\/photos\/{photo}",
+        "name": "photos.destroy",
+        "action": "Photos@destroy",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/posts",
+        "name": "posts.index",
+        "action": "Posts@index",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/posts\/create",
+        "name": "posts.create",
+        "action": "Posts@create",
+        "with_trashed": false
+    },
+    {
+        "methods": "POST",
+        "uri": "archive\/posts",
+        "name": "posts.store",
+        "action": "Posts@store",
+        "with_trashed": false
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/posts\/{post}",
+        "name": "posts.show",
+        "action": "Posts@show",
+        "with_trashed": true
+    },
+    {
+        "methods": "GET|HEAD",
+        "uri": "archive\/posts\/{post}\/edit",
+        "name": "posts.edit",
+        "action": "Posts@edit",
+        "with_trashed": true
+    },
+    {
+        "methods": "PUT|PATCH",
+        "uri": "archive\/posts\/{post}",
+        "name": "posts.update",
+        "action": "Posts@update",
+        "with_trashed": true
+    },
+    {
+        "methods": "DELETE",
+        "uri": "archive\/posts\/{post}",
+        "name": "posts.destroy",
+        "action": "Posts@destroy",
+        "with_trashed": false
+    }
+]

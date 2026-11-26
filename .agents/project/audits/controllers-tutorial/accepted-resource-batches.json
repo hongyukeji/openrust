@@ -1,0 +1,25 @@
+{
+  "base": "80ab58e7ec25cbd1061c4ab2a66fa2642a6e2ea9",
+  "oracle": "resource-batches-oracle.json",
+  "runtime": {
+    "upstream_routes": 38,
+    "runtime_tcp_requests": 38,
+    "sqlite_batch_only_requests": 8,
+    "mysql_batch_only_requests": 8,
+    "mysql": "8.4.13",
+    "formal_tutorial_examples": 9,
+    "formal_tutorial_http_requests": 114,
+    "standalone_artisan_invocations": 2,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-tests.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-sqlite.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-mysql.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-formal.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-site.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-gates.log",
+    "target/tmp/artisan-tutorial-20261125/controller-resource-batches-main.log"
+  ],
+  "pushed": false
+}

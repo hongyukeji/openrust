@@ -34,6 +34,10 @@ try {
                     assert.equal(await page.locator('#soft-deleted-models').count(),1);
                     assert(text.includes('controller.missing(missing_item)'));
                     assert(text.includes('with_trashed_for'));
+                    assert.equal(await page.locator('#api-resource-routes').count(),1);
+                    for (const method of ['resources', 'api_resources', 'soft_deletable_resources']) {
+                        assert(text.includes(`Route::${method}([`));
+                    }
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();
