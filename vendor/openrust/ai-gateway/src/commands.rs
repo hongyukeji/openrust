@@ -35,7 +35,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }))?;
     }
     Artisan::command_with(
-        "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50}",
+        "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50} {--billing : 附加计费快照与金额}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {
                 let gateway =
@@ -59,7 +59,15 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     .last()
                     .filter(|_| records.len() == limit as usize)
                     .map(|record| &record.id);
-                write_json(output, json!({"usage":records,"next":next}))?;
+                let mut result = json!({"usage":records,"next":next});
+                if input.matches().get_flag("billing") {
+                    let charges = store
+                        .charges(&records)
+                        .await
+                        .map_err(|_| ConsoleError::new("无法读取网关计费记录"))?;
+                    result["charges"] = json!(charges);
+                }
+                write_json(output, result)?;
                 Ok(0)
             })
         }),

@@ -16,6 +16,7 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     accounts::{Account, MAX_SECONDS},
+    billing::PriceBook,
     codex_catalog::CodexMetadata,
     managed_keys::KeyStore,
     output_quota::{OutputQuota, QuotaReservation},
@@ -39,6 +40,8 @@ struct Configuration {
     groups: BTreeMap<String, GroupConfiguration>,
     #[serde(default)]
     keys: BTreeMap<String, KeyConfiguration>,
+    #[serde(default)]
+    billing: PriceBook,
 }
 
 #[derive(Deserialize)]
@@ -257,6 +260,7 @@ pub(crate) struct Gateway {
     keys: Vec<Arc<Key>>,
     pub(crate) managed_keys: Option<KeyStore>,
     pub(crate) usage_store: Option<UsageStore>,
+    billing: Option<PriceBook>,
     logger: Arc<Logger>,
 }
 
@@ -483,6 +487,7 @@ impl Gateway {
             keys,
             groups,
             managed_keys,
+            billing: config.billing.enabled(usage_store.is_some())?,
             usage_store,
             logger,
         }))
@@ -563,8 +568,23 @@ impl Gateway {
                 if let Some(reservation) = &reservation {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
+                let text_billing = matches!(
+                    upstream_endpoint,
+                    TextEndpoint::Responses
+                        | TextEndpoint::ChatCompletions
+                        | TextEndpoint::Messages
+                        | TextEndpoint::GeminiGenerateContent
+                        | TextEndpoint::GeminiStreamGenerateContent
+                );
+                let charges = self
+                    .billing
+                    .as_ref()
+                    .filter(|_| text_billing)
+                    .map(|billing| {
+                        billing.select(&target.provider_name, &target.upstream_model, name)
+                    });
                 let attempt = store
-                    .begin(&context, reservation, key.usage_owner())
+                    .begin(&context, reservation, key.usage_owner(), charges)
                     .await
                     .map_err(|_| UsageAdmission::Unavailable)?
                     .ok_or_else(|| {

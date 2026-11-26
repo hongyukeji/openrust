@@ -11,6 +11,7 @@ use openrust::{
 use serde::Serialize;
 
 use crate::{
+    billing::ChargePlan,
     managed_keys::{now, nullable},
     output_quota::QuotaReservation,
 };
@@ -114,21 +115,23 @@ pub(crate) struct UsageAttempt {
     store: UsageStore,
     pub(crate) id: String,
     quota: Option<QuotaReservation>,
+    charges: Option<ChargePlan>,
 }
 
 #[derive(Clone)]
 pub(crate) struct Settlement {
-    outcome: &'static str,
-    state: &'static str,
+    pub(crate) outcome: &'static str,
+    pub(crate) state: &'static str,
     status: Option<i64>,
-    input_tokens: Option<i64>,
-    output_tokens: Option<i64>,
-    cached_input_tokens: Option<i64>,
-    cache_write_input_tokens: Option<i64>,
-    reasoning_tokens: Option<i64>,
+    pub(crate) input_tokens: Option<i64>,
+    pub(crate) output_tokens: Option<i64>,
+    pub(crate) cached_input_tokens: Option<i64>,
+    pub(crate) cache_write_input_tokens: Option<i64>,
+    pub(crate) reasoning_tokens: Option<i64>,
     upstream_request_id: Option<String>,
-    reported_model: Option<String>,
+    pub(crate) reported_model: Option<String>,
     finished_at: i64,
+    pub(crate) upstream_endpoint: String,
 }
 
 impl Settlement {
@@ -178,6 +181,7 @@ impl Settlement {
             reasoning_tokens: reasoning,
             upstream_request_id: text("upstream_request_id"),
             reported_model: text("reported_model"),
+            upstream_endpoint: text("upstream_endpoint").unwrap_or_default(),
             finished_at: now(),
         }
     }
@@ -245,11 +249,39 @@ impl UsageStore {
         Self { connection }
     }
 
+    pub(crate) async fn charges(
+        &self,
+        records: &[UsageRecord],
+    ) -> DatabaseResult<Vec<crate::billing::ChargeRecord>> {
+        if records.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.connection
+            .table(crate::billing::TABLE)
+            .use_write_pdo()
+            .where_in(
+                "attempt_id",
+                records
+                    .iter()
+                    .map(|record| Value::from(record.id.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .select(crate::billing::COLUMNS)
+            .order_by_desc("attempt_id")
+            .order_by("direction", "asc")
+            .get()
+            .await?
+            .into_iter()
+            .map(crate::billing::decode)
+            .collect()
+    }
+
     pub(crate) async fn begin(
         &self,
         context: &LogContext,
         quota: Option<QuotaReservation>,
         owner: UsageOwner<'_>,
+        charges: Option<ChargePlan>,
     ) -> DatabaseResult<Option<UsageAttempt>> {
         let id = Str::ulid().to_string();
         let field = |key: &str| {
@@ -279,18 +311,29 @@ impl UsageStore {
         if let Some(reservation) = &quota {
             record.insert("output_quota_id".into(), reservation.id.as_str().into());
             record.insert("reserved_output_tokens".into(), reservation.amount.into());
-            let reservation = reservation.clone();
+        }
+        if quota.is_some() || charges.is_some() {
+            let reservation = quota.clone();
+            let plan = charges.clone();
+            let attempt = id.clone();
             let reserved = self
                 .connection
                 .transaction(
                     move |transaction| {
                         let reservation = reservation.clone();
+                        let plan = plan.clone();
+                        let attempt = attempt.clone();
                         let record = record.clone();
                         Box::pin(async move {
-                            if !reservation.reserve(transaction).await? {
+                            if let Some(reservation) = reservation
+                                && !reservation.reserve(transaction).await?
+                            {
                                 return Ok(false);
                             }
                             insert_usage(transaction.table(TABLE), record).await?;
+                            if let Some(plan) = plan {
+                                plan.register(transaction, &attempt).await?;
+                            }
                             Ok(true)
                         })
                     },
@@ -307,6 +350,7 @@ impl UsageStore {
             store: self.clone(),
             id,
             quota,
+            charges,
         }))
     }
 
@@ -454,23 +498,32 @@ impl UsageAttempt {
     }
 
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
-        let changed = if let Some(reservation) = &self.quota {
-            let reservation = reservation.clone();
+        let changed = if self.quota.is_some() || self.charges.is_some() {
+            let reservation = self.quota.clone();
+            let plan = self.charges.clone();
             let id = self.id.clone();
             self.store
                 .connection
                 .transaction(
                     move |transaction| {
                         let reservation = reservation.clone();
+                        let plan = plan.clone();
                         let id = id.clone();
                         let settlement = settlement.clone();
                         Box::pin(async move {
                             let changed =
                                 finish_usage(transaction.table(TABLE), &id, &settlement).await?;
-                            if changed == 1 && settlement.outcome == "completed" {
-                                reservation
-                                    .settle(transaction, settlement.output_tokens)
-                                    .await?;
+                            if changed == 1 {
+                                if let Some(plan) = plan {
+                                    plan.settle(transaction, &id, &settlement).await?;
+                                }
+                                if let Some(reservation) = reservation
+                                    && settlement.outcome == "completed"
+                                {
+                                    reservation
+                                        .settle(transaction, settlement.output_tokens)
+                                        .await?;
+                                }
                             }
                             Ok(changed)
                         })

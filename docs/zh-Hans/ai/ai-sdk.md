@@ -211,6 +211,27 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`unknown`（未知）、`partial`（部分）、`final`（最终）和 `legacy`（历史）。明确零值保留原样。列表也会返回可获得的出站时间、上游请求 ID 和报告模型。已记录出站时间表示网关已进入发送步骤，中断的尝试仍可能需要对账。
 
+### 文本计费 {#text-billing}
+
+将 `billing.enabled` 和 `usage.enabled` 设为 true。发布并执行网关迁移。指定价格版本，按连接和上游模型配置成本费率，再按公开模型配置下游应收费率。
+
+```json
+{
+  "billing": {
+    "enabled": true,
+    "version": "prices-2026-11",
+    "upstream": {
+      "openai": {"upstream-model": {"currency": "USD", "input": "1", "output": "4"}}
+    },
+    "downstream": {
+      "published-model": {"currency": "USD", "input": "1.25", "output": "5"}
+    }
+  }
+}
+```
+
+费率用十进制字符串表示，单位为指定币种每百万 Token。分别定价时配置 `cache_read`、`cache_write` 或 `reasoning`。每笔费用使用请求时保存的费率。缺少价格或用量证据时，金额可保留待核对。运行 `./artisan ai:gateway:usage:list --billing` 可查看成本、应收、价格版本及精确小数金额。
+
 每次上游尝试各有一条记录。回退尝试共用 `request_id`。记录包含下游 Key 或分组、公开模型、连接、上游模型、响应状态和供应商实际返回的 Token 数。缺失用量保留为 `null`。账本省略 Key 密钥、请求正文和生成文本。
 
 网关先登记尝试，再向上游发送请求。正常结束、出错和取消都会结算。进程在结算之前退出时，账本可能保留 `pending` 记录供核对。

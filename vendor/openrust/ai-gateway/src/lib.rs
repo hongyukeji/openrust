@@ -14,6 +14,9 @@ use openrust::{
 };
 
 mod accounts;
+mod billing;
+#[path = "../database/migrations/2026_11_26_000006_create_ai_gateway_charges_table.rs"]
+mod billing_migration;
 mod codex_catalog;
 mod commands;
 mod compatibility;
@@ -56,6 +59,8 @@ const USAGE_SCOPE_MIGRATION: &str =
     "database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs";
 const USAGE_OBSERVATION_MIGRATION: &str =
     "database/migrations/2026_11_26_000005_add_observation_to_ai_gateway_usage.rs";
+const BILLING_MIGRATION: &str =
+    "database/migrations/2026_11_26_000006_create_ai_gateway_charges_table.rs";
 static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
@@ -72,6 +77,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000005_add_observation_to_ai_gateway_usage.rs",
         &usage_observation_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000006_create_ai_gateway_charges_table.rs",
+        &billing_migration::MIGRATION,
     ),
 ];
 
@@ -124,6 +133,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         USAGE_OBSERVATION_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000005_add_observation_to_ai_gateway_usage.rs"),
+                    ),
+                    (
+                        BILLING_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000006_create_ai_gateway_charges_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

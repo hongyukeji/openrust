@@ -211,6 +211,27 @@ When persistent usage is enabled, the gateway saves reported final usage before 
 
 The Artisan attempt list reports `usage_state` as `not_dispatched`, `unknown`, `partial`, `final`, or `legacy`. Explicit zero counts are preserved. It also shows the dispatch time, upstream request ID and reported model when available. A recorded dispatch time means the gateway was about to send the request, so an interrupted attempt may still require reconciliation.
 
+### Text billing {#text-billing}
+
+Set `billing.enabled` and `usage.enabled` to true. Publish and run the gateway migrations. Specify the price version, upstream rates by connection and upstream model, and receivable rates by published model.
+
+```json
+{
+  "billing": {
+    "enabled": true,
+    "version": "prices-2026-11",
+    "upstream": {
+      "openai": {"upstream-model": {"currency": "USD", "input": "1", "output": "4"}}
+    },
+    "downstream": {
+      "published-model": {"currency": "USD", "input": "1.25", "output": "5"}
+    }
+  }
+}
+```
+
+Each rate is a decimal string in the specified currency per million tokens. Set `cache_read`, `cache_write` or `reasoning` only when those tokens have distinct rates. Each charge uses its captured tariff. Missing usage evidence or prices can leave an amount pending. Use `./artisan ai:gateway:usage:list --billing` to inspect cost and receivable records, their price versions and their exact decimal amounts.
+
 Each upstream attempt has its own record. Retries share a `request_id`. The record includes the downstream Key or group, published model, connection, upstream model, response status, and the token counts the upstream actually reports. Missing counts are `null`. The ledger omits Key secrets, request bodies and response text.
 
 A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.

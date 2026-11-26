@@ -21,6 +21,12 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "enabled": false,
             "connection": null,
         },
+        "billing": {
+            "enabled": false,
+            "version": "",
+            "upstream": {},
+            "downstream": {},
+        },
         "managed_keys": {
             "enabled": false,
             "connection": null,

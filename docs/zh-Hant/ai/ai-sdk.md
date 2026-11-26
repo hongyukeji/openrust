@@ -211,6 +211,27 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`unknown`（未知）、`partial`（部分）、`final`（最終）與 `legacy`（歷史）。明確零值會保留。清單也會回傳可取得的送出時間、上游請求 ID 與回報模型。已記錄送出時間表示閘道已進入傳送步驟，中斷的嘗試仍可能需要對帳。
 
+### 文字計費 {#text-billing}
+
+將 `billing.enabled` 與 `usage.enabled` 設為 true。發布並執行閘道遷移。指定價格版本，按連線與上游模型設定成本費率，再按公開模型設定下游應收費率。
+
+```json
+{
+  "billing": {
+    "enabled": true,
+    "version": "prices-2026-11",
+    "upstream": {
+      "openai": {"upstream-model": {"currency": "USD", "input": "1", "output": "4"}}
+    },
+    "downstream": {
+      "published-model": {"currency": "USD", "input": "1.25", "output": "5"}
+    }
+  }
+}
+```
+
+費率以十進位字串表示，單位為指定幣別每百萬 Token。分項定價時設定 `cache_read`、`cache_write` 或 `reasoning`。每筆費用使用請求時儲存的費率。缺少價格或用量證據時，金額可保留待核對。執行 `./artisan ai:gateway:usage:list --billing` 可查看成本、應收、價格版本與精確小數金額。
+
 每次上游嘗試各有一筆記錄。備援嘗試共用 `request_id`。記錄包含下游 Key 或群組、公開模型、連線、上游模型、回應狀態和供應商實際回報的 Token 數。缺少的用量保留為 `null`。帳本省略 Key 金鑰、請求本文和產生的文字。
 
 閘道先登記嘗試，再向上游送出請求。正常結束、出錯和取消都會結算。處理程序在結算前結束時，帳本可能留下 `pending` 記錄供核對。
