@@ -221,25 +221,20 @@ impl Command for TelescopeCommand {
                         output.error("The --limit option must be a positive integer.");
                         return Ok(1);
                     };
-                    let batch = value("batch")
-                        .filter(|s| has_string_filter(s))
-                        .map(Uuid::parse_str)
-                        .transpose()
-                        .map_err(error)?;
-                    let before = value("before")
-                        .filter(|s| has_string_filter(s))
-                        .map(str::parse::<i64>)
-                        .transpose()
-                        .map_err(error)?;
+                    let filter = |name| {
+                        value(name)
+                            .filter(|s| has_string_filter(s))
+                            .map(str::to_owned)
+                    };
                     let entries = repository
-                        .get(
+                        .get_with_filter_inputs(
                             kind,
                             EntryQueryOptions::default()
                                 .limit(limit)
                                 .tag(value("tag").map(str::to_owned))
-                                .batch_id(batch)
-                                .family_hash(value("family").map(str::to_owned))
-                                .with_cursor(before),
+                                .family_hash(value("family").map(str::to_owned)),
+                            filter("batch"),
+                            filter("before"),
                         )
                         .await
                         .map_err(error)?;

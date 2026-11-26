@@ -134,7 +134,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 | 范围 | 接续工作与关闭条件 |
 |---|---|
-| Telescope | 继续核对普通异步包装器、关系与驱动变体的 Query／Gate 来源、非数值游标与畸形批次 UUID 的三库行为，以及出站 multipart 和其他诊断边界。逐类型核对公开 Watcher、Entry、关联、仓储、命令与授权面板。 [筛选与游标](telescope/README.md#列表筛选与游标) |
+| Telescope | 继续核对普通异步包装器、关系与驱动变体的 Query／Gate 来源、HTTP 的 `uuids` 和 `take`，以及出站 multipart 和其他诊断边界。逐类型核对公开 Watcher、Entry、关联、仓储、命令与授权面板。批次 UUID 与原始游标已通过三库对照。 [筛选与游标](telescope/README.md#列表筛选与游标) |
 | Pulse | 十个默认 Recorder 的逐项审计持续进行，接续核对事件、过滤、采样、聚合、自定义 Recorder 与 ingest 契约。原生面板已有真实浏览器和三库证据，完整 Livewire 更新生命周期及已记录的排序边界须继续核对。 [卡片和查询](pulse/README.md#面板慢操作异常与用量排序) |
 | Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，目标服务管理器、物理 x86_64 和正式 Redis 拓扑仍需验收。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |

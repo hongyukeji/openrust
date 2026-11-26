@@ -113,7 +113,11 @@ Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artis
 
 PHP 8.5.12 以固定 Telescope Artisan、EntryModel 和 SQLite 验证，空筛选值和单独的文本 `0` 会略过，逗号标签列表仍可查找标签 `0`。游标文本 `00` 会实际应用序号小于零的条件。超大纯数字 `--limit` 在整数上限处饱和。命令标签只去除 PHP `trim` 默认字符，默认 HTTP `TrimStrings` 会先将标签两侧的非换行空格去除。证据为 `target/tmp/observability-parity/telescope-list-filter-options-upstream.log`。 [固定 ListCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ListCommand.php) [固定 EntryModel](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Storage/EntryModel.php)
 
-旧实现实际执行 `telescope:list 0 --json` 返回状态 1。当前列表、授权 JSON 入口和 SQL 仓储共享有效筛选条件，正确保留普通索引的隐藏标志。原生整数游标构建器仍将零视为无游标，Artisan 和 HTTP 入口保留解析后文本 `00` 的显式零上界。真实 Artisan 和 HTTP 在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过正向和边界条件。Telescope Provider 33 项、Pulse Provider 27 项、快照格式、Telescope 全目标严格 Clippy、三语文档桌面和移动 6 组通过。Telescope 独立 Redis 项按环境条件跳过。证据为 `target/tmp/observability-parity/telescope-list-filter-options-{baseline,verified-final,docs-retry}.log`。非数值游标与畸形批次 UUID 仍需和各数据库的原始输入行为逐项核对。
+旧实现实际执行 `telescope:list 0 --json` 返回状态 1。当前列表、授权 JSON 入口和 SQL 仓储共享有效筛选条件，正确保留普通索引的隐藏标志。原生整数游标构建器仍将零视为无游标，Artisan 和 HTTP 入口保留文本 `00` 的显式零上界。真实 Artisan 和 HTTP 在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过正向和边界条件。Telescope Provider 33 项、Pulse Provider 27 项、快照格式、Telescope 全目标严格 Clippy、三语文档桌面和移动 6 组通过。Telescope 独立 Redis 项按环境条件跳过。证据为 `target/tmp/observability-parity/telescope-list-filter-options-{baseline,verified-final,docs-retry}.log`。
+
+固定 PHP 8.5.12 Telescope 使用其自身迁移和 PDO 实际查询三库。文本游标 `2garbage` 在 SQLite 返回可见条目、MySQL 按数值前缀筛选、PostgreSQL 返回 SQLSTATE `22P02`，超出有符号 64 位整数上限时 PostgreSQL 返回 `22003`。大写 UUID 在固定 MySQL 默认排序规则与 PostgreSQL 原生 UUID 中匹配，SQLite 按原文本比较。紧凑 UUID 和带花括号的格式仅在这三库的 PostgreSQL 中匹配。 [固定 EntryModel](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Storage/EntryModel.php)
+
+OpenRust 的 Artisan 和授权 HTTP 把批次与游标原文作为绑定参数交给仓储。PostgreSQL 使用数据库的 UUID 与整数转换，适配 OpenRust 已存在的规范文本 UUID 列。公开原生类型构建器沿用 UUID 与整数，替代仓储可自行实现原文筛选。旧命令对前后含空白的游标在查询前失败，新版本的三库专项覆盖该输入、小数、科学计数、无效文本、溢出及批次 UUID 表示，核对 PostgreSQL 的失败状态与驱动 SQLSTATE。Telescope Provider 34 项、Watcher 20 项、两包仓储 10 项、Pulse Provider 30 项、快照格式、相关严格 Clippy 和三语文档桌面及移动 6 组通过。证据为 `target/tmp/observability-parity/telescope-list-raw-options-{upstream-sqlite,upstream-mysql,upstream-pgsql,baseline,macos-final,docs-retry}.log`。HTTP 的 `uuids` 和 `take` 仍待逐类型对账。
 
 ### 调度条目的默认时区
 

@@ -46,13 +46,33 @@ impl DatabaseEntriesRepository {
         kind: Option<EntryType>,
         options: EntryQueryOptions,
     ) -> Result<Vec<EntryResult>> {
+        self.get_with_filter_inputs(kind, options, None, None).await
+    }
+    async fn get_with_filter_inputs(
+        &self,
+        kind: Option<EntryType>,
+        options: EntryQueryOptions,
+        batch: Option<String>,
+        before: Option<String>,
+    ) -> Result<Vec<EntryResult>> {
+        let postgres = self.connection.get_driver_name() == "pgsql";
         let mut query = self.connection.table("telescope_entries");
         if let Some(kind) = kind {
             query = query.where_exact_text("type", kind.as_str());
         }
-        if let Some(batch) = options.batch_id {
-            query = query.where_exact_text("batch_id", &batch.to_string());
-        }
+        let filters_batch = batch.is_some() || options.batch_id.is_some();
+        query = match batch {
+            // PostgreSQL 本地库以规范 UUID 文本保存批次，输入仍由原生 UUID 类型校验。
+            Some(batch) if postgres => query.where_raw(
+                "batch_id = cast(cast(cast(? as text) as uuid) as text)",
+                vec![batch.into()],
+            ),
+            Some(batch) => query.r#where("batch_id", "=", batch),
+            None => match options.batch_id {
+                Some(batch) => query.where_exact_text("batch_id", &batch.to_string()),
+                None => query,
+            },
+        };
         let tag = options
             .tag
             .as_deref()
@@ -79,16 +99,24 @@ impl DatabaseEntriesRepository {
         if let Some(hash) = family {
             query = query.where_exact_text("family_hash", hash);
         }
-        if let Some(before) = options.before_sequence {
-            query = query.r#where("sequence", "<", before);
-        }
+        query = match before {
+            Some(before) if postgres => query.where_raw(
+                "sequence < cast(cast(? as text) as bigint)",
+                vec![before.into()],
+            ),
+            Some(before) => query.r#where("sequence", "<", before),
+            None => match options.before_sequence {
+                Some(before) => query.r#where("sequence", "<", before),
+                None => query,
+            },
+        };
         if let Some(ids) = options.uuids {
             query = query.where_in(
                 "uuid",
                 ids.iter().map(|id| Value::from(id.to_string())).collect(),
             );
         }
-        if options.batch_id.is_none() && tag.is_none() && family.is_none() {
+        if !filters_batch && tag.is_none() && family.is_none() {
             query = query.r#where("should_display_on_index", "=", true);
         }
         query = query.order_by_desc("sequence");
@@ -510,6 +538,17 @@ impl crate::contracts::EntriesRepository for DatabaseEntriesRepository {
         options: EntryQueryOptions,
     ) -> crate::contracts::TelescopeFuture<'_, Result<Vec<EntryResult>>> {
         Box::pin(DatabaseEntriesRepository::get(self, kind, options))
+    }
+    fn get_with_filter_inputs(
+        &self,
+        kind: Option<EntryType>,
+        options: EntryQueryOptions,
+        batch: Option<String>,
+        before: Option<String>,
+    ) -> crate::contracts::TelescopeFuture<'_, Result<Vec<EntryResult>>> {
+        Box::pin(DatabaseEntriesRepository::get_with_filter_inputs(
+            self, kind, options, batch, before,
+        ))
     }
     fn store<'a>(
         &'a self,

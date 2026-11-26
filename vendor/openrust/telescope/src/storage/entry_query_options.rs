@@ -42,12 +42,22 @@ impl EntryQueryOptions {
         self
     }
     /// 整数零和 `None` 均表示不筛选。
-    pub fn before_sequence(self, sequence: Option<i64>) -> Self {
-        self.with_cursor(sequence.filter(|sequence| *sequence != 0))
-    }
-    pub(crate) fn with_cursor(mut self, sequence: Option<i64>) -> Self {
-        self.before_sequence = sequence;
+    pub fn before_sequence(mut self, sequence: Option<i64>) -> Self {
+        self.before_sequence = sequence.filter(|sequence| *sequence != 0);
         self
+    }
+    pub(crate) fn with_filter_inputs(
+        mut self,
+        batch: Option<String>,
+        before: Option<String>,
+    ) -> crate::Result<Self> {
+        if let Some(batch) = batch {
+            self.batch_id = Some(batch.parse().map_err(|_| crate::Error::InvalidEntry)?);
+        }
+        if let Some(before) = before {
+            self.before_sequence = Some(before.parse().map_err(|_| crate::Error::InvalidEntry)?);
+        }
+        Ok(self)
     }
     pub fn uuids(mut self, uuids: Option<Vec<Uuid>>) -> Self {
         self.uuids = uuids;

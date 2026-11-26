@@ -1058,6 +1058,178 @@ async fn list_filters_preserve_fixed_zero_values_cursor_text_and_tag_whitespace(
 }
 
 #[tokio::test]
+async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
+    use openrust::{database::DatabaseError, http::StatusCode};
+    use openrust_telescope::{Error, contracts::EntriesRepository};
+
+    fn sequences(rows: &serde_json::Value) -> Vec<i64> {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["sequence"].as_i64().unwrap())
+            .collect()
+    }
+
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let application = app.app();
+    let repository = application
+        .make::<DatabaseEntriesRepository>()
+        .await
+        .unwrap();
+    let connection = application
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(Some("testing"))
+        .unwrap();
+    let driver = connection.get_driver_name();
+    let batch = uuid::Uuid::parse_str("abcdef20-d1ac-4c00-ab01-013cd84a0001").unwrap();
+    for (sequence, visible) in [(1_i64, true), (2, false), (3, true), (4, true)] {
+        connection
+            .table("telescope_entries")
+            .insert(&[std::collections::BTreeMap::from([
+                ("sequence".into(), sequence.into()),
+                ("uuid".into(), uuid::Uuid::now_v7().to_string().into()),
+                ("batch_id".into(), batch.to_string().into()),
+                ("type".into(), "log".into()),
+                ("content".into(), "{}".into()),
+                ("should_display_on_index".into(), visible.into()),
+                ("created_at".into(), "2026-11-26 16:00:00".into()),
+            ])])
+            .await
+            .unwrap();
+    }
+    application
+        .make::<Telescope>()
+        .await
+        .unwrap()
+        .auth(|_| Box::pin(async { Ok(true) }));
+
+    let visible = &[4, 3, 1][..];
+    let all = &[4, 3, 2, 1][..];
+    let oldest = &[1][..];
+    let empty = &[][..];
+    let invalid = Err("22P02");
+    let standard = batch.to_string();
+    let uppercase = standard.to_ascii_uppercase();
+    let simple = batch.simple().to_string();
+    let braced = format!("{{{batch}}}");
+    let cases = [
+        ("before", "0", [Ok(visible); 3]),
+        ("before", "00", [Ok(empty); 3]),
+        ("before", " 2 ", [Ok(oldest); 3]),
+        ("before", "2.5", [Ok(oldest), Ok(oldest), invalid]),
+        ("before", "2e0", [Ok(oldest), Ok(oldest), invalid]),
+        ("before", "2garbage", [Ok(visible), Ok(oldest), invalid]),
+        ("before", "non-numeric", [Ok(visible), Ok(empty), invalid]),
+        (
+            "before",
+            "9223372036854775808",
+            [Ok(visible), Ok(visible), Err("22003")],
+        ),
+        ("batch", "not-a-uuid", [Ok(empty), Ok(empty), invalid]),
+        ("batch", "0", [Ok(visible); 3]),
+        ("batch", &standard, [Ok(all); 3]),
+        ("batch", &uppercase, [Ok(empty), Ok(all), Ok(all)]),
+        ("batch", &simple, [Ok(empty), Ok(empty), Ok(all)]),
+        ("batch", &braced, [Ok(empty), Ok(empty), Ok(all)]),
+    ];
+    let index = match driver {
+        "sqlite" => 0,
+        "mysql" => 1,
+        "pgsql" => 2,
+        _ => panic!("unexpected test driver {driver}"),
+    };
+    for (field, input, expected) in cases {
+        let key = if field == "before" {
+            "before"
+        } else {
+            "batch_id"
+        };
+        let command = app
+            .artisan(["telescope:list", "--json", &format!("--{field}={input}")])
+            .await;
+        let response = api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/logs",
+            json!({(key):input}),
+        )
+        .await;
+        match expected[index] {
+            Ok(expected) => {
+                command.assert_successful();
+                let payload = serde_json::from_str(&command.stdout).unwrap();
+                assert_eq!(sequences(&payload), expected, "Artisan {field}={input}");
+                response.assert_ok();
+                let payload: serde_json::Value = response.json().unwrap();
+                assert_eq!(
+                    sequences(&payload["entries"]),
+                    expected,
+                    "HTTP {key}={input}"
+                );
+            }
+            Err(sqlstate) => {
+                assert_ne!(command.status, 0, "Artisan {field}={input}");
+                assert!(
+                    command
+                        .stderr
+                        .contains("Telescope database operation failed")
+                );
+                response.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+                let failure = repository
+                    .get_with_filter_inputs(
+                        Some(EntryType::Log),
+                        EntryQueryOptions::default(),
+                        (field == "batch").then(|| input.to_owned()),
+                        (field == "before").then(|| input.to_owned()),
+                    )
+                    .await
+                    .unwrap_err();
+                let Error::Database(DatabaseError::Driver { source, .. }) = failure else {
+                    panic!("expected database driver error for {field}={input}, got {failure:?}");
+                };
+                assert_eq!(
+                    source
+                        .as_database_error()
+                        .and_then(|error| error.code())
+                        .as_deref(),
+                    Some(sqlstate),
+                    "{field}={input}",
+                );
+            }
+        }
+    }
+    for (value, expected) in [
+        (json!(true), empty),
+        (json!(false), visible),
+        (json!(2.5), oldest),
+    ] {
+        let response = api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/logs",
+            json!({"before":value}),
+        )
+        .await;
+        if value.is_f64() && driver == "pgsql" {
+            response.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+        } else {
+            response.assert_ok();
+            let payload: serde_json::Value = response.json().unwrap();
+            assert_eq!(
+                sequences(&payload["entries"]),
+                expected,
+                "HTTP before={value}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn management_commands_validate_types_preserve_json_and_pause_across_scopes() {
     let mut app = application();
     app.artisan(["migrate", "--force"])

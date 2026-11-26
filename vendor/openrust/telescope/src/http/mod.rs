@@ -7,7 +7,7 @@ use openrust::{
     routing::{RouteGroup, RoutingError},
     support::{
         facades::{Config, Facade, Route},
-        php_value_truthy,
+        php_float_string, php_value_truthy,
     },
 };
 use serde_json::{Value, json};
@@ -262,8 +262,12 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         )
                         .await?;
                     }
-                    let options = EntryQueryOptions::from_request(request).await?;
-                    let mut result = json!({"entries":repository.get(Some(*kind), options).await.map_err(failure)?,"status":status(watcher).await?});
+                    let (options, batch, before) = list_query_inputs(request).await?;
+                    let entries = repository
+                        .get_with_filter_inputs(Some(*kind), options, batch, before)
+                        .await
+                        .map_err(failure)?;
+                    let mut result = json!({"entries":entries,"status":status(watcher).await?});
                     if *kind == EntryType::Dump {
                         result["dump"] = "true".into();
                     }
@@ -333,61 +337,74 @@ async fn status(watcher: &str) -> Result<&'static str, HttpError> {
 }
 impl EntryQueryOptions {
     pub async fn from_request(request: &mut Request) -> Result<Self, HttpError> {
-        let values = request.input(None).await?.unwrap_or(json!({}));
-        let string = |key| -> Result<Option<String>, HttpError> {
-            match values.get(key) {
-                None | Some(Value::Null) => Ok(None),
-                Some(Value::String(value)) => Ok(Some(value.clone())),
-                _ => Err(HttpError::InvalidRequest),
-            }
-        };
-        let batch = string("batch_id")?
-            .filter(|value| has_string_filter(value))
-            .map(|value| Uuid::parse_str(&value))
-            .transpose()
-            .map_err(|_| HttpError::InvalidRequest)?;
-        let uuids = values
-            .get("uuids")
-            .filter(|v| !v.is_null())
-            .map(|values| {
-                values
-                    .as_array()
-                    .ok_or(HttpError::InvalidRequest)?
-                    .iter()
-                    .map(|value| {
-                        value
-                            .as_str()
-                            .ok_or(HttpError::InvalidRequest)
-                            .and_then(|value| {
-                                Uuid::parse_str(value).map_err(|_| HttpError::InvalidRequest)
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?;
-        let number = |value: &Value| {
-            value
-                .as_i64()
-                .or_else(|| value.as_str()?.parse().ok())
-                .ok_or(HttpError::InvalidRequest)
-        };
-        let before = values
-            .get("before")
-            .filter(|value| php_value_truthy(value))
-            .map(number)
-            .transpose()?;
-        let take = values
-            .get("take")
-            .filter(|value| !value.is_null())
-            .map(number)
-            .transpose()?
-            .unwrap_or(50);
-        Ok(Self::default()
-            .batch_id(batch)
-            .tag(string("tag")?)
-            .family_hash(string("family_hash")?)
-            .uuids(uuids)
-            .with_cursor(before)
-            .limit(if take < 0 { u64::MAX } else { take as u64 }))
+        let (options, batch, before) = list_query_inputs(request).await?;
+        options
+            .with_filter_inputs(batch, before)
+            .map_err(|_| HttpError::InvalidRequest)
     }
+}
+
+async fn list_query_inputs(
+    request: &mut Request,
+) -> Result<(EntryQueryOptions, Option<String>, Option<String>), HttpError> {
+    let values = request.input(None).await?.unwrap_or(json!({}));
+    let string = |key| -> Result<Option<String>, HttpError> {
+        match values.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(value)) => Ok(Some(value.clone())),
+            _ => Err(HttpError::InvalidRequest),
+        }
+    };
+    let batch = string("batch_id")?.filter(|value| has_string_filter(value));
+    let uuids = values
+        .get("uuids")
+        .filter(|v| !v.is_null())
+        .map(|values| {
+            values
+                .as_array()
+                .ok_or(HttpError::InvalidRequest)?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .ok_or(HttpError::InvalidRequest)
+                        .and_then(|value| {
+                            Uuid::parse_str(value).map_err(|_| HttpError::InvalidRequest)
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?;
+    let number = |value: &Value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_str()?.parse().ok())
+            .ok_or(HttpError::InvalidRequest)
+    };
+    let before = values
+        .get("before")
+        .filter(|value| php_value_truthy(value))
+        .map(|value| match value {
+            Value::String(value) => Ok(value.clone()),
+            Value::Number(value) => value
+                .as_i64()
+                .map(|value| value.to_string())
+                .or_else(|| value.as_f64().map(php_float_string))
+                .ok_or(HttpError::InvalidRequest),
+            Value::Bool(true) => Ok("1".to_owned()),
+            _ => Err(HttpError::InvalidRequest),
+        })
+        .transpose()?;
+    let take = values
+        .get("take")
+        .filter(|value| !value.is_null())
+        .map(number)
+        .transpose()?
+        .unwrap_or(50);
+    let options = EntryQueryOptions::default()
+        .tag(string("tag")?)
+        .family_hash(string("family_hash")?)
+        .uuids(uuids)
+        .limit(if take < 0 { u64::MAX } else { take as u64 });
+    Ok((options, batch, before))
 }

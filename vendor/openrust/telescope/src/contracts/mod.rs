@@ -21,6 +21,19 @@ pub trait EntriesRepository: ClearableRepository + PrunableRepository {
         kind: Option<EntryType>,
         options: EntryQueryOptions,
     ) -> TelescopeFuture<'_, Result<Vec<EntryResult>>>;
+    /// List consumers can supply the original batch and cursor strings to the storage driver.
+    fn get_with_filter_inputs(
+        &self,
+        kind: Option<EntryType>,
+        options: EntryQueryOptions,
+        batch: Option<String>,
+        before: Option<String>,
+    ) -> TelescopeFuture<'_, Result<Vec<EntryResult>>> {
+        Box::pin(async move {
+            self.get(kind, options.with_filter_inputs(batch, before)?)
+                .await
+        })
+    }
     fn store<'a>(&'a self, entries: &'a [IncomingEntry]) -> TelescopeFuture<'a, Result<()>>;
     fn update<'a>(
         &'a self,
