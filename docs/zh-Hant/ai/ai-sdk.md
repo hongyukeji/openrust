@@ -51,6 +51,8 @@ Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在
 
 可用 `stream.each(|event| { inspect(event); true }).await?` 逐一處理事件並保留回應。回呼傳回 `false` 時暫停本次走訪。之後透過 `each`、`into_stream` 或 `to_response` 消費回應時，會依原本的 ID 重播已走訪的事件，並從同一次上游請求讀取剩餘事件。
 
+可用 `stream.then(callback)` 在串流消費完成時取得 `StreamedAgentResponse`。其中包含合併後的文字與用量、工具呼叫及結果和原始事件。串流暫停等候審批時，也會提供已儲存的審批批次。在 `each` 完整走訪後註冊回呼會立即取得結果。
+
 Vercel 和 AG-UI 串流配接器使用目前的應用程式語言顯示產生失敗提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆寫 `stream` 文字。
 
 使用 `agent(instructions).with_schema(schema).prompt(text)` 請求 JSON 物件。Schema 使用框架既有的 `JsonSchema` 建立。可讀取 `response.structured`，或透過 `response.decode::<YourType>()` 轉成 Rust 型別。所選模型必須支援連線的原生結構化輸出格式。結構化串流會將 JSON 作為文字增量傳送。可透過 `./artisan ai:prompt` 的 `--schema` 傳入 JSON 物件 Schema 進行試呼叫。 SDK 會在送出的 Schema 中停用物件的額外屬性，包括巢狀物件。如果模型執行 OpenAI 嚴格 Schema 驗證，請將所有屬性標示為必填。

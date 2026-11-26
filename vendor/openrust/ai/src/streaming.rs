@@ -20,7 +20,10 @@ use crate::{
     agent_broadcast::StreamBroadcast, text::transport_error,
 };
 
+mod completion;
 mod protocols;
+use completion::CompletionCallbacks;
+pub use completion::StreamedAgentResponse;
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
 
 pub type AgentEventStream = Pin<Box<dyn Stream<Item = AiResult<StreamEvent>> + Send>>;
@@ -71,6 +74,8 @@ pub enum StreamEventData {
 pub struct StreamableAgentResponse {
     events: AgentEventStream,
     inspected: Vec<StreamEvent>,
+    inspection_complete: bool,
+    completion: CompletionCallbacks,
     protocol: Option<Box<dyn StreamProtocol>>,
 }
 
@@ -79,6 +84,8 @@ impl StreamableAgentResponse {
         Self {
             events,
             inspected: Vec::new(),
+            inspection_complete: false,
+            completion: CompletionCallbacks::default(),
             protocol: None,
         }
     }
@@ -98,10 +105,18 @@ impl StreamableAgentResponse {
     }
 
     pub fn into_stream(self) -> AgentEventStream {
-        if self.inspected.is_empty() {
-            return self.events;
+        let events: AgentEventStream = if self.inspected.is_empty() {
+            self.events
+        } else {
+            Box::pin(
+                futures_util::stream::iter(self.inspected.into_iter().map(Ok)).chain(self.events),
+            )
+        };
+        if self.completion.is_empty() {
+            events
+        } else {
+            self.completion.stream(events)
         }
-        Box::pin(futures_util::stream::iter(self.inspected.into_iter().map(Ok)).chain(self.events))
     }
 
     /// Visits each event and returns the response for further use. Returning false pauses the visit.
@@ -120,7 +135,25 @@ impl StreamableAgentResponse {
             }
         }
         self.events = Box::pin(futures_util::stream::empty());
+        self.inspection_complete = true;
+        if !self.completion.is_empty() {
+            std::mem::take(&mut self.completion)
+                .notify(self.inspected.clone())
+                .await;
+        }
         Ok(self)
+    }
+
+    /// Registers a callback for a stream's terminal result.
+    pub fn then(mut self, callback: impl FnOnce(&StreamedAgentResponse) + Send + 'static) -> Self {
+        if self.inspection_complete {
+            if let Some(response) = StreamedAgentResponse::from_events(self.inspected.clone()) {
+                callback(&response);
+            }
+        } else {
+            self.completion.push(callback);
+        }
+        self
     }
 
     /// Registers a callback for the first error reported while consuming the stream.

@@ -581,7 +581,15 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 `StreamableAgentResponse::each` 在同一流上逐事件执行回调，返回 `false` 暂停遍历。响应继续持有该上游流，重播已读事件时沿用原 ID。随后可继续遍历、取原生流或输出 HTTP，直接消费的路径无需缓存已读事件。
 
-实际 Artisan 和 HTTP 对照完整遍历、提前停止、重播、错误传播及上游请求次数。消费端覆盖默认 SSE、Vercel 和 AG-UI，原生流的事件 ID、顺序与用量经过精确比较。文本、工具与 UI 流回归、严格 Clippy 和三语文档通过。完成回调继续按 AI-02 核对。
+实际 Artisan 和 HTTP 对照完整遍历、提前停止、重播、错误传播及上游请求次数。消费端覆盖默认 SSE、Vercel 和 AG-UI，原生流的事件 ID、顺序与用量经过精确比较。文本、工具与 UI 流回归、严格 Clippy 和三语文档通过。
+
+### AI-02 流式完成回调
+
+`StreamableAgentResponse::then` 在流完整消费后交付 `StreamedAgentResponse`，登记在完整 `each` 之后时立即交付。响应按固定 Laravel 的工具步骤规则合并文字与用量，并提供原始事件、最后一步模型、工具调用及结果。等待审批的流在交付审批终帧前回报已持久化的审批批次与会话 ID。上游错误沿用 `catch`。推理、引文及完整对话元数据随各自契约继续核对。
+
+实际 Artisan 与 HTTP 通过两步 OpenAI Responses／Chat Completions 模型调用检查文字分段、9 输入及 5 输出 Token、工具结果、事件 ID、顺序与错误边界。实际 SQLite 及默认 SSE、Vercel、AG-UI 核对暂停回调中的持久化审批批次，独立 HTTP 进程恢复。文本、工具、会话及 UI 回归、严格 Clippy 和三语文档通过。
+
+- [固定 Laravel StreamedAgentResponse](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/StreamedAgentResponse.php) · [固定 Laravel TextDelta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/TextDelta.php)
 
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
