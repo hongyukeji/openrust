@@ -82,7 +82,7 @@ let response = agent("回答前先查目录。")
 let answer = response.text;
 ```
 
-工具调用使用 Chat Completions 或 Responses 的非流式请求。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
+工具调用支持 Chat Completions、Responses、Anthropic Messages 和 Gemini GenerateContent 的非流式请求。Claude 和 Gemini 会收到原始模型内容及工具结果，以便供应商核对签名。Agent 用原调用 ID 把结果送回模型，并在响应中提供 `tool_calls` 和 `tool_results`。用 `with_max_steps(n)` 限制模型步骤数。最后一个步骤提出的工具调用会记录为失败结果，工具不会执行。
 
 ## Embeddings {#embeddings}
 

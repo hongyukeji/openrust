@@ -113,3 +113,5 @@ HTTP Kernel 及独立应用进程经实际 TCP 模拟服务验收格式、首段
 `Tool`、`ToolRequest`、`ToolCall`、`ToolResult` 和 `StepTextGateway::generate_text_step` 进入正常 Agent 调用。Rust 的工具列表由 `Agent::tools` 或匿名 Builder 装配。复用框架 JSON Schema、Validator 和 ULID。每一步按调用 ID 记录工具结果，限定应用声明的工具集合。重复 ID、非法参数、保密的错误摘要和最后一步停止策略避免重复或未授权执行。累计各步上游报告的 Token。原生 OpenAI Chat Completions 和 Responses 的工具输出按协议回送。
 
 实际 HTTP Kernel 与本地 TCP 测试验证两个协议、参数校验、调用关联、下一步、终止与用量。独立 Artisan 应用命令验收工具执行与第二次真实 HTTP 请求。流式工具、正常／失败／延迟工具的事件、单步中间件、审批与恢复、会话、Provider 工具和其他协议归后续批次。
+
+Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式工具循环。回送完整模型内容以保留签名和顺序。Gemini 有上游 ID 时按原值回送，缺省时生成 SDK 内部关联 ID。HTTP Kernel 及独立 Artisan 经本地协议上游验收声明、原始签名、调用关联、结果及再次生成。Gemini Interactions 和四协议的流式工具循环仍待实现。

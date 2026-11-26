@@ -91,6 +91,7 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
             completion_tokens: data["usage"]["completion_tokens"].as_u64(),
         },
         tool_calls,
+        provider_content: None,
     })
 }
 
@@ -128,6 +129,7 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
             completion_tokens: data["usage"]["output_tokens"].as_u64(),
         },
         tool_calls,
+        provider_content: None,
     })
 }
 

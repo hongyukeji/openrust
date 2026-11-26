@@ -64,8 +64,18 @@ impl Tool for Lookup {
 }
 
 async fn fixture(path: &'static str, replies: Vec<Value>) -> (String, JoinHandle<Vec<Value>>) {
+    native_fixture("v1", path, "authorization", "Bearer fixture-key", replies).await
+}
+
+async fn native_fixture(
+    version: &'static str,
+    path: &'static str,
+    auth_header: &'static str,
+    auth_value: &'static str,
+    replies: Vec<Value>,
+) -> (String, JoinHandle<Vec<Value>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}/v1", listener.local_addr().unwrap());
+    let url = format!("http://{}/{}", listener.local_addr().unwrap(), version);
     let server = tokio::spawn(async move {
         let mut requests = Vec::new();
         for response in replies {
@@ -76,7 +86,7 @@ async fn fixture(path: &'static str, replies: Vec<Value>) -> (String, JoinHandle
             let mut socket = BufReader::new(socket);
             let mut line = String::new();
             socket.read_line(&mut line).await.unwrap();
-            assert_eq!(line.trim_end(), format!("POST /v1/{path} HTTP/1.1"));
+            assert_eq!(line.trim_end(), format!("POST /{version}/{path} HTTP/1.1"));
             let mut size = 0;
             let mut authorized = false;
             loop {
@@ -89,8 +99,8 @@ async fn fixture(path: &'static str, replies: Vec<Value>) -> (String, JoinHandle
                 if key.eq_ignore_ascii_case("content-length") {
                     size = value.trim().parse().unwrap();
                 }
-                if key.eq_ignore_ascii_case("authorization") {
-                    authorized = value.trim() == "Bearer fixture-key";
+                if key.eq_ignore_ascii_case(auth_header) {
+                    authorized = value.trim() == auth_value;
                 }
             }
             assert!(authorized);
@@ -208,4 +218,81 @@ async fn check_tools(provider: &str) {
     assert!(!response.tool_results[0].failed);
     assert_eq!(response.usage.prompt_tokens, Some(11));
     assert_eq!(response.usage.completion_tokens, Some(3));
+}
+
+#[tokio::test]
+async fn sdk_tools_roundtrip_through_anthropic_and_gemini() -> TestResult {
+    let thinking =
+        json!({"type":"thinking","thinking":"fixture","signature":"opaque-claude-signature"});
+    let gemini_call = json!({
+        "functionCall":{"id":"call_fixture","name":"lookup","args":{"sku":"demo"}},
+        "thoughtSignature":"opaque-gemini-signature",
+    });
+    let gemini_replies = vec![
+        json!({"candidates":[{"content":{"role":"model","parts":[gemini_call]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1}}),
+        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"four remaining"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":6,"candidatesTokenCount":2}}),
+    ];
+    let (anthropic, anthropic_calls) = native_fixture("v1", "messages", "x-api-key", "fixture-key", vec![
+        json!({"stop_reason":"tool_use","content":[thinking,{"type":"tool_use","id":"call_fixture","name":"lookup","input":{"sku":"demo"}}],"usage":{"input_tokens":5,"output_tokens":1}}),
+        json!({"stop_reason":"end_turn","content":[{"type":"text","text":"four remaining"}],"usage":{"input_tokens":6,"output_tokens":2}}),
+    ]).await;
+    let (gemini, gemini_calls) = native_fixture(
+        "v1beta",
+        "models/gemini-fixture:generateContent",
+        "x-goog-api-key",
+        "fixture-key",
+        gemini_replies,
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/claude", || async {
+                    check_tools("anthropic").await;
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Route::get("/gemini", || async {
+                    check_tools("gemini").await;
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "ANTHROPIC_URL={anthropic}\nANTHROPIC_MODEL=claude-fixture\nANTHROPIC_API_KEY=fixture-key\nGEMINI_URL={gemini}\nGEMINI_API_KEY=fixture-key\nGEMINI_MODEL=gemini-fixture\n"
+        ),
+    )?;
+    assert_eq!(app.get("/claude").await?.status(), StatusCode::OK);
+    assert_eq!(app.get("/gemini").await?.status(), StatusCode::OK);
+    let claude = anthropic_calls.await?;
+    assert_eq!(
+        claude[0]["tools"][0]["input_schema"]["required"],
+        json!(["sku"])
+    );
+    assert_eq!(claude[1]["messages"][1]["content"][0], thinking);
+    let result = &claude[1]["messages"][2]["content"][0];
+    assert_eq!(result["type"], "tool_result");
+    assert_eq!(result["tool_use_id"], "call_fixture");
+    assert_eq!(result["is_error"], false);
+    assert_eq!(
+        serde_json::from_str::<Value>(result["content"].as_str().unwrap())?["quantity"],
+        4
+    );
+
+    let gemini = gemini_calls.await?;
+    assert_eq!(
+        gemini[0]["tools"][0]["functionDeclarations"][0]["parametersJsonSchema"]["required"],
+        json!(["sku"])
+    );
+    assert_eq!(gemini[1]["contents"][1]["parts"][0], gemini_call);
+    let result = &gemini[1]["contents"][2]["parts"][0]["functionResponse"];
+    assert_eq!(result["name"], "lookup");
+    assert_eq!(result["id"], "call_fixture");
+    assert_eq!(
+        serde_json::from_str::<Value>(result["response"]["output"].as_str().unwrap())?["quantity"],
+        4
+    );
+    Ok(())
 }

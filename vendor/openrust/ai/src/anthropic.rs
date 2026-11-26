@@ -11,8 +11,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentPrompt, AgentResponse, AiError, AiResult, ModelCatalog, StreamableAgentResponse,
-    TextEndpoint, TextPrompt, TextProvider, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, ModelCatalog, StepResponse, StepTextGateway,
+    StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider, ToolCall, ToolDefinition,
+    ToolStep, Usage,
     connection::{Authorization, Connection},
     models::ListedModel,
     text::{transport_error, validate},
@@ -34,7 +35,7 @@ impl AnthropicTextProvider {
         )?))
     }
 
-    async fn send(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
+    fn prompt_body(prompt: &AgentPrompt<'_>) -> Value {
         let mut messages: Vec<_> = prompt
             .messages
             .iter()
@@ -52,6 +53,11 @@ impl AnthropicTextProvider {
         if let Some(output) = &prompt.structured_output {
             body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
         }
+        body
+    }
+
+    async fn send(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
+        let mut body = Self::prompt_body(prompt);
         if stream {
             body["stream"] = true.into();
         }
@@ -171,6 +177,10 @@ impl TextProvider for AnthropicTextProvider {
         })
     }
 
+    fn step_text_gateway(&self) -> Option<&dyn StepTextGateway> {
+        Some(self)
+    }
+
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async { self.0.catalog(self.list_models().await) })
     }
@@ -189,6 +199,95 @@ impl TextProvider for AnthropicTextProvider {
             }
             let stream = endpoint == TextEndpoint::Messages && body["stream"] == true;
             self.0.send(endpoint, &body, stream, None).await
+        })
+    }
+}
+
+impl StepTextGateway for AnthropicTextProvider {
+    fn generate_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        tools: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        Box::pin(async move {
+            let mut body = Self::prompt_body(prompt);
+            let messages = body["messages"]
+                .as_array_mut()
+                .ok_or(AiError::InvalidResponse)?;
+            for step in history {
+                let content = step
+                    .provider_content
+                    .as_ref()
+                    .ok_or(AiError::InvalidResponse)?;
+                messages.push(json!({"role":"assistant","content":content}));
+                let results: Vec<_> = step
+                    .results
+                    .iter()
+                    .map(|result| {
+                        json!({
+                            "type":"tool_result","tool_use_id":result.id,
+                            "content":result.result,"is_error":result.failed,
+                        })
+                    })
+                    .collect();
+                messages.push(json!({"role":"user","content":results}));
+            }
+            body["tools"] = tools
+                .iter()
+                .map(|tool| {
+                    json!({
+                        "name":tool.name,"description":tool.description,"input_schema":tool.schema,
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into();
+
+            let mut response: Value = validate(Ok(self
+                .0
+                .send(TextEndpoint::Messages, &body, false, prompt.text.timeout)
+                .await?))?
+            .json()
+            .map_err(|_| AiError::InvalidResponse)?;
+            if response["stop_reason"] == "refusal" {
+                return Err(AiError::Refused);
+            }
+            let content = response["content"].take();
+            let blocks = content.as_array().ok_or(AiError::InvalidResponse)?;
+            let mut tool_calls = Vec::new();
+            let mut text = None::<String>;
+            for block in blocks {
+                match block["type"].as_str() {
+                    Some("tool_use") => tool_calls.push(ToolCall {
+                        id: block["id"].as_str().ok_or(AiError::InvalidResponse)?.into(),
+                        name: block["name"]
+                            .as_str()
+                            .ok_or(AiError::InvalidResponse)?
+                            .into(),
+                        arguments: block["input"]
+                            .as_object()
+                            .ok_or(AiError::InvalidToolArguments)?
+                            .clone(),
+                    }),
+                    Some("text") => text
+                        .get_or_insert_default()
+                        .push_str(block["text"].as_str().ok_or(AiError::InvalidResponse)?),
+                    _ => {}
+                }
+            }
+            if (response["stop_reason"] == "tool_use") == tool_calls.is_empty() {
+                return Err(AiError::InvalidResponse);
+            }
+            Ok(StepResponse {
+                model: response["model"].as_str().map(str::to_owned),
+                text,
+                usage: Usage {
+                    prompt_tokens: response["usage"]["input_tokens"].as_u64(),
+                    completion_tokens: response["usage"]["output_tokens"].as_u64(),
+                },
+                tool_calls,
+                provider_content: Some(content),
+            })
         })
     }
 }

@@ -79,6 +79,8 @@ pub struct ToolStep {
     pub text: Option<String>,
     pub calls: Vec<ToolCall>,
     pub results: Vec<ToolResult>,
+    /// 供同一协议重放的原始模型内容，例如签名与推理块。
+    pub provider_content: Option<Value>,
 }
 
 pub struct StepResponse {
@@ -86,6 +88,7 @@ pub struct StepResponse {
     pub text: Option<String>,
     pub usage: Usage,
     pub tool_calls: Vec<ToolCall>,
+    pub provider_content: Option<Value>,
 }
 
 /// 实现一次生成步骤的协议适配器。
@@ -174,6 +177,7 @@ pub(crate) async fn run(
             text: response.text.clone(),
             calls: response.tool_calls,
             results,
+            provider_content: response.provider_content,
         });
         if finished {
             let mut tool_calls = Vec::new();
