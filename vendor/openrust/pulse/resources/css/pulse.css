@@ -11,3 +11,5 @@ th{white-space:nowrap}td:not([data-column="key"]){white-space:nowrap}td[data-col
 }
 .cache-summary dt { color: #94a3b8; }
 .cache-summary dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+.server-trend{height:40px;color:#38bdf8;background:#182238;border-radius:4px}

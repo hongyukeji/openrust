@@ -18,8 +18,15 @@ try{
   assert.equal((await page.goto(base+'/operations/pulse')).status(),200);
   await page.locator('#status').filter({hasText:'Updated'}).waitFor();
   assert.equal(await page.locator('.card').count(),10);
-  assert.equal(await page.locator('progress').count(),3);
-  assert.equal(await page.locator('svg').count(),1);
+  assert.equal(await page.locator('progress').count(),5);
+  assert.equal(await page.locator('svg').count(),3);
+  for (const name of [/^CPU history for /, /^Memory history for /]) {
+   const graph=page.getByRole('img',{name});
+   assert(await graph.isVisible());
+   assert.match(await graph.locator('path').getAttribute('d'), /^M [\d.]+ [\d.]+ h 0\.01$/);
+  }
+  assert(await page.getByText(/^Recently reported · Last reported /).isVisible());
+  assert(await page.getByText(/^Stale · Last reported /).isVisible());
   assert.equal(await page.locator('svg polyline').count(),5);
   assert((await page.locator('#cards').innerText()).includes('ID: 42'));
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));

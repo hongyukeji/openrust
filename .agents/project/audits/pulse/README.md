@@ -134,6 +134,12 @@ macOS 三库的实际授权 HTTP 验证空汇总、超过明细上限的键及�
 
 同样数据经原生真实 HTTP 返回最近的主机快照。CPU 历史断言因缺少序列而失败，最近上报状态、排序及按时限过滤一并保留为接续对齐项。原生复现为 `target/tmp/observability-parity/pulse-dashboard-servers-baseline.log`。
 
+Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通过 `server_graphs` 返回可见主机的 CPU／内存平均历史。默认按主机名升序，保留旧快照。可在 `pulse.dashboard.servers` 配置标量排序字段、方向和过期时限。原生面板保留瞬时读数和磁盘用量，显示两类历史及上报状态，历史缺采样处断开。
+
+同一 macOS 隔离快照的真实 HTTP 通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13，验证平均值、稀疏序列、新旧状态、排序覆盖及数字／时长过期配置。Pulse 与 Telescope Provider 共 37 项通过，独立 Redis 的 Telescope 用例按环境跳过。实际授权页面通过手机和桌面 Chrome 检查，涵盖历史曲线、上报状态、四种时段、仪表、刷新和文字转义。全仓格式、相关严格 Clippy、三语文档构建及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-servers-{verified,docs}.log`。
+
+接续核对固定 Servers 组件的五秒轮询、历史点提示与格式、集合字段排序以及 Carbon 复合时间表达式。原生面板当前每十秒统一刷新，磁盘使用量使用原生仪表。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+
 ## SlowJobs 任务尝试计时
 
 固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)

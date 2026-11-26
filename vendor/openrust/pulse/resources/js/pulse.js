@@ -40,7 +40,59 @@ function updateOption(parameter, value) {
 }
 function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof text==='object'&&text!==null?(text.name??JSON.stringify(text)):String(text??'—');return e}
 function meter(card,label,used,total){const item=document.createElement('div');item.className='reading';item.append(cell('p',label));const bar=document.createElement('progress');bar.max=100;bar.value=total>0?Math.min(100,used/total*100):0;bar.setAttribute('aria-label',label);item.append(bar);card.append(item)}
-function servers(card,values){for(const row of values){let data;try{data=JSON.parse(row.value)}catch{card.append(cell('p','Invalid server snapshot'));continue}card.append(cell('h3',data.name));meter(card,`CPU · ${data.cpu}%`,Number(data.cpu),100);meter(card,`Memory · ${data.memory_used} / ${data.memory_total} MiB`,Number(data.memory_used),Number(data.memory_total));for(const disk of data.storage??[])meter(card,`${disk.directory} · ${disk.used} / ${disk.total} MiB`,Number(disk.used),Number(disk.total));card.append(cell('small','Last reported '+new Date(Number(row.timestamp)*1000).toLocaleString()))}}
+function serverTrend(card, label, readings, limit) {
+    const values = Object.values(readings ?? {});
+    if (!values.some(Number.isFinite) || !(limit > 0)) return;
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    svg.classList.add('server-trend');
+    svg.setAttribute('viewBox', '0 0 600 40');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label);
+    const commands = [];
+    values.forEach((value, index) => {
+        if (!Number.isFinite(value)) return;
+        const x = 2 + index / Math.max(1, values.length - 1) * 596;
+        const y = 37 - Math.min(1, Math.max(0, value / limit)) * 34;
+        const previous = Number.isFinite(values[index - 1]);
+        commands.push(`${previous ? 'L' : 'M'} ${x} ${y}`);
+        if (!previous && !Number.isFinite(values[index + 1])) {
+            commands.push('h 0.01');
+        }
+    });
+    const line = document.createElementNS(namespace, 'path');
+    line.setAttribute('d', commands.join(' '));
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', 'currentColor');
+    line.setAttribute('stroke-width', '3');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.append(line);
+    card.append(svg);
+}
+function servers(card, values, graphs) {
+    for (const row of values) {
+        let data;
+        try {
+            data = JSON.parse(row.value);
+        } catch {
+            card.append(cell('p', 'Invalid server snapshot'));
+            continue;
+        }
+        card.append(cell('h3', data.name));
+        const status = row.recently_reported ? 'Recently reported' : 'Stale';
+        card.append(cell('small', `${status} · Last reported ${new Date(Number(row.timestamp) * 1000).toLocaleString()}`));
+        const series = Object.hasOwn(graphs, row.key) ? graphs[row.key] : undefined;
+        meter(card, `CPU · ${data.cpu}%`, Number(data.cpu), 100);
+        serverTrend(card, `CPU history for ${data.name}`, series?.cpu, 100);
+        meter(card, `Memory · ${data.memory_used} / ${data.memory_total} MiB`, Number(data.memory_used), Number(data.memory_total));
+        serverTrend(card, `Memory history for ${data.name}`, series?.memory, Number(data.memory_total));
+        for (const disk of data.storage ?? []) {
+            meter(card, `${disk.directory} · ${disk.used} / ${disk.total} MiB`, Number(disk.used), Number(disk.total));
+        }
+    }
+}
 function queues(card,values){const colors=['#38bdf8','#c084fc','#34d399','#fbbf24','#fb7185'];for(const [key,types] of Object.entries(values)){card.append(cell('h3',key));const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 100');svg.setAttribute('role','img');svg.setAttribute('aria-label',key+' queue activity');const series=Object.entries(types).map(([type,readings])=>[type,Object.values(readings).map(v=>Number(v??0))]);const max=Math.max(1,...series.flatMap(([,values])=>values));const legend=document.createElement('div');legend.className='legend';series.forEach(([type,readings],index)=>{const color=colors[index%colors.length];const line=document.createElementNS(svg.namespaceURI,'polyline');line.setAttribute('points',readings.map((v,i)=>`${i/Math.max(1,readings.length-1)*600},${95-v/max*90}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke',color);line.setAttribute('stroke-width','2');svg.append(line);const label=cell('span',`${type}: ${readings.reduce((a,b)=>a+b,0)}`);label.style.borderColor=color;legend.append(label)});card.append(svg,legend)}}
 function renderRows(card, values, headings = {}) {
     const box = document.createElement('div');
@@ -114,7 +166,7 @@ function render(data) {
             empty.className = 'empty';
             card.append(empty);
         } else if (name === 'servers') {
-            servers(card, values);
+            servers(card, values, data.server_graphs ?? {});
         } else if (name === 'queues') {
             queues(card, values);
         } else if (Array.isArray(values)) {

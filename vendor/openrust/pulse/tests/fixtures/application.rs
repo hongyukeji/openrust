@@ -104,7 +104,20 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .await?
             .count()
             .only_buckets();
+        for (metric, value) in [("cpu", 25), ("memory", 2048)] {
+            Pulse::record(metric, "acceptance", Some(value), None)
+                .await?
+                .avg()
+                .only_buckets();
+        }
         Pulse::set("system","acceptance",json!({"name":unsafe_text,"cpu":25,"memory_used":2048,"memory_total":8192,"storage":[{"directory":"/","used":100,"total":200}]}).to_string(),None).await?;
+        Pulse::set(
+            "system",
+            "stale",
+            json!({"name":"ZZ Stale node","cpu":0,"memory_used":0,"memory_total":1024,"storage":[]}).to_string(),
+            Some(jiff::Timestamp::now().as_second() - 60),
+        )
+        .await?;
         Ok(Response::from("observed"))
     })
 }

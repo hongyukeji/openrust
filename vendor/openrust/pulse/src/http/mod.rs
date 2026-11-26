@@ -4,6 +4,7 @@ use openrust::{
     routing::{RouteGroup, RoutingError},
     support::facades::{Config, Facade, Route},
 };
+use serde_json::Value;
 use std::sync::Arc;
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
@@ -200,11 +201,9 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                     .await?,
             )?,
         );
-        let systems = pulse.values("system", None).await?;
-        cards.insert(
-            "servers".into(),
-            serde_json::Value::Array(systems.into_iter().map(row).collect()),
-        );
+        let (systems, graphs) = servers(&pulse, interval).await?;
+        cards.insert("servers".into(), Value::Array(systems));
+        cards.insert("server_graphs".into(), graphs);
         let mut response = Response::new(StatusCode::OK, Body::from(serde_json::to_vec(&cards)?));
         response.parts_mut().headers.insert(
             "content-type",
@@ -217,6 +216,78 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         Ok(response)
     })
 }
+async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Value), HttpError> {
+    let config = Config::get_facade_root()?;
+    let options = config.get("pulse.dashboard.servers").unwrap_or_default();
+    let ignore_after = match &options["ignore_after"] {
+        Value::Null => None,
+        value => Some(
+            value
+                .as_f64()
+                .or_else(|| value.as_str()?.trim().parse().ok())
+                .filter(|seconds| seconds.is_finite())
+                .map(|seconds| seconds as i64)
+                .map_or_else(|| crate::provider::duration(value), Ok)?,
+        ),
+    };
+    let sort_by = options["sort_by"].as_str().unwrap_or("name");
+    let descending = options["sort_direction"] == "desc";
+    let now = jiff::Timestamp::now();
+    let mut systems = Vec::new();
+    for system in pulse.values("system", None).await? {
+        let mut system = row(system);
+        let timestamp = system["timestamp"].as_i64().unwrap_or_default();
+        if let Some(seconds) = ignore_after {
+            let expires = timestamp.saturating_add(seconds);
+            if expires < now.as_second()
+                || (expires == now.as_second() && now.subsec_nanosecond() > 0)
+            {
+                continue;
+            }
+        }
+        system["recently_reported"] = (timestamp > now.as_second() - 30).into();
+        let snapshot = system["value"]
+            .as_str()
+            .and_then(|value| serde_json::from_str::<Value>(value).ok())
+            .unwrap_or_default();
+        let order = match sort_by {
+            "cpu_current" => snapshot["cpu"].clone(),
+            "memory_current" => snapshot["memory_used"].clone(),
+            "memory_total" => snapshot["memory_total"].clone(),
+            "updated_at" => system["timestamp"].clone(),
+            "recently_reported" => system["recently_reported"].clone(),
+            _ => snapshot["name"].clone(),
+        };
+        systems.push((order, system));
+    }
+    systems.sort_by(|(left, _), (right, _)| {
+        let order = match (left, right) {
+            (Value::Number(left), Value::Number(right)) => left
+                .as_f64()
+                .partial_cmp(&right.as_f64())
+                .unwrap_or(std::cmp::Ordering::Equal),
+            (Value::Bool(left), Value::Bool(right)) => left.cmp(right),
+            _ => left.as_str().cmp(&right.as_str()),
+        };
+        if descending { order.reverse() } else { order }
+    });
+
+    let mut graphs = pulse
+        .graph(&["cpu".into(), "memory".into()], "avg", interval)
+        .await?;
+    let mut visible_graphs = serde_json::Map::new();
+    let mut visible_systems = Vec::new();
+    for (_, system) in systems {
+        if let Some(key) = system["key"].as_str()
+            && let Some(series) = graphs.remove(key)
+        {
+            visible_graphs.insert(key.into(), serde_json::to_value(series)?);
+        }
+        visible_systems.push(system);
+    }
+    Ok((visible_systems, Value::Object(visible_graphs)))
+}
+
 fn row(row: openrust::database::Row) -> serde_json::Value {
     serde_json::Value::Object(
         row.columns()

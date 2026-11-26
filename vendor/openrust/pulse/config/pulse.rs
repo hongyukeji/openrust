@@ -95,6 +95,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         serde_json::json!({"enabled":boolean("PULSE_ENABLED",true)?,"domain":env.get_utf8("PULSE_DOMAIN")?,"path":path,
             "storage":{"driver":env.get_utf8("PULSE_STORAGE_DRIVER")?.unwrap_or("database"),"trim":{"keep":env.get_utf8("PULSE_STORAGE_KEEP")?.unwrap_or("7 days")},"database":{"connection":env.get_utf8("PULSE_DB_CONNECTION")?,"chunk":1000}},
             "ingest":{"driver":env.get_utf8("PULSE_INGEST_DRIVER")?.unwrap_or("storage"),"buffer":env.get_utf8("PULSE_INGEST_BUFFER")?.unwrap_or("5000").parse::<u64>().map_err(|_|ConfigError::InvalidType{key:"PULSE_INGEST_BUFFER".into(),expected:"an unsigned integer"})?,"trim":{"lottery":[1,1000],"keep":env.get_utf8("PULSE_INGEST_KEEP")?.unwrap_or("7 days")},"redis":{"connection":env.get_utf8("PULSE_REDIS_CONNECTION")?,"chunk":1000}},
+            "dashboard":{"servers":{"ignore_after":null,"sort_by":"name","sort_direction":"asc"}},
             "cache":env.get_utf8("PULSE_CACHE_DRIVER")?,"middleware":["web","openrust_pulse::http::middleware::Authorize"],"recorders":recorders
         }),
     )

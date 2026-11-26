@@ -1963,3 +1963,101 @@ async fn legacy_bulk_users_remain_application_scoped_and_reject_field_overrides(
             .is_ok()
     );
 }
+
+#[tokio::test]
+async fn dashboard_server_history_returns_average_series_and_heartbeat_state() {
+    use openrust::contracts::foundation::Application as _;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_database_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let now = jiff::Timestamp::now().as_second();
+    let items = [
+        openrust_pulse::Value::new(
+            now,
+            "system",
+            "node-z",
+            r#"{"name":"Zulu","cpu":33,"memory_used":512,"memory_total":1024,"storage":[]}"#,
+        )
+        .into(),
+        openrust_pulse::Value::new(
+            now - 31,
+            "system",
+            "node-a",
+            r#"{"name":"Alpha","cpu":15,"memory_used":256,"memory_total":1024,"storage":[]}"#,
+        )
+        .into(),
+        openrust_pulse::Entry::new(now, "cpu", "node-z", Some(13))
+            .avg()
+            .only_buckets()
+            .into(),
+        openrust_pulse::Entry::new(now, "cpu", "node-z", Some(33))
+            .avg()
+            .only_buckets()
+            .into(),
+        openrust_pulse::Entry::new(now, "memory", "node-z", Some(256))
+            .avg()
+            .only_buckets()
+            .into(),
+        openrust_pulse::Entry::new(now, "memory", "node-z", Some(512))
+            .avg()
+            .only_buckets()
+            .into(),
+    ];
+    storage.store(&items).await.unwrap();
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let data = response.json::<serde_json::Value>().unwrap();
+    for (metric, expected) in [("cpu", 23.0), ("memory", 384.0)] {
+        let readings = data["server_graphs"]["node-z"][metric]
+            .as_object()
+            .unwrap_or_else(|| panic!("缺少 node-z {metric} 历史，服务状态为 {}", data["servers"]));
+        assert_eq!(readings.len(), 60);
+        assert_eq!(
+            readings
+                .values()
+                .filter_map(|v| v.as_f64())
+                .collect::<Vec<_>>(),
+            [expected]
+        );
+    }
+    let rows = data["servers"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["key"], "node-a");
+    assert_eq!(rows[0]["recently_reported"], false);
+    assert_eq!(rows[1]["key"], "node-z");
+    assert_eq!(rows[1]["timestamp"], now);
+    assert_eq!(rows[1]["recently_reported"], true);
+    assert!(data["server_graphs"]["node-a"].is_null());
+
+    let config = app.app().config().unwrap();
+    config
+        .set("pulse.dashboard.servers.sort_by", json!("cpu_current"))
+        .unwrap();
+    config
+        .set("pulse.dashboard.servers.sort_direction", json!("desc"))
+        .unwrap();
+    let response = app.get("/pulse/api/metrics").await.unwrap();
+    response.assert_ok();
+    assert_eq!(
+        response.json::<serde_json::Value>().unwrap()["servers"][0]["key"],
+        "node-z"
+    );
+
+    for limit in [json!(15), json!("15"), json!("15 seconds")] {
+        config
+            .set("pulse.dashboard.servers.ignore_after", limit)
+            .unwrap();
+        let response = app.get("/pulse/api/metrics").await.unwrap();
+        response.assert_ok();
+        let data = response.json::<serde_json::Value>().unwrap();
+        assert_eq!(data["servers"].as_array().unwrap().len(), 1);
+        assert_eq!(data["servers"][0]["key"], "node-z");
+    }
+}
