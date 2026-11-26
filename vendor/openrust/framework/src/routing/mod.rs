@@ -22,7 +22,7 @@ mod url_generator;
 mod view_controller;
 
 pub use binding::BindingContext;
-pub use controller_dispatcher::ControllerDispatcher;
+pub use controller_dispatcher::{ControllerDispatcher, InvokableController};
 pub use controller_middleware::{ControllerMiddleware, HasMiddleware};
 pub use error::RoutingError;
 pub use middleware::MiddlewareEntry;

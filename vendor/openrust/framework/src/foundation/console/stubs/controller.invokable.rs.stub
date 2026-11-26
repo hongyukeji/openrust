@@ -1,0 +1,19 @@
+//! 应用单动作控制器。
+
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+pub struct {{class}};
+
+impl {{class}} {
+{{actions}}}
+
+impl openrust::routing::InvokableController for {{class}} {
+    type Output = Response;
+
+    fn invoke<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Self::Output, HttpError>> {
+        {{class}}::invoke(self, request)
+    }
+}

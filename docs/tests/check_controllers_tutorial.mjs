@@ -56,6 +56,9 @@ try {
                         assert.equal(await page.locator(`#${anchor}`).count(),1);
                     }
                     assert(text.includes('.parameter("users", "operator")'));
+                    assert.equal(await page.locator('#single-action-controllers').count(),1);
+                    assert(text.includes('make:controller ProvisionServer --invokable'));
+                    assert(text.includes('ControllerDispatcher::<ProvisionServer>::invokable()'));
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();

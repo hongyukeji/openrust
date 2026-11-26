@@ -49,3 +49,9 @@ Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，
 直接运行固定 PHP Router 得到 23 条路由以及 5 条实际匹配。原生对照发现重复 names 和 parameters 保留旧映射，先在未修复的实际 Router 上复现，再使整组设置覆盖旧值。单独的 name 和 parameter 保留其他条目。动作选择、点号嵌套、浅层路径与成员匹配继续复用注册器。
 
 Rust Router 与实际 Artisan route:list 的 23 条方法、路径、名称和动作一致。5 次真实 HTTP 验证补充路由登记先后、父子参数名和浅层成员。三语正文 18 个片段直接提取成路由并发出 18 次真实 HTTP，9 项外围回归、独立 Artisan、三语站点、12 组浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-resource-route-options.json)。
+
+## 97. 单动作控制器
+
+固定框架通过 Route Facade 注册单动作类型，由容器构造并分派给唯一动作。Rust 的 InvokableController 承诺同一入口，ControllerDispatcher::invokable 注册时只需要类型。运行仍由同一容器和请求管线完成。生成模板保留既有固有 invoke 方法，同时生成 trait 实现。应用自定义模板可以单独实现 trait。
+
+实际 Artisan 发布模板并生成两份源码。隔离应用编译真实生成产物，响应 200 与固定源码值一致，默认脚手架返回 501，手写控制器返回类型化 302。实际 Artisan route:list 展示单动作类标识。三语命令和路由代码直接提取执行，另通过 9 次真实请求；47 项回归、站点构建、12 组浏览器和格式通过。首次严格 Clippy 受 32 GB 守卫停止，清理后重新完整通过。见[验收记录](accepted-invokable-controller.json)。

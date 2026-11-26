@@ -25,9 +25,10 @@
     },
     {
       "anchor": "single-action-controllers",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "Artisan 88 实际 --invokable 生成；需复核正式教程消费者"
+        "invokable-oracle.json",
+        "accepted-invokable-controller.json"
       ]
     },
     {

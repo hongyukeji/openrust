@@ -1,0 +1,9 @@
+{
+    "status": 200,
+    "name": "server.provision",
+    "action": "ProvisionServerFixture",
+    "body": {
+        "kind": "server",
+        "name": "demo"
+    }
+}

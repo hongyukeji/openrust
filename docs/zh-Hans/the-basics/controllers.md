@@ -46,6 +46,22 @@ fn register() -> Result<(), RoutingError> {
 
 将 `Box::new(TeamProvider)` 加入应用服务提供者，并将 `register` 设为 Web 路由注册回调。
 
+### 单动作控制器 {#single-action-controllers}
+
+通过 Artisan 生成只负责一个动作的控制器。
+
+```sh
+./artisan make:controller ProvisionServer --invokable
+```
+
+生成的类型实现 `InvokableController`。用 `ControllerDispatcher::<ProvisionServer>::invokable()` 注册路由，并在应用容器中绑定控制器。分发器调用 `invoke`，可接受实现 `Responsable` 的响应类型。
+
+```rust
+Route::post("/server", ControllerDispatcher::<ProvisionServer>::invokable())?;
+```
+
+生成的固有方法 `invoke` 承载应用动作。以前发布过的自定义单动作模板可实现该 trait 并委托给已有方法。
+
 ## 控制器中间件 {#controller-middleware}
 
 实现 `HasMiddleware` 可在控制器内声明路由中间件。名称通过当前应用的别名和组解析。用 `only`、`except` 按动作筛选，也可用 `from_fn` 添加内联异步中间件。

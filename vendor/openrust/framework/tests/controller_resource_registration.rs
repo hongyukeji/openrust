@@ -353,3 +353,30 @@ async fn resource_route_options_keep_supplemental_order_and_nested_parameters_ov
     server.abort();
     let _ = server.await;
 }
+
+impl openrust::routing::InvokableController for Photos {
+    type Output = Response;
+
+    fn invoke<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Self::Output, HttpError>> {
+        self.handle(request)
+    }
+}
+
+#[test]
+fn invokable_dispatcher_registers_a_controller_type_without_a_method_pointer() {
+    let mut router = Router::new();
+    router
+        .post(
+            "/provision",
+            openrust::routing::ControllerDispatcher::<Photos>::invokable(),
+        )
+        .unwrap();
+    let routes = router.get_routes();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].action, std::any::type_name::<Photos>());
+    assert_eq!(routes[0].method, "POST");
+    assert_eq!(routes[0].uri, "provision");
+}

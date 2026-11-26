@@ -46,6 +46,22 @@ fn register() -> Result<(), RoutingError> {
 
 Include `Box::new(TeamProvider)` in the application providers and use `register` as the web route callback.
 
+### Single Action Controllers {#single-action-controllers}
+
+Generate a controller dedicated to one action using Artisan.
+
+```sh
+./artisan make:controller ProvisionServer --invokable
+```
+
+The generated type implements `InvokableController`. Register it through `ControllerDispatcher::<ProvisionServer>::invokable()` and bind the controller in the application container. The dispatcher calls `invoke` and accepts any response type implementing `Responsable`.
+
+```rust
+Route::post("/server", ControllerDispatcher::<ProvisionServer>::invokable())?;
+```
+
+The generated inherent `invoke` method is the application’s action. A previously published custom invokable template can implement the trait and delegate to its existing method.
+
 ## Controller Middleware {#controller-middleware}
 
 Implement `HasMiddleware` to declare route middleware on a controller. Named entries are resolved through the application’s aliases and groups. Use `only` and `except` to filter actions, or `from_fn` to add an inline asynchronous middleware.

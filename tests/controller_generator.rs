@@ -127,6 +127,14 @@ fn actual_artisan_publishes_and_uses_controller_templates() {
             "edit":text.contains("pub fn edit"),
         });
         assert_eq!(observed, oracle[flag]);
+        if flag == "invokable" {
+            assert!(
+                text.contains(
+                    "impl openrust::routing::InvokableController for InvokableController"
+                )
+            );
+            assert!(text.contains("type Output = Response;"));
+        }
     }
 
     fixture.succeeds(&[

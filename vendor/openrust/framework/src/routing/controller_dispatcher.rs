@@ -1,4 +1,4 @@
-use std::io;
+use std::{any::type_name, io};
 
 use crate::{
     contracts::{container::Container as _, routing::Handler, support::Responsable},
@@ -10,6 +10,16 @@ use crate::{
 pub(super) type Action<C, T = Response> =
     for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<T, HttpError>>;
 
+/// 可仅通过控制器类型注册的单动作控制器。
+pub trait InvokableController {
+    type Output: Responsable + 'static;
+
+    fn invoke<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Self::Output, HttpError>>;
+}
+
 type Dispatch<C, T> =
     dyn for<'a> Fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<T, HttpError>> + Send + Sync;
 
@@ -20,6 +30,7 @@ pub struct ControllerDispatcher<C, T = Response> {
     action: Box<Dispatch<C, T>>,
     form_request: bool,
     middleware: Vec<MiddlewareEntry>,
+    action_name: Option<&'static str>,
 }
 
 impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
@@ -28,6 +39,7 @@ impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
             action: Box::new(action),
             form_request: false,
             middleware: Vec::new(),
+            action_name: None,
         }
     }
 
@@ -38,6 +50,14 @@ impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
     {
         self.middleware = for_action(C::middleware(), action);
         self
+    }
+}
+
+impl<C: InvokableController + 'static> ControllerDispatcher<C> {
+    pub fn invokable() -> ControllerDispatcher<C, C::Output> {
+        let mut dispatcher = ControllerDispatcher::new(C::invoke);
+        dispatcher.action_name = Some(type_name::<C>());
+        dispatcher
     }
 }
 
@@ -63,6 +83,7 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
             }),
             form_request: false,
             middleware: Vec::new(),
+            action_name: None,
         }
     }
 
@@ -79,11 +100,16 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
             }),
             form_request: true,
             middleware: Vec::new(),
+            action_name: None,
         }
     }
 }
 
 impl<C: Send + Sync + 'static, T: Responsable + 'static> Handler for ControllerDispatcher<C, T> {
+    fn controller_action(&self) -> Option<&str> {
+        self.action_name
+    }
+
     fn controller_middleware(&self) -> &[MiddlewareEntry] {
         &self.middleware
     }

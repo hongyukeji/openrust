@@ -71,7 +71,7 @@ impl Route {
             domain,
             public_files_first: false,
             action: "Closure",
-            controller_action: None,
+            controller_action: handler.controller_action().map(str::to_owned),
             definition: Location::caller(),
             host_pattern,
             handler,

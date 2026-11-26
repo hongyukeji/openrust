@@ -15,6 +15,12 @@ pub trait Handler: Send + Sync {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>>;
 
+    /// 返回已注册控制器的稳定动作标识。
+    #[doc(hidden)]
+    fn controller_action(&self) -> Option<&str> {
+        None
+    }
+
     /// 控制器声明的中间件在路由中间件之后进入同一管线。
     #[doc(hidden)]
     fn controller_middleware(&self) -> &[crate::routing::MiddlewareEntry] {

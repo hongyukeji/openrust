@@ -227,7 +227,7 @@ impl Stub {
             ),
             Self::InvokableController => (
                 "controller.invokable.rs.stub",
-                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+                include_str!("../foundation/console/stubs/controller.invokable.rs.stub"),
             ),
             Self::ResourceController => (
                 "controller.rs.stub",
