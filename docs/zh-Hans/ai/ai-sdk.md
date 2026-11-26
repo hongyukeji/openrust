@@ -942,6 +942,8 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 语音默认返回 MP3，也支持 WAV、Opus、FLAC 和 PCM。`male()` 使用 `en_paul_neutral`，默认音色和 `female()` 使用 `gb_jane_neutral`。可通过 `voice()` 指定 Mistral 音色 ID。此驱动沿用 Laravel 的映射，朗读风格通过输入文本表达。`diarize(true)` 请求带说话人标记的分段，优先于 `language()`。
 
+Gemini 通过原生 Interactions API 合成语音和转录音频。合成设置 `AI_AUDIO_PROVIDER=gemini` 和 `GEMINI_AUDIO_MODEL`，转录设置 `AI_TRANSCRIPTION_PROVIDER=gemini` 和 `GEMINI_TRANSCRIPTION_MODEL`。两者均使用 `GEMINI_API_KEY`，可用 `GEMINI_URL` 覆盖连接地址。语音默认返回 WAV，也可显式选择 PCM。上游旧版返回裸 PCM 时，SDK 可封装为 WAV。专用转录模型按词级时间戳归并说话人轮次。通用 Gemini 模型通过同一入口返回文本或带时间戳的分段。
+
 在应用测试作用域内调用 `Audio::fake([])?` 或 `Transcription::fake(["测试转录".into()])?`。用 `fake_with` 根据请求生成替身响应。默认语音替身返回占位字节。测试需要播放或转录该音频时，通过 `AudioResponse::from_bytes` 提供有效的音频样本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 检查调用。对返回的替身调用 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在响应序列耗尽时报告错误。
 
 ### 排队处理媒体请求 {#queued-audio}

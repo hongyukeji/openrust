@@ -3,9 +3,11 @@ use std::{sync::Arc, time::Duration};
 use openrust::{http::HttpFuture, support::Str};
 use serde_json::{Value, json};
 
+use super::interactions::{interact, output_blocks, reported_model, usage};
+
 use crate::{
     AiError, AiResult, GeneratedImage, ImagePrompt, ImageProvider, ImageResponse, ImageUsage,
-    Usage, connection::Connection, text::validate,
+    connection::Connection,
 };
 
 pub(super) struct GeminiImageProvider(pub(super) Arc<Connection>);
@@ -41,57 +43,31 @@ impl ImageProvider for GeminiImageProvider {
             }));
             let body = json!({"model":model,"store":false,"input":input,"response_format":format});
             let timeout = prompt.timeout.unwrap_or(Duration::from_secs(120));
-            let data: Value = validate(
-                self.0
-                    .request(Some(timeout))?
-                    .post("interactions", &body)
-                    .await,
-            )?
-            .json()
-            .map_err(|_| AiError::InvalidResponse)?;
+            let data = interact(&self.0, timeout, body).await?;
             parse_response(&data, self.name(), model)
         })
     }
 }
 
 fn parse_response(data: &Value, provider: &str, model: &str) -> AiResult<ImageResponse> {
-    if !data["error"].is_null()
-        || data["status"]
-            .as_str()
-            .is_some_and(|status| status != "completed")
-    {
-        return Err(AiError::InvalidResponse);
-    }
-    let images = data["steps"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|step| step["content"].as_array())
-        .flatten()
+    let images = output_blocks(data)
         .filter(|block| block["type"] == "image")
         .map(parse_image)
         .collect::<AiResult<Vec<_>>>()?;
     if images.is_empty() {
         return Err(AiError::InvalidResponse);
     }
-    let usage = &data["usage"];
-    let tokens = Usage {
-        prompt_tokens: usage["total_input_tokens"].as_u64(),
-        completion_tokens: usage["total_output_tokens"].as_u64(),
-        cache_read_input_tokens: usage["total_cached_tokens"].as_u64(),
-        reasoning_tokens: usage["total_thought_tokens"].as_u64(),
-        ..Usage::default()
-    }
-    .include_reasoning_output();
+    let details = &data["usage"];
+    let tokens = usage(data);
     Ok(ImageResponse {
         images,
         usage: ImageUsage {
             tokens,
-            image_input_tokens: image_tokens(&usage["input_tokens_by_modality"]),
-            image_output_tokens: image_tokens(&usage["output_tokens_by_modality"]),
+            image_input_tokens: image_tokens(&details["input_tokens_by_modality"]),
+            image_output_tokens: image_tokens(&details["output_tokens_by_modality"]),
         },
         provider: provider.into(),
-        model: data["model"].as_str().unwrap_or(model).into(),
+        model: reported_model(data, model).into(),
     })
 }
 

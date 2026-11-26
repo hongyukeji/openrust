@@ -25,8 +25,10 @@ use crate::{
     text::{send_with_retry_after, transport_error, validate},
 };
 
+mod audio;
 mod embeddings;
 mod image;
+mod interactions;
 
 pub(crate) struct GeminiTextProvider(Arc<Connection>);
 
@@ -265,6 +267,14 @@ impl TextProvider for GeminiTextProvider {
         Some(Arc::new(embeddings::GeminiEmbeddingProvider(
             self.0.clone(),
         )))
+    }
+
+    fn audio_provider(&self) -> Option<Arc<dyn crate::AudioProvider>> {
+        Some(Arc::new(audio::GeminiAudioProvider(self.0.clone())))
+    }
+
+    fn transcription_provider(&self) -> Option<Arc<dyn crate::TranscriptionProvider>> {
+        Some(Arc::new(audio::GeminiAudioProvider(self.0.clone())))
     }
 
     fn image_provider(&self) -> Option<Arc<dyn crate::ImageProvider>> {

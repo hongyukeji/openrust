@@ -147,9 +147,17 @@ pub struct RecordedQueuedTranscription {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum MediaPrompt {
-    Audio { prompt: RecordedAudio },
-    Image { prompt: RecordedQueuedImage },
-    Transcription { prompt: RecordedQueuedTranscription },
+    Audio {
+        prompt: RecordedAudio,
+        #[serde(default)]
+        use_provider_format: bool,
+    },
+    Image {
+        prompt: RecordedQueuedImage,
+    },
+    Transcription {
+        prompt: RecordedQueuedTranscription,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -187,8 +195,11 @@ impl QueuedMediaResponse {
         Self::new(MediaPrompt::Image { prompt })
     }
 
-    pub(crate) fn audio(prompt: RecordedAudio) -> Self {
-        Self::new(MediaPrompt::Audio { prompt })
+    pub(crate) fn audio(prompt: RecordedAudio, use_provider_format: bool) -> Self {
+        Self::new(MediaPrompt::Audio {
+            prompt,
+            use_provider_format,
+        })
     }
 
     pub(crate) fn transcription(prompt: RecordedQueuedTranscription) -> Self {
@@ -236,11 +247,20 @@ impl QueuedMediaResponse {
                     fake.record_queued(prompt.clone());
                 }
             }
-            MediaPrompt::Audio { prompt } => {
+            MediaPrompt::Audio {
+                prompt,
+                use_provider_format,
+            } => {
                 ai.audio_queue_callbacks()
                     .validate(&self.work.then, &self.work.catch)?;
                 if let Some(fake) = ai.audio_fake() {
-                    fake.record_queued(prompt.clone());
+                    let mut recorded = prompt.clone();
+                    if *use_provider_format
+                        && let Ok(provider) = ai.audio_provider(prompt.provider.as_deref())
+                    {
+                        recorded.format = provider.default_audio_format();
+                    }
+                    fake.record_queued(recorded);
                 }
             }
             MediaPrompt::Transcription { prompt } => {
@@ -284,10 +304,14 @@ impl JobHandler for GenerateMedia {
                         .map_err(QueueError::execution)?;
                     callbacks.completed(&work.then, &response).await
                 }
-                MediaPrompt::Audio { prompt } => {
+                MediaPrompt::Audio {
+                    prompt,
+                    use_provider_format,
+                } => {
                     let callbacks = ai.audio_queue_callbacks();
                     callbacks.validate(&work.then, &work.catch)?;
-                    let (pending, provider, model) = PendingAudioGeneration::from_queued(prompt);
+                    let (pending, provider, model) =
+                        PendingAudioGeneration::from_queued(prompt, use_provider_format);
                     let response = pending
                         .generate_with(provider.as_deref(), model.as_deref())
                         .await

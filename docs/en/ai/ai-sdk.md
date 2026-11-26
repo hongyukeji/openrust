@@ -942,6 +942,8 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 Speech defaults to MP3 and also supports WAV, Opus, FLAC and PCM. `male()` selects `en_paul_neutral`, while the default and `female()` select `gb_jane_neutral`. Use `voice()` for a Mistral voice ID. The Mistral driver follows Laravel’s mapping and takes speech direction from the input text. `diarize(true)` requests speaker segments and takes precedence over `language()`.
 
+Gemini uses the native Interactions API for speech and transcription. Set `AI_AUDIO_PROVIDER=gemini` with `GEMINI_AUDIO_MODEL`, or `AI_TRANSCRIPTION_PROVIDER=gemini` with `GEMINI_TRANSCRIPTION_MODEL`. Both use `GEMINI_API_KEY` and accept a `GEMINI_URL` override. Speech defaults to WAV and also accepts explicit PCM. The SDK wraps legacy PCM replies as WAV when needed. Transcription models can return speaker turns assembled from word timestamps. General-purpose Gemini models can return plain text or timed segments through the same SDK.
+
 In application tests, install `Audio::fake([])?` or `Transcription::fake(["Recorded notice".into()])?` inside the application scope. Use `fake_with` for a request-based callback. The default speech fixture is placeholder bytes. Supply an `AudioResponse::from_bytes` fixture when the test consumes or transcribes the generated audio. Assert calls with `assert_generated`, `assert_not_generated` or `assert_nothing_generated`. Enable `prevent_stray_audio(true)` or `prevent_stray_transcriptions(true)` on the returned gateway to catch exhausted response sequences.
 
 ### Queue a media request {#queued-audio}

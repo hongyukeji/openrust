@@ -337,7 +337,7 @@ pub struct TranscriptionPrompt<'a> {
 }
 
 impl TranscriptionPrompt<'_> {
-    fn validate(&self) -> AiResult<()> {
+    pub(crate) fn validate(&self) -> AiResult<()> {
         if self.model.trim().is_empty() {
             return Err(AiError::MissingModel);
         }

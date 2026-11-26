@@ -678,6 +678,14 @@ AI-06 接通同一 Mistral 连接的语音合成和音频转录。语音沿用�
 
 - [Mistral Speech API](https://docs.mistral.ai/api/endpoint/audio/speech) · [Mistral Transcriptions API](https://docs.mistral.ai/api/endpoint/audio/transcriptions)
 
+### Gemini 原生语音与转录
+
+`Audio` 与 `Transcription` 经 Gemini 连接调用原生 Interactions API，与图像共用请求和用量解析。语音沿用固定 Laravel 的音色映射及朗读指令。默认 WAV 可读取当前服务的完整容器，也可封装旧版裸 PCM。显式 PCM 请求保留原始采样字节，未指定格式的队列任务由 Worker 选取供应商默认格式。
+
+专用转录模型使用语言配置及逐词说话人标注，连续同一说话人的词归并为一个分段。通用模型按调用要求返回文本或结构化时间段。独立 Artisan 和 HTTP 以本地协议服务检查实物 WAV／PCM、私有 Storage 读写、错误格式、同步队列与 Fake 的默认 WAV、两种转录模型和上游用量。Gemini 图像及 20 项 SDK 回归、严格 Clippy 和三语站点通过。Google 官方账户待联调。
+
+- [Google Gemini 语音合成](https://aistudio.google.com/docs/speech-generation) · [Google Gemini 音频转录](https://aistudio.google.com/docs/transcribe) · [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiGateway.php)
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。

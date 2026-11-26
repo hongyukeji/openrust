@@ -11,7 +11,7 @@ use serde_json::json;
 
 use crate::{
     Ai, AiError, AiResult, FakeAudioGateway, MediaQueueCatch, MediaQueueThen, QueuedAudioResponse,
-    RecordedAudio,
+    RecordedAudio, Usage,
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
@@ -49,7 +49,7 @@ impl Audio {
             text,
             voice: AudioVoice::Default,
             instructions: None,
-            format: AudioFormat::Mp3,
+            format: None,
             timeout: Duration::from_secs(30),
         })
     }
@@ -125,7 +125,7 @@ pub struct PendingAudioGeneration {
     text: String,
     voice: AudioVoice,
     instructions: Option<String>,
-    format: AudioFormat,
+    format: Option<AudioFormat>,
     timeout: Duration,
 }
 
@@ -151,7 +151,7 @@ impl PendingAudioGeneration {
     }
 
     pub fn format(mut self, format: AudioFormat) -> Self {
-        self.format = format;
+        self.format = Some(format);
         self
     }
 
@@ -169,33 +169,40 @@ impl PendingAudioGeneration {
         provider: Option<&str>,
         model: Option<&str>,
     ) -> AiResult<QueuedAudioResponse> {
+        let format = self.format.unwrap_or(AudioFormat::Mp3);
         AudioPrompt {
             text: &self.text,
             voice: &self.voice,
             instructions: self.instructions.as_deref(),
-            format: self.format,
+            format,
             model: model.unwrap_or("queued"),
             timeout: self.timeout,
         }
         .validate()?;
-        Ok(QueuedAudioResponse::audio(RecordedAudio {
-            text: self.text,
-            voice: self.voice,
-            instructions: self.instructions,
-            format: self.format,
-            timeout: self.timeout,
-            provider: provider.map(str::to_owned),
-            model: model.map(str::to_owned),
-        }))
+        Ok(QueuedAudioResponse::audio(
+            RecordedAudio {
+                text: self.text,
+                voice: self.voice,
+                instructions: self.instructions,
+                format,
+                timeout: self.timeout,
+                provider: provider.map(str::to_owned),
+                model: model.map(str::to_owned),
+            },
+            self.format.is_none(),
+        ))
     }
 
-    pub(crate) fn from_queued(prompt: RecordedAudio) -> (Self, Option<String>, Option<String>) {
+    pub(crate) fn from_queued(
+        prompt: RecordedAudio,
+        use_provider_format: bool,
+    ) -> (Self, Option<String>, Option<String>) {
         (
             Self {
                 text: prompt.text,
                 voice: prompt.voice,
                 instructions: prompt.instructions,
-                format: prompt.format,
+                format: (!use_provider_format).then_some(prompt.format),
                 timeout: prompt.timeout,
             },
             prompt.provider,
@@ -214,10 +221,14 @@ impl PendingAudioGeneration {
     ) -> AiResult<AudioResponse> {
         let manager = Ai::manager()?;
         if let Some(fake) = manager.audio_fake() {
-            let selected = model
-                .is_none()
+            let selected = (model.is_none() || self.format.is_none())
                 .then(|| manager.audio_provider(provider).ok())
                 .flatten();
+            let format = self.format.unwrap_or_else(|| {
+                selected
+                    .as_ref()
+                    .map_or(AudioFormat::Mp3, |provider| provider.default_audio_format())
+            });
             let resolved_model = model.or_else(|| {
                 selected
                     .as_ref()
@@ -227,7 +238,7 @@ impl PendingAudioGeneration {
                 text: &self.text,
                 voice: &self.voice,
                 instructions: self.instructions.as_deref(),
-                format: self.format,
+                format,
                 model: resolved_model.unwrap_or("fake"),
                 timeout: self.timeout,
             }
@@ -236,7 +247,7 @@ impl PendingAudioGeneration {
                 text: self.text,
                 voice: self.voice,
                 instructions: self.instructions,
-                format: self.format,
+                format,
                 timeout: self.timeout,
                 provider: manager
                     .provider_name_for(provider, "default_for_audio")
@@ -253,7 +264,9 @@ impl PendingAudioGeneration {
             text: &self.text,
             voice: &self.voice,
             instructions: self.instructions.as_deref(),
-            format: self.format,
+            format: self
+                .format
+                .unwrap_or_else(|| provider.default_audio_format()),
             model,
             timeout: self.timeout,
         };
@@ -326,7 +339,7 @@ pub struct AudioPrompt<'a> {
 }
 
 impl AudioPrompt<'_> {
-    fn validate(&self) -> AiResult<()> {
+    pub(crate) fn validate(&self) -> AiResult<()> {
         if self.text.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
@@ -345,6 +358,9 @@ impl AudioPrompt<'_> {
 pub trait AudioProvider: Send + Sync {
     fn name(&self) -> &str;
     fn default_audio_model(&self) -> AiResult<&str>;
+    fn default_audio_format(&self) -> AudioFormat {
+        AudioFormat::Mp3
+    }
     fn generate_audio<'a>(
         &'a self,
         prompt: AudioPrompt<'a>,
@@ -356,6 +372,7 @@ pub struct AudioResponse {
     format: AudioFormat,
     pub provider: String,
     pub model: String,
+    pub usage: Usage,
 }
 
 impl AudioResponse {
@@ -365,6 +382,7 @@ impl AudioResponse {
             format,
             provider,
             model,
+            usage: Usage::default(),
         }
     }
 
@@ -383,6 +401,7 @@ impl AudioResponse {
             format,
             provider: provider.into(),
             model: model.into(),
+            usage: Usage::default(),
         })
     }
 
