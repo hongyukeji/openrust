@@ -35,7 +35,6 @@ use crate::{
     reranking::{HttpRerankingProvider, RerankingProtocol},
     text::{OpenAiProtocol, OpenAiTextProvider},
     tools::BufferedOutcome,
-    xai::XaiProvider,
 };
 
 type DriverFactory = dyn Fn(Value) -> AiResult<Arc<dyn TextProvider>> + Send + Sync;
@@ -89,6 +88,7 @@ impl AiManager {
         };
         for (driver, protocol) in [
             ("openai", OpenAiProtocol::Responses),
+            ("xai", OpenAiProtocol::Xai),
             ("openai-compatible", OpenAiProtocol::ChatCompletions),
             ("mistral", OpenAiProtocol::Mistral),
             ("groq", OpenAiProtocol::Groq),
@@ -185,18 +185,6 @@ impl AiManager {
                     environment.clone(),
                     http.clone(),
                     Authorization::ElevenLabs,
-                )?))))
-            });
-        }
-        {
-            let environment = environment.clone();
-            let http = http.clone();
-            manager.extend("xai", move |config| {
-                Ok(Arc::new(XaiProvider(Arc::new(Connection::new(
-                    config,
-                    environment.clone(),
-                    http.clone(),
-                    Authorization::Bearer,
                 )?))))
             });
         }

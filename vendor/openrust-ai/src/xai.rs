@@ -4,35 +4,15 @@ use openrust::http::HttpFuture;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ImageAttachment, ImagePrompt, ImageProvider, ImageResponse,
-    TextPrompt, TextProvider,
+    AiError, AiResult, ImageAttachment, ImagePrompt, ImageProvider, ImageResponse,
     connection::Connection,
     image::parse_base64_image_response,
     text::{transport_error, validate},
 };
 
-#[derive(Clone)]
-pub(crate) struct XaiProvider(pub(crate) Arc<Connection>);
+pub(crate) struct XaiImageProvider(pub(crate) Arc<Connection>);
 
-impl TextProvider for XaiProvider {
-    fn name(&self) -> &str {
-        self.0.name()
-    }
-
-    fn default_text_model(&self) -> AiResult<&str> {
-        Err(AiError::EndpointNotSupported)
-    }
-
-    fn generate_text<'a>(&'a self, _: TextPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
-        Box::pin(async { Err(AiError::EndpointNotSupported) })
-    }
-
-    fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {
-        Some(Arc::new(self.clone()))
-    }
-}
-
-impl ImageProvider for XaiProvider {
+impl ImageProvider for XaiImageProvider {
     fn name(&self) -> &str {
         self.0.name()
     }

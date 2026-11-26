@@ -50,6 +50,7 @@ use crate::{
     stores::StoreProvider,
     transcription::{HttpTranscriptionProvider, TranscriptionProtocol, TranscriptionProvider},
     usage::OpenAiUsage,
+    xai::XaiImageProvider,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -361,13 +362,14 @@ pub(crate) enum OpenAiProtocol {
     Mistral,
     Groq,
     Responses,
+    Xai,
 }
 
 impl OpenAiProtocol {
     fn endpoint(self) -> TextEndpoint {
         match self {
             Self::ChatCompletions | Self::Mistral | Self::Groq => TextEndpoint::ChatCompletions,
-            Self::Responses => TextEndpoint::Responses,
+            Self::Responses | Self::Xai => TextEndpoint::Responses,
         }
     }
 }
@@ -658,7 +660,9 @@ impl OpenAiTextProvider {
             OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {
                 serde_json::to_value(self.chat_body(prompt, stream)?)
             }
-            OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
+            OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
+                serde_json::to_value(self.responses_body(prompt, stream))
+            }
         }
         .map_err(|_| AiError::InvalidSchema)?;
         if matches!(self.protocol, OpenAiProtocol::Mistral) {
@@ -676,8 +680,12 @@ impl OpenAiTextProvider {
             }
         }
         apply_provider_options(&mut body, prompt.provider_options, false)?;
-        if matches!(self.protocol, OpenAiProtocol::Responses) {
-            include_encrypted_reasoning(&mut body, prompt.text.model)?;
+        if self.protocol.endpoint() == TextEndpoint::Responses {
+            include_encrypted_reasoning(
+                &mut body,
+                prompt.text.model,
+                matches!(self.protocol, OpenAiProtocol::Xai),
+            )?;
         }
         if prompt
             .messages
@@ -692,7 +700,9 @@ impl OpenAiTextProvider {
                     restore_chat_reasoning(&mut body, prompt, &scope)
                 }
                 OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {}
-                OpenAiProtocol::Responses => restore_responses_items(&mut body, prompt, &scope)?,
+                OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
+                    restore_responses_items(&mut body, prompt, &scope)?;
+                }
             }
         }
         Ok(body)
@@ -779,6 +789,9 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {
+        if matches!(self.protocol, OpenAiProtocol::Xai) {
+            return Some(Arc::new(XaiImageProvider(self.connection.clone())));
+        }
         (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.images_configured())
             .then(|| {
                 Arc::new(OpenAiImageProvider(self.connection.clone())) as Arc<dyn ImageProvider>
@@ -830,6 +843,9 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
+        if matches!(self.protocol, OpenAiProtocol::Xai) {
+            return endpoint == TextEndpoint::Responses;
+        }
         match endpoint {
             TextEndpoint::Embeddings => {
                 matches!(
@@ -908,7 +924,7 @@ impl TextProvider for OpenAiTextProvider {
                 OpenAiProtocol::Groq => {
                     parse_native_chat(response, crate::tool_protocol::groq_step)?
                 }
-                OpenAiProtocol::Responses => parse_responses(response)?,
+                OpenAiProtocol::Responses | OpenAiProtocol::Xai => parse_responses(response)?,
             };
             Ok(AgentResponse {
                 text: result.text,
@@ -974,7 +990,7 @@ impl OpenAiTextProvider {
             OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {
                 crate::tool_protocol::chat_request(body, tools, history)?
             }
-            OpenAiProtocol::Responses => {
+            OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };
@@ -982,7 +998,7 @@ impl OpenAiTextProvider {
             && (stream
                 || matches!(
                     self.protocol,
-                    OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+                    OpenAiProtocol::Mistral | OpenAiProtocol::Groq | OpenAiProtocol::Xai
                 ))
         {
             body.as_object_mut()
@@ -992,9 +1008,15 @@ impl OpenAiTextProvider {
         if !tools.is_empty() && matches!(self.protocol, OpenAiProtocol::Groq) {
             inline_groq_schema(&mut body)?;
         }
+        if matches!(self.protocol, OpenAiProtocol::Xai) && !tools.is_empty() {
+            let definitions = body["tools"].as_array_mut().ok_or(AiError::InvalidTools)?;
+            for tool in definitions {
+                tool["parameters"]["additionalProperties"] = false.into();
+            }
+        }
         let choice = prompt.tool_choice.or(matches!(
             self.protocol,
-            OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+            OpenAiProtocol::Mistral | OpenAiProtocol::Groq | OpenAiProtocol::Xai
         )
         .then_some(&ToolChoice::Auto));
         if let Some(choice) = choice.filter(|_| !tools.is_empty()) {
@@ -1008,7 +1030,9 @@ impl OpenAiTextProvider {
                     | OpenAiProtocol::Groq => {
                         json!({"type":"function","function":{"name":name}})
                     }
-                    OpenAiProtocol::Responses => json!({"type":"function","name":name}),
+                    OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
+                        json!({"type":"function","name":name})
+                    }
                 },
             };
         }
@@ -1023,6 +1047,7 @@ impl StepTextGateway for OpenAiTextProvider {
             OpenAiProtocol::Mistral => "mistral-chat-tool-replay",
             OpenAiProtocol::Groq => "groq-chat-tool-replay",
             OpenAiProtocol::Responses => "responses-tool-replay",
+            OpenAiProtocol::Xai => "xai-responses-tool-replay",
         };
         self.connection.request_namespace(protocol).map(Some)
     }
@@ -1045,7 +1070,9 @@ impl StepTextGateway for OpenAiTextProvider {
                 OpenAiProtocol::ChatCompletions => crate::tool_protocol::chat_step(response),
                 OpenAiProtocol::Mistral => crate::tool_protocol::mistral_step(response),
                 OpenAiProtocol::Groq => crate::tool_protocol::groq_step(response),
-                OpenAiProtocol::Responses => crate::tool_protocol::responses_step(response),
+                OpenAiProtocol::Responses | OpenAiProtocol::Xai => {
+                    crate::tool_protocol::responses_step(response)
+                }
             }
         })
     }
@@ -1129,13 +1156,13 @@ fn restore_responses_items(
     Ok(())
 }
 
-fn include_encrypted_reasoning(body: &mut Value, model: &str) -> AiResult<()> {
+fn include_encrypted_reasoning(body: &mut Value, model: &str, xai: bool) -> AiResult<()> {
     const ENCRYPTED: &str = "reasoning.encrypted_content";
     let known_model = (model.starts_with("gpt-5") && !model.starts_with("gpt-5-chat"))
         || ["gpt-6", "o4-mini", "o3", "o1"]
             .iter()
             .any(|prefix| model.starts_with(prefix));
-    if !known_model && !body.get("reasoning").is_some_and(Value::is_object) {
+    if !xai && !known_model && !body.get("reasoning").is_some_and(Value::is_object) {
         return Ok(());
     }
     let fields = body

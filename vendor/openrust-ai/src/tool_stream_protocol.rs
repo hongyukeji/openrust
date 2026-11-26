@@ -30,7 +30,7 @@ pub(crate) fn openai(
                 EventStreamError::Transport(error) => transport_error(error),
                 _ => AiError::InvalidResponse,
             })?;
-            if frame.data == "[DONE]" && !matches!(protocol, OpenAiProtocol::Responses) {
+            if frame.data == "[DONE]" && !matches!(protocol, OpenAiProtocol::Responses | OpenAiProtocol::Xai) {
                 if reasoning_open {
                     yield StepEvent::Reasoning(ReasoningPart::End { part: ("thinking".into(), reasoning_id), text: None });
                 }
@@ -95,7 +95,7 @@ pub(crate) fn openai(
                         yield StepEvent::TextDelta(delta);
                     }
                 }
-                OpenAiProtocol::Responses => match data["type"].as_str() {
+                OpenAiProtocol::Responses | OpenAiProtocol::Xai => match data["type"].as_str() {
                     Some("response.output_text.delta") => {
                         let delta = data["delta"].as_str().ok_or(AiError::InvalidResponse)?;
                         if !delta.is_empty() {

@@ -314,7 +314,7 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Image` 通过 `xai` 连接接入 `/images/generations`，沿用固定 Laravel 的宽高比、画质到分辨率的映射和默认 120 秒请求超时。按 xAI 原生接口补齐 `/images/edits`，单图用 `image`，多图用有序的 `images`，最多五张。生成与编辑均请求 Base64 响应，通过共享解析器按实际内容识别图像类型，保留模型和可用 Token 数据。
 
-独立 Artisan 与 HTTP 经本地协议服务验证 Bearer 鉴权、URL 覆盖、默认及显式模型、生成、单图和双图编辑、双图顺序和多张输出、私有落盘、六张图提前拒绝、非法 Base64、非图像字节、空输出及 403。缺省 Token 保持未知。20 项 SDK 回归、严格 Clippy 与三语文档站点通过。xAI 官方账户实机、文本工具及图像费用字段 `cost_in_usd_ticks` 的归集仍待验收。
+独立 Artisan 与 HTTP 经本地协议服务验证 Bearer 鉴权、URL 覆盖、默认及显式模型、生成、单图和双图编辑、双图顺序和多张输出、私有落盘、六张图提前拒绝、非法 Base64、非图像字节、空输出及 403。缺省 Token 保持未知。20 项 SDK 回归、严格 Clippy 与三语文档站点通过。xAI 官方账户实机及图像费用字段 `cost_in_usd_ticks` 的归集仍待验收。
 
 - [固定 Laravel XaiImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiImageGateway.php) · [xAI Images REST](https://docs.x.ai/developers/rest-api-reference/inference/images) · [xAI 多图编辑](https://docs.x.ai/developers/model-capabilities/images/multi-image-editing)
 
@@ -687,6 +687,14 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 独立 Artisan 与真实 HTTP 经本地协议服务验证目录、结构化提示、代理路径、Bearer、工具 ID 和结果、流式推理与答案分离、截断返回错误、PNG 与 Markdown 附件、批量向量及用量。23 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。官方账户实机结果待验收。
 
 - [固定 Laravel Mistral Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Mistral/MistralGateway.php) · [Mistral Chat](https://docs.mistral.ai/api/endpoint/chat) · [Mistral 推理块](https://docs.mistral.ai/inference/conversations/reasoning) · [Mistral Embeddings](https://docs.mistral.ai/api/endpoint/embeddings)
+
+### xAI 原生 Responses
+
+`xai` 连接复用 Responses 请求、SSE、模型目录与本地函数执行。支持显式模型和模型档位、原生 JSON Schema、图像内容、引用和上游 Token 明细。固定 Laravel 默认发送 `tool_choice: auto` 和封闭工具参数对象。按 xAI 官方无状态方案请求加密推理，在工具结果前回送同一连接返回的推理与调用条目。工具续步无需依赖 `previous_response_id`。加密推理沿用按连接和模型隔离的内部历史机制。
+
+独立 Artisan 与 HTTP 使用本地协议服务验证带前缀目录和请求端点、Bearer 鉴权、配置与上游模型合并、档位选择、图片字节、JSON Schema、两轮函数调用和加密推理回放、SSE、引用和用量合计。设置 `store: false` 后两种工具续步均成功。xAI 图像、20 项 SDK 回归、严格 Clippy 与三语文档站点复验通过。xAI 官方账户、供应商内置网页搜索、代码执行、文件搜索、响应 ID 续步及错误体为 `Incorrect API key` 的 400 特例仍待验收。
+
+- [固定 Laravel XaiGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiGateway.php) · [xAI Responses](https://docs.x.ai/developers/rest-api-reference/inference/responses) · [xAI 推理续步](https://docs.x.ai/developers/model-capabilities/text/best-practices) · [xAI 模型目录](https://docs.x.ai/developers/rest-api-reference/inference/models)
 
 ### Groq 文本与转录
 
