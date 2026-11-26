@@ -260,7 +260,7 @@ impl ApprovalCheckpoint {
         decisions: &Decisions,
         session: &mut ApprovalSession,
         pending_record: (&str, i64),
-    ) -> AiResult<AgentResponse> {
+    ) -> Result<AgentResponse, ProviderAttemptError> {
         let prompt = self.prompt.as_prompt(0);
         crate::attachments::validate_prompt_attachments(prompt.attachments, prompt.messages)?;
         let (definitions, tools) = prepare(registered)?;
@@ -272,7 +272,7 @@ impl ApprovalCheckpoint {
             Some(&self.invocation_ids),
         )?;
         if plan.pending != self.pending {
-            return Err(AiError::InvalidApprovalDecisions);
+            return Err(AiError::InvalidApprovalDecisions.into());
         }
         plan.apply_decisions(decisions)?;
         session.claim(pending_record.0, pending_record.1).await?;
@@ -287,16 +287,18 @@ impl ApprovalCheckpoint {
         let mut run = self.run;
         let requested_model = self.requested_model.or_else(|| self.response.model.clone());
         run.add_step(self.response, results, requested_model);
-        run.generate(
-            provider,
-            prompt,
-            &definitions,
-            &tools,
-            &middleware,
-            Some(session),
-        )
-        .await
-        .map_err(ProviderAttemptError::into_error)
+        let model = prompt.text.model;
+        let outcome = run
+            .generate(
+                provider,
+                prompt,
+                &definitions,
+                &tools,
+                &middleware,
+                Some(session),
+            )
+            .await;
+        run.preserve_completed_error(outcome, provider, model)
     }
 }
 
@@ -322,19 +324,7 @@ pub(crate) async fn run(
             approvals,
         )
         .await;
-    match outcome {
-        Err(error)
-            if !matches!(error.error(), AiError::ApprovalPaused(_))
-                && run.history.iter().any(|step| !step.results.is_empty()) =>
-        {
-            let partial = run.completed_response(provider, model)?;
-            Err(ProviderAttemptError::CommittedWithSteps(
-                error.into_error(),
-                Box::new(partial),
-            ))
-        }
-        outcome => outcome,
-    }
+    run.preserve_completed_error(outcome, provider, model)
 }
 
 impl ToolRun {
@@ -509,6 +499,27 @@ impl ToolRun {
             }
         }
         Err(AiError::InvalidResponse.into())
+    }
+
+    fn preserve_completed_error(
+        &mut self,
+        outcome: Result<AgentResponse, ProviderAttemptError>,
+        provider: &dyn TextProvider,
+        model: &str,
+    ) -> Result<AgentResponse, ProviderAttemptError> {
+        match outcome {
+            Err(error)
+                if !matches!(error.error(), AiError::ApprovalPaused(_))
+                    && self.history.iter().any(|step| !step.results.is_empty()) =>
+            {
+                let partial = self.completed_response(provider, model)?;
+                Err(ProviderAttemptError::CommittedWithSteps(
+                    error.into_error(),
+                    Box::new(partial),
+                ))
+            }
+            outcome => outcome,
+        }
     }
 
     fn completed_response(

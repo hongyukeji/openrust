@@ -345,6 +345,28 @@ impl<A: Agent> PendingConversation<'_, A> {
             ),
         )
         .await;
+        let outcome = match outcome {
+            Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
+                if turn
+                    .persist_turn(
+                        &prompt,
+                        &partial,
+                        Some(&session),
+                        ConversationMessageStatus::Failed,
+                    )
+                    .await
+                    .is_ok()
+                {
+                    session.publish_resolution().await;
+                } else {
+                    let _ = session.settle().await;
+                    let _ =
+                        Log::warning("AI 审批恢复后的已完成工具步骤保存失败", &Default::default());
+                }
+                return Err(error);
+            }
+            outcome => outcome.map_err(ProviderAttemptError::into_error),
+        };
         if matches!(outcome, Err(ref error) if !matches!(error, AiError::ApprovalPaused(_))) {
             session.settle().await?;
         }
