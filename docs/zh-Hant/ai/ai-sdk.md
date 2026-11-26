@@ -53,7 +53,7 @@ Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在
 
 可用 `stream.then(callback)` 在串流消費完成時取得 `StreamedAgentResponse`。其中包含合併後的文字與用量、工具呼叫及結果和原始事件。串流暫停等候審批時，也會提供已儲存的審批批次。在 `each` 完整走訪後註冊回呼會立即取得結果。
 
-OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名為 `citation` 的 `CUSTOM` 事件。原生引文會附上對應的文字訊息 ID。可在完成回呼中透過 `StreamedAgentResponse::citations()` 依序讀取引文和上游回報的文字位置。
+OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名為 `citation` 的 `CUSTOM` 事件。原生引文會附上對應的文字訊息 ID。可在完成回呼中透過 `StreamedAgentResponse::citations()` 依序讀取引文和上游回報的文字位置。 工具續輪會依事件順序保留各次模型呼叫的引文。
 
 Vercel 和 AG-UI 串流配接器使用目前的應用程式語言顯示產生失敗提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆寫 `stream` 文字。
 

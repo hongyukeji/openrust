@@ -11,7 +11,7 @@ pub struct UrlCitation {
 }
 
 impl UrlCitation {
-    pub(super) fn from_annotation(value: &Value) -> Option<Self> {
+    pub(crate) fn from_annotation(value: &Value) -> Option<Self> {
         if value["type"] != "url_citation" {
             return None;
         }

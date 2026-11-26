@@ -4,7 +4,9 @@
 
 ## 当前验收范围
 
-SDK 已覆盖四种原生文本协议、结构化输出与流式工具、数据库会话和迁移、模型发现与 Artisan 交互选择、Embeddings 与 Reranking，以及 OpenAI 图像生成与编辑、语音与转录。网关已验证原生文本入口、跨协议工具、下游授权、托管 Key、账号回退、冷却、并发和会话黏性。以上证据来自真实应用、隔离数据库和本地协议上游的验收。完整供应商矩阵、审批与队列、资源生命周期、其余网关端点及发布验收仍按开发计划逐项核对。
+SDK 已验证四种原生文本协议、结构化输出、流式工具与回调、Responses 网页引文、数据库会话、持久化审批、Skills 与 MCP 工具桥。模型发现及 Artisan 选择、Embeddings、Reranking、分类、OpenAI 图像与音频、部分供应商文件和向量仓库均已有入口证据。
+
+网关已验证原生文本入口、跨协议工具、下游授权、托管 Key、账号回退、冷却、并发、会话黏性，以及预算预占、用量、计费与账单对账。各条记录标注应用进程、隔离数据库、模拟上游或授权实机。剩余供应商能力、完整的 SDK 类型与网关端点矩阵、应用发布验收继续按计划逐项核对。
 
 ## AI-01 非流式文本
 
@@ -631,7 +633,9 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 原生 Responses 文本流将 URL 标注转换成 SDK `citation`、Vercel `source-url` 和 AG-UI `CUSTOM` 事件。按上游输出项及内容位置关联文本消息，已结束的文本仍可关联后到引文。完成回调从 `citations()` 读取原顺序及上游提供的起止位置。网页引文接受 HTTP 与 HTTPS 地址。
 
-实际 Artisan 和 HTTP 核对两个交错输出、提前和迟到引文、分片 UTF-8、文本 ID、无标题来源、文件标注和非网页地址。三种 SSE 输出及最终 Token 用量逐项比较。文本、工具与 UI 回归、严格 Clippy 和三语文档通过。带工具的 Responses 流及非流式元数据继续按所属契约验收。
+实际 Artisan 和 HTTP 核对两个交错输出、提前和迟到引文、分片 UTF-8、文本 ID、无标题来源、文件标注和非网页地址。三种 SSE 输出及最终 Token 用量逐项比较。文本、工具与 UI 回归、严格 Clippy 和三语文档通过。
+
+带工具的 Responses 流复用相同的文本分段与引文关联。实际 Artisan 和 HTTP 通过本地上游执行两步调用，核对首轮引文、工具参数与结果、后续引文、消息归属及三种 SSE 输出。每轮可使用相同的上游输出项 ID，SDK 为各轮分配独立的文本消息 ID。文本、工具与 UI 回归及严格 Clippy 通过。非流式元数据继续按所属契约验收。
 
 - [固定 Laravel Citation 事件](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/Citation.php) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 

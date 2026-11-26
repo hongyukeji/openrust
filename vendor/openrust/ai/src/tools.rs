@@ -115,6 +115,17 @@ pub struct StepResponse {
 
 pub enum StepEvent {
     TextDelta(String),
+    TextPartDelta {
+        part: (String, u64),
+        delta: String,
+    },
+    TextPartEnd {
+        part: (String, u64),
+    },
+    Citation {
+        part: Option<(String, u64)>,
+        citation: crate::UrlCitation,
+    },
     Finished {
         response: Box<StepResponse>,
         reason: String,

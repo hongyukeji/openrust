@@ -53,7 +53,7 @@ Use `stream.each(|event| { inspect(event); true }).await?` to visit events and k
 
 Register `stream.then(callback)` to receive a `StreamedAgentResponse` when consumption completes. It carries the combined text and usage, tool calls and results, and original events. A stream that pauses for approval also includes its saved approval batch. Register a callback after a complete `each` visit to receive the result immediately.
 
-OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets.
+OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets. Tool continuations keep the citations from every model step in emission order.
 
 The Vercel and AG-UI stream adapters use the application locale for generation failure messages. Override the generic message under `stream` in `lang/vendor/ai/<locale>/errors.json`.
 

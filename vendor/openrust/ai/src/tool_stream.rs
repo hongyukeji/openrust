@@ -3,15 +3,15 @@ use std::{collections::HashSet, future::Future, sync::Arc};
 use futures_util::StreamExt;
 use openrust::{
     foundation::Application,
-    support::{
-        Str,
-        facades::{App, Lang},
-    },
+    support::facades::{App, Lang},
 };
 
 use crate::{
     AgentPrompt, AiError, AiResult, StepEvent, StreamEventData, StreamableAgentResponse,
-    TextProvider, Tool, approval_turn::ApprovalSession, messages::OwnedPrompt, streaming::event,
+    TextProvider, Tool,
+    approval_turn::ApprovalSession,
+    messages::OwnedPrompt,
+    streaming::{TextMessages, event},
     tools,
 };
 
@@ -48,40 +48,43 @@ pub(crate) async fn stream(
                 provider: provider.name().into(),
                 model: prompt.as_prompt(step - 1).text.model.into(),
             });
-            let mut message_id = None::<String>;
+            let mut messages = TextMessages::default();
+            let mut has_text = false;
             let (completed, reason) = loop {
-                let part = upstream.next().await.ok_or(AiError::InvalidResponse)??;
-                match part {
-                    StepEvent::TextDelta(delta) if !delta.is_empty() => {
-                        let id = match &message_id {
-                            Some(id) => id.clone(),
-                            None => {
-                                let id = Str::ulid().to_string();
-                                message_id = Some(id.clone());
-                                yield event(&invocation_id, StreamEventData::TextStart { message_id: id.clone() });
-                                id
-                            }
-                        };
-                        yield event(&invocation_id, StreamEventData::TextDelta { message_id: id, delta });
+                let (part, delta) = match upstream.next().await.ok_or(AiError::InvalidResponse)?? {
+                    StepEvent::TextDelta(delta) => (None, delta),
+                    StepEvent::TextPartDelta { part, delta } => (Some(part), delta),
+                    StepEvent::TextPartEnd { part } => {
+                        if let Some(message_id) = messages.close(Some(&part)) {
+                            yield event(&invocation_id, StreamEventData::TextEnd { message_id });
+                        }
+                        continue;
                     }
-                    StepEvent::TextDelta(_) => {}
+                    StepEvent::Citation { part, citation } => {
+                        yield event(&invocation_id, messages.citation(part.as_ref(), citation));
+                        continue;
+                    }
                     StepEvent::Finished { response, reason } => break (*response, reason),
+                };
+                if !delta.is_empty() {
+                    has_text = true;
+                    for data in messages.delta(part.as_ref(), delta).into_iter().flatten() {
+                        yield event(&invocation_id, data);
+                    }
                 }
             };
             drop(upstream);
-            let message_id = match (message_id, completed.text.as_ref().filter(|text| !text.is_empty())) {
-                (None, Some(text)) => {
-                    let id = Str::ulid().to_string();
-                    yield event(&invocation_id, StreamEventData::TextStart { message_id: id.clone() });
-                    yield event(&invocation_id, StreamEventData::TextDelta { message_id: id.clone(), delta: text.clone() });
-                    Some(id)
+            if !has_text {
+                if let Some(text) = completed.text.as_ref().filter(|text| !text.is_empty()) {
+                    for data in messages.delta(None, text.clone()).into_iter().flatten() {
+                        yield event(&invocation_id, data);
+                    }
+                } else if completed.tool_calls.is_empty() {
+                    Err(AiError::InvalidResponse)?;
                 }
-                (existing, _) => existing,
-            };
-            if let Some(message_id) = message_id {
+            }
+            for message_id in messages.open_ids() {
                 yield event(&invocation_id, StreamEventData::TextEnd { message_id });
-            } else if completed.tool_calls.is_empty() {
-                Err(AiError::InvalidResponse)?;
             }
             if let Some(choice) = prompt.choice_for(step - 1) {
                 choice.validate_calls(&completed.tool_calls)?;

@@ -275,17 +275,12 @@ impl StreamableAgentResponse {
                     });
                 }
                 if let Some(delta) = part.delta.filter(|delta| !delta.is_empty()) {
-                    let message = messages.get(part.output_part.as_ref());
-                    let message_id = message.id.clone();
-                    if !message.open {
-                        message.open = true;
-                        yield event(&invocation, StreamEventData::TextStart { message_id: message_id.clone() });
+                    for data in messages.delta(part.output_part.as_ref(), delta).into_iter().flatten() {
+                        yield event(&invocation, data);
                     }
-                    yield event(&invocation, StreamEventData::TextDelta { message_id, delta });
                 }
                 if let Some(citation) = part.citation {
-                    let message_id = messages.get(part.output_part.as_ref()).id.clone();
-                    yield event(&invocation, StreamEventData::Citation { message_id, citation });
+                    yield event(&invocation, messages.citation(part.output_part.as_ref(), citation));
                 }
                 if part.end_message && let Some(message_id) = messages.close(part.output_part.as_ref()) {
                     yield event(&invocation, StreamEventData::TextEnd { message_id });
@@ -337,8 +332,15 @@ pub(crate) fn event(invocation: &str, data: StreamEventData) -> StreamEvent {
 
 type OutputPart = (String, u64);
 
+pub(crate) fn output_part(value: &Value) -> Option<OutputPart> {
+    value["item_id"]
+        .as_str()
+        .zip(value["content_index"].as_u64())
+        .map(|(item, index)| (item.to_owned(), index))
+}
+
 #[derive(Default)]
-struct TextMessages {
+pub(crate) struct TextMessages {
     indexed: BTreeMap<OutputPart, TextMessage>,
     anonymous: Option<TextMessage>,
 }
@@ -349,6 +351,35 @@ struct TextMessage {
 }
 
 impl TextMessages {
+    pub(crate) fn delta(
+        &mut self,
+        part: Option<&OutputPart>,
+        delta: String,
+    ) -> [Option<StreamEventData>; 2] {
+        let message = self.get(part);
+        let message_id = message.id.clone();
+        let start = (!message.open).then(|| StreamEventData::TextStart {
+            message_id: message_id.clone(),
+        });
+        message.open = true;
+        [
+            start,
+            Some(StreamEventData::TextDelta { message_id, delta }),
+        ]
+    }
+
+    pub(crate) fn citation(
+        &mut self,
+        part: Option<&OutputPart>,
+        citation: UrlCitation,
+    ) -> StreamEventData {
+        let message_id = self.get(part).id.clone();
+        StreamEventData::Citation {
+            message_id,
+            citation,
+        }
+    }
+
     fn get(&mut self, part: Option<&OutputPart>) -> &mut TextMessage {
         let create = || TextMessage {
             id: Str::ulid().to_string(),
@@ -360,7 +391,7 @@ impl TextMessages {
         }
     }
 
-    fn close(&mut self, part: Option<&OutputPart>) -> Option<String> {
+    pub(crate) fn close(&mut self, part: Option<&OutputPart>) -> Option<String> {
         match part {
             Some(part) => {
                 let message = self.indexed.get_mut(part)?;
@@ -374,7 +405,7 @@ impl TextMessages {
         }
     }
 
-    fn open_ids(self) -> impl Iterator<Item = String> {
+    pub(crate) fn open_ids(self) -> impl Iterator<Item = String> {
         self.anonymous
             .into_iter()
             .chain(self.indexed.into_values())
@@ -429,10 +460,7 @@ impl TextEndpoint {
                 let response = &value["response"];
                 let usage = &response["usage"];
                 let model = string(&response["model"]);
-                let output_part = value["item_id"]
-                    .as_str()
-                    .zip(value["content_index"].as_u64())
-                    .map(|(item, index)| (item.to_owned(), index));
+                let output_part = output_part(&value);
                 match value["type"].as_str() {
                     Some("response.output_text.delta") => Ok(Part {
                         delta: string(&value["delta"]),

@@ -53,7 +53,7 @@ Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/ve
 
 可用 `stream.then(callback)` 在流消费完成时取得 `StreamedAgentResponse`。它包含合并后的文本与用量、工具调用及结果和原始事件。流暂停等待审批时，也会带上已保存的审批批次。在 `each` 完整遍历后注册回调会立即取得结果。
 
-OpenAI Responses 文本流的网页引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名为 `citation` 的 `CUSTOM` 事件。原生引文带有对应的文本消息 ID。可在完成回调中通过 `StreamedAgentResponse::citations()` 按顺序读取引文和上游报告的文本位置。
+OpenAI Responses 文本流的网页引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名为 `citation` 的 `CUSTOM` 事件。原生引文带有对应的文本消息 ID。可在完成回调中通过 `StreamedAgentResponse::citations()` 按顺序读取引文和上游报告的文本位置。 工具续轮会按事件顺序保留各次模型调用的引文。
 
 Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆写 `stream` 文案。
 
