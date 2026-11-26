@@ -234,14 +234,15 @@ impl OpenAiTextProvider {
         environment: Arc<Environment>,
         http: Arc<Factory>,
     ) -> AiResult<Self> {
+        let authorization = match config.get("auth") {
+            None | Some(Value::Null) => Authorization::Bearer,
+            Some(value) if value == "bearer" => Authorization::Bearer,
+            Some(value) if value == "api-key" => Authorization::ApiKey,
+            _ => return Err(AiError::InvalidConfiguration("providers.<name>.auth")),
+        };
         Ok(Self {
             protocol,
-            connection: Arc::new(Connection::new(
-                config,
-                environment,
-                http,
-                Authorization::Bearer,
-            )?),
+            connection: Arc::new(Connection::new(config, environment, http, authorization)?),
         })
     }
 

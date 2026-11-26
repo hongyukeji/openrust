@@ -41,6 +41,10 @@ Use `agent(instructions).with_schema(schema).prompt(text)` to request a JSON obj
 
 For a connection needed only during the current request or command, use `Ai::build(config)` with the same fields as a named provider. Use the resulting provider's `name()` in a prompt or look it up with `Ai::text_provider` during that scope. Names reserved by the SDK or configured in the application are unavailable for temporary connections. `Ai::flush_state()` clears the current scope’s temporary connections.
 
+## Azure OpenAI {#azure-openai}
+
+To use the `azure` preset, set `AZURE_OPENAI_URL` to your Azure resource URL and set `AZURE_OPENAI_API_KEY`. The preset appends `/openai/v1` when needed. Use your deployment name as `AZURE_OPENAI_DEPLOYMENT` for text. For a different named connection, use `driver: "openai"`, the full v1 URL, and `auth: "api-key"`.
+
 ## Scope {#scope}
 
 Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery.
@@ -410,7 +414,7 @@ In tests, use `Classification::fake([])` for generated typed answers, supply a s
 
 ## Provider files {#provider-files}
 
-Set `AI_FILE_PROVIDER` to a named Files API connection, or use the default AI connection. OpenAI, Anthropic, Gemini, and the global OpenRouter endpoint support files directly. Set `files: true` on a custom OpenAI-compatible connection if its endpoint exposes the same Files API.
+Set `AI_FILE_PROVIDER` to a named Files API connection, or use the default AI connection. OpenAI, Azure OpenAI, Anthropic, Gemini, and the global OpenRouter endpoint support files directly. Set `files: true` on a custom OpenAI-compatible connection if its endpoint exposes the same Files API.
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -422,7 +426,7 @@ let id = file.id();
 let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 ```
 
-Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory data, or `Files::put_from_storage` for a configured disk. Change the upload filename, MIME type, or purpose on `FileUpload`. The default purpose is `user_data`. Anthropic and OpenRouter manage purpose on the server and accept the default setting.
+Use `FileUpload::from_upload` for an HTTP upload, `from_bytes` for in-memory data, or `Files::put_from_storage` for a configured disk. Change the upload filename, MIME type, or purpose on `FileUpload`. The default purpose is `user_data`. The Azure preset uses `assistants`. Anthropic and OpenRouter manage purpose on the server and accept the default setting.
 
 `Files::get` retrieves metadata and `Files::list` supplies a cursor with each page. Handles retain their original connection for downloading, refreshing, and deleting. `store_as` writes the downloaded file to a private disk location. Before accepting a file ID from a user, check that the file belongs to that user in the application. If the provider reports `downloadable: false`, reading or storing the file returns `AiError::FileNotDownloadable`. Anthropic and OpenRouter apply this rule to user uploads.
 
@@ -430,7 +434,7 @@ Gemini returns a resource name such as `files/policy`. You can pass the resource
 
 ## Vector stores {#vector-stores}
 
-Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
+Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI, Azure OpenAI, and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.
 
 ```rust
 use openrust_ai::{Files, Stores};

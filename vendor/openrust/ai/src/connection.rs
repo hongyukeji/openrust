@@ -79,6 +79,7 @@ struct Configuration {
     files: Option<FileConfiguration>,
     #[serde(default)]
     stores: bool,
+    default_file_purpose: Option<String>,
     #[serde(default = "default_store")]
     store: bool,
     #[serde(default = "anthropic_version")]
@@ -96,6 +97,7 @@ fn anthropic_version() -> String {
 #[derive(Clone, Copy)]
 pub(crate) enum Authorization {
     Bearer,
+    ApiKey,
     Anthropic,
     Gemini,
 }
@@ -127,6 +129,11 @@ impl Connection {
             return Err(AiError::InvalidConfiguration(
                 "providers.<name>.models.embeddings.dimensions",
             ));
+        }
+        if let Some(purpose) = &config.default_file_purpose {
+            crate::files::validate_id(purpose).map_err(|_| {
+                AiError::InvalidConfiguration("providers.<name>.default_file_purpose")
+            })?;
         }
         let url = url::Url::parse(&config.url)
             .map_err(|_| AiError::InvalidConfiguration("providers.<name>.url"))?;
@@ -166,20 +173,20 @@ impl Connection {
             );
         }
         if let Some(token) = self.credential()? {
-            request = match self.authorization {
-                Authorization::Bearer => request.with_token(token),
-                Authorization::Anthropic | Authorization::Gemini => {
-                    let name = if matches!(self.authorization, Authorization::Anthropic) {
-                        "x-api-key"
-                    } else {
-                        "x-goog-api-key"
-                    };
-                    let mut value: http::HeaderValue = token
-                        .parse()
-                        .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?;
-                    value.set_sensitive(true);
-                    request.with_header(name.parse().expect("valid header name"), value)
-                }
+            let api_key_header = match self.authorization {
+                Authorization::Bearer => None,
+                Authorization::ApiKey => Some("api-key"),
+                Authorization::Anthropic => Some("x-api-key"),
+                Authorization::Gemini => Some("x-goog-api-key"),
+            };
+            request = if let Some(name) = api_key_header {
+                let mut value: http::HeaderValue = token
+                    .parse()
+                    .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?;
+                value.set_sensitive(true);
+                request.with_header(name.parse().expect("valid header name"), value)
+            } else {
+                request.with_token(token)
             };
         }
         Ok(request)
@@ -333,6 +340,13 @@ impl Connection {
 
     pub(crate) fn stores_configured(&self) -> bool {
         self.config.stores
+    }
+
+    pub(crate) fn default_file_purpose(&self) -> &str {
+        self.config
+            .default_file_purpose
+            .as_deref()
+            .unwrap_or("user_data")
     }
 
     pub(crate) fn files_configured(&self) -> bool {

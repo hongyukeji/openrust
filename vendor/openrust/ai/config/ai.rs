@@ -36,6 +36,25 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     openai["models"]["classification"] =
         json!({"default": env.get_utf8("OPENAI_CLASSIFICATION_MODEL")?});
 
+    let mut azure = provider(
+        "openai",
+        "AZURE_OPENAI_URL",
+        "",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_DEPLOYMENT",
+    )?;
+    if let Some(url) = azure["url"].as_str().filter(|url| !url.is_empty()) {
+        let url = url.trim_end_matches('/');
+        if !url.ends_with("/openai/v1") {
+            azure["url"] = json!(format!("{url}/openai/v1"));
+        }
+    }
+    azure["auth"] = json!("api-key");
+    azure["default_file_purpose"] = json!("assistants");
+    azure["models"]["embeddings"] =
+        json!({"default": env.get_utf8("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")?});
+    azure["models"]["images"] = json!({"default": env.get_utf8("AZURE_OPENAI_IMAGE_DEPLOYMENT")?});
+
     let mut openrouter = provider(
         "openai-compatible",
         "OPENROUTER_URL",
@@ -93,6 +112,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "qianfan": provider("openai-compatible", "QIANFAN_URL", "https://qianfan.baidubce.com/v2", "QIANFAN_API_KEY", "QIANFAN_MODEL")?,
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
+            "azure": azure,
             "openrouter": openrouter,
             "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,
             "jina": reranker("jina", "JINA_URL", "https://api.jina.ai/v1", "JINA_API_KEY", "JINA_RERANK_MODEL")?,

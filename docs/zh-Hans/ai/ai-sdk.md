@@ -41,6 +41,10 @@ let answer = response.text;
 
 当前请求或命令需要临时连接时，可用 `Ai::build(config)`，字段沿用具名连接配置。通过返回的 `name()` 在提示词调用中指定连接，或在同一作用域内通过 `Ai::text_provider` 查找。框架保留名及应用已有名称不能用作临时连接。`Ai::flush_state()` 会清除当前作用域的临时连接。
 
+## Azure OpenAI {#azure-openai}
+
+使用 `azure` 预设时，将 `AZURE_OPENAI_URL` 设为 Azure 资源地址，再填写 `AZURE_OPENAI_API_KEY`。预设会按需追加 `/openai/v1`。文本调用用 `AZURE_OPENAI_DEPLOYMENT` 指定部署名称。添加其他具名连接时，使用 `driver: "openai"`、完整的 v1 URL 和 `auth: "api-key"`。
+
 ## 范围 {#scope}
 
 当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 与 Gemini 原生连接也支持普通文本、SSE 和分页模型目录。
@@ -410,7 +414,7 @@ let assigned = department
 
 ## 供应商文件 {#provider-files}
 
-用 `AI_FILE_PROVIDER` 指定支持 Files API 的具名连接，也可以沿用 AI 默认连接。OpenAI、Anthropic、Gemini 和 OpenRouter 全球端点原生支持。自定义 OpenAI 兼容连接提供同一 Files API 时可设置 `files: true`。
+用 `AI_FILE_PROVIDER` 指定支持 Files API 的具名连接，也可以沿用 AI 默认连接。OpenAI、Azure OpenAI、Anthropic、Gemini 和 OpenRouter 全球端点原生支持。自定义 OpenAI 兼容连接提供同一 Files API 时可设置 `files: true`。
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -422,7 +426,7 @@ let id = file.id();
 let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 ```
 
-HTTP 上传使用 `FileUpload::from_upload`，内存字节使用 `from_bytes`，已配置磁盘上的文件可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆盖名称、MIME 类型和上传用途，默认用途为 `user_data`。Anthropic 和 OpenRouter 在服务端管理用途，上传时使用默认设置。
+HTTP 上传使用 `FileUpload::from_upload`，内存字节使用 `from_bytes`，已配置磁盘上的文件可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆盖名称、MIME 类型和上传用途，默认用途为 `user_data`。Azure 预设使用 `assistants`。Anthropic 和 OpenRouter 在服务端管理用途，上传时使用默认设置。
 
 `Files::get` 读取元数据，`Files::list` 按游标分页。返回的文件对象沿用原连接下载、刷新和删除。`store_as` 将内容存入私有磁盘路径。用户提供文件 ID 时，先在应用中校验其文件归属。 供应商返回 `downloadable: false` 时，读取或存盘返回 `AiError::FileNotDownloadable`。Anthropic 和 OpenRouter 对用户上传的文件使用此限制。
 
@@ -430,7 +434,7 @@ Gemini 返回类似 `files/policy` 的资源名。`Files::get` 和 `Files::delet
 
 ## 向量仓库 {#vector-stores}
 
-用 `AI_STORE_PROVIDER` 选择向量仓库的具名连接，也可沿用 AI 默认连接。OpenAI 与 Gemini File Search 原生支持。自定义 OpenAI 兼容端点可设置 `stores: true`，同一连接支持文件上传时再启用 `files: true`。
+用 `AI_STORE_PROVIDER` 选择向量仓库的具名连接，也可沿用 AI 默认连接。OpenAI、Azure OpenAI 与 Gemini File Search 原生支持。自定义 OpenAI 兼容端点可设置 `stores: true`，同一连接支持文件上传时再启用 `files: true`。
 
 ```rust
 use openrust_ai::{Files, Stores};

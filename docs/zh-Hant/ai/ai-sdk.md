@@ -41,6 +41,10 @@ let answer = response.text;
 
 目前的請求或命令需要暫時連線時，可使用 `Ai::build(config)`，欄位沿用具名連線設定。透過回傳的 `name()` 在提示詞呼叫中指定連線，或在同一作用域內透過 `Ai::text_provider` 查找。框架保留名稱及應用程式既有名稱無法用作暫時連線。`Ai::flush_state()` 會清除目前作用域的暫時連線。
 
+## Azure OpenAI {#azure-openai}
+
+使用 `azure` 預設時，將 `AZURE_OPENAI_URL` 設為 Azure 資源位址，再填寫 `AZURE_OPENAI_API_KEY`。預設會視需要附加 `/openai/v1`。文字呼叫使用 `AZURE_OPENAI_DEPLOYMENT` 指定部署名稱。新增其他具名連線時，使用 `driver: "openai"`、完整的 v1 URL 和 `auth: "api-key"`。
+
 ## 範圍 {#scope}
 
 目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。
@@ -410,7 +414,7 @@ let assigned = department
 
 ## 供應商檔案 {#provider-files}
 
-用 `AI_FILE_PROVIDER` 指定支援 Files API 的具名連線，也可以沿用 AI 預設連線。OpenAI、Anthropic、Gemini 和 OpenRouter 全球端點原生支援。自訂 OpenAI 相容連線提供同一 Files API 時可設定 `files: true`。
+用 `AI_FILE_PROVIDER` 指定支援 Files API 的具名連線，也可以沿用 AI 預設連線。OpenAI、Azure OpenAI、Anthropic、Gemini 和 OpenRouter 全球端點原生支援。自訂 OpenAI 相容連線提供同一 Files API 時可設定 `files: true`。
 
 ```rust
 use openrust_ai::{FileUpload, Files};
@@ -422,7 +426,7 @@ let id = file.id();
 let private_path = file.store_as("ai", "policy.txt", Some("local")).await?;
 ```
 
-HTTP 上傳使用 `FileUpload::from_upload`，記憶體位元組使用 `from_bytes`，已設定磁碟上的檔案可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆寫名稱、MIME 類型及上傳用途，預設用途是 `user_data`。Anthropic 和 OpenRouter 在伺服器管理用途，上傳時使用預設設定。
+HTTP 上傳使用 `FileUpload::from_upload`，記憶體位元組使用 `from_bytes`，已設定磁碟上的檔案可使用 `Files::put_from_storage`。在 `FileUpload` 上可覆寫名稱、MIME 類型及上傳用途，預設用途是 `user_data`。Azure 預設使用 `assistants`。Anthropic 和 OpenRouter 在伺服器管理用途，上傳時使用預設設定。
 
 `Files::get` 讀取中繼資料，`Files::list` 依游標分頁。傳回的檔案物件沿用原連線下載、重新整理和刪除。`store_as` 將內容存入私有磁碟路徑。使用者提供檔案 ID 時，先在應用程式中查驗檔案歸屬。 供應商傳回 `downloadable: false` 時，讀取或存檔會傳回 `AiError::FileNotDownloadable`。Anthropic 和 OpenRouter 對使用者上傳的檔案採用此限制。
 
@@ -430,7 +434,7 @@ Gemini 傳回類似 `files/policy` 的資源名稱。`Files::get` 和 `Files::de
 
 ## 向量儲存庫 {#vector-stores}
 
-用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI 與 Gemini File Search 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。
+用 `AI_STORE_PROVIDER` 選擇向量儲存庫的具名連線，也可以沿用 AI 預設連線。OpenAI、Azure OpenAI 與 Gemini File Search 原生支援。自訂 OpenAI 相容端點可設定 `stores: true`，同一連線支援檔案上傳時再啟用 `files: true`。
 
 ```rust
 use openrust_ai::{Files, Stores};

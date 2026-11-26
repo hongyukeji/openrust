@@ -56,7 +56,10 @@ impl FileProvider for WorkspaceFileProvider {
 
     fn put_file(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
         Box::pin(async move {
-            if file.purpose != "user_data"
+            if file
+                .purpose
+                .as_deref()
+                .is_some_and(|purpose| purpose != "user_data")
                 || file.name.chars().count() > 255
                 || file.name.contains(['<', '>', ':', '"', '|', '?', '*'])
             {

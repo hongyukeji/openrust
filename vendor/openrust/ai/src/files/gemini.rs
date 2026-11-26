@@ -52,7 +52,12 @@ impl FileProvider for GeminiFileProvider {
 
     fn put_file(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
         Box::pin(async move {
-            if file.purpose != "user_data" || file.name.chars().count() > 512 {
+            if file
+                .purpose
+                .as_deref()
+                .is_some_and(|purpose| purpose != "user_data")
+                || file.name.chars().count() > 512
+            {
                 return Err(AiError::InvalidFile);
             }
             let base = Url::parse(self.0.base_url()).map_err(|_| AiError::InvalidResponse)?;

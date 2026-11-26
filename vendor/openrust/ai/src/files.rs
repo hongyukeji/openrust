@@ -103,7 +103,7 @@ pub struct FileUpload {
     content: Bytes,
     name: String,
     mime_type: String,
-    purpose: String,
+    purpose: Option<String>,
 }
 
 impl FileUpload {
@@ -120,7 +120,7 @@ impl FileUpload {
             content,
             name,
             mime_type: "application/octet-stream".into(),
-            purpose: "user_data".into(),
+            purpose: None,
         })
     }
 
@@ -177,11 +177,11 @@ impl FileUpload {
     pub fn purpose(mut self, purpose: impl Into<String>) -> AiResult<Self> {
         let purpose = purpose.into();
         validate_id(&purpose)?;
-        self.purpose = purpose;
+        self.purpose = Some(purpose);
         Ok(self)
     }
 
-    fn into_part(self) -> AiResult<(Part, String)> {
+    fn into_part(self) -> AiResult<(Part, Option<String>)> {
         let length = self.content.len() as u64;
         let part = Part::stream_with_length(self.content, length)
             .file_name(self.name)
@@ -347,6 +347,7 @@ impl FileProvider for OpenAiFileProvider {
     fn put_file(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
         Box::pin(async move {
             let (part, purpose) = file.into_part()?;
+            let purpose = purpose.as_deref().unwrap_or(self.0.default_file_purpose());
             let response = self
                 .0
                 .request(None)?

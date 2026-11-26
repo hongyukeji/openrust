@@ -309,3 +309,11 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 分别以独立 Artisan 和 HTTP 验证原生认证、预填文件、轮询、字符串／数字／字符串列表元数据、分页、跨仓库和跨操作拒绝、只移除成员、同时删除原文件、软失败后处理以及删除后 404。OpenAI 仓库以同样入口重跑通过。两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。真实服务商凭证、Gemini File Search 工具及向量仓库 Fake 继续单列。
 
 - [固定 Laravel Gemini Store Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiStoreGateway.php) · [Google File Search Stores](https://ai.google.dev/api/file-search/file-search-stores) · [Google File Search Documents](https://ai.google.dev/api/file-search/documents)
+
+## AI-06 Azure OpenAI 文件与向量仓库
+
+Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏感的 `api-key` 请求头、用户配置的部署名和默认文件用途 `assistants`。其他 OpenAI 连接沿用默认 Bearer 与 `user_data`。具名连接可显式配置 `auth: "api-key"`。
+
+本地 TCP 上游与独立 Artisan、HTTP 应用验收资源地址和完整 v1 URL、默认及显式上传用途、认证头诊断脱敏、Responses 文本部署、创建仓库、成员分页、移除以及同时删除原文件。独立 OpenAI 文件回归、两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。Azure 实机、Azure 特有的图像及 Embeddings 有待各自的协议与部署验收。
+
+- [固定 Laravel Azure OpenAI 客户端](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/AzureOpenAi/Concerns/CreatesAzureOpenAiClient.php) · [Microsoft Files](https://learn.microsoft.com/en-us/rest/api/microsoft-foundry/azureopenai/files) · [Microsoft Vector Stores](https://learn.microsoft.com/en-us/rest/api/aifoundry/azureopenai/vector_stores)
