@@ -746,8 +746,10 @@ Windows 11 ARM64 虚机的 Parallels 共享目录在 Rust 写归档时返回错�
 
 三个根应用隔离验收原先从已经迁入框架的根 `lang/` 目录复制迁移注释，导致测试在运行 Artisan 前失败。按当前框架翻译资源位置修正三份夹具。macOS 同时启用 `horizon,pulse,telescope` 后，默认骨架两项及三个扩展的配置入口各一项通过，实际覆盖包发现、配置发布、有缓存时的读取及清缓存。Pulse 另在 SQLite、独占 PostgreSQL 18.7 和 MySQL 8.4.13 下执行真实迁移和命令。证据为 `target/tmp/observability-parity/observability-combined-artisan-*.log`。
 
+干净提交 `577daf16f` 用 macOS 原生根应用复验。单一 `main` 同时启用三个 feature 时，三项发布与缓存配置测试通过。同一个隔离应用实际执行包发现、配置缓存和 SQLite 迁移。`pulse:check --once` 写入服务器指标，`telescope:list command --json` 读到命令条目，`horizon:status --json` 从独占 Redis 8.10.3 读取空进程状态。随后用同一源码关闭三项 feature 单独构建，包发现及配置缓存正常，三个配置段和相应命令都不出现。证据为 `target/tmp/observability-parity/observability-root-current-{source-commit,macos.log,live.log,off.log}`。目标部署的根应用优化构建和升级仍待验收。
+
 ### 字节键、出站响应和 Windows 快速重启
 
 Pulse 补齐字节键仪表值与同批 PHP 宽松去重，Telescope 补齐出站响应的 JSON 形状、空内容判定与小数大小限制，Horizon 补齐 Windows 快速重启中 Supervisor 已退出但旧 Worker 仍持有输出管道的情形。各项固定参考、实际消费者、平台及剩余边界以[Pulse](pulse/README.md#含字节键的通用-graph-与-value)、[Telescope](telescope/README.md#出站响应内容形状与大小限制)及[Horizon](horizon/README.md#master-公开重启)记录为准。
 
-三个扩展仍按固定上游逐项对齐。后续继续核对 Telescope 的异步来源链和剩余响应边界、Pulse 的内联 `(*UTF)` 与完整 Livewire 生命周期，以及 Horizon 的 Redis 故障切换和目标系统优化构建。最终生产矩阵仍需锁定拟交付提交，按实际部署组合验证迁移、升级、关停、恢复和容量。 [发布条件](../todo.md#平台与发布条件)
+三个扩展仍按固定上游逐项对齐。后续继续核对 Telescope 的异步来源链和剩余响应边界、Pulse 的内联 `(*UTF)` 与完整 Livewire 生命周期，以及 Horizon 在目标服务管理器、物理 x86_64 和实际故障转移端点上的运行。最终生产矩阵仍需锁定拟交付提交，按实际部署组合验证迁移、升级、关停、恢复和容量。 [发布条件](../todo.md#平台与发布条件)
