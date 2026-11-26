@@ -7,6 +7,7 @@ use crate::{
     AiError, AiResult, Attachment, ProviderOptions, StructuredOutput, TextGenerationOptions,
     TextPrompt, ToolCall, ToolChoice, ToolResult,
     attachment_storage::{self, StoredFiles},
+    provider_replay::ProviderReplay,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,6 +38,8 @@ pub struct Message {
     pub tool_calls: Vec<ToolCall>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_results: Vec<ToolResult>,
+    #[serde(skip)]
+    pub(crate) provider_replay: Option<ProviderReplay>,
 }
 
 impl Message {
@@ -47,6 +50,7 @@ impl Message {
             attachments: Vec::new(),
             tool_calls: Vec::new(),
             tool_results: Vec::new(),
+            provider_replay: None,
         }
     }
 
@@ -120,7 +124,10 @@ pub(crate) struct OwnedPrompt {
     options: crate::TextGenerationOptions,
     provider_options: Option<crate::ProviderOptions>,
     tool_choice: Option<crate::ToolChoice>,
-    #[serde(deserialize_with = "deserialize_checkpoint_messages")]
+    #[serde(
+        deserialize_with = "deserialize_checkpoint_messages",
+        serialize_with = "serialize_checkpoint_messages"
+    )]
     messages: Vec<Message>,
     #[serde(
         default,
@@ -272,6 +279,24 @@ fn deserialize_inline_attachments<'de, D: serde::Deserializer<'de>>(
         .map_err(serde::de::Error::custom)
 }
 
+fn serialize_checkpoint_messages<S: serde::Serializer>(
+    messages: &[Message],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Stored<'a> {
+        #[serde(flatten)]
+        message: &'a Message,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provider_replay: Option<&'a ProviderReplay>,
+    }
+
+    serializer.collect_seq(messages.iter().map(|message| Stored {
+        message,
+        provider_replay: message.provider_replay.as_ref(),
+    }))
+}
+
 fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Vec<Message>, D::Error> {
@@ -279,6 +304,8 @@ fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
     struct OldMessage {
         #[serde(flatten)]
         message: Message,
+        #[serde(default)]
+        provider_replay: Option<ProviderReplay>,
         #[serde(default, deserialize_with = "deserialize_inline_attachments")]
         attachments: Vec<Attachment>,
     }
@@ -287,6 +314,7 @@ fn deserialize_checkpoint_messages<'de, D: serde::Deserializer<'de>>(
         .into_iter()
         .map(|message| Message {
             attachments: message.attachments,
+            provider_replay: message.provider_replay,
             ..message.message
         })
         .collect())

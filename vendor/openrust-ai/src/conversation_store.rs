@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     AgentResponse, AiError, AiResult, Message, MessageRole, ToolCall, ToolResult,
     approval_store::ApprovalScope, approval_turn::ApprovalSession, attachment_storage,
-    attachments::AttachmentBudget,
+    attachments::AttachmentBudget, provider_replay::ProviderReplay,
 };
 
 const CONVERSATIONS: &str = "agent_conversations";
@@ -441,7 +441,19 @@ impl DatabaseConversationStore {
             let steps = if response.steps.is_empty() {
                 json!([{"tool_calls": response.tool_calls, "tool_results": response.tool_results}])
             } else {
-                json!(response.steps)
+                Json::Array(
+                    response
+                        .steps
+                        .iter()
+                        .map(|step| {
+                            let mut data = json!(step);
+                            if let Some(replay) = &step.provider_replay {
+                                data["provider_replay"] = json!(replay);
+                            }
+                            data
+                        })
+                        .collect(),
+                )
             };
             rows[1].extend([
                 ("usage".into(), json!(response.usage).to_string().into()),
@@ -692,6 +704,8 @@ fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> 
         tool_calls: Vec<ToolCall>,
         #[serde(default)]
         tool_results: Vec<ToolResult>,
+        #[serde(default)]
+        provider_replay: Option<ProviderReplay>,
     }
 
     let steps: Vec<StoredStep> =
@@ -702,6 +716,7 @@ fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> 
     let has_step_text = steps.iter().any(|step| !step.text.is_empty());
     let mut messages = Vec::new();
     for step in steps {
+        let expected_calls = step.tool_calls.len();
         let mut calls = Vec::new();
         let mut results = Vec::new();
         for call in step.tool_calls {
@@ -711,7 +726,14 @@ fn replay_steps(fallback: Message, steps: &str) -> DatabaseResult<Vec<Message>> 
             }
         }
         if !step.text.is_empty() || !calls.is_empty() {
-            messages.push(Message::assistant_with_tool_calls(step.text, calls));
+            let replay = if !calls.is_empty() && calls.len() == expected_calls {
+                step.provider_replay
+            } else {
+                None
+            };
+            let mut assistant = Message::assistant_with_tool_calls(step.text, calls);
+            assistant.provider_replay = replay;
+            messages.push(assistant);
         }
         if !results.is_empty() {
             messages.push(Message::tool_results(results));
@@ -729,13 +751,19 @@ async fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {
     let Some(Value::Integer(created_at)) = row.get("created_at") else {
         return Err(DatabaseError::InvalidScalar);
     };
+    let mut steps: Json = json("steps")?;
+    if let Some(steps) = steps.as_array_mut() {
+        for step in steps.iter_mut().filter_map(Json::as_object_mut) {
+            step.remove("provider_replay");
+        }
+    }
     Ok(StoredMessage {
         id: text(row, "id")?.into(),
         agent: text(row, "agent")?.into(),
         message: message(row).await?,
         usage: json("usage")?,
         meta: json("meta")?,
-        steps: json("steps")?,
+        steps,
         created_at: *created_at,
     })
 }

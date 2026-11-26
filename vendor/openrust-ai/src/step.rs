@@ -60,6 +60,7 @@ pub struct Step {
     pub model: String,
     pub citations: Vec<UrlCitation>,
     pub reasoning: String,
+    pub(crate) provider_replay: Option<crate::provider_replay::ProviderReplay>,
 }
 
 impl Step {

@@ -468,7 +468,7 @@ impl StreamableAgentResponse {
                 TextEndpoint::GeminiStreamGenerateContent => usage.include_reasoning_output(),
                 _ => usage,
             };
-            observed.record(resolved_model, usage.clone(), crate::FinishReason::from_wire(Some(&reason)));
+            observed.record(resolved_model, usage.clone(), crate::FinishReason::from_wire(Some(&reason)), None);
             yield event(&invocation, StreamEventData::StreamEnd { reason, usage });
         };
         Self::from_events(Box::pin(events)).with_step_metadata(metadata)

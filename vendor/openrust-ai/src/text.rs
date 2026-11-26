@@ -117,6 +117,7 @@ impl AgentResponse {
             model: self.model.clone(),
             citations: self.citations.clone(),
             reasoning: self.reasoning.clone(),
+            provider_replay: None,
         }
     }
 }
@@ -617,6 +618,30 @@ impl OpenAiTextProvider {
             OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
         }
         .map_err(|_| AiError::InvalidSchema)?;
+        if matches!(self.protocol, OpenAiProtocol::ChatCompletions)
+            && prompt
+                .messages
+                .iter()
+                .any(|message| message.provider_replay.is_some())
+        {
+            let scope = self.connection.request_namespace("chat-tool-replay")?;
+            let mut index = usize::from(!prompt.text.instructions.is_empty());
+            for message in prompt.messages {
+                if message.role == MessageRole::Assistant
+                    && let Some(reasoning) = message
+                        .provider_replay
+                        .as_ref()
+                        .and_then(|replay| replay.chat_reasoning(&scope, prompt.text.model))
+                {
+                    body["messages"][index]["reasoning_content"] = reasoning.into();
+                }
+                index += if message.role == MessageRole::ToolResult {
+                    message.tool_results.len()
+                } else {
+                    1
+                };
+            }
+        }
         apply_provider_options(&mut body, prompt.provider_options, false)?;
         Ok(body)
     }

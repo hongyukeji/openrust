@@ -80,6 +80,9 @@ pub(crate) fn response(
         agent,
     } = prepared;
     let invocation_id = run.invocation_id.clone();
+    let replay_scope = provider
+        .step_text_gateway()
+        .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
     let metadata = StreamMetadata::default();
     let observed = metadata.clone();
     let stream = async_stream::try_stream! {
@@ -100,7 +103,7 @@ pub(crate) fn response(
             }
             yield event(&invocation_id, StreamEventData::StreamStart {
                 provider: provider.name().into(),
-                model,
+                model: model.clone(),
             });
             let mut upstream = result.into_stream();
             let mut messages = TextMessages::default();
@@ -155,7 +158,11 @@ pub(crate) fn response(
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
-            observed.record(completed.model.clone(), completed.usage.clone(), completed.finish_reason);
+            let replay = crate::provider_replay::ProviderReplay::capture(
+                replay_scope.as_deref(), completed.model.as_deref().unwrap_or(&model),
+                completed.provider_content.as_ref().filter(|_| !completed.tool_calls.is_empty()),
+            );
+            observed.record(completed.model.clone(), completed.usage.clone(), completed.finish_reason, replay);
             let plan = || tools::plan_execution(
                 &completed.tool_calls, &registered, Some(&allowed), step == max_steps, None,
             );

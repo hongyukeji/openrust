@@ -128,6 +128,7 @@ impl ToolStep {
             model: self.model.clone().unwrap_or_default(),
             citations: self.citations.clone(),
             reasoning: self.reasoning.clone(),
+            provider_replay: None,
         }
     }
 }
@@ -471,19 +472,33 @@ impl ToolRun {
             }
             self.add_step(response, results);
             if finished {
+                let replay_scope = provider
+                    .step_text_gateway()
+                    .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
                 let steps: Vec<_> = self
                     .history
                     .into_iter()
-                    .map(|step| Step {
-                        text: step.text.unwrap_or_default(),
-                        tool_calls: step.calls,
-                        tool_results: step.results,
-                        finish_reason: step.finish_reason,
-                        usage: step.usage,
-                        provider: provider.name().into(),
-                        model: step.model.unwrap_or_else(|| prompt.text.model.into()),
-                        citations: step.citations,
-                        reasoning: step.reasoning,
+                    .map(|step| {
+                        let model = step.model.unwrap_or_else(|| prompt.text.model.into());
+                        let provider_replay = crate::provider_replay::ProviderReplay::capture(
+                            replay_scope.as_deref(),
+                            &model,
+                            step.provider_content
+                                .as_ref()
+                                .filter(|_| !step.calls.is_empty()),
+                        );
+                        Step {
+                            text: step.text.unwrap_or_default(),
+                            tool_calls: step.calls,
+                            tool_results: step.results,
+                            finish_reason: step.finish_reason,
+                            usage: step.usage,
+                            provider: provider.name().into(),
+                            model,
+                            citations: step.citations,
+                            reasoning: step.reasoning,
+                            provider_replay,
+                        }
                     })
                     .collect();
                 let last = steps.last().ok_or(AiError::InvalidResponse)?;

@@ -11,6 +11,7 @@ use openrust::{
 
 use crate::{
     AgentResponse, AiError, FinishReason, PendingToolApprovals, Step, Usage, events::StreamAttempt,
+    provider_replay::ProviderReplay,
 };
 
 use super::{AgentEventStream, StreamEvent, StreamEventData, UrlCitation};
@@ -87,10 +88,17 @@ struct StepMetadata {
     model: Option<String>,
     usage: Usage,
     finish_reason: FinishReason,
+    provider_replay: Option<ProviderReplay>,
 }
 
 impl StreamMetadata {
-    pub(crate) fn record(&self, model: Option<String>, usage: Usage, finish_reason: FinishReason) {
+    pub(crate) fn record(
+        &self,
+        model: Option<String>,
+        usage: Usage,
+        finish_reason: FinishReason,
+        provider_replay: Option<ProviderReplay>,
+    ) {
         self.0
             .lock()
             .expect("模型步骤元数据锁中毒")
@@ -99,6 +107,7 @@ impl StreamMetadata {
                 model,
                 usage,
                 finish_reason,
+                provider_replay,
             });
     }
 
@@ -126,6 +135,7 @@ impl StreamMetadata {
                 step.model.clone_from(model);
             }
             step.usage.clone_from(&meta.usage);
+            step.provider_replay.clone_from(&meta.provider_replay);
             if meta.finish_reason != FinishReason::Unknown {
                 step.finish_reason = meta.finish_reason;
             }

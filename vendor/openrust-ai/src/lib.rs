@@ -54,6 +54,7 @@ mod models;
 mod native_tool_stream;
 mod on_demand;
 mod provider_options;
+mod provider_replay;
 mod request_context;
 mod reranking;
 mod similarity_search;

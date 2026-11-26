@@ -210,9 +210,15 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 继续会话按固定 Laravel 的存储行限制读取历史，然后逐步展开助手内容、工具调用及按调用 ID 配对的已记录结果。旧记录保留原末轮文本，跳过无法配对的工具调用。历史分页仍返回存储行。应用可用 `Message::assistant_with_tool_calls` 和 `Message::tool_results` 手工构造等价历史。四种连接按原生协议传递公开调用与结果。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 中，独立 Artisan 实际发起两步调用并保存。独立 HTTP 进程恢复时对 OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 核对工具 ID、参数、结果和后续用户输入顺序，跨参与者没有出站请求。旧记录及部分结果回归、SDK 15 项、严格 Clippy、三语站点通过。原供应商签名和私有推理块在后续批次跟踪。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 中，独立 Artisan 实际发起两步调用并保存。独立 HTTP 进程恢复时对 OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 核对工具 ID、参数、结果和后续用户输入顺序，跨参与者没有出站请求。旧记录及部分结果回归、SDK 15 项、严格 Clippy、三语站点通过。原供应商签名和私有推理块按协议分别验收。
 
 - [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
+
+Chat Completions 的工具步骤保留 `reasoning_content` 供同连接、同鉴权、同记录模型重放。连接标识沿用审批的请求命名空间摘要，记录中不写入凭证值。旧步骤和不匹配的请求继续发送公开工具调用及结果。私有块不进入公开响应、历史分页、调试输出及 SSE。
+
+SQLite 同时通过普通和流式 Artisan 生成会话，PostgreSQL 18.7 实测普通路径，MySQL 8.4.13 实测流式路径。独立 HTTP 进程复用历史时核对同连接完整回放、更换凭证与模型后只发送公开历史、跨参与者拒绝和公开序列化。旧纯文本及附件审批快照、SDK 15 项、严格 Clippy 和三语站点复验通过。Anthropic 原始块、Gemini 签名及 Responses 私有块另行跟踪。
+
+- [固定 Laravel Chat 兼容消息映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAiCompatible/Concerns/MapsChatCompletionMessages.php)
 
 ## AI-05 Reranking Fake 与 Collection
 

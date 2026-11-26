@@ -482,6 +482,8 @@ SDK 将完成的用户消息和助手消息一起保存。下一次提示默认�
 
 已完成的 SDK 助手消息会保存模型、汇总用量，以及 `steps` 中每步的实际模型、用量、结束原因和工具结果。既有历史可继续读取其原有步骤数据。继续会话时，SDK 按顺序把助手的工具调用及其已记录结果交给模型。`conversations.max_messages` 在展开前限制读取的存储行数，历史分页仍逐行返回消息及其 `steps`。手工构造历史时，先调用 `Message::assistant_with_tool_calls`，再用 `Message::tool_results` 添加结果。
 
+Chat Completions 在连接、鉴权和模型相同时可重放工具步骤的私有推理。变更连接或模型时使用已记录的工具调用与结果。公开历史、回调和流事件沿用原响应结构。
+
 会话消息和待审批快照在数据库中保存文件引用。附件默认写到 `local` 磁盘，文件可见性为私有。在 `config/ai.rs` 设置 `conversations.attachments.disk`，或使用 `AI_CONVERSATION_ATTACHMENTS_DISK`，可为多个应用进程配置共享的私有磁盘。更换配置时，仍须保留既有记录引用的磁盘。
 
 已有 Base64 内联附件的应用可运行 `./artisan ai:migrate-attachments`。命令写入并核验文件后才更新数据库引用。迁移失败的记录可继续按旧格式读取。命令可以重复运行，JSON 输出提供迁移的消息和审批数量。
