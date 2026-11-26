@@ -87,8 +87,8 @@ pub(crate) use value_comparison::php_loose_value_equal;
 pub use value_comparison::{
     php_float_cast, php_float_string, php_integer_cast, php_integer_less_than_value,
     php_loose_string_equal, php_loose_string_numeric_bucket, php_loose_string_value_equal,
-    php_numeric_json_string, php_regular_compare, php_round_half_up, php_unique_regular_strings,
-    php_value_truthy,
+    php_numeric_json_string, php_regular_compare, php_round_half_up, php_stable_sort_by,
+    php_unique_regular_strings, php_value_truthy,
 };
 pub use view_error_bag::ViewErrorBag;
 

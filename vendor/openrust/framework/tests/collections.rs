@@ -48,6 +48,47 @@ fn regular_string_uniqueness_matches_php_for_mixed_tags_and_sort_thresholds() {
 }
 
 #[test]
+fn regular_stable_sort_matches_php_for_equal_and_cyclic_comparisons() {
+    use openrust::support::{php_regular_compare, php_stable_sort_by};
+
+    for (names, ascending, descending) in [
+        (
+            &["1.0e1", "10", "1x", "02", "1x", "3x", "2", "10"][..],
+            &[3, 0, 1, 7, 2, 4, 6, 5][..],
+            &[5, 2, 4, 0, 1, 7, 3, 6][..],
+        ),
+        (
+            &[
+                "2", "1x", "2", "10", "10", "1x", "1x", "10", "2", "2", "1x", "1x", "1x", "2",
+                "10", "2", "2", "2", "1x", "10", "10", "10", "1x", "10",
+            ],
+            &[
+                3, 4, 7, 14, 19, 20, 21, 23, 1, 5, 6, 10, 11, 12, 18, 22, 0, 2, 8, 9, 13, 15, 16,
+                17,
+            ],
+            &[
+                0, 2, 8, 9, 13, 15, 16, 17, 1, 5, 6, 10, 11, 12, 18, 22, 3, 4, 7, 14, 19, 20, 21,
+                23,
+            ],
+        ),
+    ] {
+        let input: Vec<_> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (index, json!(name)))
+            .collect();
+        for (reverse, expected) in [(false, ascending), (true, descending)] {
+            let sorted = php_stable_sort_by(input.clone(), |(_, left), (_, right)| {
+                let order = php_regular_compare(left, right);
+                if reverse { order.reverse() } else { order }
+            });
+            let order: Vec<_> = sorted.into_iter().map(|(index, _)| index).collect();
+            assert_eq!(order, expected);
+        }
+    }
+}
+
+#[test]
 fn keys_follow_php_integer_normalization_append_and_replacement_order() {
     let mut values = Collection::from_entries([
         ("-5", "negative"),

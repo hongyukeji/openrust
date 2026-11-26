@@ -246,7 +246,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 固定 PHP 的实际 `render` 确认数值主机名按数值比较，`cpu`、`memory`、`storage` 可作为集合排序字段，`storage.0.used` 支持嵌套取值。未知字段保留原始存储顺序。Rust 复用框架路径读取与 PHP 数值解析，按这些字段排序并保留等值记录的读取顺序。真实 HTTP 前态将 10 排在 2 之前。相同数据在固定 PHP、SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验证数值主机名、CPU 历史、磁盘集合、嵌套字段和未知字段。Pulse 与 Telescope Provider 共 38 项通过，独立 Redis 用例按环境跳过。全仓格式、相关严格 Clippy、桌面和移动 Chrome、三语站点及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-server-sort-{exact-upstream,baseline,verified,docs}.log`。
 
-混合字段可能出现循环比较。Rust 使用稳定排序处理此类输入，存在循环时的确切输出顺序仍需与 Zend 排序逐项对照。 [PHP 8.5.12 比较实现](https://github.com/php/php-src/blob/php-8.5.12/Zend/zend_operators.c#L3258-L3305) [PHP 8.5.12 排序实现](https://github.com/php/php-src/blob/php-8.5.12/Zend/zend_sort.c#L241-L298)
+混合数字和文本主机名可产生循环比较。固定 Pulse `Servers::render` 通过 Laravel `Collection::sortBy` 调用 PHP 稳定排序。实际 PHP 8.5.12 与 SQLite 验证三项的六种顺序及八项、二十四项的重复键场景。Rust 前态的降序在三项时已出现差异。现在复用框架用于固定 Zend 排序的索引实现，比较结果相同时保留存储读取顺序，升序与降序分别应用上游比较顺序。独立 Rust 排序与 PHP 770 组数值和文本矩阵完全一致，覆盖 16／17 及 1023／1024／1025 阈值，最大输入为 4096 项。 [固定 Collection::sortBy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Collection.php#L1611-L1640) [PHP 8.5.12 排序实现](https://github.com/php/php-src/blob/php-8.5.12/Zend/zend_sort.c#L241-L298)
+
+macOS 的真实 HTTP 指标在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验证相同循环比较。框架集合 8 项、Pulse Provider 33 项、快照格式和相关严格 Clippy 通过。固定参考和实施证据为 `target/tmp/observability-parity/pulse-server-cyclic-sort-{upstream,macos-baseline}.log`、`pulse-server-sort-reference-{php,rust}.tsv` 和 `pulse-server-sort-telescope-updates-macos-verified.log`。
 
 PHP 相对时间语法的其余边界、Livewire 更新事件和缓存包装仍需消费者验收。目标平台与发布组合继续验收。
 

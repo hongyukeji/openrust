@@ -3232,3 +3232,61 @@ async fn dashboard_servers_sort_numeric_names_collections_and_nested_fields() {
         .collect();
     assert_eq!(keys, original);
 }
+
+#[tokio::test]
+async fn dashboard_servers_follow_upstream_order_for_cyclic_name_comparisons() {
+    use openrust::contracts::foundation::Application as _;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_database_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let values = ["10", "2", "1x"].map(|name| {
+        let snapshot = json!({
+            "name": name, "cpu": 25, "memory_used": 32, "memory_total": 64, "storage": [],
+        });
+        openrust_pulse::Value::new(timestamp, "system", name, snapshot.to_string()).into()
+    });
+    storage.store(&values).await.unwrap();
+
+    let config = app.app().config().unwrap();
+    let mut actual = Vec::new();
+    for (field, direction) in [("unknown", "asc"), ("name", "asc"), ("name", "desc")] {
+        config
+            .set("pulse.dashboard.servers.sort_by", json!(field))
+            .unwrap();
+        config
+            .set("pulse.dashboard.servers.sort_direction", json!(direction))
+            .unwrap();
+        let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+        response.assert_ok();
+        let result = response.json::<serde_json::Value>().unwrap();
+        let keys = result["servers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["key"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        actual.push(keys);
+    }
+    let original: Vec<_> = actual[0].iter().map(String::as_str).collect();
+    let reverse: Vec<_> = original.iter().rev().copied().collect();
+    // 固定 PHP 在这三组输入上保留升序，在另外三组上反转升序。
+    if matches!(
+        original.as_slice(),
+        ["10", "1x", "2"] | ["2", "10", "1x"] | ["1x", "2", "10"]
+    ) {
+        assert_eq!(actual[1], original, "asc");
+        assert_eq!(actual[2], reverse, "desc");
+    } else {
+        assert_eq!(actual[1], reverse, "asc");
+        assert_eq!(actual[2], original, "desc");
+    }
+}

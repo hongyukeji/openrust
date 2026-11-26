@@ -6,7 +6,7 @@ use openrust::{
     support::{
         Date, DateTimezone, data_get,
         facades::{Cache, Config, Facade, Route},
-        php_integer_cast, php_regular_compare,
+        php_integer_cast, php_regular_compare, php_stable_sort_by,
     },
 };
 use serde_json::Value;
@@ -417,49 +417,14 @@ async fn servers(
         }
         systems.push((order, system));
     }
-    let systems = sort_systems(systems, descending);
+    let systems = php_stable_sort_by(systems, |(left, _), (right, _)| {
+        let order = php_regular_compare(left, right);
+        if descending { order.reverse() } else { order }
+    });
     Ok((
         systems.into_iter().map(|(_, row)| row).collect(),
         Value::Object(visible_graphs),
     ))
-}
-
-fn sort_systems(mut systems: Vec<(Value, Value)>, descending: bool) -> Vec<(Value, Value)> {
-    let follows = |left: &Value, right: &Value| {
-        let order = php_regular_compare(left, right);
-        if descending {
-            order.is_lt()
-        } else {
-            order.is_gt()
-        }
-    };
-    // PHP 混合值的比较可能存在循环，不能传给要求全序的切片排序。
-    if systems.len() <= 16 {
-        for index in 1..systems.len() {
-            let mut current = index;
-            while current > 0 && follows(&systems[current - 1].0, &systems[current].0) {
-                systems.swap(current - 1, current);
-                current -= 1;
-            }
-        }
-        return systems;
-    }
-    let count = systems.len();
-    let right = systems.split_off(count / 2);
-    let mut left = sort_systems(systems, descending).into_iter().peekable();
-    let mut right = sort_systems(right, descending).into_iter().peekable();
-    let mut sorted = Vec::with_capacity(count);
-    while let (Some(l), Some(r)) = (left.peek(), right.peek()) {
-        let source = if follows(&l.0, &r.0) {
-            &mut right
-        } else {
-            &mut left
-        };
-        sorted.extend(source.next());
-    }
-    sorted.extend(left);
-    sorted.extend(right);
-    sorted
 }
 
 fn server_max_age(value: &Value) -> crate::Result<i128> {

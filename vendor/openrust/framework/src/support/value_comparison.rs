@@ -244,6 +244,26 @@ fn compare_numeric_strings(left: &str, right: &str) -> Ordering {
 #[path = "regular_string_sort.rs"]
 mod regular_string_sort;
 
+/// 按固定 PHP 的比较顺序稳定排序，允许比较结果不满足传递性。
+#[doc(hidden)]
+#[must_use]
+pub fn php_stable_sort_by<T>(values: Vec<T>, compare: impl Fn(&T, &T) -> Ordering) -> Vec<T> {
+    if values.len() < 2 {
+        return values;
+    }
+    let mut sorted: Vec<_> = (0..values.len()).collect();
+    regular_string_sort::sort(&mut sorted, |left, right| {
+        compare(&values[left], &values[right])
+            .then_with(|| left.cmp(&right))
+            .is_gt()
+    });
+    let mut values: Vec<_> = values.into_iter().map(Some).collect();
+    sorted
+        .into_iter()
+        .map(|index| values[index].take().expect("排序后的索引保留一次"))
+        .collect()
+}
+
 /// 保留固定 PHP `array_unique(..., SORT_REGULAR)` 对字符串数组的值与原始顺序。
 #[doc(hidden)]
 #[must_use]
