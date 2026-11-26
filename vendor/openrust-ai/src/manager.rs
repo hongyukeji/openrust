@@ -14,10 +14,11 @@ use openrust::{
 use serde_json::Value;
 
 use crate::{
-    Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
-    FakeRerankingGateway, FakeRerankingResult, FakeTextGateway, PromptOptions, RecordedEmbeddings,
-    RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextModelTier,
-    TextPrompt, TextProvider,
+    Agent, AgentPrompt, AgentResponse, AiError, AiResult, AudioResponse, EmbeddingProvider,
+    FakeAudioGateway, FakeEmbeddingGateway, FakeRerankingGateway, FakeRerankingResult,
+    FakeTextGateway, FakeTranscriptionGateway, FakeTranscriptionResult, PromptOptions,
+    RecordedAudio, RecordedEmbeddings, RecordedReranking, RecordedTranscription, RerankingProvider,
+    StreamableAgentResponse, StructuredOutput, TextModelTier, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     classification::{
         DecisionsProtocol, FakeClassificationGateway, FakeClassificationResult,
@@ -42,6 +43,8 @@ pub struct AiManager {
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
+    audio_fake: RwLock<Option<Arc<FakeAudioGateway>>>,
+    transcription_fake: RwLock<Option<Arc<FakeTranscriptionGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
     store_fake: RwLock<Option<Arc<crate::stores::FakeStoreGateway>>>,
     file_fake: RwLock<Option<Arc<crate::files::FakeFileGateway>>>,
@@ -62,6 +65,8 @@ impl AiManager {
             factories: RwLock::default(),
             providers: Mutex::default(),
             fakes: RwLock::default(),
+            audio_fake: RwLock::default(),
+            transcription_fake: RwLock::default(),
             embeddings_fake: RwLock::default(),
             file_fake: RwLock::default(),
             store_fake: RwLock::default(),
@@ -355,7 +360,11 @@ impl AiManager {
         self.embeddings_fake.read().unwrap().clone()
     }
 
-    fn provider_name_for(&self, name: Option<&str>, field: &'static str) -> AiResult<String> {
+    pub(crate) fn provider_name_for(
+        &self,
+        name: Option<&str>,
+        field: &'static str,
+    ) -> AiResult<String> {
         if let Some(name) = name {
             return Ok(name.into());
         }
@@ -373,11 +382,65 @@ impl AiManager {
             .ok_or(AiError::ImagesNotSupported)
     }
 
+    pub fn fake_audio(
+        &self,
+        responses: impl IntoIterator<Item = AudioResponse>,
+    ) -> Arc<FakeAudioGateway> {
+        self.install_audio_fake(FakeAudioGateway::new(responses))
+    }
+
+    pub fn fake_audio_with(
+        &self,
+        resolve: impl Fn(&RecordedAudio) -> AiResult<AudioResponse> + Send + Sync + 'static,
+    ) -> Arc<FakeAudioGateway> {
+        self.install_audio_fake(FakeAudioGateway::with(resolve))
+    }
+
+    fn install_audio_fake(&self, fake: FakeAudioGateway) -> Arc<FakeAudioGateway> {
+        let fake = Arc::new(fake);
+        *self.audio_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn audio_fake(&self) -> Option<Arc<FakeAudioGateway>> {
+        self.audio_fake.read().unwrap().clone()
+    }
+
     pub fn audio_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn crate::AudioProvider>> {
         let name = self.provider_name_for(name, "default_for_audio")?;
         self.text_provider(Some(&name))?
             .audio_provider()
             .ok_or(AiError::AudioNotSupported)
+    }
+
+    pub fn fake_transcription(
+        &self,
+        responses: impl IntoIterator<Item = FakeTranscriptionResult>,
+    ) -> Arc<FakeTranscriptionGateway> {
+        self.install_transcription_fake(FakeTranscriptionGateway::new(responses))
+    }
+
+    pub fn fake_transcription_with(
+        &self,
+        resolve: impl Fn(&RecordedTranscription) -> AiResult<FakeTranscriptionResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Arc<FakeTranscriptionGateway> {
+        self.install_transcription_fake(FakeTranscriptionGateway::with(resolve))
+    }
+
+    fn install_transcription_fake(
+        &self,
+        fake: FakeTranscriptionGateway,
+    ) -> Arc<FakeTranscriptionGateway> {
+        let fake = Arc::new(fake);
+        *self.transcription_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn transcription_fake(&self) -> Option<Arc<FakeTranscriptionGateway>> {
+        self.transcription_fake.read().unwrap().clone()
     }
 
     pub fn transcription_provider(

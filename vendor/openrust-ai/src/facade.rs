@@ -68,8 +68,84 @@ impl Ai {
         Ok(Self::manager()?.reranking_fake().is_some())
     }
 
+    pub fn fake_audio(
+        responses: impl IntoIterator<Item = crate::AudioResponse>,
+    ) -> AiResult<Arc<crate::FakeAudioGateway>> {
+        Ok(Self::manager()?.fake_audio(responses))
+    }
+
+    pub fn fake_audio_with(
+        resolve: impl Fn(&crate::RecordedAudio) -> AiResult<crate::AudioResponse>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<crate::FakeAudioGateway>> {
+        Ok(Self::manager()?.fake_audio_with(resolve))
+    }
+
+    #[track_caller]
+    pub fn assert_audio_generated(
+        predicate: impl Fn(&crate::RecordedAudio) -> bool,
+    ) -> AiResult<()> {
+        crate::Audio::assert_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_audio_not_generated(
+        predicate: impl Fn(&crate::RecordedAudio) -> bool,
+    ) -> AiResult<()> {
+        crate::Audio::assert_not_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_audio_generated() -> AiResult<()> {
+        crate::Audio::assert_nothing_generated()
+    }
+
+    pub fn audio_is_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.audio_fake().is_some())
+    }
+
     pub fn audio_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::AudioProvider>> {
         Self::manager()?.audio_provider(name)
+    }
+
+    pub fn fake_transcription(
+        responses: impl IntoIterator<Item = crate::FakeTranscriptionResult>,
+    ) -> AiResult<Arc<crate::FakeTranscriptionGateway>> {
+        Ok(Self::manager()?.fake_transcription(responses))
+    }
+
+    pub fn fake_transcription_with(
+        resolve: impl Fn(&crate::RecordedTranscription) -> AiResult<crate::FakeTranscriptionResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<crate::FakeTranscriptionGateway>> {
+        Ok(Self::manager()?.fake_transcription_with(resolve))
+    }
+
+    #[track_caller]
+    pub fn assert_transcription_generated(
+        predicate: impl Fn(&crate::RecordedTranscription) -> bool,
+    ) -> AiResult<()> {
+        crate::Transcription::assert_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_transcription_not_generated(
+        predicate: impl Fn(&crate::RecordedTranscription) -> bool,
+    ) -> AiResult<()> {
+        crate::Transcription::assert_not_generated(predicate)
+    }
+
+    #[track_caller]
+    pub fn assert_no_transcription_generated() -> AiResult<()> {
+        crate::Transcription::assert_nothing_generated()
+    }
+
+    pub fn transcription_is_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.transcription_fake().is_some())
     }
 
     pub fn transcription_provider(

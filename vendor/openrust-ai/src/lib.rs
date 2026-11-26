@@ -38,6 +38,7 @@ mod error;
 pub mod events;
 mod facade;
 mod fake;
+mod fake_audio;
 mod fake_embedding_gateway;
 mod fake_reranking_gateway;
 mod files;
@@ -105,6 +106,10 @@ pub use embeddings::{
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, FakeTextResult, RecordedPrompt, RecordedQueuedPrompt};
+pub use fake_audio::{
+    FakeAudioGateway, FakeTranscriptionGateway, FakeTranscriptionResult, RecordedAudio,
+    RecordedTranscription,
+};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
 pub use files::{

@@ -936,6 +936,8 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 Speech defaults to MP3 and also supports WAV, Opus, FLAC and PCM. `male()` selects `en_paul_neutral`, while the default and `female()` select `gb_jane_neutral`. Use `voice()` for a Mistral voice ID. The Mistral driver follows Laravel’s mapping and takes speech direction from the input text. `diarize(true)` requests speaker segments and takes precedence over `language()`.
 
+In application tests, install `Audio::fake([])?` or `Transcription::fake(["Recorded notice".into()])?` inside the application scope. Use `fake_with` for a request-based callback. The default speech fixture is placeholder bytes. Supply an `AudioResponse::from_bytes` fixture when the test consumes or transcribes the generated audio. Assert calls with `assert_generated`, `assert_not_generated` or `assert_nothing_generated`. Enable `prevent_stray_audio(true)` or `prevent_stray_transcriptions(true)` on the returned gateway to catch exhausted response sequences.
+
 ## Classification {#classification}
 
 Set `AI_CLASSIFICATION_PROVIDER` to the connection name and set its default model to an ID that supports the provider's Decisions API.

@@ -9,7 +9,7 @@ use openrust::{
 use serde_json::json;
 
 use crate::{
-    Ai, AiError, AiResult,
+    Ai, AiError, AiResult, FakeAudioGateway, RecordedAudio,
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
@@ -30,6 +30,44 @@ impl Audio {
             format: AudioFormat::Mp3,
             timeout: Duration::from_secs(30),
         })
+    }
+
+    pub fn fake(
+        responses: impl IntoIterator<Item = AudioResponse>,
+    ) -> AiResult<Arc<FakeAudioGateway>> {
+        Ai::fake_audio(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&RecordedAudio) -> AiResult<AudioResponse> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeAudioGateway>> {
+        Ai::fake_audio_with(resolve)
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::audio_is_faked()
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeAudioGateway>> {
+        Ai::manager()?.audio_fake().ok_or(AiError::FakeNotInstalled)
+    }
+
+    #[track_caller]
+    pub fn assert_generated(predicate: impl Fn(&RecordedAudio) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_generated(predicate: impl Fn(&RecordedAudio) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_generated() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_generated();
+        Ok(())
     }
 }
 
@@ -91,7 +129,39 @@ impl PendingAudioGeneration {
         provider: Option<&str>,
         model: Option<&str>,
     ) -> AiResult<AudioResponse> {
-        let provider = Ai::audio_provider(provider)?;
+        let manager = Ai::manager()?;
+        if let Some(fake) = manager.audio_fake() {
+            let selected = model
+                .is_none()
+                .then(|| manager.audio_provider(provider).ok())
+                .flatten();
+            let resolved_model = model.or_else(|| {
+                selected
+                    .as_ref()
+                    .and_then(|provider| provider.default_audio_model().ok())
+            });
+            AudioPrompt {
+                text: &self.text,
+                voice: &self.voice,
+                instructions: self.instructions.as_deref(),
+                format: self.format,
+                model: resolved_model.unwrap_or("fake"),
+                timeout: self.timeout,
+            }
+            .validate()?;
+            return fake.respond(RecordedAudio {
+                text: self.text,
+                voice: self.voice,
+                instructions: self.instructions,
+                format: self.format,
+                timeout: self.timeout,
+                provider: manager
+                    .provider_name_for(provider, "default_for_audio")
+                    .ok(),
+                model: resolved_model.map(str::to_owned),
+            });
+        }
+        let provider = manager.audio_provider(provider)?;
         let model = match model {
             Some(model) => model,
             None => provider.default_audio_model()?,
@@ -204,6 +274,15 @@ pub struct AudioResponse {
 }
 
 impl AudioResponse {
+    pub(crate) fn fake_placeholder(format: AudioFormat, provider: String, model: String) -> Self {
+        Self {
+            content: Bytes::from_static(b"fake-audio-content"),
+            format,
+            provider,
+            model,
+        }
+    }
+
     pub fn from_bytes(
         bytes: impl Into<Bytes>,
         format: AudioFormat,

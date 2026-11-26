@@ -936,6 +936,8 @@ MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
 
 語音預設回傳 MP3，也支援 WAV、Opus、FLAC 和 PCM。`male()` 使用 `en_paul_neutral`，預設音色和 `female()` 使用 `gb_jane_neutral`。可透過 `voice()` 指定 Mistral 音色 ID。此驅動沿用 Laravel 的對應方式，朗讀風格透過輸入文字表達。`diarize(true)` 請求帶有說話者標記的分段，優先於 `language()`。
 
+在應用測試作用域內呼叫 `Audio::fake([])?` 或 `Transcription::fake(["測試轉錄".into()])?`。用 `fake_with` 依請求產生替身回應。預設語音替身傳回佔位位元組。測試需要播放或轉錄該音訊時，透過 `AudioResponse::from_bytes` 提供有效的音訊樣本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 檢查呼叫。對傳回的替身呼叫 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在回應序列耗盡時回報錯誤。
+
 ## 分類 {#classification}
 
 將 `AI_CLASSIFICATION_PROVIDER` 設為連線名稱，並將該連線的預設模型設為支援對應 Decisions API 的模型 ID。

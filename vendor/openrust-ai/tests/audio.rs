@@ -183,3 +183,85 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
     fixture.await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn audio_and_transcription_fakes_record_requests_with_no_provider_credentials()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust_ai::{Ai, AudioResponse, AudioVoice};
+
+    let create_app = || {
+        TestApp::create(|builder| {
+            builder
+                .with_providers(openrust_ai::openrust_providers())
+                .with_routing(Routing::default().web(|| {
+                    Route::get("/fake-audio", || async {
+                        assert!(!Audio::is_faked().unwrap());
+                        assert!(!Transcription::is_faked().unwrap());
+                        assert!(matches!(
+                            Audio::assert_nothing_generated(),
+                            Err(AiError::FakeNotInstalled)
+                        ));
+                        let audio = Audio::fake([AudioResponse::from_bytes(
+                            wav(),
+                            AudioFormat::Wav,
+                            "fixture",
+                            "audio-v1",
+                        )
+                        .unwrap()])
+                        .unwrap();
+                        audio.prevent_stray_audio(true);
+                        Ai::assert_no_audio_generated().unwrap();
+                        let speech = Audio::of("Read the notice")
+                            .unwrap()
+                            .format(AudioFormat::Wav)
+                            .female()
+                            .instructions("Slowly")
+                            .generate_with(Some("isolated"), Some("explicit"))
+                            .await
+                            .unwrap();
+                        assert_eq!(speech.content(), wav());
+                        assert_eq!(speech.model, "audio-v1");
+                        let error = Audio::of("Unexpected").unwrap().generate().await.err();
+                        assert_eq!(error, Some(AiError::FakeExhausted));
+                        Audio::assert_not_generated(|request| request.text == "Unexpected")
+                            .unwrap();
+                        Ai::assert_audio_generated(|request| {
+                            request.provider.as_deref() == Some("isolated")
+                                && request.model.as_deref() == Some("explicit")
+                                && request.voice == AudioVoice::Female
+                                && request.instructions.as_deref() == Some("Slowly")
+                        })
+                        .unwrap();
+                        let transcript = Transcription::fake_with(|request| {
+                            assert_eq!(request.audio.as_ref(), wav());
+                            assert_eq!(request.mime_type, "audio/wav");
+                            Ok("Recorded notice".into())
+                        })
+                        .unwrap();
+                        let result =
+                            Transcription::of(TranscriptionAudio::try_from(&speech).unwrap())
+                                .language("en")
+                                .diarize(true)
+                                .generate()
+                                .await
+                                .unwrap();
+                        assert_eq!(result.text, "Recorded notice");
+                        assert_eq!(result.segments[0].speaker.as_deref(), Some("Speaker 1"));
+                        Ai::assert_transcription_generated(|request| request.diarize).unwrap();
+                        Transcription::assert_not_generated(|request| {
+                            request.language.as_deref() == Some("fr")
+                        })
+                        .unwrap();
+                        assert_eq!(transcript.recorded().len(), 1);
+                        Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                    })?;
+                    Ok(())
+                }))
+        })
+    };
+    let mut first = create_app()?;
+    let mut second = create_app()?;
+    assert_eq!(first.get("/fake-audio").await?.status(), StatusCode::OK);
+    assert_eq!(second.get("/fake-audio").await?.status(), StatusCode::OK);
+    Ok(())
+}

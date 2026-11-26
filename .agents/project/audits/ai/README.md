@@ -298,9 +298,17 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Audio::of`、字符串 `ToAudio`、`PendingAudioGeneration` 与 `AudioProvider` 提供默认或显式连接、模型、音色、指令、格式及超时。生成结果持有缓冲音频字节并使用共用 Storage 写入。转录支持本地路径、Storage 磁盘、框架上传及字节输入，经受限读取和内容格式判定后发送 multipart 请求。支持语种、模型选择、说话人分段、时间戳、实际报告的 Token 用量及计费时长。图像也复用受限读取和框架媒体类型检测。OpenAI 兼容连接按能力显式配置。
 
-包测试覆盖标准转录及说话人区分、真实 WAV、用量两种分支、磁盘读取、上传类型探测和异常分段。独立 Artisan 通过本地协议上游生成 WAV 并落盘，独立 HTTP 进程上传同一文件，验证字节、认证、语言、说话人与计费秒数。实测格式为 WAV。其他媒体格式、非 OpenAI 供应商、媒体 Fake、排队、流式转录及正式供应商凭证验收仍待对应批次。
+包测试覆盖标准转录及说话人区分、真实 WAV、用量两种分支、磁盘读取、上传类型探测和异常分段。独立 Artisan 通过本地协议上游生成 WAV 并落盘，独立 HTTP 进程上传同一文件，验证字节、认证、语言、说话人与计费秒数。实测格式为 WAV。其他媒体格式、非 OpenAI 供应商、排队、流式转录及正式供应商凭证验收归对应批次。
 
 - [OpenAI Speech](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create) · [OpenAI Transcription](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create)
+
+### 语音与转录即时 Fake
+
+`Audio` 与 `Transcription` 提供 `fake`、`fake_with`、`is_faked` 及生成断言，状态由当前应用的 `AiManager` 持有。音频可提供完整响应，转录可提供文本或完整响应。默认语音使用固定 Laravel 的占位字节。请求记录包含选用的连接、模型和各自的生成选项。启用禁止意外调用后，序列用尽返回 `FakeExhausted`。
+
+独立 Artisan、HTTP 在无供应商密钥的应用实测默认响应、序列、WAV 请求字节、生成断言和耗尽行为。两套应用验证状态隔离，SDK 回归同时覆盖回调、显式连接与模型、完整 WAV 响应和既有 OpenAI 出站协议。16 项 SDK 测试、严格 Clippy 与三语站点通过。语音与转录的 Worker 排队及排队 Fake 断言仍待实现。
+
+- [固定 Laravel 音频 Fake](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeAudioGateway.php) · [固定 Laravel 转录 Fake](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeTranscriptionGateway.php)
 
 ## AI-05 OpenAI Decisions 分类
 

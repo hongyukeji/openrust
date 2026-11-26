@@ -6,7 +6,8 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
-    Ai, AiError, AiResult, AudioResponse, Usage,
+    Ai, AiError, AiResult, AudioResponse, FakeTranscriptionGateway, FakeTranscriptionResult,
+    RecordedTranscription, Usage,
     connection::Connection,
     media_storage,
     text::{transport_error, validate},
@@ -51,6 +52,51 @@ impl Transcription {
             .await?
             .ok_or(AiError::InvalidAudio)?;
         Self::from_bytes(content)
+    }
+
+    pub fn fake(
+        responses: impl IntoIterator<Item = FakeTranscriptionResult>,
+    ) -> AiResult<Arc<FakeTranscriptionGateway>> {
+        Ai::fake_transcription(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&RecordedTranscription) -> AiResult<FakeTranscriptionResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<FakeTranscriptionGateway>> {
+        Ai::fake_transcription_with(resolve)
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::transcription_is_faked()
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeTranscriptionGateway>> {
+        Ai::manager()?
+            .transcription_fake()
+            .ok_or(AiError::FakeNotInstalled)
+    }
+
+    #[track_caller]
+    pub fn assert_generated(predicate: impl Fn(&RecordedTranscription) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_generated(
+        predicate: impl Fn(&RecordedTranscription) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_generated(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_generated() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_generated();
+        Ok(())
     }
 }
 
@@ -133,7 +179,38 @@ impl PendingTranscriptionGeneration {
         provider: Option<&str>,
         model: Option<&str>,
     ) -> AiResult<TranscriptionResponse> {
-        let provider = Ai::transcription_provider(provider)?;
+        let manager = Ai::manager()?;
+        if let Some(fake) = manager.transcription_fake() {
+            let selected = model
+                .is_none()
+                .then(|| manager.transcription_provider(provider).ok())
+                .flatten();
+            let resolved_model = model.or_else(|| {
+                selected
+                    .as_ref()
+                    .and_then(|provider| provider.default_transcription_model().ok())
+            });
+            TranscriptionPrompt {
+                audio: &self.audio,
+                language: self.language.as_deref(),
+                diarize: self.diarize,
+                model: resolved_model.unwrap_or("fake"),
+                timeout: self.timeout,
+            }
+            .validate()?;
+            return fake.respond(RecordedTranscription {
+                mime_type: self.audio.mime_type(),
+                audio: self.audio.content,
+                language: self.language,
+                diarize: self.diarize,
+                timeout: self.timeout,
+                provider: manager
+                    .provider_name_for(provider, "default_for_transcription")
+                    .ok(),
+                model: resolved_model.map(str::to_owned),
+            });
+        }
+        let provider = manager.transcription_provider(provider)?;
         let model = match model {
             Some(model) => model,
             None => provider.default_transcription_model()?,
