@@ -103,6 +103,12 @@ Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会
 
 Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
 
+### 调度条目的默认时区
+
+PHP 8.5.12 使用固定 Laravel Kernel 及 Schedule 构造任务。任务显式时区优先，其余任务读 `app.schedule_timezone`，缺少配置时继承 `app.timezone`，显式为 `null` 时保留空值。Telescope 固定 `ScheduleWatcher` 读取任务的 `timezone` 字段。原生前态只记录任务显式时区。框架现将调度时确定的字段传给完成事件，并在手动与后台任务的执行入口取得对应配置。 [固定 Laravel Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L294-L311) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际 `schedule:run` 和 `telescope:show --json` 验证上述字段。核心调度及测试时钟 22 项通过，Redis 8.10.3 实际复验进程协调、互斥和清理。Pulse Provider 27 项、Telescope Provider 31 项、隔离快照格式、相关严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-schedule-zone-{upstream,macos-baseline,macos,redis,docs}.log`。固定 Laravel 指定系统用户运行时的 `user` 仍是开放契约，原生记录保留空值。
+
 ### list 命令的终端颜色
 
 固定 PHP 8.5.12 使用 Telescope 样式方法和 Symfony Console 8.0.6 核对 34 个普通与装饰输出的单元格。原生 `list` 通过框架现有 ANSI 开关显示 HTTP 方法、状态码、慢查询、任务状态、缓存动作和日志级别。慢标记采用固定上游的 PHP 真值规则。诊断内容中的标签以文字呈现，原始控制字符在表格中清理。 [固定输出样式方法](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/Concerns/FormatsOutput.php#L97-L176)

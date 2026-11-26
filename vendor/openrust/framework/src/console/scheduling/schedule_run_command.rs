@@ -232,6 +232,7 @@ impl Command for ScheduleRunCommand {
 struct Due<'a> {
     index: usize,
     event: &'a Arc<Event>,
+    recorded_timezone: Option<&'a TimeZone>,
     election: Option<bool>,
     next_run: Instant,
 }
@@ -275,7 +276,7 @@ impl ScheduleRunCommand {
                     .get("app.timezone"),
             )?,
         };
-        let default_zone = timezone(app)?;
+        let (default_zone, _) = timezone(app)?;
         let now = Timestamp::try_from(self.schedule.current_time()?).map_err(error)?;
         let mut rows = Vec::new();
         for event in events {
@@ -444,7 +445,11 @@ impl ScheduleRunCommand {
         {
             return Ok(());
         }
-        let result = self.invoke_with_hooks(app, output, task).await;
+        let fallback = configured_recording_timezone(app);
+        let recorded_timezone = task.zone.as_ref().or(fallback.as_ref());
+        let result = self
+            .invoke_with_hooks(app, output, task, recorded_timezone)
+            .await;
         if let Some(mutex) = &mutex {
             mutex.forget(task).await.map_err(error)?;
         }
@@ -505,7 +510,7 @@ impl ScheduleRunCommand {
         let start = Instant::now();
         let time = self.schedule.current_time()?;
         let deadline = start + remaining_in_minute(time);
-        let default_zone = timezone(app)?;
+        let (default_zone, records_default_zone) = timezone(app)?;
         let EnvironmentResult::String(environment) = app.environment(None).map_err(error)? else {
             return Err(ConsoleError::new(
                 "Could not resolve the application's environment.",
@@ -526,6 +531,10 @@ impl ScheduleRunCommand {
                 due.push(Due {
                     index,
                     event,
+                    recorded_timezone: event
+                        .zone
+                        .as_ref()
+                        .or(records_default_zone.then_some(&default_zone)),
                     election: None,
                     next_run: start,
                 });
@@ -673,7 +682,8 @@ impl ScheduleRunCommand {
                 self.launch_background(app, output, entry.index, event, overlap)
                     .await
             } else {
-                self.invoke_with_hooks(app, output, event).await
+                self.invoke_with_hooks(app, output, event, entry.recorded_timezone)
+                    .await
             };
             Ok::<_, ConsoleError>((result, start.elapsed()))
         }
@@ -722,9 +732,11 @@ impl ScheduleRunCommand {
         app: &Application,
         output: &mut Output,
         event: &Event,
+        recorded_timezone: Option<&TimeZone>,
     ) -> Result<TaskOutcome, ConsoleError> {
         event.call_before_hooks(app, output).await?;
-        self.invoke_with_after_hooks(app, output, event).await
+        self.invoke_with_after_hooks(app, output, event, recorded_timezone)
+            .await
     }
 
     async fn invoke_with_after_hooks(
@@ -732,6 +744,7 @@ impl ScheduleRunCommand {
         app: &Application,
         output: &mut Output,
         event: &Event,
+        recorded_timezone: Option<&TimeZone>,
     ) -> Result<TaskOutcome, ConsoleError> {
         let (outcome, captured) = self.invoke(app, output, event).await?;
         if outcome.is_ok() || matches!(event.action, Action::Callback(..) | Action::Job(..)) {
@@ -741,6 +754,7 @@ impl ScheduleRunCommand {
                     output,
                     matches!(outcome, Ok(TaskOutcome::Succeeded)),
                     &captured,
+                    recorded_timezone,
                 )
                 .await?;
         }
@@ -951,7 +965,12 @@ impl ScheduleRunCommand {
             .filter(|task| task.background && task.mutex_key() == *key);
         let start = Instant::now();
         let result = match task {
-            Some(task) => self.invoke_with_after_hooks(app, output, task).await,
+            Some(task) => {
+                let fallback = configured_recording_timezone(app);
+                let recorded_timezone = task.zone.as_ref().or(fallback.as_ref());
+                self.invoke_with_after_hooks(app, output, task, recorded_timezone)
+                    .await
+            }
             None => Err(error("The scheduled background task could not be found.")),
         };
         let release = match lock {
@@ -1027,13 +1046,23 @@ fn exit_outcome(code: i32, message: impl std::fmt::Display) -> TaskOutcome {
     }
 }
 
-fn timezone(app: &Application) -> Result<TimeZone, ConsoleError> {
+fn timezone(app: &Application) -> Result<(TimeZone, bool), ConsoleError> {
     let config = app.configuration_repository().map_err(error)?;
-    let zone = config
-        .get("app.schedule_timezone")
-        .filter(|value| !value.is_null())
-        .or_else(|| config.get("app.timezone").filter(|value| !value.is_null()));
-    parse_timezone(zone)
+    let schedule = config.get("app.schedule_timezone");
+    let application = config.get("app.timezone");
+    // 显式 null 仍按应用时区计算，但上游的调度条目保留 null。
+    let records_timezone = schedule
+        .as_ref()
+        .or(application.as_ref())
+        .is_some_and(|zone| !zone.is_null());
+    let zone = schedule.filter(|value| !value.is_null()).or(application);
+    Ok((parse_timezone(zone)?, records_timezone))
+}
+
+fn configured_recording_timezone(app: &Application) -> Option<TimeZone> {
+    timezone(app)
+        .ok()
+        .and_then(|(zone, configured)| configured.then_some(zone))
 }
 
 fn relative_due(now: &Zoned, next: &Zoned) -> String {

@@ -637,6 +637,55 @@ async fn native_event_gate_notification_model_view_and_dump_sources_are_observed
     );
 }
 
+#[tokio::test]
+async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone() {
+    use openrust::contracts::foundation::Application as _;
+
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let config = app.app().config().unwrap();
+    config
+        .set("app.timezone", json!("America/Toronto"))
+        .unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    for (override_zone, expected) in [
+        (None, json!("America/Toronto")),
+        (Some(json!("Europe/Paris")), json!("Europe/Paris")),
+        (Some(serde_json::Value::Null), serde_json::Value::Null),
+    ] {
+        repository.clear().await.unwrap();
+        if let Some(override_zone) = override_zone {
+            config.set("app.schedule_timezone", override_zone).unwrap();
+        }
+        app.artisan(["schedule:run"]).await.assert_successful();
+        let scheduled = repository
+            .get(Some(EntryType::ScheduledTask), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(scheduled.len(), 2);
+        for (description, timezone) in [
+            ("observed callback", json!("Asia/Shanghai")),
+            ("failing callback", expected),
+        ] {
+            let entry = scheduled
+                .iter()
+                .find(|entry| entry.content["description"] == description)
+                .unwrap();
+            let result = app
+                .artisan(["telescope:show", &entry.id.to_string(), "--json"])
+                .await;
+            result.assert_successful();
+            let output: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+            assert_eq!(
+                output["entry"]["content"]["timezone"], timezone,
+                "{description}"
+            );
+        }
+    }
+}
+
 fn input_handler(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {

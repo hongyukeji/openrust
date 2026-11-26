@@ -190,6 +190,7 @@ impl Event {
         output: &mut Output,
         succeeded: bool,
         captured: &[u8],
+        recorded_timezone: Option<&TimeZone>,
     ) -> Result<(), ConsoleError> {
         for (kind, hook) in &self.after_hooks {
             let applies = match kind {
@@ -231,7 +232,7 @@ impl Event {
             },
             description: self.description.clone(),
             expression: self.cron_text.clone(),
-            timezone: self.zone.as_ref().map(|zone| {
+            timezone: recorded_timezone.map(|zone| {
                 zone.iana_name()
                     .map(str::to_owned)
                     .unwrap_or_else(|| zone.to_offset(Timestamp::now()).to_string())
