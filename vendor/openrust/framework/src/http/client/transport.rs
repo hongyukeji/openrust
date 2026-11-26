@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use reqwest::Request;
 use serde_json::{Map, Value};
 use tokio::time::Instant;
+use url::Position;
 
 use super::{
     Error, Factory, RecordedMultipartField, RecordedRequest, RecordedRequestDataSource, Response,
@@ -299,6 +300,14 @@ impl Transport<'_> {
 
     fn snapshot(&self, request: &Request) -> RecordedRequest {
         let mut snapshot = RecordedRequest::from(request);
+        // HTTP 传输从目标地址补足 Host，诊断快照也保留同一主机与端口。
+        if !snapshot.headers.contains_key(header::HOST)
+            && request.url().has_host()
+            && let Ok(host) =
+                HeaderValue::from_str(&request.url()[Position::BeforeHost..Position::AfterPort])
+        {
+            snapshot.headers.insert(header::HOST, host);
+        }
         if request.method() == Method::GET
             && request.body().is_none()
             && let Some((url, original_query)) = &self.query_override
@@ -396,12 +405,12 @@ impl Redirect {
         let _ = target.set_password(None);
         let _ = target.set_username("");
         request.headers_mut().remove(header::REFERER);
+        request.headers_mut().remove(header::HOST);
         if target.origin() != request.url().origin() {
             for name in [
                 header::AUTHORIZATION,
                 header::COOKIE,
                 header::PROXY_AUTHORIZATION,
-                header::HOST,
             ] {
                 request.headers_mut().remove(name);
             }

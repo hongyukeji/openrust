@@ -2622,6 +2622,10 @@ fn client_handler(
         assert!(
             Http::pending_request()
                 .unwrap()
+                .with_header(
+                    http::header::HOST,
+                    http::HeaderValue::from_static("custom.test")
+                )
                 .as_form()
                 .post(
                     &redirect_url,
@@ -3431,10 +3435,20 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         if matches!(index, 12 | 16 | 18) {
                             assert!(headers.starts_with("post /redirect?"));
                         }
+                        if index == 12 {
+                            assert!(headers.lines().any(|line| line == "host: custom.test"));
+                        }
                         if matches!(index, 13 | 17 | 19) {
                             assert!(headers.starts_with("get /final?destination=value "));
                             assert_eq!(size, 0);
                             assert!(!headers.contains("transfer-encoding:"));
+                            let authority = if index == 13 {
+                                address
+                            } else {
+                                redirect_address
+                            };
+                            let host = format!("host: {authority}");
+                            assert!(headers.lines().any(|line| line == host));
                             if index == 13 {
                                 assert!(
                                     headers.contains(
@@ -3640,6 +3654,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     assert_eq!(entries[1].content["method"], "GET");
     assert_eq!(entries[1].content["payload"], payload);
     for entry in &entries[..2] {
+        assert_eq!(
+            entry.content["headers"]["host"],
+            redirect_address.to_string()
+        );
         assert!(
             entry.content["headers"]["content-type"]
                 .as_str()
@@ -3667,6 +3685,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
             .ends_with("/final?destination=value")
     );
     assert_eq!(entries[1].content["method"], "GET");
+    assert_eq!(entries[1].content["headers"]["host"], address.to_string());
     assert_eq!(
         entries[1].content["payload"],
         json!({"flag":false,"count":2,"secret":"********"})

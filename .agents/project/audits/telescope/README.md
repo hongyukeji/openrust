@@ -237,6 +237,12 @@ macOS 用 PostgreSQL 18.7 的真实 HTTP 分别验证外层调用行、回调写
 
 Rust 独有的 Future 取消路径也用 PostgreSQL 18.7 实测。前态在已推迟外键检查并写入待检查数据后取消包装，仍可通过同一事务查询。现关闭该活跃事务，拒绝继续 SQL 或提交，丢弃租约并回滚未提交的父行和子行。单连接池下一次取得的连接可以正常查询，即时外键检查仍生效。两个 PostgreSQL HTTP 来源回归、默认 Watchers、全仓格式、相关严格 Clippy、三语站点和六个正文视口复跑通过。证据为 `target/tmp/observability-parity/query-pgsql-constraints-cancellation-{baseline,verified,docs}.log`。
 
+### 出站重定向的 Host
+
+固定 Laravel HTTP Client、Guzzle 7.10.0 和 PSR-7 2.8.0 的实际请求构建覆盖同源与跨源、非默认端口、默认端口和 IPv6。首跳读取应用指定的 `Host`，下一跳根据目标地址重新生成。证据为 `target/tmp/observability-parity/telescope-redirect-host-upstream.log`。Rust 前态在同源回环请求中继续发送首跳的自定义主机，证据为 `telescope-redirect-host-baseline.log`。 [固定重定向中间件](https://github.com/guzzle/guzzle/blob/7.10.0/src/RedirectMiddleware.php) [固定 PSR-7 请求重建](https://github.com/guzzle/psr7/blob/2.8.0/src/Utils.php#L159-L193)
+
+重定向现在清除旧的 `Host`，由原有传输根据目标地址生成。诊断快照同步保存已有或根据 URL 得到的 `Host`，固定地址校验仍检查实际请求的头部。真实回环 HTTP 通过 63 组跳转，验证线上目标、响应事件和显式主机头的更新。Telescope 用 SQLite、PostgreSQL 18.7、MySQL 8.4.13 读取同源与跨源条目的头部。框架客户端、选项和 Sink 合计 39 项，Telescope Provider 32 项通过，独立 Redis 观察项按环境条件跳过。隔离快照格式、相关库与测试的严格 Clippy、三语文档构建及桌面和移动视口通过。证据为 `target/tmp/observability-parity/observability-host-and-{pulse-ignore-macos,ignore-docs}.log`。
+
 ### 出站请求的原始 JSON 形状
 
 固定 PHP 8.5.12 的 Laravel HTTP Client 和 Telescope `ClientRequestWatcher::input` 验证，`withBody` 和连接失败都按关联数组解码原始 JSON。空对象或键从 0 开始按顺序连续的对象表现为数组，逆序数字键和带前导零的键保留。结构化请求可携带显式的嵌套对象，保留其对象形状。上游探针为 `target/tmp/observability-parity/telescope-client-request-shape-upstream.log`。 [固定 Laravel Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Request.php#L160-L196) [固定 Telescope Watcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php#L194-L230)

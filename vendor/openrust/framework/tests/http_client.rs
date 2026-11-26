@@ -978,6 +978,7 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
                 any(
                     |Path(code): Path<u16>, request: axum::extract::Request| async move {
                         assert!(request.headers().contains_key(header::REFERER));
+                        assert_eq!(request.headers()[header::HOST], "custom.test");
                         assert_eq!(request.headers()[header::CONTENT_TYPE], "text/plain");
                         let body = axum::body::to_bytes(request.into_body(), 512)
                             .await
@@ -1015,6 +1016,10 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
                         [
                             ("x-method", parts.method.as_str().to_owned()),
                             ("x-body", body.to_owned()),
+                            (
+                                "x-host",
+                                parts.headers[header::HOST].to_str().unwrap().to_owned(),
+                            ),
                         ],
                     )
                 }),
@@ -1024,6 +1029,7 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
     let dispatcher = Arc::new(Dispatcher::new());
     let events = dispatcher.fake(&[]);
     let factory = Factory::new().unwrap().with_dispatcher(dispatcher);
+    let authority = base.trim_start_matches("http://");
     let mut expected_methods = Vec::new();
     for (code, drop_body) in [
         (300, true),
@@ -1057,11 +1063,13 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
                     header::REFERER,
                     HeaderValue::from_static("http://example.test/source"),
                 )
+                .with_header(header::HOST, HeaderValue::from_static("custom.test"))
                 .with_body("payload", HeaderValue::from_static("text/plain"))
                 .send(method, &format!("{base}/redirect/{code}"))
                 .await
                 .unwrap();
             assert!(response.ok());
+            assert_eq!(response.header("x-host").unwrap(), authority);
             assert_eq!(response.header("x-method").unwrap(), expected.as_str());
             assert_eq!(
                 response.header("x-body").unwrap(),
@@ -1076,6 +1084,7 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
         let reply = reply.downcast_ref::<ResponseReceived>().unwrap();
         assert_eq!(reply.request.url.path(), "/target");
         assert_eq!(reply.request.method, expected);
+        assert_eq!(reply.request.headers[header::HOST], authority);
     }
     task.abort();
 }

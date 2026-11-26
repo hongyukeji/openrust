@@ -56,7 +56,7 @@ Import `openrust::database::DatabaseCursorExt` and call `cursor.try_next_with_so
 
 Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types. In decoded raw JSON, empty objects and objects whose keys run from `0` in order appear as arrays. Structured JSON passed to the client keeps its nested object shapes.
 
-After a redirect, response diagnostics show the final URL and preserve the original GET, JSON, or form input. Connection failures use the request carried by the exception, so diagnostics only decode a supported buffered body.
+After a redirect, response diagnostics show the final URL and preserve the original GET, JSON, or form input. Each redirect resets `Host` from the target URL. Diagnostics include the recorded host and port. Connection failures use the request carried by the exception, so diagnostics only decode a supported buffered body.
 
 ## Queries and commands {#commands}
 
