@@ -206,6 +206,8 @@ The database records each lease attempt by receipt and generation. A completed, 
 
 In a cluster, use the same primary database for receipt claims on every Worker. Receipt lease deadlines use that database’s clock. Synchronize node clocks for any inbound signature validator that checks a timestamp.
 
+When using SQS, configure the visibility timeout on the queue itself. It should exceed the receipt lease so a replacement Worker can reclaim the receipt when the message becomes visible again.
+
 ### Deduplicate a verified event {#verified-event-deduplication}
 
 For a profile with `atomic_database_queue: true` or `recover_dispatch: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with the corresponding dispatch option. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.

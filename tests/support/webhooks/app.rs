@@ -428,7 +428,18 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
                 let expected = std::env::var("FIXTURE_RECOVERY_QUEUE")
                     .unwrap_or_else(|_| "foreign-database".into());
                 assert_eq!(context.connection(), expected);
-                assert_eq!(context.queue(), "webhook-recovery");
+                let queue = std::env::var("FIXTURE_RECOVERY_QUEUE_NAME")
+                    .unwrap_or_else(|_| "webhook-recovery".into());
+                if expected == "sqs" {
+                    // SQS 的 Job 队列为完整 URL，与 Laravel 的 SqsJob 一致。
+                    let prefix = std::env::var("SQS_PREFIX").expect("SQS 验收队列前缀");
+                    assert_eq!(
+                        context.queue(),
+                        format!("{}/{queue}", prefix.trim_end_matches('/'))
+                    );
+                } else {
+                    assert_eq!(context.queue(), queue);
+                }
             } else {
                 assert_eq!(context.connection(), "database");
                 assert_eq!(context.queue(), "webhook-receipts");
@@ -953,10 +964,14 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     } else {
                         "accepted"
                     };
+                    let queue = env
+                        .get_utf8("FIXTURE_RECOVERY_QUEUE_NAME")
+                        .map_err(runtime_error)?
+                        .unwrap_or("webhook-recovery");
                     Ok(std::sync::Arc::new(
                         openrust_webhook_client::jobs::QueuedWebhookJob::new(job)?
                             .on_connection(connection)
-                            .on_queue("webhook-recovery")
+                            .on_queue(queue)
                             .with_options(openrust::queue::JobOptions {
                                 max_tries: Some(if deferred { 1 } else { 2 }),
                                 timeout: Some(std::time::Duration::from_secs(4)),

@@ -489,7 +489,10 @@ pub(super) fn submit(
             .on_connection(Some(
                 std::env::var("FIXTURE_SEND_QUEUE").unwrap_or_else(|_| "database".into()),
             ))
-            .on_queue(Some("webhook-outgoing".into()))
+            .on_queue(Some(
+                std::env::var("FIXTURE_SEND_QUEUE_NAME")
+                    .unwrap_or_else(|_| "webhook-outgoing".into()),
+            ))
             .timeout_in_seconds(if mode == "timeout" {
                 1
             } else if key.starts_with("slot-hold-") {

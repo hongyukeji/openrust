@@ -55,3 +55,22 @@
 | 发送 | 真实 HTTP 登记投递，由 `webhook-server:send --queue` 入队。慢节点在发送许可前暂停，快节点在有效租约内未发送。将测试投递标记为租约到期后，快节点成功投递，旧 Worker 返回后没有追加请求或改写终态。真实 HTTP 收件端只收到一份原文并验证 HMAC，`Timestamp` 与数据库时间相差小于 15 秒。尝试一标为 `unknown`，尝试二标为 `succeeded`。 |
 
 两次执行 Artisan 迁移、配置及路由缓存和原生 `queue:work --once`。测试为两个队列分别复制两条任务以模拟重复投递，并通过 SQL 将指定记录的 `processing_until` 或 `lease_until` 置零，确保旧 Worker 仍存活时可以确定地触发过期接手。发送测试启用了共享额度和发送许可。该测试覆盖有效租约、过期接手及旧持有者写回，实际等待租约到期的单独进程退出场景见上文。未模拟物理主机的 NTP 调整与生产入口，也未在 SQLite、其他队列或停用发送许可的组合执行时钟偏移复验。本批容器、临时数据库卷、网络与探针已清理，证据日志留在 `target/tmp/webhook-clock-skew/`。
+
+## SQS 标准与 FIFO 复验 {#sqs-queue}
+
+复用两包既有的 Webhook 路由、数据库派发意图、投递 Builder 与原生 SQS 队列。固定 Laravel 的 `SqsJob` 将完整队列 URL 保存到 Job 上，并用收据句柄删除消息或调整可见性。首次接收 Worker 执行暴露了夹具只接受逻辑队列名的断言。夹具现明确核对 SQS 的完整 URL，并可为两个包分别配置 FIFO 队列名称。框架与两包的运行时代码均沿用原实现。 [固定 Laravel SqsJob](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Jobs/SqsJob.php)
+
+同一份补过夹具的 `ed8b63c7` 冻结源码使用 Rust 1.94.0 构建 Linux ARM64 制品。每组启动两个处理节点，各自有配置、路由缓存，并通过真实 Artisan 迁移共享数据库。隔离的 ElasticMQ 1.6.15 使用 ARM64 镜像 `sha256:ed1504d2c43eb5dda2613c5a9c06b4632ea637470f0000fe32493bb271511bb4`、12 秒的队列可见性超时以及合成凭据。 [ElasticMQ v1.6.15](https://github.com/softwaremill/elasticmq/releases/tag/v1.6.15) · [SQS 可见性超时](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html)
+
+| 共享主写库 | 队列 | 接收重复请求及 Worker 退出恢复 | 出站 HTTP |
+| --- | --- | --- | --- |
+| PostgreSQL 18.7 | Standard | 通过 | 通过 |
+| PostgreSQL 18.7 | FIFO | 通过 | 通过 |
+| MySQL 8.4.13 | Standard | 通过 | 通过 |
+| MySQL 8.4.13 | FIFO | 通过 | 通过 |
+
+- 两节点分别接收同一个签名正文，保存一笔接收记录和一笔派发意图。另一节点的 `webhook-client:recover` 把意图派发至目标 SQS 队列。首个 `queue:work sqs --once` 取得业务租约后以 79 退出，队列显示消息不可见。等待其可见性期限自然到期后，另一节点重新领取并读取原始正文。数据库保留第一代次过期和第二代次完成，队列清零。
+- 节点 1 通过 HTTP 登记，再通过 `webhook-server:send --queue` 提交，节点 0 的独立 `queue:work sqs --once` 投递。收件端仅收到一次请求，HMAC 与原文一致。投递历史保存一次成功，SQS 队列清零，应用的 database 队列表始终无任务。
+- 此轮 FIFO 覆盖真实 Job 路由及重投递。FIFO 分组排序及去重窗口的专项结果见[原生队列验收](../06-03/sqs.md)。托管 AWS 的 IAM、STS、KMS、真实配额与跨物理节点发布组合仍需隔离 AWS 环境。四组本机容器、网络和临时数据库卷已清理，原始日志见 `target/tmp/webhook-sqs-topology/`。
+
+工作区格式检查通过。冻结源码的 Webhook 验收入口使用 Linux ARM64 Clippy 0.1.94、`-D warnings` 和仅元数据输出完成严格检查。三语接收指南补充 SQS 可见性超时设置，内容检查及根路径和 `/docs/` 的六项真实浏览器检查通过。

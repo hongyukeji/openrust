@@ -356,7 +356,7 @@ WH-V18至WH-V24与原WH-V01至WH-V17及第14节WH-V25至WH-V27一起构成必需
 |---|---|---|
 | HTTP | 一个应用实例，可带多个进程 | 负载均衡后多个实例，任意节点可接收同一个profile回调；Webhook不依赖粘性会话 |
 | 权威数据库 | 本机或外部PostgreSQL／MySQL；SQLite作为单机受测组合 | 所有节点访问同一受支持PostgreSQL／MySQL主写服务／逻辑数据库；去重、领取、端点授权及完成判定不读可能滞后的只读副本 |
-| Queue | 既有database队列，或已支持的Redis等具名连接；异步恢复不以sync／null／进程内队列冒充 | 同一共享database／Redis等已验后端与相同队列命名；HTTP、Worker可不同节点。SQS等其他后端按项目支持矩阵另验，不因原包可配置就宣称本批全通过 |
+| Queue | 既有database队列，或已支持的Redis等具名连接；异步恢复不以sync／null／进程内队列冒充 | 同一共享database／Redis等已验后端与相同队列命名；HTTP、Worker可不同节点。[SQS Standard／FIFO 模拟](../audits/webhooks/topology.md#sqs-queue)已验证两包共用隔离队列服务，托管服务按发布环境另验 |
 | 锁／限流 | 复用database或受测本机file／Redis策略；数据库条件更新仍是领域权威 | database／Redis等真实跨节点共享后端；所有节点共同计数和领取，不能各用自己的memory／file缓存来实现全局限流 |
 | 正文／附件 | 私有local磁盘或S3，HTTP／Worker实际可读取 | 共享S3／对象存储，或经过实际验证的共享文件系统；节点本地临时文件不得成为跨节点任务的持久正文引用 |
 | 凭据／配置 | 受控配置引用与版本、必要APP_KEY、默认注入路径完整 | 各节点可取得相同已授权修订；加密payload使用一致受控密钥／版本，不能每个节点随机生成密钥。缺修订明确失败，不改用当前默认账号 |
