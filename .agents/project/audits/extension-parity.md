@@ -482,7 +482,7 @@ Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pu
 
 macOS 使用本批完整源码，以实际编译器重映射验证五种路径。SQLite 通过 Git 框架包、普通第三方注册表包、同名前缀第三方注册表包、Pulse 注册表包和标准发布路径的 HTTP 测试。标准路径的 Pulse Provider 17 项及 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项通过。Pulse 和 Telescope 的 Provider／Watcher 共 48 项，独占 Redis 8.10.3 的 Telescope 原生命令专项、共享识别规则单项、快照全仓格式和相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-{macos,redis}.log`。
 
-同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次 Linux／Windows 结果使用测试构建。修复版在 macOS 默认 Release 通过上述五种 SQLite 路径、Pulse Provider 17 项，以及标准重映射下的 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-macos-release.log`。macOS 的 Telescope 自定义 Cargo registry 与 Git checkout 也在修复版 Release 各通过 Gate 与 Query 两项真实 HTTP 和 SQLite 测试。证据为 `target/tmp/observability-parity/telescope-cargo-source-exact-macos-release.log`。Linux／Windows Release 继续验收。
+同一修复源码在 Linux ARM64 与 Windows 11 ARM64 使用 Rust 1.94.0 通过全部五种 Pulse 路径的真实 HTTP 和 SQLite 专项。两个平台各通过自定义注册表与 Git 缓存布局下的 Telescope Gate／Query 四项，Windows 另通过标准重映射的三项 Telescope 授权与查询测试。证据为 `target/tmp/observability-parity/pulse-cargo-source-linux.log` 和 `target/tmp/observability-windows/pulse-cargo-source-exact-arm64.log`。本次 Linux／Windows 结果使用测试构建。修复版在 macOS 默认 Release 通过上述五种 SQLite 路径、Pulse Provider 17 项，以及标准重映射下的 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-macos-release.log`。macOS 的 Telescope 自定义 Cargo registry 与 Git checkout 也在修复版 Release 各通过 Gate 与 Query 两项真实 HTTP 和 SQLite 测试。证据为 `target/tmp/observability-parity/telescope-cargo-source-exact-macos-release.log`。Windows 11 ARM64 默认 Release 以同一修复源码通过 Pulse 的五种 SQLite 真实路由测试。证据为 `target/tmp/observability-windows/pulse-cargo-source-exact-release-arm64.log`。Linux Pulse Release 与 Linux／Windows Telescope Release 继续验收。
 
 ### Pulse Servers 默认主机名与配置缓存
 
@@ -728,7 +728,7 @@ Windows 11 ARM64 对 `f21ba5bcb` 的工作进程实现复跑原生进程矩阵�
 
 macOS 上以真实 Artisan、隔离 Redis 8.10.3 和 1200ms 同步监听器对照。修复后首轮约 1076ms／1028ms，慢监听器结束后的等待约 1007ms／1006ms。两条命令均在等待期间接到 SIGTERM 并正常退出，实际退出早于下一次轮询。证据为 `target/tmp/observability-parity/horizon-monitor-cadence-macos{,-baseline}.log`。
 
-同一 Rust 快照的原生进程与结构化命令矩阵、包默认 32 项、隔离 Redis 23 项、快照全仓格式和包全目标严格 Clippy 通过。三语文档构建、12 项通用浏览器检查及 Horizon 章节的三语桌面和移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-monitor-cadence-{macos,docs,docs-chapter}.log`。本次间隔改动的 Linux／Windows 实机验收仍待补齐。
+同一 Rust 快照的原生进程与结构化命令矩阵、包默认 32 项、隔离 Redis 23 项、快照全仓格式和包全目标严格 Clippy 通过。三语文档构建、12 项通用浏览器检查及 Horizon 章节的三语桌面和移动 6 项通过。证据为 `target/tmp/observability-parity/horizon-monitor-cadence-{macos,docs,docs-chapter}.log`。相同源码在 Windows 11 ARM64 实际 Artisan 与隔离 Redis 8.10.3 上验证了两种监控入口。Master 首轮约 1070ms，工作后约 1028ms。Supervisor 分别约 1064ms、1022ms。通过原生命令请求两个进程，各自正常退出。证据为 `target/tmp/observability-windows/horizon-monitor-cadence-arm64.log`。Linux 与本批优化构建继续验收。
 
 ### Horizon Windows ARM64 应用装配与条件编译
 
