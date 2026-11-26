@@ -68,6 +68,12 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 
 缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
 
+### 多态关联查询的公开调用行
+
+固定 Laravel Framework 与 Telescope 在 PHP 8.5.12、SQLite 上实际查询多态关联。直接访问触发 1 条查询，按两个目标类型加载关联和子关系计数触发 2 条，事务内加载同一关联触发 2 条。每组条目记录对应应用调用行，分组的目标类型同时返回 `children_count=2`。 [固定 MorphTo](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphTo.php) [固定 QueryWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/QueryWatcher.php)
+
+OpenRust 经实际 HTTP、Eloquent 关系、SQL 和 Telescope 仓储在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对上述结果、条目数量及调用行，并验证原生流式游标的单条查询归因。SQLite 的 Watchers 20 项和 Eloquent 关系 6 项、两库专项、隔离快照格式及相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/query-polymorphic-reads-{upstream,macos-retry}.log`。
+
 
 ## 公开 Watcher 与缓冲响应补齐（2026-11-21）
 

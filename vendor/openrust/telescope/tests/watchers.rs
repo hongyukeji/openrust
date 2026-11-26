@@ -40,6 +40,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/relationship-write-callers", relationship_write_callers)?;
     Route::get("/reverse-touch-callers", reverse_touch_callers)?;
     Route::get("/relationship-load-callers", relationship_load_callers)?;
+    Route::get("/morph-callers", morph_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
     Route::get("/pgsql-constraint-callers", pgsql_constraint_callers)?;
@@ -367,6 +368,72 @@ fn model_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                 [builder, 1],
                 [deleted, 1]
             ]),
+        )
+    })
+}
+
+fn morph_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use futures_util::TryStreamExt as _;
+    use openrust::database::{
+        Value,
+        eloquent::{
+            Model as _, ModelState,
+            relations::{HasMany, MorphTo, Relation as _},
+        },
+    };
+
+    Box::pin(async {
+        seed_relationship_source().await;
+        let subject = |kind: &str, id: i64| {
+            let mut item = RelatedWriteProbe::from_state(ModelState::default());
+            item.set_attribute("subject_type", kind);
+            item.set_attribute("subject_id", id);
+            item
+        };
+        let primary = subject("article", 1);
+        let secondary = subject("comment", 2);
+        let relation = MorphTo::<RelatedWriteProbe>::new("subject_type", "subject_id")
+            .target::<PageProbe>("article", "id")
+            .target::<PageProbe>("comment", "id");
+
+        let direct = line!() + 1;
+        let target = relation.get_results(&primary).await.unwrap().unwrap();
+        assert_eq!(target.alias(), "article");
+
+        let relation = relation.morph_with_count::<PageProbe>(
+            "article",
+            "id",
+            "children",
+            HasMany::<PageProbe, PageProbe>::new("id", "owner_id"),
+        );
+        let parents = [&primary, &secondary];
+        let matched = line!() + 1;
+        let models = relation.match_results(&parents).await.unwrap();
+        let first = models[0].as_ref().unwrap();
+        assert_eq!(first.alias(), "article");
+        assert_eq!(models[1].as_ref().unwrap().alias(), "comment");
+        assert!(matches!(
+            first
+                .downcast_ref::<PageProbe>()
+                .unwrap()
+                .get_attribute("children_count"),
+            Some(Value::Integer(2) | Value::Unsigned(2))
+        ));
+        let mut tx = Db::begin_transaction().await.unwrap();
+        let transaction = line!() + 2;
+        let models = relation
+            .match_results_in_transaction(&parents, &mut tx)
+            .await
+            .unwrap();
+        assert_eq!(models.into_iter().flatten().count(), 2);
+        tx.commit().await.unwrap();
+
+        let cursor = line!() + 1;
+        let stream = relation.cursor(&primary);
+        assert_eq!(stream.try_collect::<Vec<_>>().await.unwrap().len(), 1);
+        Response::json(
+            http::StatusCode::OK,
+            json!([[direct, 1], [matched, 2], [transaction, 2], [cursor, 1]]),
         )
     })
 }
@@ -823,6 +890,11 @@ async fn query_watcher_attributes_relationship_loading_to_the_public_entry() {
         &["select "],
     )
     .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_polymorphic_relationship_reads_to_the_public_entry() {
+    assert_query_source_lines("/api/morph-callers", "query_page_probe", &["select "]).await;
 }
 
 #[tokio::test]
