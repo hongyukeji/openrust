@@ -146,7 +146,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|
 | Telescope | Query／Gate 已支持显式登记异步包装器的外层来源，自动回溯普通异步调用栈有语言边界。继续核对关系与驱动变体、出站 multipart 和其他诊断边界，以及公开 Watcher、Entry、关联、仓储、命令与授权面板。列表参数已通过三库对照，Dumps 采集状态和刷新已实测。 [异步包装器来源](#telescope-异步包装器的应用调用行) [筛选与游标](telescope/README.md#列表筛选与游标) [Dumps 面板](telescope/README.md#dumps-面板的采集与轮询) |
 | Pulse | 十个默认 Recorder 的逐项审计持续进行，接续核对事件、过滤、采样、聚合、自定义 Recorder 与 ingest 契约。原生面板已有真实浏览器和三库证据，完整 Livewire 更新生命周期及已记录的排序边界须继续核对。 [卡片和查询](pulse/README.md#面板慢操作异常与用量排序) |
-| Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，目标服务管理器、物理 x86_64 和正式 Redis 拓扑仍需验收。Redis Cluster 沿用固定上游支持边界。 |
+| Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，Windows SCM 已实测排空与故障恢复。实际生产服务配置、物理 x86_64 和正式 Redis 拓扑仍需验收。Redis Cluster 沿用固定上游支持边界。 [Windows 服务验收](horizon/README.md#windows-服务管理器排空与故障恢复) |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
 Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。修复前，Rust `commands.rs` 两条路径都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)
