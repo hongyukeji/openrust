@@ -119,9 +119,9 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 }
 ```
 
-每条连接同时处理一个响应，可选的 `stream_id` 随事件返回。网关逐轮检查 Key 和模型权限，沿用 HTTP 的路由、限额与用量记录。关闭连接会取消当前生成。
+为并行通道指定不同的 `stream_id`。每条连接最多四个活动通道，每个通道同时处理一个响应。事件携带所属通道 ID。每轮沿用 HTTP 的鉴权、路由、限额和用量记录。关闭连接会取消所有正在生成的响应。
 
-在同一连接和 `stream_id` 上继续最近一次已完成响应时，将其 ID 放入 `previous_response_id`，并在 `input` 中只提交新文本或客户端函数结果。省略 `model` 时沿用原模型别名。`instructions` 仅用于当前轮。网关在内存中最多保留 512 KiB、256 项可重放上下文。重连、更换模型或 `stream_id`、收到 `previous_response_not_found` 时，重新发送完整上下文。
+继续文本或客户端函数对话时，将最近一次已完成响应的 ID 放入 `previous_response_id`，并在 `input` 中只提交新消息或函数结果。沿用同一通道可续接，换一个 `stream_id` 可从仍在内存中的响应分叉。省略 `model` 时沿用原别名。`instructions` 仅用于当前轮。每条连接保留最多四份历史，每份上限为 512 KiB、256 项。重连、更换模型或收到 `previous_response_not_found` 时，重新发送完整上下文。
 
 文本帧上限为 2 MiB，连接满一小时后需重连。
 

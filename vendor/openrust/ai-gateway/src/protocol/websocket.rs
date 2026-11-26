@@ -1,4 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     body::to_bytes,
@@ -8,7 +12,7 @@ use axum::{
     },
 };
 use eventsource_stream::Eventsource;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, stream::FuturesUnordered};
 use http::{HeaderMap, HeaderValue, StatusCode, header};
 use openrust::{
     foundation::Application,
@@ -16,6 +20,7 @@ use openrust::{
     support::facades::{App, Facade},
 };
 use serde_json::{Map, Value};
+use tokio::sync::mpsc;
 
 use super::{Gateway, HttpResult, Protocol, authorize, error_body, responses};
 
@@ -23,6 +28,7 @@ mod replay;
 use replay::{Checkpoint, replay_input};
 
 const MAX_MESSAGE: usize = 2 * 1024 * 1024;
+const MAX_STREAMS: usize = 4;
 const CONNECTION_MAX_AGE: Duration = Duration::from_secs(60 * 60);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -85,38 +91,109 @@ pub(super) async fn handshake(request: &mut Request) -> HttpResult {
     ))
 }
 
+type StreamId = Option<String>;
+
+enum History {
+    Keep,
+    Replace(Option<Checkpoint>),
+}
+
+enum Frame {
+    Event(Message),
+    Finished {
+        lane: StreamId,
+        message: Message,
+        history: History,
+    },
+}
+
 async fn serve(
     socket: &mut WebSocket,
     app: Arc<Application>,
     headers: HeaderMap,
 ) -> Result<(), ()> {
-    let mut checkpoint = None;
-    while let Some(message) = socket.recv().await {
-        match message.map_err(|_| ())? {
-            Message::Text(text) => match Turn::parse(text.as_str()) {
-                Ok(turn) => run(socket, &app, &headers, turn, &mut checkpoint).await?,
-                Err(error) => {
-                    write_error(
-                        socket,
-                        StatusCode::BAD_REQUEST,
-                        error.code,
-                        error.message,
-                        error.lane.as_deref(),
-                    )
-                    .await?
+    let (sender, mut receiver) = mpsc::channel(MAX_STREAMS);
+    let mut running = FuturesUnordered::new();
+    let mut active = HashSet::new();
+    let mut checkpoints = VecDeque::new();
+    let app = app.as_ref();
+    let headers = &headers;
+    loop {
+        tokio::select! {
+            incoming = socket.recv() => {
+                let Some(incoming) = incoming else { return Ok(()); };
+                match incoming.map_err(|_| ())? {
+                    Message::Text(text) => {
+                        let mut turn = match Turn::parse(text.as_str()) {
+                            Ok(turn) => turn,
+                            Err(error) => {
+                                write_error(socket, StatusCode::BAD_REQUEST, error.code,
+                                    error.message, error.lane.as_deref()).await?;
+                                continue;
+                            }
+                        };
+                        if active.contains(&turn.lane) {
+                            write_error(socket, StatusCode::CONFLICT, "response_in_progress",
+                                "请等待当前通道的响应结束后再发送", turn.lane.as_deref()).await?;
+                            continue;
+                        }
+                        if active.len() == MAX_STREAMS {
+                            write_error(socket, StatusCode::TOO_MANY_REQUESTS, "too_many_streams",
+                                "此连接的活动通道已达上限", turn.lane.as_deref()).await?;
+                            continue;
+                        }
+                        if let Err(code) = turn.resume(&mut checkpoints) {
+                            let message = match code {
+                                "unsupported_continuation_input" => "续接仅支持文本消息与客户端函数工具",
+                                "continuation_too_large" => "续接上下文超出连接限制",
+                                _ => "未找到当前连接上的响应，请重发完整 input",
+                            };
+                            write_error(socket, StatusCode::BAD_REQUEST, code, message, turn.lane.as_deref()).await?;
+                            continue;
+                        }
+                        active.insert(turn.lane.clone());
+                        let sender = sender.clone();
+                        running.push(async move {
+                            let lane = turn.lane.clone();
+                            let (message, history) = run(app, headers, turn, &sender).await?;
+                            sender.send(Frame::Finished {lane, message, history}).await.map_err(|_| ())
+                        });
+                    }
+                    Message::Binary(_) => return unsupported_frame(socket).await,
+                    Message::Close(_) => return Ok(()),
+                    Message::Ping(_) | Message::Pong(_) => {}
                 }
-            },
-            Message::Binary(_) => return unsupported_frame(socket).await,
-            Message::Close(_) => return Ok(()),
-            Message::Ping(_) | Message::Pong(_) => {}
+            }
+            finished = running.next(), if !running.is_empty() => {
+                if let Some(result) = finished { result?; }
+            }
+            outbound = receiver.recv() => {
+                let Some(outbound) = outbound else { return Ok(()); };
+                let message = match outbound {
+                    Frame::Event(message) => message,
+                    Frame::Finished { lane, message, history } => {
+                        active.remove(&lane);
+                        if let History::Replace(checkpoint) = history {
+                            checkpoints.retain(|(stored, _)| stored != &lane);
+                            if let Some(checkpoint) = checkpoint {
+                                if checkpoints.len() == MAX_STREAMS {
+                                    checkpoints.pop_front();
+                                }
+                                checkpoints.push_back((lane, checkpoint));
+                            }
+                        }
+                        message
+                    }
+                };
+                send(socket, message).await?;
+            }
         }
     }
-    Ok(())
 }
 
 struct Turn {
     body: Map<String, Value>,
-    lane: Option<String>,
+    lane: StreamId,
     previous: Option<String>,
 }
 
@@ -187,40 +264,39 @@ impl Turn {
             previous,
         })
     }
+    fn resume(
+        &mut self,
+        checkpoints: &mut VecDeque<(StreamId, Checkpoint)>,
+    ) -> Result<(), &'static str> {
+        let Some(previous) = &self.previous else {
+            return Ok(());
+        };
+        let mut matching = checkpoints
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, checkpoint))| checkpoint.matches(previous));
+        let own = matching.clone().find(|(_, (lane, _))| lane == &self.lane);
+        let (index, (lane, checkpoint)) = own
+            .or_else(|| {
+                let only = matching.next()?;
+                matching.next().is_none().then_some(only)
+            })
+            .ok_or("previous_response_not_found")?;
+        checkpoint.resume(&mut self.body)?;
+        if lane == &self.lane {
+            // 续接消耗本通道的检查点。分叉保留来源通道。
+            checkpoints.remove(index);
+        }
+        Ok(())
+    }
 }
 
 async fn run(
-    socket: &mut WebSocket,
     app: &Application,
     headers: &HeaderMap,
-    mut turn: Turn,
-    checkpoint: &mut Option<Checkpoint>,
-) -> Result<(), ()> {
-    if let Some(previous) = &turn.previous {
-        let resumed = checkpoint
-            .as_ref()
-            .ok_or("previous_response_not_found")
-            .and_then(|checkpoint| {
-                checkpoint.resume(previous, turn.lane.as_deref(), &mut turn.body)
-            });
-        if let Err(code) = resumed {
-            let message = match code {
-                "unsupported_continuation_input" => "续接仅支持文本消息与客户端函数工具",
-                "continuation_too_large" => "续接上下文超出连接限制",
-                _ => "未找到当前连接上的响应，请重发完整 input",
-            };
-            return write_error(
-                socket,
-                StatusCode::BAD_REQUEST,
-                code,
-                message,
-                turn.lane.as_deref(),
-            )
-            .await;
-        }
-        // 当前续接消耗检查点，失败后由客户端重新发送完整输入。
-        checkpoint.take();
-    }
+    turn: Turn,
+    sender: &mpsc::Sender<Frame>,
+) -> Result<(Message, History), ()> {
     let mut history = turn
         .body
         .get("model")
@@ -228,6 +304,13 @@ async fn run(
         .and_then(|model| {
             replay_input(turn.body.get("input")).map(|input| (model.to_owned(), input))
         });
+    let lane = turn.lane.as_deref();
+    let fail = |code, message| {
+        Ok((
+            error_frame(StatusCode::BAD_GATEWAY, code, message, lane),
+            History::Keep,
+        ))
+    };
     let mut raw = http::Request::builder()
         .method(http::Method::POST)
         .uri("/v1/responses")
@@ -236,26 +319,8 @@ async fn run(
     raw.headers_mut().clone_from(headers);
     let (parts, body) = raw.into_parts();
     let mut request = Request::from_parts(parts, body);
-    let pending = app.scope(responses(&mut request));
-    tokio::pin!(pending);
-    let response = loop {
-        tokio::select! {
-            incoming = socket.recv() => control(socket, incoming, turn.lane.as_deref()).await?,
-            result = &mut pending => break result,
-        }
-    };
-    let response = match response {
-        Ok(response) => response,
-        Err(_) => {
-            return write_error(
-                socket,
-                StatusCode::BAD_GATEWAY,
-                "upstream_error",
-                "无法执行 Responses 请求",
-                turn.lane.as_deref(),
-            )
-            .await;
-        }
+    let Ok(response) = app.scope(responses(&mut request)).await else {
+        return fail("upstream_error", "无法执行 Responses 请求");
     };
     let (parts, body) = response.into_parts();
     if !parts.status.is_success() {
@@ -264,73 +329,53 @@ async fn run(
             .ok()
             .and_then(|body| serde_json::from_slice::<Value>(&body).ok())
             .unwrap_or_default();
-        let error = &value["error"];
-        return forward_error(socket, parts.status, error, turn.lane.as_deref()).await;
+        return Ok((
+            forward_error(parts.status, &value["error"], lane),
+            History::Keep,
+        ));
     }
     let mut events = body.into_data_stream().eventsource();
-    loop {
-        tokio::select! {
-            incoming = socket.recv() => control(socket, incoming, turn.lane.as_deref()).await?,
-            event = events.next() => {
-                let Some(Ok(event)) = event else {
-                    return write_error(socket, StatusCode::BAD_GATEWAY, "incomplete_stream", "上游未完成 Responses 流", turn.lane.as_deref()).await;
-                };
-                if event.data == "[DONE]" {
-                    return write_error(socket, StatusCode::BAD_GATEWAY, "incomplete_stream", "上游缺少 Responses 终止事件", turn.lane.as_deref()).await;
-                }
-                let Ok(mut data) = serde_json::from_str::<Map<String, Value>>(&event.data) else {
-                    return write_error(socket, StatusCode::BAD_GATEWAY, "invalid_upstream_response", "Responses 事件格式无效", turn.lane.as_deref()).await;
-                };
-                if let Some(error) = data.get("error").filter(|error| !error.is_null()) {
-                    return forward_error(socket, StatusCode::BAD_GATEWAY, error, turn.lane.as_deref()).await;
-                }
-                let Some(kind) = data.get("type").and_then(Value::as_str) else {
-                    return write_error(socket, StatusCode::BAD_GATEWAY, "invalid_upstream_response", "Responses 事件缺少类型", turn.lane.as_deref()).await;
-                };
-                let is_terminal = matches!(kind,
-                    "response.completed" | "response.incomplete" | "response.failed");
-                if kind == "response.completed" {
-                    *checkpoint = history.take().and_then(|(model, input)| {
-                        Checkpoint::from_complete(data.get("response").unwrap_or(&Value::Null), turn.lane.clone(), model, input)
-                    });
-                }
-                if let Some(lane) = &turn.lane {
-                    data.insert("stream_id".into(), Value::String(lane.clone()));
-                } else {
-                    data.remove("stream_id");
-                }
-                send(socket, Message::Text(Value::Object(data).to_string().into())).await?;
-                if is_terminal {
-                    return Ok(());
-                }
-            }
+    while let Some(Ok(event)) = events.next().await {
+        if event.data == "[DONE]" {
+            return fail("incomplete_stream", "上游缺少 Responses 终止事件");
         }
+        let Ok(mut data) = serde_json::from_str::<Map<String, Value>>(&event.data) else {
+            return fail("invalid_upstream_response", "Responses 事件格式无效");
+        };
+        if let Some(error) = data.get("error").filter(|error| !error.is_null()) {
+            return Ok((
+                forward_error(StatusCode::BAD_GATEWAY, error, lane),
+                History::Keep,
+            ));
+        }
+        let Some(kind) = data.get("type").and_then(Value::as_str) else {
+            return fail("invalid_upstream_response", "Responses 事件缺少类型");
+        };
+        let terminal = match kind {
+            "response.completed" => Some(History::Replace(history.take().and_then(
+                |(model, input)| {
+                    Checkpoint::from_complete(
+                        data.get("response").unwrap_or(&Value::Null),
+                        model,
+                        input,
+                    )
+                },
+            ))),
+            "response.incomplete" | "response.failed" => Some(History::Keep),
+            _ => None,
+        };
+        if let Some(lane) = lane {
+            data.insert("stream_id".into(), Value::String(lane.into()));
+        } else {
+            data.remove("stream_id");
+        }
+        let message = Message::Text(Value::Object(data).to_string().into());
+        if let Some(terminal) = terminal {
+            return Ok((message, terminal));
+        }
+        sender.send(Frame::Event(message)).await.map_err(|_| ())?;
     }
-}
-
-async fn control(
-    socket: &mut WebSocket,
-    incoming: Option<Result<Message, axum::Error>>,
-    lane: Option<&str>,
-) -> Result<(), ()> {
-    match incoming {
-        Some(Ok(Message::Ping(_) | Message::Pong(_))) => Ok(()),
-        Some(Ok(Message::Text(_))) => {
-            write_error(
-                socket,
-                StatusCode::CONFLICT,
-                "response_in_progress",
-                "请等待当前响应结束后再发送",
-                lane,
-            )
-            .await
-        }
-        Some(Ok(Message::Binary(_))) => {
-            unsupported_frame(socket).await?;
-            Err(())
-        }
-        _ => Err(()),
-    }
+    fail("incomplete_stream", "上游未完成 Responses 流")
 }
 
 async fn unsupported_frame(socket: &mut WebSocket) -> Result<(), ()> {
@@ -344,20 +389,13 @@ async fn unsupported_frame(socket: &mut WebSocket) -> Result<(), ()> {
     .await
 }
 
-async fn forward_error(
-    socket: &mut WebSocket,
-    status: StatusCode,
-    error: &Value,
-    lane: Option<&str>,
-) -> Result<(), ()> {
-    write_error(
-        socket,
+fn forward_error(status: StatusCode, error: &Value, lane: Option<&str>) -> Message {
+    error_frame(
         status,
         error["code"].as_str().unwrap_or("upstream_error"),
         error["message"].as_str().unwrap_or("Responses 请求未完成"),
         lane,
     )
-    .await
 }
 
 async fn write_error(
@@ -367,13 +405,17 @@ async fn write_error(
     message: &str,
     lane: Option<&str>,
 ) -> Result<(), ()> {
+    send(socket, error_frame(status, code, message, lane)).await
+}
+
+fn error_frame(status: StatusCode, code: &str, message: &str, lane: Option<&str>) -> Message {
     let mut event = error_body(code, message);
     event["type"] = "error".into();
     event["status"] = status.as_u16().into();
     if let Some(lane) = lane {
         event["stream_id"] = lane.into();
     }
-    send(socket, Message::Text(event.to_string().into())).await
+    Message::Text(event.to_string().into())
 }
 
 async fn send(socket: &mut WebSocket, message: Message) -> Result<(), ()> {

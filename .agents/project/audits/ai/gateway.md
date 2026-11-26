@@ -9,7 +9,7 @@
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | 已验收 OpenAI 同协议和 Anthropic 转换的 JSON、SSE、下游取消与客户端函数工具。上游选择覆盖配置回退、组授权、冷却、并发及会话黏性。 |
 | `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | 已验收原生 Responses、转换到 Messages 和 Chat Completions 的普通及 SSE 文本与客户端函数工具。Chat 转换另覆盖 JSON 对象模式。结构化 Schema、附件、推理及其他高级字段仍待核对。 |
 | `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | 已验收 `input_tokens`，可使用 OpenAI 原生计数或映射到 Anthropic 计数。其余子路径待核对。共享凭证当前拒绝 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
-| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。已验收同连接的文本与客户端函数续接；上游 WebSocket 与并行通道待核对。 |
+| `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。已验收同连接的文本与客户端函数续接、四个并行通道和分叉；上游 WebSocket、预热和转向待核对。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，正式客户端进程待验收。 |
@@ -36,7 +36,7 @@
 
 | 基线入口 | 裁决 |
 |---|---|
-| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 通过 `unversioned_paths` 可选启用目录、Chat、Responses、`input_tokens`、Embeddings 与 Messages 计数的 HTTP 别名，实测共用授权及限流。其他操作和升级待验收。 |
+| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 通过 `unversioned_paths` 可选启用目录、Chat、Responses、`input_tokens`、Embeddings 与 Messages 计数的 HTTP 别名，实测共用授权及限流，并验证 `GET /responses` WebSocket 别名。其他无版本操作待验收。 |
 | `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 已实测专用模型目录、适配 `/v1` 的官方 Codex 流式文本及工具声明。专用前缀的生成路径及会话边界待验收，专用账号归 GW-04。 |
 | `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | GW-04／05 待结合对应账号和平台能力裁决与验收，保留专用路由的账号隔离。 |
 | 上游 API Key、OAuth／订阅、平台专用连接与组合分组 | API Key 已通过 SDK 与自托管网关验证。同名模型按端点、原生／转换支持和账号可用性选路。OAuth 刷新、订阅限制、会话黏性、分组模型白名单和跨账号失败回退归 GW-04；管理与发布入口验收归 GW-05。 |
@@ -174,3 +174,11 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 实际 DSH Web 与 Chrome 验证从公开模型目录发现授权别名、排除未授权别名、在自定义连接中保存发现的 Chat 模型、手填 Responses 别名、用模型选择器选择后调用并显示本轮独立回复。运行时使用合成业务输入和隔离凭证。三语文档分别列出四种协议的 URL。供应商实机及其他 GW-05 入口继续验收。
 
 - [固定 DSH 自定义模型说明](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) · [DSH 固定版本发布](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.3-alpha.2)
+
+## GW-03 Responses WebSocket 并行通道和分叉
+
+一个连接最多运行四个通道，每个活动通道使用独立的 `stream_id`。事件按所属通道返回。同一连接可从仍在内存中的响应分出新通道，来源通道可继续。每条连接最多保存四份有界历史，关闭时取消全部活动响应。继续沿用普通 HTTP 的授权、路由、配额及用量。
+
+独立 WebSocket 与 Artisan 实测原生慢流尚未结束时另一 Chat 通道先完成、同通道重复请求拒绝、分叉后来源继续、函数结果、第五个活动通道拒绝、关闭连接后四个上游尝试全部取消入账。包测试、严格 Clippy、三语构建、十二组浏览器及导航通过。上游 WebSocket、预热、实时转向和其他类型的续接单列。
+
+- [Responses WebSocket 并行与分叉](https://developers.openai.com/api/docs/guides/websocket-mode#fork-a-conversation-onto-a-new-stream)

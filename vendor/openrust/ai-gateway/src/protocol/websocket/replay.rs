@@ -4,7 +4,6 @@ const MAX_BYTES: usize = 512 * 1024;
 const MAX_ITEMS: usize = 256;
 
 pub(super) struct Checkpoint {
-    lane: Option<String>,
     id: String,
     model: String,
     history: Vec<Value>,
@@ -13,7 +12,6 @@ pub(super) struct Checkpoint {
 impl Checkpoint {
     pub(super) fn from_complete(
         response: &Value,
-        lane: Option<String>,
         model: String,
         mut input: Vec<Value>,
     ) -> Option<Self> {
@@ -24,22 +22,17 @@ impl Checkpoint {
         }
         input.extend(output.iter().map(replay_item).collect::<Option<Vec<_>>>()?);
         bounded(&input).then(|| Self {
-            lane,
             id: id.into(),
             model,
             history: input,
         })
     }
 
-    pub(super) fn resume(
-        &self,
-        previous: &str,
-        lane: Option<&str>,
-        body: &mut Map<String, Value>,
-    ) -> Result<(), &'static str> {
-        if previous != self.id || self.lane.as_deref() != lane {
-            return Err("previous_response_not_found");
-        }
+    pub(super) fn matches(&self, id: &str) -> bool {
+        self.id == id
+    }
+
+    pub(super) fn resume(&self, body: &mut Map<String, Value>) -> Result<(), &'static str> {
         match body.get("model") {
             None | Some(Value::Null) => {
                 body.insert("model".into(), self.model.clone().into());

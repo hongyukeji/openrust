@@ -119,9 +119,9 @@ Connect to `wss://your-app.example/v1/responses` with the same Bearer Key as the
 }
 ```
 
-Each socket processes one response at a time. The optional `stream_id` is echoed on its events. The gateway checks Key and model permissions for each turn, applying the same routing, limits and usage accounting as HTTP. Closing the socket cancels the active turn.
+Use a distinct `stream_id` for each parallel stream. A socket accepts up to four active streams with one response per stream. Events carry their stream ID. Every turn uses the same authorization, routing, limits and usage accounting as HTTP. Closing the socket cancels all its active responses.
 
-For text and client-side function calls, continue the latest completed response on the same socket and `stream_id` by sending its ID in `previous_response_id` and only the new messages or function results in `input`. Omit `model` to reuse the current alias. `instructions` applies to the current turn. The gateway holds up to 512 KiB and 256 items of replayable history in memory. If you reconnect, change the model or stream ID, or receive `previous_response_not_found`, resend the full context.
+For text and client-side function calls, send the latest completed response ID as `previous_response_id` and send only new messages or function results in `input`. Use the same stream to continue or a new `stream_id` to branch from an available response. Omit `model` to reuse the parent alias. `instructions` applies to the current turn. The gateway retains up to four recent histories on the socket, each bounded to 512 KiB and 256 items. If you reconnect, change the model, or receive `previous_response_not_found`, resend the full context.
 
 Text frames are limited to 2 MiB. Reconnect after one hour.
 
