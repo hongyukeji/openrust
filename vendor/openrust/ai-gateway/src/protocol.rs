@@ -1075,8 +1075,13 @@ async fn respond(
         };
         data = response;
     }
-    call.complete().await;
-    call.settle().await;
+    if !call.complete().await {
+        return protocol.error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "usage_unavailable",
+            "AI 网关无法持久化本次上游用量",
+        );
+    }
     rename_model(&mut data, &name);
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
@@ -1140,8 +1145,10 @@ async fn stream(
                     yield Ok(protocol.stream_error());
                     return;
                 }
-                call.complete().await;
-                call.settle().await;
+                if !call.complete().await {
+                    yield Ok(protocol.stream_error());
+                    return;
+                }
                 yield Ok("data: [DONE]\n\n".to_owned());
                 return;
             }
@@ -1157,17 +1164,20 @@ async fn stream(
                 yield Ok(protocol.stream_error());
                 return;
             }
-            terminal |= match endpoint {
+            let ended = match endpoint {
                 TextEndpoint::ImagesGenerations => data["type"] == "image_generation.completed",
                 TextEndpoint::ImagesEdits => data["type"] == "image_edit.completed",
-                _ => matches!(data["type"].as_str(), Some("response.completed" | "response.incomplete" | "message_stop")),
+                TextEndpoint::Responses => matches!(data["type"].as_str(), Some("response.completed" | "response.incomplete")),
+                TextEndpoint::Messages => data["type"] == "message_stop",
+                TextEndpoint::ChatCompletions => data["choices"].as_array().is_some_and(Vec::is_empty)
+                    && data["usage"]["prompt_tokens"].is_u64()
+                    && data["usage"]["completion_tokens"].is_u64(),
+                _ => false,
             };
+            terminal |= ended;
             if matches!(protocol, Protocol::Gemini) {
                 terminal |= data["candidates"][0]["finishReason"].as_str().is_some_and(|reason| reason != "FINISH_REASON_UNSPECIFIED")
                     || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");
-            }
-            if terminal {
-                call.complete().await;
             }
             call.observe_usage(&data);
             rename_model(&mut data, &name);
@@ -1176,6 +1186,12 @@ async fn stream(
                     call.observe_usage(response);
                     rename_model(response, &name);
                 }
+            }
+            let final_usage = ended || (matches!(protocol, Protocol::Gemini)
+                && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());
+            if final_usage && !call.complete().await {
+                yield Ok(protocol.stream_error());
+                return;
             }
             let mut frame = String::new();
             if event.event != "message" {
@@ -1191,8 +1207,9 @@ async fn stream(
             yield Ok(frame);
         }
         if terminal {
-            call.complete().await;
-            call.settle().await;
+            if !call.complete().await {
+                yield Ok(protocol.stream_error());
+            }
         } else {
             call.outcome("incomplete_stream");
             call.settle().await;
@@ -1243,9 +1260,9 @@ fn bridged_stream(
                 yield Ok(protocol.stream_error());
                 return;
             };
-            if terminal {
-                call.complete().await;
-                call.settle().await;
+            if terminal && !call.complete().await {
+                yield Ok(protocol.stream_error());
+                return;
             }
             for frame in frames {
                 yield Ok(frame);

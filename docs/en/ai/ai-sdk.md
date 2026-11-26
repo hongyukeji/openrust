@@ -207,6 +207,8 @@ Set `usage.enabled` to `true` in `config/ai_gateway.rs` and run the migration. S
 ./artisan ai:gateway:usage:list --request-id=REQUEST_ID
 ```
 
+When persistent usage is enabled, the gateway saves reported final usage before sending the downstream completion marker. A stream can end before the provider reports final counts. In that case, any available counts remain in the attempt record.
+
 Each upstream attempt has its own record. Retries share a `request_id`. The record includes the downstream Key or group, published model, connection, upstream model, response status, and the token counts the upstream actually reports. Missing counts are `null`. The ledger omits Key secrets, request bodies and response text.
 
 A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.

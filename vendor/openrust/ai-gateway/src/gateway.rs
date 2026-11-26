@@ -607,22 +607,29 @@ impl Call {
         self.affinity = Some((affinity, target));
     }
 
-    pub(crate) async fn complete(&mut self) {
+    pub(crate) async fn complete(&mut self) -> bool {
         self.outcome("completed");
+        if !self.settle().await {
+            return false;
+        }
         if let Some((affinity, target)) = self.affinity.take() {
             affinity.remember(target).await;
         }
+        true
     }
 
-    pub(crate) async fn settle(&mut self) {
-        if let Some(attempt) = &self.attempt
-            && attempt
+    pub(crate) async fn settle(&mut self) -> bool {
+        if let Some(attempt) = &self.attempt {
+            if attempt
                 .finish(Settlement::from_context(self.outcome, &self.context))
                 .await
-                .is_ok()
-        {
+                .is_err()
+            {
+                return false;
+            }
             self.attempt = None;
         }
+        true
     }
 
     pub(crate) async fn release(&mut self) {
@@ -642,6 +649,9 @@ impl Call {
     }
 
     pub(crate) fn observe_usage(&mut self, payload: &Value) {
+        if self.outcome == "completed" {
+            return;
+        }
         let usage = &payload["usage"];
         let google = &payload["usageMetadata"];
         for (metric, candidates) in [

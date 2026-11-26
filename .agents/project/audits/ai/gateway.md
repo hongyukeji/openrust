@@ -212,3 +212,11 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 独立 Artisan 通过 SDK 和网关完成 Gemini 批量向量，真实 HTTP 核对单条、批量、维度、实际模型重写、鉴权、其他分组、空批次、别名冲突及资源隔离。SQLite 账本记录三个向量请求并保留上游报告的 Token。覆盖的是同步原生动作，异步批次与跨协议转换另行验收。
 
 - [Gemini 原生向量接口](https://ai.google.dev/api/embeddings)
+
+## GW-04 最终流用量先入账
+
+启用持久化用量时，网关先合并同一次上游尝试已收到的计数，再持久化完成结果，最后向下游交付最终帧。普通响应、转换流与原生流共用该结算顺序。原生 Responses 完成或截断帧、Messages 的 `message_stop`、Chat 的末尾用量块及 Gemini 的终态和最终总量触发即时结算。流结束后会继续处理缺失终值的记录。持久化失败时交付协议错误，保留待完成记录；同一尝试只能更新一次既有结算记录。
+
+独立 HTTP 网关通过本地 TCP 分别读取四种协议的最终帧，上游仍保持连接。独立 Artisan 立即读到已结算用量。杀掉并重启网关后 SQLite 与原生 PostgreSQL 18.7 的记录一致。SQLite 隔离故障样本在首帧后使账本不可用，网关返回协议错误。包测试、严格 Clippy 与三语文档验收通过。用量证据状态、晚到补录和冲突对账另行验收。
+
+- [OpenAI Chat 流用量](https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events) · [Anthropic Messages 流](https://platform.claude.com/docs/en/build-with-claude/streaming)
