@@ -1,5 +1,7 @@
 # Artisan 命令列
 
+## 簡介 {#introduction}
+
 Console Kernel [引導應用程式](../architecture-concepts/lifecycle.md)後分派 Artisan 命令。應用程式骨架的命令清單和說明無需 HTTP 監聽或資料庫連線即可執行。
 
 ```sh
@@ -24,6 +26,15 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 `Application::handle_command` 呼叫 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引導後載入延遲 Provider，再登記命令清單、框架內建命令和應用程式命令，最後分派。
 
+
+### 在 Docker 中執行 Artisan {#laravel-sail}
+
+在應用程式根目錄，HTTP 和 Artisan 使用同一份 [Docker Compose 設定](../getting-started/deployment.md#docker-deployment)。應用程式容器執行時用 `exec`；應用程式停止後若只需查看命令說明，可用一次性的 `run`。
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml exec -T app /app/main artisan list
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan help migrate
+```
 
 ## 原始碼與發布入口 {#source-and-release-entrypoints}
 

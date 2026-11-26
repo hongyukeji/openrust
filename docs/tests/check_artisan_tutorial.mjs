@@ -109,6 +109,8 @@ try {
                     assert.equal(await page.locator('h2#calling-commands-from-other-commands').count(),1);
                     assert.equal(await page.locator('h4#queue-named-commands').count(),1);
                     assert.equal(await page.locator('h2#signal-handling').count(),1);
+                    assert.equal(await page.locator('h2#introduction').count(),1);
+                    assert.equal(await page.locator('h3#laravel-sail').count(),1);
                     assert.equal(await page.locator('h3#customizing-dev-processes').count(),1);
                     assert.equal(await page.locator('h3#filtering-dev-processes').count(),1);
                     assert.equal(await page.locator('h3#restarting-failed-processes').count(),1);

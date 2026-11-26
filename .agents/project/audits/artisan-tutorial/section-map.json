@@ -4,13 +4,25 @@
   "sections": [
     {
       "anchor": "introduction",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-entrypoints-contracts.json",
+        "accepted-artisan-entrypoints.json",
+        "artisan_entry",
+        "artisan-compose-consumers-final.log",
+        "artisan-entrypoints-binary.log"
+      ]
     },
     {
       "anchor": "laravel-sail",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-entrypoints-contracts.json",
+        "accepted-artisan-entrypoints.json",
+        "artisan_entry",
+        "artisan-compose-consumers-final.log",
+        "artisan-entrypoints-binary.log"
+      ]
     },
     {
       "anchor": "tinker",
@@ -920,6 +932,14 @@
     "remaining": [
       "固定源码将终端切换和分析交给 Node 安装的多进程工具，Rust 原生监督／终端使用已批准的替代实现。",
       "Windows 继续使用既有行模式及进程组；既有 Windows 实机证据见 06-08，本批修改 Unix 设备并在 macOS 实机复验。"
+    ]
+  },
+  "artisan_entrypoints": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-entrypoints-contracts.json",
+    "remaining": [
+      "匹配本节在容器内运行 Artisan 的用户操作，使用项目约定的原生 Docker Compose。独立 Sail 安装、包装脚本和更多服务功能仍按生态规划记录。",
+      "容器验收复用已有 Linux ARM64 发布镜像，本批只改文档及浏览器断言；未重建容器镜像或声称原生工作区的 Linux 全量构建。"
     ]
   }
 }

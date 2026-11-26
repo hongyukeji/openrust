@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "root_artisan_launcher": [
+      "list",
+      "help",
+      "inspire"
+    ],
+    "standalone_container_entrypoint": [
+      "/app/main artisan"
+    ],
+    "compose": [
+      "exec -T app /app/main artisan list",
+      "run --rm --no-deps app artisan help migrate"
+    ]
+  },
+  "runtime": {
+    "framework_and_application_parent_tests": 55,
+    "standalone_artisan_invocations": 6,
+    "compose_artisan_invocations": 3,
+    "compose_http_requests": 1,
+    "compose_existing_image": "sha256:36ae503f2668512814257faee9962a955b380e5360af581726e11adbbf165571",
+    "formal_document_consumers": 249,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "根启动脚本由项目原有回归检查精确 argv／目录／退出码，另用本批源码实际二进制核对教程命令。",
+    "隔离 Compose 复用实际应用配置和镜像入口。HTTP 服务运行时用 exec，在服务停止后用一次性 run 查帮助，两条命令与原文示例一致。"
+  ],
+  "remaining": [
+    "匹配本节在容器内运行 Artisan 的用户操作，使用项目约定的原生 Docker Compose。独立 Sail 安装、包装脚本和更多服务功能仍按生态规划记录。",
+    "容器验收复用已有 Linux ARM64 发布镜像，本批只改文档及浏览器断言；未重建容器镜像或声称原生工作区的 Linux 全量构建。"
+  ]
+}

@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第85簇原生和 Compose 入口已验，目前 41／48 节通过，继续事件和模板。见[验收契约](audits/artisan-tutorial/artisan-entrypoints-contracts.json)。
+
 - Artisan 第84簇开发进程四节已验，目前 39／48 节通过，继续核对生成模板、事件和入口。见[验收契约](audits/artisan-tutorial/artisan-dev-contracts.json)。
 
 - Artisan 第83簇信号处理已验，目前 35／48 节通过，继续核对开发进程、生成模板与事件。见[验收契约](audits/artisan-tutorial/artisan-signals-contracts.json)。

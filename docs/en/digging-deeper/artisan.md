@@ -1,5 +1,7 @@
 # Artisan Console
 
+## Introduction {#introduction}
+
 The Console Kernel [boots the application](../architecture-concepts/lifecycle.md) before dispatching an Artisan command. The skeleton’s command listing and help run without an HTTP listener or a database connection.
 
 ```sh
@@ -24,6 +26,15 @@ In `routes/console.rs`, import `openrust::support::facades::Artisan`. `Artisan::
 
 `Application::handle_command` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads deferred providers and registers the command catalog, built-in commands and application commands before dispatch.
 
+
+### Run Artisan in Docker {#laravel-sail}
+
+From the application directory, use the same [Docker Compose configuration](../getting-started/deployment.md#docker-deployment) for HTTP and Artisan. Use `exec` while the application container is running. Use a one-off `run` when you only need command help and the application is stopped.
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml exec -T app /app/main artisan list
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan help migrate
+```
 
 ## Source and Release Entrypoints {#source-and-release-entrypoints}
 
