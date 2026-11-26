@@ -157,6 +157,8 @@ Use `ping_before`, `then_ping`, `ping_on_success`, and `ping_on_failure` to send
 
 Call `run_in_background()` on a scheduled command or executable. OpenRust runs the task and its after hooks in a separate instance of the application binary. The parent runs the before hooks and can exit while the task continues. Use a shared cache store such as file or Redis with `without_overlapping()`.
 
+Use `user("account")` on a task or group to run scheduled Artisan commands and executables under that account on Unix. The scheduler's account needs non-interactive `sudo` permission to switch to the selected account. Give the selected account access to the application directory and write access to configured output files. For background tasks, this account also runs the completion hooks and must be able to reach the shared cache. Callbacks and queued-job dispatch run in the scheduler process. On Windows, commands use the scheduler's account.
+
 `ScheduledBackgroundTaskFinished` is dispatched by the child after completion and lock release. It carries the task and exit code, including on failure. Register listeners for `console.scheduled_background_task_finished` during application assembly.
 
 On Windows ARM64, the background child uses the same application executable. File and Redis caches both support releasing the overlap lock after success, a nonzero command exit, or a failed after hook. When the parent exits, callers capturing its stdout and stderr can read EOF while the background task is still running.

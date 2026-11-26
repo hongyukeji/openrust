@@ -313,6 +313,13 @@ impl Schedule {
         })
     }
 
+    pub fn user(&mut self, user: impl Into<String>) -> &mut Self {
+        let user = user.into();
+        self.with_pending(move |event| {
+            event.user(user.clone());
+        })
+    }
+
     pub fn on_one_server(&mut self) -> &mut Self {
         self.with_pending(|event| {
             event.on_one_server();

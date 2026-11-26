@@ -80,7 +80,7 @@ impl NativeWatcher {
                     .filter(|_| !event.should_append_output)
                     .and_then(|path| std::fs::read_to_string(path).ok())
                     .unwrap_or_default();
-                telescope.record_scheduled_command(IncomingEntry::make(json!({"command":event.command,"description":event.description,"expression":event.expression,"timezone":event.timezone,"user":null,"output":output.trim()}).as_object().unwrap().clone())?);
+                telescope.record_scheduled_command(IncomingEntry::make(json!({"command":event.command,"description":event.description,"expression":event.expression,"timezone":event.timezone,"user":event.user,"output":output.trim()}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::eloquent::concerns::ModelLifecycle>()

@@ -10,6 +10,7 @@ pub mod console;
 mod dev_commands;
 mod entry;
 mod environment_detector;
+pub(crate) use environment_detector::console_environment;
 pub mod events;
 pub mod exceptions;
 pub mod http;

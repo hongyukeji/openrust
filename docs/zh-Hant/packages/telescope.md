@@ -44,6 +44,8 @@ Blade 回應的請求記錄包含實際範本路徑和明確繫結資料，包�
 
 排程工作詳情優先顯示工作的明確時區，其次顯示 `app.schedule_timezone`，缺少該設定時顯示應用程式時區。明確設為 `null` 時，未指定時區的工作在診斷中保留空值。透過 `schedule:run` 或 `schedule:finish` 執行的工作會出現在排程記錄中。手動 `schedule:test` 由 CommandWatcher 記錄。
 
+排程工作資料包含透過 `user("account")` 設定的帳號。未設定帳號時，JSON 值為 `null`。帳號的執行方式見[工作排程](../digging-deeper/scheduling.md#background-tasks)。
+
 使用 `openrust::support::dump(&value).await?` 記錄 Debug 傾印。蒐集需要啟用面板傾印監看或設定 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。此方法不攔截 `dbg!`、`println!` 或同步集合傾印方法。請求輸入記錄使用已解碼資料，不讀取尚未消費的本文串流。Redis 觀察涵蓋透過 `Connection::query_command` 成功執行的命令；管線與專用阻塞傳輸不在此觀察路徑內。
 
 Dumps 面板開啟時每兩秒檢查新記錄。需要從其他程序蒐集時，請選擇可共用的快取儲存庫。

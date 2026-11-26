@@ -153,11 +153,21 @@ OpenRust 的 Artisan 和授权 HTTP 把批次与游标原文作为绑定参数�
 
 PHP 8.5.12 使用固定 Laravel Kernel 及 Schedule 构造任务。任务显式时区优先，其余任务读 `app.schedule_timezone`，缺少配置时继承 `app.timezone`，显式为 `null` 时保留空值。Telescope 固定 `ScheduleWatcher` 读取任务的 `timezone` 字段。原生前态只记录任务显式时区。框架现将调度时确定的字段传给完成事件，并在手动与后台任务的执行入口取得对应配置。 [固定 Laravel Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L294-L311) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
 
-SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际 `schedule:run` 和 `telescope:show --json` 验证上述字段。核心调度及测试时钟 22 项通过，Redis 8.10.3 实际复验进程协调、互斥和清理。Pulse Provider 27 项、Telescope Provider 31 项、隔离快照格式、相关严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-schedule-zone-{upstream,macos-baseline,macos,redis,docs}.log`。固定 Laravel 指定系统用户运行时的 `user` 仍是开放契约，原生记录保留空值。
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际 `schedule:run` 和 `telescope:show --json` 验证上述字段。核心调度及测试时钟 22 项通过，Redis 8.10.3 实际复验进程协调、互斥和清理。Pulse Provider 27 项、Telescope Provider 31 项、隔离快照格式、相关严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-schedule-zone-{upstream,macos-baseline,macos,redis,docs}.log`。系统用户行为见下节。
 
 ### 调度任务的系统用户
 
-在 PHP 8.5.12 用固定 Framework 和 Telescope 的实际调度回调核对 `user`。回调、前台进程、后台进程分别记录各自配置的用户，未配置项为 `null`。回调仍在本进程执行。Linux 隔离容器用实际 `sudo` 确认前台命令及输出文件使用目标用户，后台命令和 `schedule:finish` 也都以目标用户运行。Windows 命令生成器沿用当前身份，Windows 只完成源码核对。后续 Rust 需验证真实进程身份、输出文件权限、后台结束钩子及 Telescope 持久化。证据为 `target/tmp/observability-parity/telescope-schedule-user-upstream-real.log`。 [固定调度命令生成](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/CommandBuilder.php) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+在 PHP 8.5.12 用固定 Framework 和 Telescope 的实际调度回调核对 `user`。回调、前台进程、后台进程分别记录各自配置的用户，未配置项为 `null`。回调仍在本进程执行。Linux 隔离容器用实际 `sudo` 确认前台命令及输出文件使用目标用户，后台命令和 `schedule:finish` 也都以目标用户运行。Windows 命令生成器沿用当前身份。证据为 `target/tmp/observability-parity/telescope-schedule-user-upstream-real.log`。 [固定调度命令生成](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/CommandBuilder.php) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+
+OpenRust 的任务与任务组提供 `user`。Unix 使用非交互式 `sudo`，让目标用户打开输出文件并执行命令。后台进程以该用户运行结束钩子并释放共享缓存锁。前台 Artisan 子进程沿用调度器环境文件，命令自己的 `--env` 优先，`--` 后的字面量仍传给命令。回调继续在调度器进程运行。完成事件增加 `user: Option<String>`，Telescope 将它写入调度条目。
+
+macOS ARM64 用实际 `sudo`、Redis 8.10.3 和 SQLite 连续两次执行 `schedule:run`。验证目标用户与文件所有者、前台 Artisan、后台钩子、同步回调、拒绝未知用户、Redis 互斥锁释放、显式与继承环境及条目的 `user` 和 `output`。开发构建的 Mach-O SHA-256 为 `b8a4f63012087c438b9ddd4110602d021c72ec2dcbaef830b88967c84cc4cfa5`。调度元数据在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过。macOS 调度与 Provider 等 95 项、严格 Clippy 通过，三语文档构建及六组视口通过。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-scheduled-user-{macos-process-retry,environment-macos,postgres,mysql,docs}.log`。原生 Linux 构建先遇磁盘停线，清理后 Docker Engine 持续超时，Linux 实际身份切换继续验收。
+
+Windows 11 ARM64 虚机用 Rust 1.94.0 和 HostARM64 链接器编译 Microsoft x64 开发测试程序，再在兼容层运行三个定向用例。配置不存在的 Unix 用户名后，真实 `cmd.exe` 仍执行，SQLite 条目保留所配用户及输出。调度时区和用户元数据、手动试跑过滤也通过。测试程序 SHA-256 为 `bfc4c291e0814f953f004210383a3921abdc6cbc17700af02c6f2fd993348a0b`，证据为 `target/tmp/observability-windows/telescope-scheduled-user-windows-x64-retry.log`。物理 Windows x64 继续按发布条件验收。
+
+### 调度作业的诊断名称
+
+固定 Laravel `Schedule::job` 注册 `CallbackEvent`，默认以作业展示名填充描述。固定 ScheduleWatcher 将该事件的 `command` 写为 `Closure`。Rust 的实际 `schedule:run` 已成功执行两项同步作业。读回调度条目后发现默认描述为空，且两项的 `command` 被填为作业处理器名或显式标题。该差异继续处理，需保留手动标题和现有调度互斥键。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-scheduled-jobs-baseline.log`。 [固定 Schedule::job](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Schedule.php) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
 
 ### Artisan 启动与自定义仓储
 

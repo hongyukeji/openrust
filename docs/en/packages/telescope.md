@@ -44,6 +44,8 @@ For application events, implement `Event::properties()` to expose a JSON diagnos
 
 Scheduled task details record a task's explicit time zone, then the configured `app.schedule_timezone` or the application time zone when no schedule setting is present. An explicit null schedule setting leaves the default diagnostic value empty. Tasks run by `schedule:run` or `schedule:finish` appear under scheduled tasks. A manual `schedule:test` is recorded by CommandWatcher.
 
+The scheduled task payload includes the account configured with `user("account")`. Without an account setting, the JSON value is `null`. See [Task Scheduling](../digging-deeper/scheduling.md#background-tasks) for how the scheduler uses the setting.
+
 Use `openrust::support::dump(&value).await?` for an observed Debug dump. Collection requires an active dashboard dump watcher or `TELESCOPE_DUMP_WATCHER_ALWAYS=true`. This helper does not intercept `dbg!`, `println!` or synchronous collection dump methods. Request input recording uses already-decoded data and never consumes an unread body stream. Redis observation covers successful commands executed through `Connection::query_command`; pipelines and dedicated blocking transports are outside this observation path.
 
 The Dumps page checks for new entries every two seconds while it is open. Select a shared cache store to collect dumps from other processes.

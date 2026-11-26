@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Reads the first explicit environment option before the console bootstraps.
-pub(super) fn console_environment(arguments: &[OsString]) -> Result<Option<&str>, ConsoleError> {
+pub(crate) fn console_environment(arguments: &[OsString]) -> Result<Option<&str>, ConsoleError> {
     let mut arguments = arguments.iter();
     let mut selected = None;
     while let Some(argument) = arguments.next() {

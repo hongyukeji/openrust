@@ -44,6 +44,8 @@ Blade 响应的请求记录包含实际模板路径和显式绑定数据，包�
 
 调度任务详情优先显示任务显式时区，其次显示 `app.schedule_timezone`，缺少该配置时显示应用时区。显式设为 `null` 时，未指定时区的任务在诊断中留空。通过 `schedule:run` 或 `schedule:finish` 执行的任务出现在调度记录中。手动 `schedule:test` 由 CommandWatcher 记录。
 
+调度任务载荷包含通过 `user("account")` 配置的账户。未配置账户时，JSON 值为 `null`。账户的执行方式见[任务调度](../digging-deeper/scheduling.md#background-tasks)。
+
 使用 `openrust::support::dump(&value).await?` 记录 Debug 内容；需要面板 Dump Watcher 活跃，或设置 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。该辅助方法不拦截 `dbg!`、`println!` 或同步集合 dump。请求载荷仅使用已解码数据，不读取尚未消费的请求体流。Redis 观察覆盖 `Connection::query_command` 成功执行的命令，不包含流水线和专用阻塞传输。
 
 Dumps 面板打开期间每两秒检查新记录。需要从其他进程采集时，请选择可共享的缓存仓储。

@@ -375,6 +375,7 @@ fn commands() -> Result<(), openrust::console::ConsoleError> {
         schedule
             .call(|_, _| Box::pin(async { Ok(()) }))
             .name("observed callback")
+            .user("diagnostic-callback")
             .timezone(jiff::tz::TimeZone::get("Asia/Shanghai").unwrap());
         schedule
             .call(|_, _| {
@@ -678,7 +679,7 @@ async fn native_event_gate_notification_model_view_and_dump_sources_are_observed
 }
 
 #[tokio::test]
-async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone() {
+async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone_and_user() {
     use openrust::contracts::foundation::Application as _;
 
     let mut app = application();
@@ -705,9 +706,13 @@ async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone() 
             .await
             .unwrap();
         assert_eq!(scheduled.len(), 2);
-        for (description, timezone) in [
-            ("observed callback", json!("Asia/Shanghai")),
-            ("failing callback", expected),
+        for (description, timezone, user) in [
+            (
+                "observed callback",
+                json!("Asia/Shanghai"),
+                json!("diagnostic-callback"),
+            ),
+            ("failing callback", expected, serde_json::Value::Null),
         ] {
             let entry = scheduled
                 .iter()
@@ -722,6 +727,7 @@ async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone() 
                 output["entry"]["content"]["timezone"], timezone,
                 "{description}"
             );
+            assert_eq!(output["entry"]["content"]["user"], user, "{description}");
         }
     }
 }
@@ -761,6 +767,44 @@ async fn schedule_test_keeps_its_command_entry_without_recording_a_scheduled_tas
             .len(),
         2
     );
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn scheduled_windows_executable_runs_and_reports_the_configured_user() {
+    let mut app = openrust::testing::TestApp::create(|builder| {
+        builder
+            .with_config(provider_config)
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_commands(|_| {
+                openrust::support::facades::Schedule::configure(|schedule| {
+                    let program = std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into());
+                    schedule
+                        .exec(program, ["/C".into(), "echo task-ran".into()])
+                        .name("Windows executable")
+                        .user("openrust-nonexistent-scheduled-user")
+                        .send_output_to("windows-schedule-output.txt");
+                    Ok(())
+                })
+            })
+    })
+    .unwrap();
+    std::fs::File::create(app.root().join("telescope.sqlite")).unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.artisan(["schedule:run"]).await.assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::ScheduledTask), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0].content["user"],
+        "openrust-nonexistent-scheduled-user"
+    );
+    assert_eq!(entries[0].content["output"], "task-ran");
 }
 
 fn input_handler(

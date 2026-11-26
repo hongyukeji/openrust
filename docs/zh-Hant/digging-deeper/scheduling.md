@@ -157,6 +157,8 @@ schedule
 
 對排程命令或執行檔呼叫 `run_in_background()`。OpenRust 在同一應用程式執行檔的獨立程序中執行任務及後置鉤子。父程序先執行前置鉤子，可在任務仍執行時結束。與 `without_overlapping()` 一起使用時，選擇檔案或 Redis 等共用快取。
 
+在任務或任務群組上呼叫 `user("account")`，可在 Unix 上以指定帳號執行 Artisan 命令和執行檔。排程器的帳號需要透過非互動式 `sudo` 切換至指定帳號的權限。指定帳號需要能存取應用程式目錄並寫入設定的輸出檔案。背景工作的完成鉤子也以該帳號執行，需要能存取共用快取。回呼和分派佇列工作在排程器程序中執行。Windows 使用排程器的帳號執行命令。
+
 子程序完成任務並釋放鎖後派送 `ScheduledBackgroundTaskFinished`。事件攜帶任務和結束碼，也涵蓋任務失敗。應用程式組裝時為 `console.scheduled_background_task_finished` 註冊監聽器。
 
 在 Windows ARM64 上，背景子程序使用同一個應用程式執行檔。命令成功、以非零代碼結束或後置鉤子失敗後，檔案快取和 Redis 快取均可釋放重疊鎖。父程序結束後，呼叫端即可從其 stdout 和 stderr 讀到 EOF，背景任務可以繼續執行。

@@ -63,6 +63,7 @@ pub struct Event {
     pub(super) overlap: Option<Duration>,
     pub(super) one_server: bool,
     pub(super) description: Option<String>,
+    user: Option<String>,
     even_in_maintenance_mode: bool,
     even_when_paused: bool,
     pub(super) environments: Vec<String>,
@@ -85,6 +86,7 @@ impl Event {
             overlap: None,
             one_server: false,
             description: None,
+            user: None,
             even_in_maintenance_mode: false,
             even_when_paused: false,
             environments: Vec::new(),
@@ -242,6 +244,7 @@ impl Event {
                     .map(str::to_owned)
                     .unwrap_or_else(|| zone.to_offset(Timestamp::now()).to_string())
             }),
+            user: self.user.clone(),
             output: self
                 .destination
                 .as_ref()
@@ -259,6 +262,22 @@ impl Event {
             .await
             .map_err(super::error)?;
         Ok(())
+    }
+
+    /// 为 Unix 命令配置运行用户。回调和作业保留此属性用于报告。
+    pub fn user(&mut self, user: impl Into<String>) -> &mut Self {
+        self.user = Some(user.into());
+        self
+    }
+
+    pub(super) fn execution_user(&self) -> Option<&str> {
+        if cfg!(unix) && matches!(self.action, Action::Command(_) | Action::Exec(_)) {
+            self.user
+                .as_deref()
+                .filter(|user| !matches!(*user, "" | "0"))
+        } else {
+            None
+        }
     }
 
     pub fn send_output_to(&mut self, path: impl Into<PathBuf>) -> &mut Self {

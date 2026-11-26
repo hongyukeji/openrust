@@ -224,6 +224,7 @@ pub struct ScheduledTaskCompleted {
     pub description: Option<String>,
     pub expression: String,
     pub timezone: Option<String>,
+    pub user: Option<String>,
     pub output: Option<std::path::PathBuf>,
     pub should_append_output: bool,
 }

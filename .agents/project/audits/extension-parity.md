@@ -6,7 +6,7 @@
 
 Telescope 的原生命令已验证批次查询统计和全部 18 类条目详情。请求完成链路已在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对可信代理地址、脱敏会话、请求筛选、缓冲响应和 Blade 模板来源。已缓存纯文本与 multipart 上传元数据通过相同三库。 [Telescope 专项审计](telescope/README.md)
 
-Telescope 修复 Artisan 新增启动事件后普通命令无法自动刷新自定义仓储的问题。三扩展默认 159 项通过，Telescope 的 PostgreSQL 和 MySQL Provider 各 36 项、Redis 1 项通过。系统用户调度仍在实现范围内，已取得固定上游实际 Unix 身份及后台结束证据。 [Artisan 与自定义仓储](telescope/README.md#artisan-启动与自定义仓储) [调度任务的系统用户](telescope/README.md#调度任务的系统用户)
+Telescope 修复 Artisan 新增启动事件后普通命令无法自动刷新自定义仓储的问题。三扩展默认 159 项通过，Telescope 的 PostgreSQL 和 MySQL Provider 各 36 项、Redis 1 项通过。系统用户调度已有 macOS 原生身份切换和 Windows x64 兼容层证据，Linux 对应运行仍在验收。 [Artisan 与自定义仓储](telescope/README.md#artisan-启动与自定义仓储) [调度任务的系统用户](telescope/README.md#调度任务的系统用户)
 
 Telescope 的 `list` 和 `show` 已通过三库 Artisan 验证 UTC 相对时间、ANSI 配色、纯文本和 JSON，`show` 同时显示原始时间戳。时间格式化函数与 3,016 组固定上游结果一致。 [Telescope 相对时间和终端输出](telescope/README.md#list-与-show-的相对时间)
 

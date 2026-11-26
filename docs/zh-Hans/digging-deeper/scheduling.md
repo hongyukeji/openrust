@@ -157,6 +157,8 @@ schedule
 
 对调度命令或可执行程序调用 `run_in_background()`。OpenRust 在同一应用二进制的独立进程中执行任务及后置钩子。父进程先运行前置钩子，可在任务仍运行时退出。与 `without_overlapping()` 一起使用时，选择文件或 Redis 等共享缓存。
 
+在任务或任务组上调用 `user("account")`，可在 Unix 上以指定账户运行 Artisan 命令和可执行程序。调度器的账户需要通过非交互式 `sudo` 切换到指定账户的权限。指定账户需要能访问应用目录并写入配置的输出文件。后台任务的结束钩子也以该账户运行，需要能访问共享缓存。回调和派发队列任务在调度器进程中运行。Windows 使用调度器的账户执行命令。
+
 子进程完成任务并释放锁后派发 `ScheduledBackgroundTaskFinished`。事件携带任务和退出码，也覆盖任务失败。应用装配时为 `console.scheduled_background_task_finished` 注册监听器。
 
 在 Windows ARM64 上，后台子进程使用同一个应用可执行文件。命令成功、非零退出或后置钩子失败后，文件缓存和 Redis 缓存均可释放重叠锁。父进程退出后，调用方即可从其 stdout 和 stderr 读到 EOF，后台任务可以继续执行。

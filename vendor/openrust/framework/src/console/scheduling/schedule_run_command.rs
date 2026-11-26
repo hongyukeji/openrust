@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    ffi::OsString,
     fmt::Write as _,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
@@ -36,6 +37,7 @@ use super::{
     cron_expression_timezone_converter, error,
     event::Action,
     schedule_list_output::{ListedEvent, display_json, display_text},
+    task_process,
 };
 
 const PAUSED: &str = "illuminate:schedule:paused";
@@ -748,7 +750,7 @@ impl ScheduleRunCommand {
         recorded_timezone: Option<&TimeZone>,
         scheduler_command: &'static str,
     ) -> Result<TaskOutcome, ConsoleError> {
-        let (outcome, captured) = self.invoke(app, output, event).await?;
+        let (outcome, captured) = self.invoke(app, output, event, scheduler_command).await?;
         if outcome.is_ok() || matches!(event.action, Action::Callback(..) | Action::Job(..)) {
             event
                 .call_after_hooks(
@@ -769,7 +771,14 @@ impl ScheduleRunCommand {
         app: &Application,
         output: &mut Output,
         event: &Event,
+        scheduler_command: &'static str,
     ) -> Result<(Result<TaskOutcome, ConsoleError>, Vec<u8>), ConsoleError> {
+        if let Some(user) = event.execution_user()
+            && (scheduler_command != "schedule:finish"
+                || !task_process::effective_user_is(user).await.map_err(error)?)
+        {
+            return self.invoke_as_user(app, output, event, user).await;
+        }
         let command = matches!(event.action, Action::Command(_) | Action::Exec(_));
         if !command && (event.destination.is_some() || event.captures_output() || event.background)
         {
@@ -877,6 +886,72 @@ impl ScheduleRunCommand {
         Ok((outcome, captured))
     }
 
+    async fn invoke_as_user(
+        &self,
+        app: &Application,
+        output: &mut Output,
+        event: &Event,
+        user: &str,
+    ) -> Result<(Result<TaskOutcome, ConsoleError>, Vec<u8>), ConsoleError> {
+        let invocation = match &event.action {
+            Action::Exec(arguments) => arguments.clone(),
+            Action::Command(arguments) => {
+                let executable = std::env::current_exe().map_err(error)?;
+                let mut command = vec![
+                    OsString::from("/usr/bin/env"),
+                    task_process::application_environment(app.base_path()),
+                    executable.into_os_string(),
+                    "artisan".into(),
+                ];
+                if crate::foundation::console_environment(arguments)?.is_none()
+                    && let Some(environment) = selected_environment(app)?
+                {
+                    command.push(format!("--env={environment}").into());
+                }
+                command.extend_from_slice(arguments);
+                command
+            }
+            Action::Callback(..) | Action::Job(..) => unreachable!("系统用户仅应用于命令"),
+        };
+        let result = task_process::run_as_user(
+            user,
+            app.base_path(),
+            &invocation,
+            event.destination.as_ref(),
+        )
+        .await
+        .map_err(error)?;
+        output
+            .stdout
+            .push_str(&String::from_utf8_lossy(&result.stdout));
+        output
+            .stderr
+            .push_str(&String::from_utf8_lossy(&result.stderr));
+        let captured = if event.captures_output() {
+            if let Some(destination) = &event.destination {
+                let read = tokio::fs::read(app.base_path().join(&destination.path)).await;
+                if result.status.success() {
+                    read.map_err(error)?
+                } else {
+                    read.unwrap_or_default()
+                }
+            } else {
+                let mut body = result.stdout;
+                body.extend(result.stderr);
+                body
+            }
+        } else {
+            Vec::new()
+        };
+        Ok((
+            Ok(exit_outcome(
+                result.status.code().unwrap_or(1),
+                result.status,
+            )),
+            captured,
+        ))
+    }
+
     async fn launch_background(
         &self,
         app: &Application,
@@ -912,7 +987,6 @@ impl ScheduleRunCommand {
             ));
         }
         event.call_before_hooks(app, output).await?;
-        let environment_file = app.container().get::<PathBuf>("env.file").map_err(error)?;
         let executable = std::env::current_exe().map_err(error)?;
         let mut args = vec![
             "artisan".into(),
@@ -920,11 +994,7 @@ impl ScheduleRunCommand {
             index.to_string(),
             event.mutex_key(),
         ];
-        if let Some(environment) = environment_file
-            .file_name()
-            .and_then(|name| name.to_str())
-            .and_then(|name| name.strip_prefix(".env."))
-        {
+        if let Some(environment) = selected_environment(app)? {
             args.push(format!("--env={environment}"));
         }
         let owner = match overlap {
@@ -934,7 +1004,14 @@ impl ScheduleRunCommand {
         if let Some(owner) = &owner {
             args.extend(["--owner".into(), owner.clone()]);
         }
-        match spawn_background(&executable, app.base_path(), &args) {
+        let launched = match event.execution_user() {
+            Some(user) => {
+                task_process::spawn_background_as_user(user, app.base_path(), &executable, &args)
+                    .await
+            }
+            None => spawn_background(&executable, app.base_path(), &args),
+        };
+        match launched {
             Ok(()) => Ok(TaskOutcome::Succeeded),
             Err(source) => {
                 if let (Some(overlap), Some(owner)) = (overlap, owner) {
@@ -1021,6 +1098,15 @@ impl ScheduleRunCommand {
         }
         Ok(code)
     }
+}
+
+fn selected_environment(app: &Application) -> Result<Option<String>, ConsoleError> {
+    let environment_file = app.container().get::<PathBuf>("env.file").map_err(error)?;
+    Ok(environment_file
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix(".env."))
+        .map(str::to_owned))
 }
 
 #[cfg(windows)]
