@@ -2371,3 +2371,30 @@ fn register_helper_set() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 格式化与调试助手 {#console-formatter-helpers}
+
+`FormatterHelper` 为节标题和文本块生成带样式标记的文本。节标题默认使用 `info`。块会转义输入，并把各行补齐至相同宽度。`format_block_with` 可选择在上下增加空行的宽松样式。`truncate_with` 先比较显示宽度，再按字素切片并附加后缀。
+
+`DebugFormatterHelper` 按会话 ID 生成起始行、输出与错误前缀及结果行。重新启动同一 ID 会重置输出流状态并轮换边框颜色。切换输出流后的第一行添加对应前缀。访问未知会话时返回错误。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, DebugFormatterHelper, FormatterHelper};
+use openrust::support::facades::Artisan;
+use openrust::console::{AsOutput, OutputFormat};
+
+fn register_formatter_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:format-example", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let formatter = FormatterHelper::new();
+            output.as_output().writeln(&formatter.format_section("check", "Ready"), OutputFormat::Normal)?;
+            let debug = DebugFormatterHelper::new();
+            output.as_output().writeln(&debug.start("report", "Running"), OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.progress("report", "Processing", false)?, OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.stop("report", "Done", true)?, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

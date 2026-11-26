@@ -1,0 +1,39 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_version": "7.4.0",
+  "status": "verified_formatter_and_debug_helper_native_sdk",
+  "bindings": {
+    "FormatterHelper": [
+      "get_name",
+      "format_section / format_section_with",
+      "format_block / format_block_with",
+      "truncate / truncate_with"
+    ],
+    "DebugFormatterHelper": [
+      "get_name",
+      "start / start_with",
+      "progress / progress_with",
+      "stop / stop_with"
+    ]
+  },
+  "source_oracle": "formatter-helper-oracle.json",
+  "runtime": {
+    "source_cases": 424,
+    "framework_targets": 7,
+    "framework_parent_tests": 42,
+    "new_artisan_processes": 3,
+    "new_http_requests": 15,
+    "formal_document_consumers": 189,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "沿用已有文本宽度、字符切片和样式转义。保留固定实现的省略阈值与填充。",
+    "使用互斥状态按标识保留颜色和当前流。输出仍交给现有格式器处理。",
+    "原生 Rust 未开始会话返回具名错误。固定 PHP 使用未定义索引诊断。",
+    "显式 _with 方法接收固定上游默认参数的覆盖值。"
+  ],
+  "remaining": [
+    "ProcessHelper 的进程执行、回调、失败诊断与默认集合接线。",
+    "Application、Command 的助手集合与替换规则，以及其余 Artisan 锚点继续。"
+  ]
+}

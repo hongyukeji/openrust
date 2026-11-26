@@ -666,5 +666,13 @@
       "Application 与 Command 的默认集合、替换与调用接线继续。固定默认 FormatterHelper、DebugFormatterHelper、ProcessHelper 的所属方法尚待验证。",
       "终端样式/颜色仓库、独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
     ]
+  },
+  "console_formatter_helpers": {
+    "status": "verified_formatter_and_debug_helper_native_sdk",
+    "contract": "formatter-helper-contracts.json",
+    "remaining": [
+      "ProcessHelper 的进程执行、回调、失败诊断与默认集合接线。",
+      "Application、Command 的助手集合与替换规则，以及其余 Artisan 锚点继续。"
+    ]
   }
 }

@@ -867,3 +867,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 固定 Console 7.4.0 的 HelperInterface、Helper 关联方法及 HelperSet 的构造、注册、查询、迭代已接通。真实 PHP 对照覆盖同名替换、旧别名留存、快照迭代、重新关联、手动分离、空别名、别名覆盖和缺名异常。两个实际 QuestionHelper 类型提供所属关系。Rust 使用弱反向引用回收集合生命周期，保留可用集合期间的同一实例身份。用户注册回调和被替换实例的析构都在锁外执行。
 
 36 个框架父测试、真实 Artisan 3 进程、HTTP 15 请求、186 个三语示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy 与格式检查通过。初轮脚本引用了不存在的测试目标，修正后补验。严格检查曾触及磁盘停线，退出阶段有 EPERM，空间回升后重新执行严格检查与格式检查通过。保留原日志、固定来源和复用缓存。下一簇继续 Application 与 Command 默认集合接线及具体默认助手。见 helper-set-contracts.json 和 accepted-helper-set.json。
+
+
+## 62. 控制台文本格式化与调试会话
+
+公开 FormatterHelper 的标题、文本块和截断入口，以及 DebugFormatterHelper 的会话开始、进度与结果入口接通现有输出。固定 Console 7.4.0 对照覆盖 424 个场景，包括连续同流、流切换、颜色轮换、会话重复开始、失败清理、空文本和标记转义。原生未知会话返回错误，固定 PHP 的未定义索引诊断另有记录。
+
+42 个框架父测试、真实 Artisan 3 进程、HTTP 15 请求、189 个三语文档消费者和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。固定源码采集的首轮脚本语法错误已修复，最终结果单独记录。下一簇接通 ProcessHelper 和进程消费者。见 formatter-helper-contracts.json 和 accepted-formatter-helper.json。

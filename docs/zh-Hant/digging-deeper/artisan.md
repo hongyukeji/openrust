@@ -2371,3 +2371,30 @@ fn register_helper_set() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 格式化與除錯助手 {#console-formatter-helpers}
+
+`FormatterHelper` 為節標題和文字區塊產生帶樣式標記的文字。節標題預設使用 `info`。區塊會跳脫輸入，並把各行補齊至相同寬度。`format_block_with` 可選擇在上下增加空行的寬鬆樣式。`truncate_with` 先比較顯示寬度，再按字素切片並附加後綴。
+
+`DebugFormatterHelper` 按工作階段 ID 產生起始行、輸出與錯誤前綴及結果行。重新啟動同一 ID 會重設輸出流狀態並輪換邊框顏色。切換輸出流後的第一行加入對應前綴。存取未知工作階段時回傳錯誤。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, DebugFormatterHelper, FormatterHelper};
+use openrust::support::facades::Artisan;
+use openrust::console::{AsOutput, OutputFormat};
+
+fn register_formatter_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:format-example", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let formatter = FormatterHelper::new();
+            output.as_output().writeln(&formatter.format_section("check", "Ready"), OutputFormat::Normal)?;
+            let debug = DebugFormatterHelper::new();
+            output.as_output().writeln(&debug.start("report", "Running"), OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.progress("report", "Processing", false)?, OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.stop("report", "Done", true)?, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

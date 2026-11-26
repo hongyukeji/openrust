@@ -2371,3 +2371,30 @@ fn register_helper_set() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Formatter and debug helpers {#console-formatter-helpers}
+
+`FormatterHelper` builds styled markup for sections and blocks. Sections default to the `info` style. Blocks escape supplied text and pad their rows to the same width. Call `format_block_with` for the large variant, which adds blank rows above and below. `truncate_with` compares display width before slicing graphemes and appending the suffix.
+
+`DebugFormatterHelper` uses a session ID to generate a start line, output and error prefixes, and a result line. Starting a session again resets its stream state and selects the next border color. The first line after a stream change receives a new prefix. Calls to unknown sessions return an error.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, DebugFormatterHelper, FormatterHelper};
+use openrust::support::facades::Artisan;
+use openrust::console::{AsOutput, OutputFormat};
+
+fn register_formatter_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:format-example", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let formatter = FormatterHelper::new();
+            output.as_output().writeln(&formatter.format_section("check", "Ready"), OutputFormat::Normal)?;
+            let debug = DebugFormatterHelper::new();
+            output.as_output().writeln(&debug.start("report", "Running"), OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.progress("report", "Processing", false)?, OutputFormat::Normal)?;
+            output.as_output().writeln(&debug.stop("report", "Done", true)?, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

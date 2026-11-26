@@ -1,0 +1,39 @@
+{
+  "base": "c2d7c24aaa91992634c5012d6ebdd530a693d73e",
+  "contract": "formatter-helper-contracts.json",
+  "results": [
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.78s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+    "test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+    "test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.97s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 189 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s"
+  ],
+  "runtime": {
+    "source_cases": 424,
+    "framework_targets": 7,
+    "framework_parent_tests": 42,
+    "new_artisan_processes": 3,
+    "new_http_requests": 15,
+    "formal_document_consumers": 189,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/formatter-helper-first.log",
+    "target/tmp/artisan-tutorial-20261125/formatter-helper-gates.log",
+    "target/tmp/artisan-tutorial-20261125/formatter-helper-site.log",
+    "target/tmp/artisan-tutorial-20261125/formatter-helper-source.json"
+  ],
+  "unaccepted_attempts": [
+    "formatter-helper-source-assignment-error.log: initial fixture syntax error, corrected and rerun",
+    "formatter-helper-gates-invalid-example.log and formatter-helper-gates-decorated-assertion.log: comments and then plain comparison concealed decorated output",
+    "formatter-helper-gates-arc-example.log: explicit formatter trait-object borrow corrected"
+  ],
+  "remaining": [
+    "ProcessHelper 的进程执行、回调、失败诊断与默认集合接线。",
+    "Application、Command 的助手集合与替换规则，以及其余 Artisan 锚点继续。"
+  ],
+  "pushed": false
+}

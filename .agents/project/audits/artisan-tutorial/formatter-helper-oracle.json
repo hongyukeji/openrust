@@ -1,0 +1,3150 @@
+{
+    "formatter_name": "formatter",
+    "debug_name": "debug_formatter",
+    "section": [
+        {
+            "message": "plain",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> plain"
+        },
+        {
+            "message": "plain",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> plain"
+        },
+        {
+            "message": "plain",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> plain"
+        },
+        {
+            "message": "界é",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> 界é"
+        },
+        {
+            "message": "界é",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> 界é"
+        },
+        {
+            "message": "界é",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> 界é"
+        },
+        {
+            "message": "क्‍ष",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> क्‍ष"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> <info>value<\/info>"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> <info>value<\/info>"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> <info>value<\/info>"
+        },
+        {
+            "message": "a\nb\t\t",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> a\nb\t\t"
+        },
+        {
+            "message": "end\\",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> end\\"
+        },
+        {
+            "message": "end\\",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> end\\"
+        },
+        {
+            "message": "end\\",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> end\\"
+        },
+        {
+            "message": "",
+            "style": "info",
+            "output": "<info>[api:check]<\/info> "
+        },
+        {
+            "message": "",
+            "style": "error",
+            "output": "<error>[api:check]<\/error> "
+        },
+        {
+            "message": "",
+            "style": "custom",
+            "output": "<custom>[api:check]<\/custom> "
+        }
+    ],
+    "block": [
+        {
+            "value": "plain",
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  plain  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  plain  <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "plain",
+            "style": "info",
+            "large": false,
+            "output": "<info> plain <\/info>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> plain <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "plain",
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  plain  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  plain  <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "plain",
+            "style": "error",
+            "large": false,
+            "output": "<error> plain <\/error>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> plain <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "plain",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  plain  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  plain  <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "plain",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> plain <\/custom>"
+        },
+        {
+            "value": [
+                "plain",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> plain <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "界é",
+            "style": "info",
+            "large": true,
+            "output": "<info>       <\/info>\n<info>  界é  <\/info>\n<info>       <\/info>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  界é    <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "界é",
+            "style": "info",
+            "large": false,
+            "output": "<info> 界é <\/info>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> 界é   <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "界é",
+            "style": "error",
+            "large": true,
+            "output": "<error>       <\/error>\n<error>  界é  <\/error>\n<error>       <\/error>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  界é    <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "界é",
+            "style": "error",
+            "large": false,
+            "output": "<error> 界é <\/error>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> 界é   <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "界é",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>       <\/custom>\n<custom>  界é  <\/custom>\n<custom>       <\/custom>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  界é    <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "界é",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> 界é <\/custom>"
+        },
+        {
+            "value": [
+                "界é",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> 界é   <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "क्‍ष",
+            "style": "info",
+            "large": true,
+            "output": "<info>      <\/info>\n<info>  क्‍ष  <\/info>\n<info>      <\/info>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  क्‍ष     <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "क्‍ष",
+            "style": "info",
+            "large": false,
+            "output": "<info> क्‍ष <\/info>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> क्‍ष    <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "क्‍ष",
+            "style": "error",
+            "large": true,
+            "output": "<error>      <\/error>\n<error>  क्‍ष  <\/error>\n<error>      <\/error>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  क्‍ष     <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "क्‍ष",
+            "style": "error",
+            "large": false,
+            "output": "<error> क्‍ष <\/error>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> क्‍ष    <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "क्‍ष",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>      <\/custom>\n<custom>  क्‍ष  <\/custom>\n<custom>      <\/custom>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  क्‍ष     <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "क्‍ष",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> क्‍ष <\/custom>"
+        },
+        {
+            "value": [
+                "क्‍ष",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> क्‍ष    <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "info",
+            "large": true,
+            "output": "<info>                          <\/info>\n<info>  \\<info\\>value\\<\/info\\>  <\/info>\n<info>                          <\/info>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>                          <\/info>\n<info>  \\<info\\>value\\<\/info\\>  <\/info>\n<info>  other                   <\/info>\n<info>                          <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "info",
+            "large": false,
+            "output": "<info> \\<info\\>value\\<\/info\\> <\/info>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> \\<info\\>value\\<\/info\\> <\/info>\n<info> other                  <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "error",
+            "large": true,
+            "output": "<error>                          <\/error>\n<error>  \\<info\\>value\\<\/info\\>  <\/error>\n<error>                          <\/error>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>                          <\/error>\n<error>  \\<info\\>value\\<\/info\\>  <\/error>\n<error>  other                   <\/error>\n<error>                          <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "error",
+            "large": false,
+            "output": "<error> \\<info\\>value\\<\/info\\> <\/error>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> \\<info\\>value\\<\/info\\> <\/error>\n<error> other                  <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>                          <\/custom>\n<custom>  \\<info\\>value\\<\/info\\>  <\/custom>\n<custom>                          <\/custom>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>                          <\/custom>\n<custom>  \\<info\\>value\\<\/info\\>  <\/custom>\n<custom>  other                   <\/custom>\n<custom>                          <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "<info>value<\/info>",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> \\<info\\>value\\<\/info\\> <\/custom>"
+        },
+        {
+            "value": [
+                "<info>value<\/info>",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> \\<info\\>value\\<\/info\\> <\/custom>\n<custom> other                  <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "info",
+            "large": true,
+            "output": "<info>        <\/info>\n<info>  a\nb\t\t  <\/info>\n<info>        <\/info>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  a\nb\t\t   <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "info",
+            "large": false,
+            "output": "<info> a\nb\t\t <\/info>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> a\nb\t\t  <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "error",
+            "large": true,
+            "output": "<error>        <\/error>\n<error>  a\nb\t\t  <\/error>\n<error>        <\/error>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  a\nb\t\t   <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "error",
+            "large": false,
+            "output": "<error> a\nb\t\t <\/error>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> a\nb\t\t  <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>        <\/custom>\n<custom>  a\nb\t\t  <\/custom>\n<custom>        <\/custom>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  a\nb\t\t   <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "a\nb\t\t",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> a\nb\t\t <\/custom>"
+        },
+        {
+            "value": [
+                "a\nb\t\t",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> a\nb\t\t  <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "end\\",
+            "style": "info",
+            "large": true,
+            "output": "<info>        <\/info>\n<info>  end\u0000  <\/info>\n<info>        <\/info>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>  end\u0000   <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "end\\",
+            "style": "info",
+            "large": false,
+            "output": "<info> end\u0000 <\/info>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info> end\u0000  <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "end\\",
+            "style": "error",
+            "large": true,
+            "output": "<error>        <\/error>\n<error>  end\u0000  <\/error>\n<error>        <\/error>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>  end\u0000   <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "end\\",
+            "style": "error",
+            "large": false,
+            "output": "<error> end\u0000 <\/error>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error> end\u0000  <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "end\\",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>        <\/custom>\n<custom>  end\u0000  <\/custom>\n<custom>        <\/custom>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>  end\u0000   <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "end\\",
+            "style": "custom",
+            "large": false,
+            "output": "<custom> end\u0000 <\/custom>"
+        },
+        {
+            "value": [
+                "end\\",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom> end\u0000  <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "",
+            "style": "info",
+            "large": true,
+            "output": "<info>    <\/info>\n<info>    <\/info>\n<info>    <\/info>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "info",
+            "large": true,
+            "output": "<info>         <\/info>\n<info>         <\/info>\n<info>  other  <\/info>\n<info>         <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": true,
+            "output": "<info><\/info>\n<info><\/info>"
+        },
+        {
+            "value": "",
+            "style": "info",
+            "large": false,
+            "output": "<info>  <\/info>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "info",
+            "large": false,
+            "output": "<info>       <\/info>\n<info> other <\/info>"
+        },
+        {
+            "value": [],
+            "style": "info",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "",
+            "style": "error",
+            "large": true,
+            "output": "<error>    <\/error>\n<error>    <\/error>\n<error>    <\/error>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "error",
+            "large": true,
+            "output": "<error>         <\/error>\n<error>         <\/error>\n<error>  other  <\/error>\n<error>         <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": true,
+            "output": "<error><\/error>\n<error><\/error>"
+        },
+        {
+            "value": "",
+            "style": "error",
+            "large": false,
+            "output": "<error>  <\/error>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "error",
+            "large": false,
+            "output": "<error>       <\/error>\n<error> other <\/error>"
+        },
+        {
+            "value": [],
+            "style": "error",
+            "large": false,
+            "output": ""
+        },
+        {
+            "value": "",
+            "style": "custom",
+            "large": true,
+            "output": "<custom>    <\/custom>\n<custom>    <\/custom>\n<custom>    <\/custom>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "custom",
+            "large": true,
+            "output": "<custom>         <\/custom>\n<custom>         <\/custom>\n<custom>  other  <\/custom>\n<custom>         <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": true,
+            "output": "<custom><\/custom>\n<custom><\/custom>"
+        },
+        {
+            "value": "",
+            "style": "custom",
+            "large": false,
+            "output": "<custom>  <\/custom>"
+        },
+        {
+            "value": [
+                "",
+                "other"
+            ],
+            "style": "custom",
+            "large": false,
+            "output": "<custom>       <\/custom>\n<custom> other <\/custom>"
+        },
+        {
+            "value": [],
+            "style": "custom",
+            "large": false,
+            "output": ""
+        }
+    ],
+    "truncate": [
+        {
+            "message": "plain",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "plain",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "plain",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "plain",
+            "limit": -1,
+            "suffix": "",
+            "output": "plai"
+        },
+        {
+            "message": "plain",
+            "limit": -1,
+            "suffix": "...",
+            "output": "plai..."
+        },
+        {
+            "message": "plain",
+            "limit": -1,
+            "suffix": "界",
+            "output": "plai界"
+        },
+        {
+            "message": "plain",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "plain",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "plain",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "plain",
+            "limit": 1,
+            "suffix": "",
+            "output": "p"
+        },
+        {
+            "message": "plain",
+            "limit": 1,
+            "suffix": "...",
+            "output": "p..."
+        },
+        {
+            "message": "plain",
+            "limit": 1,
+            "suffix": "界",
+            "output": "p界"
+        },
+        {
+            "message": "plain",
+            "limit": 2,
+            "suffix": "",
+            "output": "pl"
+        },
+        {
+            "message": "plain",
+            "limit": 2,
+            "suffix": "...",
+            "output": "pl..."
+        },
+        {
+            "message": "plain",
+            "limit": 2,
+            "suffix": "界",
+            "output": "pl界"
+        },
+        {
+            "message": "plain",
+            "limit": 3,
+            "suffix": "",
+            "output": "pla"
+        },
+        {
+            "message": "plain",
+            "limit": 3,
+            "suffix": "...",
+            "output": "pla..."
+        },
+        {
+            "message": "plain",
+            "limit": 3,
+            "suffix": "界",
+            "output": "pla界"
+        },
+        {
+            "message": "plain",
+            "limit": 4,
+            "suffix": "",
+            "output": "plai"
+        },
+        {
+            "message": "plain",
+            "limit": 4,
+            "suffix": "...",
+            "output": "plai..."
+        },
+        {
+            "message": "plain",
+            "limit": 4,
+            "suffix": "界",
+            "output": "plai界"
+        },
+        {
+            "message": "plain",
+            "limit": 10,
+            "suffix": "",
+            "output": "plain"
+        },
+        {
+            "message": "plain",
+            "limit": 10,
+            "suffix": "...",
+            "output": "plain"
+        },
+        {
+            "message": "plain",
+            "limit": 10,
+            "suffix": "界",
+            "output": "plain"
+        },
+        {
+            "message": "plain",
+            "limit": 50,
+            "suffix": "",
+            "output": "plain"
+        },
+        {
+            "message": "plain",
+            "limit": 50,
+            "suffix": "...",
+            "output": "plain"
+        },
+        {
+            "message": "plain",
+            "limit": 50,
+            "suffix": "界",
+            "output": "plain"
+        },
+        {
+            "message": "界é",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "界é",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "界é",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "界é",
+            "limit": -1,
+            "suffix": "",
+            "output": "界"
+        },
+        {
+            "message": "界é",
+            "limit": -1,
+            "suffix": "...",
+            "output": "界..."
+        },
+        {
+            "message": "界é",
+            "limit": -1,
+            "suffix": "界",
+            "output": "界界"
+        },
+        {
+            "message": "界é",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "界é",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "界é",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "界é",
+            "limit": 1,
+            "suffix": "",
+            "output": "界"
+        },
+        {
+            "message": "界é",
+            "limit": 1,
+            "suffix": "...",
+            "output": "界..."
+        },
+        {
+            "message": "界é",
+            "limit": 1,
+            "suffix": "界",
+            "output": "界界"
+        },
+        {
+            "message": "界é",
+            "limit": 2,
+            "suffix": "",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 2,
+            "suffix": "...",
+            "output": "界é..."
+        },
+        {
+            "message": "界é",
+            "limit": 2,
+            "suffix": "界",
+            "output": "界é界"
+        },
+        {
+            "message": "界é",
+            "limit": 3,
+            "suffix": "",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 3,
+            "suffix": "...",
+            "output": "界é..."
+        },
+        {
+            "message": "界é",
+            "limit": 3,
+            "suffix": "界",
+            "output": "界é界"
+        },
+        {
+            "message": "界é",
+            "limit": 4,
+            "suffix": "",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 4,
+            "suffix": "...",
+            "output": "界é..."
+        },
+        {
+            "message": "界é",
+            "limit": 4,
+            "suffix": "界",
+            "output": "界é界"
+        },
+        {
+            "message": "界é",
+            "limit": 10,
+            "suffix": "",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 10,
+            "suffix": "...",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 10,
+            "suffix": "界",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 50,
+            "suffix": "",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 50,
+            "suffix": "...",
+            "output": "界é"
+        },
+        {
+            "message": "界é",
+            "limit": 50,
+            "suffix": "界",
+            "output": "界é"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -1,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -1,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": -1,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 1,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 1,
+            "suffix": "...",
+            "output": "क्‍ष..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 1,
+            "suffix": "界",
+            "output": "क्‍ष界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 2,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 2,
+            "suffix": "...",
+            "output": "क्‍ष..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 2,
+            "suffix": "界",
+            "output": "क्‍ष界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 3,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 3,
+            "suffix": "...",
+            "output": "क्‍ष..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 3,
+            "suffix": "界",
+            "output": "क्‍ष界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 4,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 4,
+            "suffix": "...",
+            "output": "क्‍ष..."
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 4,
+            "suffix": "界",
+            "output": "क्‍ष界"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 10,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 10,
+            "suffix": "...",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 10,
+            "suffix": "界",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 50,
+            "suffix": "",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 50,
+            "suffix": "...",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "क्‍ष",
+            "limit": 50,
+            "suffix": "界",
+            "output": "क्‍ष"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -1,
+            "suffix": "",
+            "output": "<info>value<\/info"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -1,
+            "suffix": "...",
+            "output": "<info>value<\/info..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": -1,
+            "suffix": "界",
+            "output": "<info>value<\/info界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 1,
+            "suffix": "",
+            "output": "<"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 1,
+            "suffix": "...",
+            "output": "<..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 1,
+            "suffix": "界",
+            "output": "<界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 2,
+            "suffix": "",
+            "output": "<i"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 2,
+            "suffix": "...",
+            "output": "<i..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 2,
+            "suffix": "界",
+            "output": "<i界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 3,
+            "suffix": "",
+            "output": "<in"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 3,
+            "suffix": "...",
+            "output": "<in..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 3,
+            "suffix": "界",
+            "output": "<in界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 4,
+            "suffix": "",
+            "output": "<inf"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 4,
+            "suffix": "...",
+            "output": "<inf..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 4,
+            "suffix": "界",
+            "output": "<inf界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 10,
+            "suffix": "",
+            "output": "<info>valu"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 10,
+            "suffix": "...",
+            "output": "<info>valu..."
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 10,
+            "suffix": "界",
+            "output": "<info>valu界"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 50,
+            "suffix": "",
+            "output": "<info>value<\/info>"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 50,
+            "suffix": "...",
+            "output": "<info>value<\/info>"
+        },
+        {
+            "message": "<info>value<\/info>",
+            "limit": 50,
+            "suffix": "界",
+            "output": "<info>value<\/info>"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -1,
+            "suffix": "",
+            "output": "a\nb\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -1,
+            "suffix": "...",
+            "output": "a\nb\t..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": -1,
+            "suffix": "界",
+            "output": "a\nb\t界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 1,
+            "suffix": "",
+            "output": "a"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 1,
+            "suffix": "...",
+            "output": "a..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 1,
+            "suffix": "界",
+            "output": "a界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 2,
+            "suffix": "",
+            "output": "a\n"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 2,
+            "suffix": "...",
+            "output": "a\n..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 2,
+            "suffix": "界",
+            "output": "a\n界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 3,
+            "suffix": "",
+            "output": "a\nb"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 3,
+            "suffix": "...",
+            "output": "a\nb..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 3,
+            "suffix": "界",
+            "output": "a\nb界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 4,
+            "suffix": "",
+            "output": "a\nb\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 4,
+            "suffix": "...",
+            "output": "a\nb\t..."
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 4,
+            "suffix": "界",
+            "output": "a\nb\t界"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 10,
+            "suffix": "",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 10,
+            "suffix": "...",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 10,
+            "suffix": "界",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 50,
+            "suffix": "",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 50,
+            "suffix": "...",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "a\nb\t\t",
+            "limit": 50,
+            "suffix": "界",
+            "output": "a\nb\t\t"
+        },
+        {
+            "message": "end\\",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "end\\",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "end\\",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "end\\",
+            "limit": -1,
+            "suffix": "",
+            "output": "end"
+        },
+        {
+            "message": "end\\",
+            "limit": -1,
+            "suffix": "...",
+            "output": "end..."
+        },
+        {
+            "message": "end\\",
+            "limit": -1,
+            "suffix": "界",
+            "output": "end界"
+        },
+        {
+            "message": "end\\",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "end\\",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "end\\",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "end\\",
+            "limit": 1,
+            "suffix": "",
+            "output": "e"
+        },
+        {
+            "message": "end\\",
+            "limit": 1,
+            "suffix": "...",
+            "output": "e..."
+        },
+        {
+            "message": "end\\",
+            "limit": 1,
+            "suffix": "界",
+            "output": "e界"
+        },
+        {
+            "message": "end\\",
+            "limit": 2,
+            "suffix": "",
+            "output": "en"
+        },
+        {
+            "message": "end\\",
+            "limit": 2,
+            "suffix": "...",
+            "output": "en..."
+        },
+        {
+            "message": "end\\",
+            "limit": 2,
+            "suffix": "界",
+            "output": "en界"
+        },
+        {
+            "message": "end\\",
+            "limit": 3,
+            "suffix": "",
+            "output": "end"
+        },
+        {
+            "message": "end\\",
+            "limit": 3,
+            "suffix": "...",
+            "output": "end..."
+        },
+        {
+            "message": "end\\",
+            "limit": 3,
+            "suffix": "界",
+            "output": "end界"
+        },
+        {
+            "message": "end\\",
+            "limit": 4,
+            "suffix": "",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 4,
+            "suffix": "...",
+            "output": "end\\..."
+        },
+        {
+            "message": "end\\",
+            "limit": 4,
+            "suffix": "界",
+            "output": "end\\界"
+        },
+        {
+            "message": "end\\",
+            "limit": 10,
+            "suffix": "",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 10,
+            "suffix": "...",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 10,
+            "suffix": "界",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 50,
+            "suffix": "",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 50,
+            "suffix": "...",
+            "output": "end\\"
+        },
+        {
+            "message": "end\\",
+            "limit": 50,
+            "suffix": "界",
+            "output": "end\\"
+        },
+        {
+            "message": "",
+            "limit": -20,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": -20,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": -20,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "",
+            "limit": -1,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": -1,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": -1,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "",
+            "limit": 0,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 0,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": 0,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "",
+            "limit": 1,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 1,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": 1,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "",
+            "limit": 2,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 2,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": 2,
+            "suffix": "界",
+            "output": "界"
+        },
+        {
+            "message": "",
+            "limit": 3,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 3,
+            "suffix": "...",
+            "output": "..."
+        },
+        {
+            "message": "",
+            "limit": 3,
+            "suffix": "界",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 4,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 4,
+            "suffix": "...",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 4,
+            "suffix": "界",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 10,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 10,
+            "suffix": "...",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 10,
+            "suffix": "界",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 50,
+            "suffix": "",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 50,
+            "suffix": "...",
+            "output": ""
+        },
+        {
+            "message": "",
+            "limit": 50,
+            "suffix": "界",
+            "output": ""
+        }
+    ],
+    "debug": [
+        {
+            "method": "start",
+            "args": [
+                "run-0",
+                "cmd-0",
+                "RUN"
+            ],
+            "output": "<bg=black> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-0<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-0",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=black> <\/><bg=green;fg=white> OUT <\/> out\n<bg=black> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-0",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-0",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=black> <\/><bg=red;fg=white> ERR <\/> \n<bg=black> <\/><bg=red;fg=white> ERR <\/> error\n<bg=black> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-0",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=black> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-0",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-0",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=black> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-1",
+                "cmd-1",
+                "RUN"
+            ],
+            "output": "<bg=red> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-1<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=red> <\/><bg=green;fg=white> OUT <\/> out\n<bg=red> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=red> <\/><bg=red;fg=white> ERR <\/> \n<bg=red> <\/><bg=red;fg=white> ERR <\/> error\n<bg=red> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-1",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=red> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=red> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=red> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-2",
+                "cmd-2",
+                "RUN"
+            ],
+            "output": "<bg=green> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-2<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-2",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=green> <\/><bg=green;fg=white> OUT <\/> out\n<bg=green> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-2",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-2",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=green> <\/><bg=red;fg=white> ERR <\/> \n<bg=green> <\/><bg=red;fg=white> ERR <\/> error\n<bg=green> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-2",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=green> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-2",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-2",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=green> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-3",
+                "cmd-3",
+                "RUN"
+            ],
+            "output": "<bg=yellow> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-3<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-3",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=yellow> <\/><bg=green;fg=white> OUT <\/> out\n<bg=yellow> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-3",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-3",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=yellow> <\/><bg=red;fg=white> ERR <\/> \n<bg=yellow> <\/><bg=red;fg=white> ERR <\/> error\n<bg=yellow> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-3",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=yellow> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-3",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=yellow> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-3",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=yellow> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-4",
+                "cmd-4",
+                "RUN"
+            ],
+            "output": "<bg=blue> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-4<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-4",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=blue> <\/><bg=green;fg=white> OUT <\/> out\n<bg=blue> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-4",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-4",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=blue> <\/><bg=red;fg=white> ERR <\/> \n<bg=blue> <\/><bg=red;fg=white> ERR <\/> error\n<bg=blue> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-4",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=blue> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-4",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-4",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=blue> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-5",
+                "cmd-5",
+                "RUN"
+            ],
+            "output": "<bg=magenta> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-5<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-5",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=magenta> <\/><bg=green;fg=white> OUT <\/> out\n<bg=magenta> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-5",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-5",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=magenta> <\/><bg=red;fg=white> ERR <\/> \n<bg=magenta> <\/><bg=red;fg=white> ERR <\/> error\n<bg=magenta> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-5",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=magenta> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-5",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=magenta> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-5",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=magenta> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-6",
+                "cmd-6",
+                "RUN"
+            ],
+            "output": "<bg=cyan> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-6<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-6",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=cyan> <\/><bg=green;fg=white> OUT <\/> out\n<bg=cyan> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-6",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-6",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=cyan> <\/><bg=red;fg=white> ERR <\/> \n<bg=cyan> <\/><bg=red;fg=white> ERR <\/> error\n<bg=cyan> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-6",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=cyan> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-6",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-6",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=cyan> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-7",
+                "cmd-7",
+                "RUN"
+            ],
+            "output": "<bg=white> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-7<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-7",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=white> <\/><bg=green;fg=white> OUT <\/> out\n<bg=white> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-7",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-7",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=white> <\/><bg=red;fg=white> ERR <\/> \n<bg=white> <\/><bg=red;fg=white> ERR <\/> error\n<bg=white> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-7",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=white> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-7",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=white> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-7",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=white> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-8",
+                "cmd-8",
+                "RUN"
+            ],
+            "output": "<bg=default> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-8<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-8",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=default> <\/><bg=green;fg=white> OUT <\/> out\n<bg=default> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-8",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-8",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=default> <\/><bg=red;fg=white> ERR <\/> \n<bg=default> <\/><bg=red;fg=white> ERR <\/> error\n<bg=default> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-8",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=default> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-8",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-8",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=default> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-9",
+                "cmd-9",
+                "RUN"
+            ],
+            "output": "<bg=black> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-9<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-9",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=black> <\/><bg=green;fg=white> OUT <\/> out\n<bg=black> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-9",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-9",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=black> <\/><bg=red;fg=white> ERR <\/> \n<bg=black> <\/><bg=red;fg=white> ERR <\/> error\n<bg=black> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-9",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=black> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-9",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=black> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-9",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=black> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-10",
+                "cmd-10",
+                "RUN"
+            ],
+            "output": "<bg=red> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-10<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-10",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=red> <\/><bg=green;fg=white> OUT <\/> out\n<bg=red> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-10",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-10",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=red> <\/><bg=red;fg=white> ERR <\/> \n<bg=red> <\/><bg=red;fg=white> ERR <\/> error\n<bg=red> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-10",
+                "done",
+                true,
+                "RES"
+            ],
+            "output": "\n<bg=red> <\/><bg=green;fg=white> RES <\/> <fg=green>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-10",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-10",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=red> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-11",
+                "cmd-11",
+                "RUN"
+            ],
+            "output": "<bg=green> <\/><bg=blue;fg=white> RUN <\/> <fg=blue>cmd-11<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-11",
+                "out\nnext",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=green> <\/><bg=green;fg=white> OUT <\/> out\n<bg=green> <\/><bg=green;fg=white> OUT <\/> next",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-11",
+                "continued",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "continued",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-11",
+                "\nerror\n",
+                true,
+                "OUT",
+                "ERR"
+            ],
+            "output": "\n<bg=green> <\/><bg=red;fg=white> ERR <\/> \n<bg=green> <\/><bg=red;fg=white> ERR <\/> error\n<bg=green> <\/><bg=red;fg=white> ERR <\/> ",
+            "error": null
+        },
+        {
+            "method": "stop",
+            "args": [
+                "run-11",
+                "done",
+                false,
+                "RES"
+            ],
+            "output": "\n<bg=green> <\/><bg=red;fg=white> RES <\/> <fg=red>done<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-11",
+                "after",
+                true,
+                "stdout",
+                "stderr"
+            ],
+            "output": "<bg=green> <\/><bg=red;fg=white> stderr <\/> after",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-11",
+                "back",
+                false,
+                "stdout",
+                "stderr"
+            ],
+            "output": "\n<bg=green> <\/><bg=green;fg=white> stdout <\/> back",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "missing",
+                "",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": null,
+            "error": "ErrorException"
+        },
+        {
+            "method": "stop",
+            "args": [
+                "missing",
+                "none",
+                false,
+                "RES"
+            ],
+            "output": null,
+            "error": "ErrorException"
+        },
+        {
+            "method": "start",
+            "args": [
+                "run-1",
+                "reused",
+                "RESTART"
+            ],
+            "output": "<bg=yellow> <\/><bg=blue;fg=white> RESTART <\/> <fg=blue>reused<\/>\n",
+            "error": null
+        },
+        {
+            "method": "progress",
+            "args": [
+                "run-1",
+                "reset",
+                false,
+                "OUT",
+                "ERR"
+            ],
+            "output": "<bg=yellow> <\/><bg=green;fg=white> OUT <\/> reset",
+            "error": null
+        }
+    ]
+}
