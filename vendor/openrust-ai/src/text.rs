@@ -618,31 +618,25 @@ impl OpenAiTextProvider {
             OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
         }
         .map_err(|_| AiError::InvalidSchema)?;
-        if matches!(self.protocol, OpenAiProtocol::ChatCompletions)
-            && prompt
-                .messages
-                .iter()
-                .any(|message| message.provider_replay.is_some())
+        apply_provider_options(&mut body, prompt.provider_options, false)?;
+        if matches!(self.protocol, OpenAiProtocol::Responses) {
+            include_encrypted_reasoning(&mut body, prompt.text.model)?;
+        }
+        if prompt
+            .messages
+            .iter()
+            .any(|message| message.provider_replay.is_some())
         {
-            let scope = self.connection.request_namespace("chat-tool-replay")?;
-            let mut index = usize::from(!prompt.text.instructions.is_empty());
-            for message in prompt.messages {
-                if message.role == MessageRole::Assistant
-                    && let Some(reasoning) = message
-                        .provider_replay
-                        .as_ref()
-                        .and_then(|replay| replay.chat_reasoning(&scope, prompt.text.model))
-                {
-                    body["messages"][index]["reasoning_content"] = reasoning.into();
+            let scope = self
+                .approval_replay_scope()?
+                .ok_or(AiError::InvalidResponse)?;
+            match self.protocol {
+                OpenAiProtocol::ChatCompletions => {
+                    restore_chat_reasoning(&mut body, prompt, &scope)
                 }
-                index += if message.role == MessageRole::ToolResult {
-                    message.tool_results.len()
-                } else {
-                    1
-                };
+                OpenAiProtocol::Responses => restore_responses_items(&mut body, prompt, &scope)?,
             }
         }
-        apply_provider_options(&mut body, prompt.provider_options, false)?;
         Ok(body)
     }
 
@@ -951,6 +945,84 @@ impl StepTextGateway for OpenAiTextProvider {
             Ok(crate::tool_stream_protocol::openai(self.protocol, stream))
         })
     }
+}
+
+fn restore_chat_reasoning(body: &mut Value, prompt: &AgentPrompt<'_>, scope: &str) {
+    let mut index = usize::from(!prompt.text.instructions.is_empty());
+    for message in prompt.messages {
+        if message.role == MessageRole::Assistant
+            && let Some(reasoning) = message
+                .provider_replay
+                .as_ref()
+                .and_then(|replay| replay.chat_reasoning(scope, prompt.text.model))
+        {
+            body["messages"][index]["reasoning_content"] = reasoning.into();
+        }
+        index += if message.role == MessageRole::ToolResult {
+            message.tool_results.len()
+        } else {
+            1
+        };
+    }
+}
+
+fn restore_responses_items(
+    body: &mut Value,
+    prompt: &AgentPrompt<'_>,
+    scope: &str,
+) -> AiResult<()> {
+    let input = body["input"]
+        .as_array_mut()
+        .ok_or(AiError::InvalidResponse)?;
+    let mut index = 0;
+    for message in prompt.messages {
+        let count = match message.role {
+            MessageRole::User => 1,
+            MessageRole::Assistant => {
+                message.tool_calls.len()
+                    + usize::from(message.tool_calls.is_empty() || !message.content.is_empty())
+            }
+            MessageRole::ToolResult => message.tool_results.len(),
+        };
+        if message.role == MessageRole::Assistant
+            && let Some(items) = message
+                .provider_replay
+                .as_ref()
+                .and_then(|replay| replay.responses_items(scope, prompt.text.model))
+        {
+            let range = index..index + count;
+            if input.get(range.clone()).is_none() {
+                return Err(AiError::InvalidResponse);
+            }
+            input.splice(range, items.iter().cloned());
+            index += items.len();
+        } else {
+            index += count;
+        }
+    }
+    Ok(())
+}
+
+fn include_encrypted_reasoning(body: &mut Value, model: &str) -> AiResult<()> {
+    const ENCRYPTED: &str = "reasoning.encrypted_content";
+    let known_model = (model.starts_with("gpt-5") && !model.starts_with("gpt-5-chat"))
+        || ["gpt-6", "o4-mini", "o3", "o1"]
+            .iter()
+            .any(|prefix| model.starts_with(prefix));
+    if !known_model && !body.get("reasoning").is_some_and(Value::is_object) {
+        return Ok(());
+    }
+    let fields = body
+        .as_object_mut()
+        .ok_or(AiError::InvalidProviderOptions)?
+        .entry("include")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or(AiError::InvalidProviderOptions)?;
+    if !fields.iter().any(|field| field == ENCRYPTED) {
+        fields.push(ENCRYPTED.into());
+    }
+    Ok(())
 }
 
 fn schema_format(output: &StructuredOutput<'_>) -> ResponseFormatJsonSchema {

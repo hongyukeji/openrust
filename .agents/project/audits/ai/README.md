@@ -216,7 +216,7 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 中，独立 Artisan 实际发起两�
 
 Chat Completions 的工具步骤保留 `reasoning_content` 供同连接、同鉴权、同记录模型重放。连接标识沿用审批的请求命名空间摘要，记录中不写入凭证值。旧步骤和不匹配的请求继续发送公开工具调用及结果。私有块不进入公开响应、历史分页、调试输出及 SSE。
 
-SQLite 同时通过普通和流式 Artisan 生成会话，PostgreSQL 18.7 实测普通路径，MySQL 8.4.13 实测流式路径。独立 HTTP 进程复用历史时核对同连接完整回放、更换凭证与模型后只发送公开历史、跨参与者拒绝和公开序列化。旧纯文本及附件审批快照、SDK 15 项、严格 Clippy 和三语站点复验通过。Anthropic 与 Gemini 见下文，Responses 私有块另行跟踪。
+SQLite 同时通过普通和流式 Artisan 生成会话，PostgreSQL 18.7 实测普通路径，MySQL 8.4.13 实测流式路径。独立 HTTP 进程复用历史时核对同连接完整回放、更换凭证与模型后只发送公开历史、跨参与者拒绝和公开序列化。旧纯文本及附件审批快照、SDK 15 项、严格 Clippy 和三语站点复验通过。Anthropic 与 Gemini 见下文，Responses 私有块见下文。
 
 - [固定 Laravel Chat 兼容消息映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAiCompatible/Concerns/MapsChatCompletionMessages.php)
 
@@ -229,6 +229,12 @@ SQLite 分别通过普通和流式 Artisan 记录两种协议的签名，Postgre
 历史私有块按中间件处理后的实际请求模型识别，公开步骤仍报告供应商返回的模型版本。旧审批快照保留读取兼容，缺少请求模型时采用原有流程；流式与普通请求均使用有效请求模型。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测中间件从初始模型重写到请求别名，供应商报告不同的具体版本。独立 Artisan 记录后，HTTP 通过同一别名重放私有块，更换模型或凭证时回退公开历史。旧审批快照移除新字段后仍可恢复，SDK 15 项、严格 Clippy 及三语站点复验通过。
+
+Responses 按固定 Laravel 的模型族请求 `reasoning.encrypted_content`，合并应用配置的 `include`。模型显式配置推理时也请求该字段。收到可独立重放的加密块后，保存受支持的原始项及顺序，包括供应商的 function_call 项 ID。存储态文件检索引用不进入重放。改变连接、凭证或请求模型即使用公开工具历史。
+
+SQLite 普通与流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式均通过独立 Artisan 与 HTTP。在 `store=false` 下核对初始请求的 `include` 去重、工具续步、跨进程历史、加密块和调用 ID 顺序、公开响应隐藏、跨参与者早拒及凭证和模型变化后的回退。SDK 15 项、严格 Clippy 和三语站点通过。样本来自 TCP 协议模拟，已知真实上游验收见 GW-01。
+
+- [固定 Laravel Responses 请求规则](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/BuildsTextRequests.php) · [固定 Laravel Responses 历史映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/MapsMessages.php)
 
 ## AI-05 Reranking Fake 与 Collection
 

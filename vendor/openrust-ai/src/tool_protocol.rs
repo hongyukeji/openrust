@@ -49,15 +49,24 @@ pub(crate) fn responses_request(
             _ => return Err(AiError::InvalidResponse),
         };
         for step in history {
-            if let Some(text) = &step.text {
-                input.push(json!({"type":"message","role":"assistant","content":text}));
+            if let Some(items) = step
+                .provider_content
+                .as_ref()
+                .and_then(|state| state.get("responses_items"))
+                .and_then(Value::as_array)
+            {
+                input.extend(items.iter().cloned());
+            } else {
+                if let Some(text) = &step.text {
+                    input.push(json!({"type":"message","role":"assistant","content":text}));
+                }
+                input.extend(step.calls.iter().map(|call| {
+                    json!({
+                        "type":"function_call", "call_id":call.id,
+                        "name":call.name, "arguments":Value::Object(call.arguments.clone()).to_string(),
+                    })
+                }));
             }
-            input.extend(step.calls.iter().map(|call| {
-                json!({
-                    "type":"function_call", "call_id":call.id,
-                    "name":call.name, "arguments":Value::Object(call.arguments.clone()).to_string(),
-                })
-            }));
             input.extend(step.results.iter().map(|result| {
                 json!({
                     "type":"function_call_output", "call_id":result.id, "output":result.result,
@@ -121,7 +130,8 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     let mut citations = Vec::new();
     let mut reasoning = Vec::new();
     let mut tool_calls = Vec::new();
-    for item in data["output"].as_array().ok_or(AiError::InvalidResponse)? {
+    let output = data["output"].as_array().ok_or(AiError::InvalidResponse)?;
+    for item in output {
         match item["type"].as_str() {
             Some("function_call") => tool_calls.push(parse_call(&item["call_id"], item)?),
             Some("reasoning") => {
@@ -156,8 +166,49 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
         usage: Usage::from_openai(&data["usage"]),
         citations,
         tool_calls,
-        provider_content: None,
+        provider_content: responses_replay(output),
     })
+}
+
+fn responses_replay(output: &[Value]) -> Option<Value> {
+    let encrypted = |item: &Value| {
+        item["type"] == "reasoning"
+            && item["encrypted_content"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty())
+    };
+    if !output.iter().any(encrypted) {
+        return None;
+    }
+
+    let mut items = Vec::new();
+    for item in output {
+        let item = match item["type"].as_str()? {
+            "reasoning" if encrypted(item) => {
+                let mut reasoning = json!({
+                    "type":"reasoning",
+                    "summary":item.get("summary").cloned().unwrap_or_else(|| json!([])),
+                    "encrypted_content":item["encrypted_content"],
+                });
+                if let Some(id) = item.get("id") {
+                    reasoning["id"] = id.clone();
+                }
+                reasoning
+            }
+            "file_search_call" => continue,
+            "message"
+                if item["content"].as_array().is_some_and(|parts| {
+                    parts.iter().all(|part| part["type"] == "output_text")
+                }) =>
+            {
+                item.clone()
+            }
+            "function_call" => item.clone(),
+            _ => return None,
+        };
+        items.push(item);
+    }
+    Some(json!({"responses_items":items}))
 }
 
 fn parse_call(id: &Value, function: &Value) -> AiResult<ToolCall> {
