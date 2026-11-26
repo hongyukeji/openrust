@@ -128,11 +128,32 @@ class Project:
             path.unlink()
 
 
+def group_has_live_processes(group):
+    listing = subprocess.check_output(['ps', '-axo', 'pgid=,stat='], text=True, errors='replace')
+    for line in listing.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split()
+        if len(fields) != 2:
+            raise RuntimeError('无法确认验收进程组的退出状态')
+        if int(fields[0]) == group and not fields[1].startswith('Z'):
+            return True
+    return False
+
+
 def signal_group(child, signum):
     try:
         os.killpg(child.pid, signum)
     except ProcessLookupError:
         pass
+    except PermissionError as failure:
+        # macOS 仍保留仅含僵尸的进程组时可返回 EPERM；先核对，不屏蔽存活进程的权限错误。
+        try:
+            alive = group_has_live_processes(child.pid)
+        except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as inspection:
+            raise failure from inspection
+        if alive:
+            raise
 
 
 def stop(child, signum):

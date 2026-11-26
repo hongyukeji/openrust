@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from build_guard import Project, STOP_BYTES, run, main
+from build_guard import Project, STOP_BYTES, run, main, signal_group
 
 
 class BuildGuardTest(unittest.TestCase):
@@ -161,6 +161,61 @@ class BuildGuardTest(unittest.TestCase):
         shortcut.symlink_to(self.workspace)
         with self.assertRaises(ValueError):
             self.project.local(shortcut / 'cargo-target')
+
+
+    def test_retired_group_permission_error_requires_verified_no_live_members(self):
+        from types import SimpleNamespace
+        for listing in ['', '123 Z\n', '123 Z+\n456 S\n']:
+            with self.subTest(listing=listing), patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控权限拒绝')), patch('build_guard.subprocess.check_output', return_value=listing):
+                signal_group(SimpleNamespace(pid=123), signal.SIGTERM)
+
+    def test_permission_error_with_live_group_is_not_suppressed(self):
+        from types import SimpleNamespace
+        for listing in ['123 S\n', '123 Z\n123 S+\n']:
+            with self.subTest(listing=listing), patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控存活组拒绝')), patch('build_guard.subprocess.check_output', return_value=listing):
+                with self.assertRaises(PermissionError):
+                    signal_group(SimpleNamespace(pid=123), signal.SIGTERM)
+
+    def test_permission_error_with_failed_group_inspection_is_not_suppressed(self):
+        from types import SimpleNamespace
+        with patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控权限拒绝')), patch('build_guard.subprocess.check_output', side_effect=OSError('受控进程表失败')):
+            with self.assertRaises(PermissionError):
+                signal_group(SimpleNamespace(pid=123), signal.SIGTERM)
+
+    @unittest.skipUnless(sys.platform == 'darwin', '验证 macOS 僵尸组的真实 EPERM')
+    def test_actual_macos_zombie_only_group_finishes_without_permission_failure(self):
+        child = subprocess.Popen(self.command('raise SystemExit(0)'), start_new_session=True, env=self.env)
+        try:
+            import time
+            for _ in range(100):
+                listing = subprocess.check_output(['ps', '-axo', 'pid=,pgid=,stat='], text=True)
+                group = [line.split() for line in listing.splitlines() if len(line.split()) == 3 and int(line.split()[1]) == child.pid]
+                if group and all(row[2].startswith('Z') for row in group):
+                    break
+                time.sleep(.01)
+            self.assertTrue(group)
+            self.assertTrue(all(row[2].startswith('Z') for row in group))
+            with self.assertRaises(PermissionError):
+                os.killpg(child.pid, signal.SIGTERM)
+            signal_group(child, signal.SIGTERM)
+        finally:
+            child.wait(timeout=3)
+
+    def test_completed_stop_with_retired_group_still_performs_threshold_cleanup(self):
+        import build_guard
+        original = build_guard.signal_group
+        def signals(child, signum):
+            if child.returncode is None:
+                return original(child, signum)
+            with patch('build_guard.os.killpg', side_effect=PermissionError(1, '受控组退出竞态')), patch('build_guard.subprocess.check_output', return_value=''):
+                return original(child, signum)
+        marker = self.root / 'stop-ready'
+        script = 'import signal,time; from pathlib import Path; signal.signal(signal.SIGINT, lambda *_: exit(0)); Path("stop-ready").write_text("ready");time.sleep(30)'
+        self.project.free = lambda: STOP_BYTES if marker.exists() and self.artifact.exists() else STOP_BYTES + 1024
+        with patch('build_guard.signal_group', side_effect=signals):
+            self.assertEqual(run(self.project, self.command(script), self.env, interval=.01), 75)
+        self.assertFalse(self.artifact.exists())
+        self.assertTrue(self.source.exists())
 
 
 if __name__ == '__main__':
