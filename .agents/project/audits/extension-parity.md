@@ -98,7 +98,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 | 分仓储、任务、标签、指标与通知 | 七类仓储职责、任务终态与详情／重试引用、监控／静默标签、trim、指标快照／锁、长等待与去重已实现；原生database批次三库已验 |
 | 原生队列身份 | transport ID与payload UUID显式桥接，重复／过时事件保护、历史forget竞态、未部署队列观测均已实际验证，属明确原生队列适配 |
 | 授权面板 | 实际任务分页／详情／重试、指标／快照、标签写入、失败和批次操作；当前源码Chrome桌面手机、同源写保护、XSS／CSP及布局通过 |
-| Redis与平台 | Redis 8.10.3 隔离夹具通过；拒绝上游同样不支持的 Redis Cluster。macOS 和 Linux ARM64 容器均有真实进程与信号证据。Windows ARM64 的 Horizon 包和 Artisan 应用装配已验。Linux x86_64、实际收件与部署组合仍待验收。 |
+| Redis与平台 | Redis 8.10.3 隔离夹具通过。后续实测固定上游可使用 Redis Cluster 元数据及队列，本地元数据连接拒绝集群属于待修复缺口。macOS 和 Linux ARM64 容器均有真实进程与信号证据。Windows ARM64 的 Horizon 包和 Artisan 应用装配已验。Linux x86_64、实际收件与部署组合仍待验收。 [集群复核](horizon/README.md#固定上游的-redis-cluster-实测) |
 
 上述关闭原来“Master直管Worker／命令与分仓储未实现／只读面板”等过时缺口。不宣称执行完整PHP PHPUnit，也不隐藏Rust显式标签、轮询listen与内存衡量方式等已记录适配。
 
@@ -146,7 +146,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|
 | Telescope | Query／Gate 已支持显式登记异步包装器的外层来源，自动回溯普通异步调用栈有语言边界。继续核对关系与驱动变体、出站 multipart 和其他诊断边界，以及公开 Watcher、Entry、关联、仓储、命令与授权面板。列表参数已通过三库对照，Dumps 采集状态和刷新已实测。 [异步包装器来源](#telescope-异步包装器的应用调用行) [筛选与游标](telescope/README.md#列表筛选与游标) [Dumps 面板](telescope/README.md#dumps-面板的采集与轮询) |
 | Pulse | 十个默认 Recorder 的逐项审计持续进行，接续核对事件、过滤、采样、聚合、自定义 Recorder 与 ingest 契约。原生面板已有真实浏览器和三库证据，完整 Livewire 更新生命周期及已记录的排序边界须继续核对。 [卡片和查询](pulse/README.md#面板慢操作异常与用量排序) |
-| Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，Windows SCM 已实测排空与故障恢复。实际生产服务配置、物理 x86_64 和正式 Redis 拓扑仍需验收。Redis Cluster 沿用固定上游支持边界。 [Windows 服务验收](horizon/README.md#windows-服务管理器排空与故障恢复) |
+| Horizon | 继续核对 `Tags`、管理命令、监督器与 Worker、公开事件、仓储、指标和面板操作。Windows ARM64 和 Linux ARM64 已有固定快照的本地优化构建证据，Windows SCM 已实测排空与故障恢复。补齐固定上游已实测的 Redis Cluster 元数据与队列组合。实际生产服务配置、物理 x86_64 和正式 Redis 拓扑继续验收。 [集群复核](horizon/README.md#固定上游的-redis-cluster-实测) [Windows 服务验收](horizon/README.md#windows-服务管理器排空与故障恢复) |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
 Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。修复前，Rust `commands.rs` 两条路径都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)

@@ -94,6 +94,12 @@ macOS 使用修复提交 `06d60f418` 和本机 Redis 8.10.3，在独立端口启
 
 物理 x86_64 主机、其他真实部署的故障转移端点、跨失败域拓扑的写入耐久性和应用重放策略继续验收。
 
+### 固定上游的 Redis Cluster 实测
+
+Laravel 13 的 Horizon 安装文档仍将 Redis Cluster 列为不兼容。固定 Horizon 提交 `b86d5aa87` 的 `Horizon::use` 支持为内部元数据连接设置集群，连接前缀缺少 hash tag 时自动添加。固定 Laravel Framework `1449bf241` 可为集群队列的普通名称生成同槽键。PHP 8.5.12、Predis 2.4.0、Redis 8.10.3 的三个集群主节点与独立单节点实测如下。 [Laravel Horizon 安装文档](https://laravel.com/framework/docs/13.x/horizon#installation) [固定 Horizon::use](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Horizon.php#L109-L179) [固定队列键规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L672-L697)
+
+集群元数据配单节点队列、单节点元数据配集群队列，以及两者均用集群的普通／显式 hash tag 队列名四组均通过。固定仓储实际读写 Master 心跳、命令队列、指标与监控标签。原队列执行写入、保留和删除，Laravel 监听器将记录更新至 completed。Rust 前态在 `horizon.use` 解析时拒绝已配置的集群，需补齐元数据命名空间和槽定向操作，再验收同样四组进程。固定 PHP 的组合结果为 `target/tmp/observability-parity/horizon-cluster-reference/upstream-retry.log`。真实故障切换、PhpRedis 与目标生产集群继续独立验收。
+
 ### Master 命令队列与动态部署
 
 固定上游的本机队列名称为 `master:<Master 全名>`。`commandQueueFor` 在未传名称、传入空串或 `"0"` 时使用本机队列。Redis 按顺序推送 `command` 与 `options`，`pending` 领取后移除，`flush` 清空指定队列。固定 PHP 探针使用真实 Redis 8.10.3 验证名称、空与嵌套选项、FIFO、领取后的空队列和清空，再调用 `AddSupervisor::process` 验证新 Supervisor 的名称与队列。Symfony 启动动作由探针替身承接，Rust 用实际子进程复验。上游证据为 `target/tmp/observability-parity/horizon-master-command-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 RedisHorizonCommandQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisHorizonCommandQueue.php) [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php)
@@ -262,7 +268,7 @@ Rust 无 PHP 的任务对象运行时反射，模型标签通过 `Horizon::tag`�
 
 PHP Horizon 的 JobPayload::id 优先 UUID，重试时 preparePayload 改写 UUID 并保存 retry_of。Rust 原生队列的 payload UUID 同时参与失败与批次语义，因此 Horizon 使用每次 Redis push 的 transport ID 作为监控身份，并以原 payload UUID 桥接原生失败提供器；重试生成独立监控记录及引用，不覆盖父记录。历史失败删除会核对当前失败索引，避免误删同一 payload UUID 的新一次失败。这属于明确的语言／原生契约适配，不能写成 PHP 本身直接按 transport ID 管理。该修复及真实 Redis+SQLite 回归已执行通过。
 
-信号控制、进程检查与父进程检测依赖 Unix。macOS 历史实测之外，Linux ARM64 Release 已独立运行进程矩阵，见[对齐账本](../extension-parity.md#horizon-linux-arm64-release-进程矩阵)。Windows job 的 detach 明确返回不支持。Redis Cluster 队列运输拒绝，与上游支持边界一致。面板详情授权后可读取载荷及异常，旧监控投影仍只返回固定元数据；两者不可混同。
+信号控制、进程检查与父进程检测依赖 Unix。macOS 历史实测之外，Linux ARM64 Release 已独立运行进程矩阵。Windows job 的 detach 明确返回不支持。固定 PHP 的 Redis Cluster 运行结果及本地缺口见集群复核。面板详情授权后可读取载荷及异常，旧监控投影提供固定元数据。 [对齐账本](../extension-parity.md#horizon-linux-arm64-release-进程矩阵) [集群复核](#固定上游的-redis-cluster-实测)
 
 ## 本轮验收环境与已执行结果
 
