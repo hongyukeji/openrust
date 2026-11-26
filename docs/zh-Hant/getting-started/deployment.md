@@ -215,7 +215,7 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 
 建置參數使用 `APP_BUILD_FEATURES` 和 `APP_BUILD_JOBS`（預設 `4`），由 Compose 傳入 Dockerfile。`APP_STORAGE_PATH` 可修改儲存掛載路徑，相對路徑從 `docker/` 計算，目錄須對 UID/GID `10001` 可寫。
 
-映像的發行聲明位於 `/app/THIRD_PARTY_NOTICES.md`，包括 SQLite 原始碼識別碼、其 Rust 封裝的授權條款，以及隨套件發行的 PCRE2 和 AWS-LC 聲明。建置直接或透過相依套件引入 `webhook-client` 或 `webhook-server` 時，對應套件的第三方聲明與授權條款原文位於 `/app/licenses/<套件名稱>/`。
+映像的發行聲明位於 `/app/THIRD_PARTY_NOTICES.md`，包括 SQLite 原始碼識別碼、其 Rust 封裝的授權條款，以及隨套件發行的 PCRE2、AWS-LC 和 ring 聲明。建置直接或透過相依套件引入 `webhook-client` 或 `webhook-server` 時，對應套件的第三方聲明與授權條款原文位於 `/app/licenses/<套件名稱>/`。
 
 Nginx 請求本文上限為 8 MiB，與框架輸入限制一致。代理讀取與傳送逾時使用 Nginx 預設的 60 秒；串流回應與 WebSocket 應及時傳送資料或心跳。確需更長閒置等待時，在 `docker/nginx/default.conf` 中按需設定相應逾時。
 
