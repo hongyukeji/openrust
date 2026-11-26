@@ -31,7 +31,7 @@ let answer = response.text;
 
 ## 范围 {#scope}
 
-当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。已包含预设地址的供应商中，使用 Anthropic 和 Gemini 原生协议的连接待后续支持。Vercel／AG-UI、SDK 工具、会话和 Embeddings 仍待实现。
+当前响应提供文本、来源连接、模型以及上游实际报告的输入和输出 Token 数。Anthropic 原生连接也支持普通文本、SSE 与分页模型目录。Gemini 原生连接待实现。Vercel／AG-UI、SDK 工具、会话和 Embeddings 仍待实现。
 
 ## 模型网关 {#model-gateway}
 
@@ -47,3 +47,5 @@ let answer = response.text;
 在应用环境中为 `AI_GATEWAY_SUPPORT_KEY` 设置独立的随机密钥，`DEEPSEEK_API_KEY` 仍由上游连接单独使用。外部客户端将基础 URL 设为 `https://你的应用域名/v1`，用下游 Key 作为 Bearer 凭证，模型填写 `support-chat`。`GET /v1/models` 只显示当前 Key 有权调用的已发布模型。可选的 `requests_per_minute` 通过应用的限流缓存执行。
 
 `POST /v1/chat/completions` 支持 OpenAI 与兼容连接。`POST /v1/responses` 目前要求 OpenAI 协议连接。两个入口均支持 JSON 和 SSE。Responses 当前采用无状态模式，令 `store` 为 `false`，并拒绝上游会话、旧 Response ID 和服务端工具。网关以结构化日志 `ai_gateway.call` 记录调用结果和上游报告的 Token 数。可用 `usage_channel` 指定日志通道，通道须允许 `info` 级别。未报告的计数记为 `null`。
+
+使用 Anthropic 客户端时，基础 URL 指向应用域名，下游 Key 通过 `x-api-key` 提交。网关支持 `/v1/messages` 和 `/v1/messages/count_tokens`，模型须映射到 Anthropic 原生连接。带 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目录使用 OpenAI 格式。

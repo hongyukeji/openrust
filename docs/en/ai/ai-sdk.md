@@ -31,7 +31,7 @@ In an HTTP route, return the default SDK SSE events with `agent(instructions).st
 
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. The preset endpoints for native Anthropic and Gemini are for future support. Vercel, AG-UI, SDK tools, conversations, and embeddings are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic connections also support text, SSE, and paginated model discovery. Native Gemini support is pending. Vercel, AG-UI, SDK tools, conversations, and embeddings are pending.
 
 ## Model gateway {#model-gateway}
 
@@ -47,3 +47,5 @@ Build with the `ai-gateway` feature and set `AI_GATEWAY_ENABLED=true`. Run `arti
 Set a separate randomly generated secret for `AI_GATEWAY_SUPPORT_KEY` in the application environment. The upstream connection uses `DEEPSEEK_API_KEY`. Set the external client’s base URL to `https://your-app.example/v1`, use the client Key as a Bearer credential, and select `support-chat`. `GET /v1/models` lists published models available to that Key. The optional `requests_per_minute` uses the application's configured rate-limit cache.
 
 `POST /v1/chat/completions` supports OpenAI and compatible connections. `POST /v1/responses` currently requires an OpenAI protocol connection. Both support JSON and SSE. Responses runs in stateless mode with `store` set to `false`. It rejects upstream conversations, previous response IDs, and server-side tools. The `ai_gateway.call` structured log records outcomes and upstream-reported token counts. Set `usage_channel` to select a logging channel that accepts `info` records. Unreported token counts are recorded as `null`.
+
+For an Anthropic client, set the base URL to your application domain and send the client Key in `x-api-key`. The gateway accepts `/v1/messages` and `/v1/messages/count_tokens` for models mapped to native Anthropic connections. `/v1/models` and `/v1/models/{model}` use the Anthropic format with `x-api-key` and the OpenAI format with Bearer authentication.

@@ -11,8 +11,10 @@ use openrust::{
 };
 
 mod agent;
+mod anthropic;
 #[path = "../config/ai.rs"]
 mod configuration;
+mod connection;
 mod console;
 mod error;
 mod facade;

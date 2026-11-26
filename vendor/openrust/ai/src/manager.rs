@@ -10,7 +10,8 @@ use serde_json::Value;
 use crate::{
     Agent, AgentResponse, AiError, AiResult, FakeTextGateway, PromptOptions,
     StreamableAgentResponse, TextPrompt, TextProvider,
-    text::{OpenAiTextProvider, TextProtocol},
+    anthropic::AnthropicTextProvider,
+    text::{OpenAiProtocol, OpenAiTextProvider},
 };
 
 type DriverFactory = dyn Fn(Value) -> AiResult<Arc<dyn TextProvider>> + Send + Sync;
@@ -37,8 +38,8 @@ impl AiManager {
             fakes: RwLock::default(),
         };
         for (driver, protocol) in [
-            ("openai", TextProtocol::Responses),
-            ("openai-compatible", TextProtocol::ChatCompletions),
+            ("openai", OpenAiProtocol::Responses),
+            ("openai-compatible", OpenAiProtocol::ChatCompletions),
         ] {
             let environment = environment.clone();
             let http = http.clone();
@@ -51,6 +52,13 @@ impl AiManager {
                 )?))
             });
         }
+        manager.extend("anthropic", move |config| {
+            Ok(Arc::new(AnthropicTextProvider::new(
+                config,
+                environment.clone(),
+                http.clone(),
+            )?))
+        });
         manager
     }
 

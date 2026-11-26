@@ -12,10 +12,7 @@ use openrust::{
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{
-    AgentResponse, AiError, AiResult, Usage,
-    text::{TextProtocol, transport_error},
-};
+use crate::{AgentResponse, AiError, AiResult, TextEndpoint, Usage, text::transport_error};
 
 pub type AgentEventStream = Pin<Box<dyn Stream<Item = AiResult<StreamEvent>> + Send>>;
 
@@ -98,7 +95,7 @@ impl StreamableAgentResponse {
     }
 
     pub(crate) fn from_upstream(
-        protocol: TextProtocol,
+        protocol: TextEndpoint,
         stream: ResponseStream,
         provider: String,
         requested_model: String,
@@ -139,7 +136,8 @@ impl StreamableAgentResponse {
                     yield event(&invocation, StreamEventData::TextEnd { message_id });
                 }
                 if let Some(update) = part.usage {
-                    usage = update;
+                    usage.prompt_tokens = update.prompt_tokens.or(usage.prompt_tokens);
+                    usage.completion_tokens = update.completion_tokens.or(usage.completion_tokens);
                 }
                 if let Some(update) = part.reason {
                     reason = Some(update);
@@ -158,6 +156,14 @@ impl StreamableAgentResponse {
             events: Box::pin(events),
         }
     }
+}
+
+pub(crate) fn is_event_stream(response: &openrust::http::client::Response) -> bool {
+    response
+        .header("content-type")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/event-stream"))
 }
 
 fn event(invocation: &str, data: StreamEventData) -> StreamEvent {
@@ -182,7 +188,7 @@ struct Part {
     done: bool,
 }
 
-impl TextProtocol {
+impl TextEndpoint {
     fn decode(self, data: &str) -> AiResult<Part> {
         if data == "[DONE]" && matches!(self, Self::ChatCompletions) {
             return Ok(Part {
@@ -253,6 +259,38 @@ impl TextProtocol {
                     }),
                 }
             }
+            Self::Messages => {
+                let message = &value["message"];
+                let usage = value.get("usage").or_else(|| message.get("usage"));
+                Ok(Part {
+                    model: string(&message["model"]),
+                    delta: match value["type"].as_str() {
+                        Some("content_block_start") if value["content_block"]["type"] == "text" => {
+                            string(&value["content_block"]["text"])
+                        }
+                        Some("content_block_delta") if value["delta"]["type"] == "text_delta" => {
+                            string(&value["delta"]["text"])
+                        }
+                        _ => None,
+                    },
+                    reason: match value["delta"]["stop_reason"].as_str() {
+                        Some("end_turn" | "stop_sequence") => Some("stop".into()),
+                        Some("max_tokens" | "model_context_window_exceeded") => {
+                            Some("length".into())
+                        }
+                        Some("refusal") => return Err(AiError::Refused),
+                        Some(reason) => Some(reason.into()),
+                        None => None,
+                    },
+                    usage: usage.map(|usage| Usage {
+                        prompt_tokens: usage["input_tokens"].as_u64(),
+                        completion_tokens: usage["output_tokens"].as_u64(),
+                    }),
+                    end_message: value["type"] == "content_block_stop",
+                    done: value["type"] == "message_stop",
+                })
+            }
+            Self::CountMessageTokens => Err(AiError::StreamingNotSupported),
         }
     }
 }

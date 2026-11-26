@@ -83,9 +83,13 @@ impl Gateway {
                 let provider = ai
                     .text_provider(Some(&model.provider))
                     .map_err(|_| invalid(format!("公开模型 {name} 的上游连接无效")))?;
-                if ![TextEndpoint::ChatCompletions, TextEndpoint::Responses]
-                    .into_iter()
-                    .any(|endpoint| provider.supports_endpoint(endpoint))
+                if ![
+                    TextEndpoint::ChatCompletions,
+                    TextEndpoint::Responses,
+                    TextEndpoint::Messages,
+                ]
+                .into_iter()
+                .any(|endpoint| provider.supports_endpoint(endpoint))
                 {
                     return Err(invalid(format!("公开模型 {name} 的连接未提供网关端点")));
                 }

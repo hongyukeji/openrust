@@ -1,0 +1,169 @@
+use std::{sync::Arc, time::Duration};
+
+use openrust::{
+    config::Environment,
+    http::client::{Factory, PendingRequest, Response},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::{
+    AiError, AiResult, ModelCatalog, TextEndpoint, models::ListedModel, text::transport_error,
+};
+
+#[derive(Default, Deserialize)]
+struct Models {
+    #[serde(default)]
+    text: TextModels,
+}
+
+#[derive(Default, Deserialize)]
+struct TextModels {
+    default: Option<String>,
+    #[serde(default)]
+    ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct Configuration {
+    name: String,
+    url: String,
+    #[serde(default)]
+    key_env: Option<String>,
+    #[serde(default)]
+    models: Models,
+    #[serde(default = "default_store")]
+    store: bool,
+    #[serde(default = "anthropic_version")]
+    version: String,
+}
+
+fn default_store() -> bool {
+    true
+}
+
+fn anthropic_version() -> String {
+    "2023-06-01".into()
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Authorization {
+    Bearer,
+    Anthropic,
+}
+
+pub(crate) struct Connection {
+    config: Configuration,
+    environment: Arc<Environment>,
+    http: Arc<Factory>,
+    authorization: Authorization,
+}
+
+impl Connection {
+    pub(crate) fn new(
+        config: Value,
+        environment: Arc<Environment>,
+        http: Arc<Factory>,
+        authorization: Authorization,
+    ) -> AiResult<Self> {
+        let config: Configuration = serde_json::from_value(config)
+            .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+        let url = url::Url::parse(&config.url)
+            .map_err(|_| AiError::InvalidConfiguration("providers.<name>.url"))?;
+        if !matches!(url.scheme(), "http" | "https")
+            || url.host().is_none()
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(AiError::InvalidConfiguration("providers.<name>.url"));
+        }
+        Ok(Self {
+            authorization,
+            config,
+            environment,
+            http,
+        })
+    }
+
+    pub(crate) fn request(&self, timeout: Option<Duration>) -> AiResult<PendingRequest> {
+        let mut request = self
+            .http
+            .pending_request()
+            .base_url(&self.config.url)
+            .without_redirecting()
+            .redact_payload()
+            .timeout(timeout.unwrap_or(Duration::from_secs(60)));
+        if matches!(self.authorization, Authorization::Anthropic) {
+            request = request.with_header(
+                "anthropic-version".parse().expect("valid header name"),
+                self.config
+                    .version
+                    .parse()
+                    .map_err(|_| AiError::InvalidConfiguration("providers.<name>.version"))?,
+            );
+        }
+        if let Some(key) = &self.config.key_env {
+            let token = self
+                .environment
+                .get_utf8(key)
+                .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?
+                .filter(|token| !token.trim().is_empty())
+                .ok_or(AiError::MissingCredential)?;
+            request = match self.authorization {
+                Authorization::Bearer => request.with_token(token),
+                Authorization::Anthropic => request.with_header(
+                    "x-api-key".parse().expect("valid header name"),
+                    token
+                        .parse()
+                        .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?,
+                ),
+            };
+        }
+        Ok(request)
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.config.name
+    }
+
+    pub(crate) fn default_text_model(&self) -> AiResult<&str> {
+        self.config
+            .models
+            .text
+            .default
+            .as_deref()
+            .filter(|model| !model.trim().is_empty())
+            .ok_or(AiError::MissingModel)
+    }
+
+    pub(crate) fn store(&self) -> bool {
+        self.config.store
+    }
+
+    pub(crate) fn catalog(&self, discovered: AiResult<Vec<ListedModel>>) -> ModelCatalog {
+        let configured = &self.config.models.text;
+        ModelCatalog::merge(
+            discovered,
+            configured.default.iter().chain(&configured.ids).cloned(),
+        )
+    }
+
+    pub(crate) async fn send(
+        &self,
+        endpoint: TextEndpoint,
+        body: &impl Serialize,
+        stream: bool,
+        timeout: Option<Duration>,
+    ) -> AiResult<Response> {
+        let mut request = self.request(timeout)?;
+        if stream {
+            request = request.stream();
+        }
+        request
+            .post(endpoint.path(), body)
+            .await
+            .map_err(transport_error)
+    }
+}

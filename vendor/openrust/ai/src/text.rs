@@ -13,13 +13,17 @@ use openrust::{
     config::Environment,
     http::{
         HttpFuture,
-        client::{self, Factory, PendingRequest, Response},
+        client::{self, Factory, Response},
     },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{AiError, AiResult, ModelCatalog, StreamableAgentResponse, models::ListedModel};
+use crate::{
+    AiError, AiResult, ModelCatalog, StreamableAgentResponse,
+    connection::{Authorization, Connection},
+    models::ListedModel,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Usage {
@@ -77,6 +81,8 @@ pub trait TextProvider: Send + Sync {
 pub enum TextEndpoint {
     ChatCompletions,
     Responses,
+    Messages,
+    CountMessageTokens,
 }
 
 impl TextEndpoint {
@@ -84,94 +90,43 @@ impl TextEndpoint {
         match self {
             Self::ChatCompletions => "chat/completions",
             Self::Responses => "responses",
+            Self::Messages => "messages",
+            Self::CountMessageTokens => "messages/count_tokens",
         }
     }
 }
 
-pub(crate) type TextProtocol = TextEndpoint;
-
-#[derive(Deserialize)]
-struct Configuration {
-    name: String,
-    url: String,
-    #[serde(default)]
-    key_env: Option<String>,
-    #[serde(default)]
-    models: Models,
-    #[serde(default = "default_store")]
-    store: bool,
+#[derive(Clone, Copy)]
+pub(crate) enum OpenAiProtocol {
+    ChatCompletions,
+    Responses,
 }
 
-fn default_store() -> bool {
-    true
-}
-
-#[derive(Default, Deserialize)]
-struct Models {
-    #[serde(default)]
-    text: TextModels,
-}
-
-#[derive(Default, Deserialize)]
-struct TextModels {
-    default: Option<String>,
-    #[serde(default)]
-    ids: Vec<String>,
+impl OpenAiProtocol {
+    fn endpoint(self) -> TextEndpoint {
+        match self {
+            Self::ChatCompletions => TextEndpoint::ChatCompletions,
+            Self::Responses => TextEndpoint::Responses,
+        }
+    }
 }
 
 pub(crate) struct OpenAiTextProvider {
-    protocol: TextProtocol,
-    config: Configuration,
-    environment: Arc<Environment>,
-    http: Arc<Factory>,
+    protocol: OpenAiProtocol,
+    connection: Connection,
 }
 
 impl OpenAiTextProvider {
     pub(crate) fn new(
-        protocol: TextProtocol,
+        protocol: OpenAiProtocol,
         config: Value,
         environment: Arc<Environment>,
         http: Arc<Factory>,
     ) -> AiResult<Self> {
-        let config: Configuration = serde_json::from_value(config)
-            .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
-        let url = url::Url::parse(&config.url)
-            .map_err(|_| AiError::InvalidConfiguration("providers.<name>.url"))?;
-        if !matches!(url.scheme(), "http" | "https")
-            || url.host().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(AiError::InvalidConfiguration("providers.<name>.url"));
-        }
         Ok(Self {
             protocol,
-            config,
-            environment,
-            http,
+            connection: Connection::new(config, environment, http, Authorization::Bearer)?,
         })
-    }
-
-    fn request(&self, timeout: Option<Duration>) -> AiResult<PendingRequest> {
-        let mut request = self
-            .http
-            .pending_request()
-            .base_url(&self.config.url)
-            .without_redirecting()
-            .redact_payload()
-            .timeout(timeout.unwrap_or(Duration::from_secs(60)));
-        if let Some(key) = &self.config.key_env {
-            let token = self
-                .environment
-                .get_utf8(key)
-                .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?
-                .filter(|token| !token.trim().is_empty())
-                .ok_or(AiError::MissingCredential)?;
-            request = request.with_token(token);
-        }
-        Ok(request)
     }
 
     async fn list_models(&self) -> AiResult<Vec<ListedModel>> {
@@ -180,7 +135,7 @@ impl OpenAiTextProvider {
             data: Vec<ListedModel>,
         }
 
-        let response = validate(self.request(None)?.get("models").await)?;
+        let response = validate(self.connection.request(None)?.get("models").await)?;
         let response: ModelResponse = response.json().map_err(|_| AiError::InvalidResponse)?;
         Ok(response.data)
     }
@@ -220,60 +175,55 @@ impl OpenAiTextProvider {
             instructions: (!prompt.instructions.is_empty()).then(|| prompt.instructions.into()),
             input: InputParam::Text(prompt.prompt.into()),
             model: Some(prompt.model.into()),
-            store: Some(self.config.store),
+            store: Some(self.connection.store()),
             stream: stream.then_some(true),
             ..Default::default()
         }
     }
 
     async fn send_text(&self, prompt: &TextPrompt<'_>, stream: bool) -> AiResult<Response> {
-        let mut request = self.request(prompt.timeout)?;
-        if stream {
-            request = request.stream();
-        }
+        let endpoint = self.protocol.endpoint();
         let response = match self.protocol {
-            TextProtocol::ChatCompletions => {
-                request
-                    .post("chat/completions", &Self::chat_body(prompt, stream))
-                    .await
+            OpenAiProtocol::ChatCompletions => {
+                self.connection
+                    .send(
+                        endpoint,
+                        &Self::chat_body(prompt, stream),
+                        stream,
+                        prompt.timeout,
+                    )
+                    .await?
             }
-            TextProtocol::Responses => {
-                request
-                    .post("responses", &self.responses_body(prompt, stream))
-                    .await
+            OpenAiProtocol::Responses => {
+                self.connection
+                    .send(
+                        endpoint,
+                        &self.responses_body(prompt, stream),
+                        stream,
+                        prompt.timeout,
+                    )
+                    .await?
             }
         };
-        validate(response)
+        validate(Ok(response))
     }
 }
 
 impl TextProvider for OpenAiTextProvider {
     fn name(&self) -> &str {
-        &self.config.name
+        self.connection.name()
     }
 
     fn default_text_model(&self) -> AiResult<&str> {
-        self.config
-            .models
-            .text
-            .default
-            .as_deref()
-            .filter(|model| !model.trim().is_empty())
-            .ok_or(AiError::MissingModel)
+        self.connection.default_text_model()
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
-        Box::pin(async {
-            let configured = &self.config.models.text;
-            ModelCatalog::merge(
-                self.list_models().await,
-                configured.default.iter().chain(&configured.ids).cloned(),
-            )
-        })
+        Box::pin(async { self.connection.catalog(self.list_models().await) })
     }
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
-        endpoint == TextEndpoint::ChatCompletions || self.protocol == endpoint
+        endpoint == TextEndpoint::ChatCompletions || self.protocol.endpoint() == endpoint
     }
 
     fn relay(&self, endpoint: TextEndpoint, body: Value) -> HttpFuture<'_, AiResult<Response>> {
@@ -281,14 +231,8 @@ impl TextProvider for OpenAiTextProvider {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
             }
-            let mut request = self.request(None)?;
-            if body.get("stream").and_then(Value::as_bool) == Some(true) {
-                request = request.stream();
-            }
-            request
-                .post(endpoint.path(), &body)
-                .await
-                .map_err(transport_error)
+            let stream = body.get("stream").and_then(Value::as_bool) == Some(true);
+            self.connection.send(endpoint, &body, stream, None).await
         })
     }
 
@@ -299,13 +243,13 @@ impl TextProvider for OpenAiTextProvider {
         Box::pin(async move {
             let response = self.send_text(&prompt, false).await?;
             let result = match self.protocol {
-                TextProtocol::ChatCompletions => parse_chat(response)?,
-                TextProtocol::Responses => parse_responses(response)?,
+                OpenAiProtocol::ChatCompletions => parse_chat(response)?,
+                OpenAiProtocol::Responses => parse_responses(response)?,
             };
             Ok(AgentResponse {
                 text: result.text,
                 usage: result.usage,
-                provider: self.config.name.clone(),
+                provider: self.name().into(),
                 model: result.model.unwrap_or_else(|| prompt.model.into()),
             })
         })
@@ -316,26 +260,20 @@ impl TextProvider for OpenAiTextProvider {
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
             let response = self.send_text(&prompt, true).await?;
-            if !response
-                .header("content-type")
-                .and_then(|value| value.to_str().ok())
-                .is_some_and(|content_type| {
-                    content_type.split(';').next() == Some("text/event-stream")
-                })
-            {
+            if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }
             Ok(StreamableAgentResponse::from_upstream(
-                self.protocol,
+                self.protocol.endpoint(),
                 response.into_stream().map_err(transport_error)?,
-                self.config.name.clone(),
+                self.name().into(),
                 prompt.model.to_owned(),
             ))
         })
     }
 }
 
-fn validate(response: client::Result<Response>) -> AiResult<Response> {
+pub(crate) fn validate(response: client::Result<Response>) -> AiResult<Response> {
     match response {
         Ok(response) if response.successful() => Ok(response),
         Ok(response) => Err(AiError::ProviderStatus(response.status().as_u16())),

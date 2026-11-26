@@ -258,3 +258,183 @@ async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
     assert!(!log.contains("server-only-key") && !log.contains("caller-one"));
     Ok(())
 }
+
+#[tokio::test]
+async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
+    use openrust::{foundation::configuration::Routing, http::Response, support::facades::Route};
+    use openrust_ai::{Agent, Ai, agent};
+
+    fn load(
+        base: &std::path::Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut configuration = config(base, env)?;
+        let gateway = configuration.get_mut("ai_gateway").unwrap();
+        gateway["models"] =
+            json!({"claude-public":{"provider":"anthropic","model":"claude-private"}});
+        gateway["keys"] = json!({"caller":{"key_env":"CALLER_GENERAL","models":["claude-public"]}});
+        Ok(configuration)
+    }
+
+    let upstream = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("http://{}/anthropic/v1", upstream.local_addr()?);
+    let task = tokio::spawn(async move {
+        let message = json!({
+            "id":"msg_local", "type":"message", "model":"claude-private",
+            "content":[{"type":"text","text":"こんにちは"}], "stop_reason":"end_turn",
+            "usage":{"input_tokens":6, "output_tokens":4}
+        });
+        let events = [
+            json!({"type":"message_start","message":{"model":"claude-private","usage":{"input_tokens":6}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"こんにちは"}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":4}}),
+            json!({"type":"message_stop"}),
+        ].into_iter().map(|event| format!("event: {}\ndata: {event}\n\n", event["type"].as_str().unwrap())).collect::<String>();
+        for (path, expected_stream, kind, payload) in [
+            ("/anthropic/v1/messages", false, "application/json", message.to_string()),
+            ("/anthropic/v1/messages", true, "text/event-stream", events.clone()),
+            ("/anthropic/v1/models", false, "application/json", json!({"data":[{"id":"First","display_name":"First model"}], "has_more":true, "last_id":"First"}).to_string()),
+            ("/anthropic/v1/models?after_id=First", false, "application/json", json!({"data":[{"id":"Second"}], "has_more":false, "last_id":"Second"}).to_string()),
+            ("/anthropic/v1/messages", true, "text/event-stream", events),
+            ("/anthropic/v1/messages/count_tokens", false, "application/json", json!({"input_tokens":6}).to_string()),
+        ] {
+            let (socket, _) = timeout(Duration::from_secs(5), upstream.accept()).await.unwrap().unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut line = String::new();
+            socket.read_line(&mut line).await.unwrap();
+            let method = if path.contains("/models") { "GET" } else { "POST" };
+            assert_eq!(line.trim_end(), format!("{method} {path} HTTP/1.1"));
+            let mut headers = BTreeMap::new();
+            loop {
+                line.clear();
+                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+                if line == "\r\n" { break; }
+                let (key, value) = line.split_once(':').unwrap();
+                headers.insert(key.to_ascii_lowercase(), value.trim().to_owned());
+            }
+            assert_eq!(headers["x-api-key"], "anthropic-upstream");
+            assert_eq!(headers["anthropic-version"], "2023-06-01");
+            assert!(!headers.contains_key("authorization"));
+            if method == "POST" {
+                let mut body = vec![0; headers["content-length"].parse().unwrap()];
+                socket.read_exact(&mut body).await.unwrap();
+                let body: Value = serde_json::from_slice(&body).unwrap();
+                assert_eq!(body["model"], "claude-private");
+                assert_eq!(body["messages"][0]["content"], "Hi!");
+                assert_eq!(body["stream"] == true, expected_stream);
+            }
+            let headers = format!("HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", payload.len());
+            socket.get_mut().write_all(headers.as_bytes()).await.unwrap();
+            socket.get_mut().write_all(payload.as_bytes()).await.unwrap();
+        }
+    });
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder
+            .with_providers(providers)
+            .with_config(load)
+            .with_routing(Routing::default().web(|| {
+                Route::get("/sdk-native", || async {
+                    let response = agent("日本語で答えて").prompt("Hi!").await.unwrap();
+                    assert_eq!(response.text, "こんにちは");
+                    assert_eq!(response.usage.prompt_tokens, Some(6));
+                    Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Route::get("/sdk-native-stream", || async {
+                    Ok::<_, openrust::http::HttpError>(
+                        agent("").stream("Hi!").await.unwrap().to_response(),
+                    )
+                })?;
+                Route::get("/sdk-native-models", || async {
+                    let catalog = Ai::models(Some("anthropic")).await.unwrap();
+                    assert!(catalog.discovery_error.is_none());
+                    assert_eq!(catalog.models[0].name.as_deref(), Some("First model"));
+                    assert_eq!(catalog.models[1].id, "Second");
+                    assert!(
+                        catalog
+                            .models
+                            .iter()
+                            .any(|model| model.configured && model.id == "claude-private")
+                    );
+                    Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nAI_PROVIDER=anthropic\nANTHROPIC_URL={url}\nANTHROPIC_MODEL=claude-private\nANTHROPIC_API_KEY=anthropic-upstream\nCALLER_GENERAL=anthropic-caller\n"
+        ),
+    )?;
+    assert_eq!(app.get("/sdk-native").await?.status(), StatusCode::OK);
+    let sdk = app.get("/sdk-native-stream").await?;
+    let sdk_events = std::str::from_utf8(sdk.streamed_content())?;
+    assert!(sdk_events.contains("こんにちは"));
+    assert!(sdk_events.contains("\"prompt_tokens\":6"));
+    assert!(sdk_events.contains("\"completion_tokens\":4"));
+    assert_eq!(
+        app.get("/sdk-native-models").await?.status(),
+        StatusCode::OK
+    );
+
+    let directory = app
+        .call(
+            http::Request::get("/v1/models")
+                .header("x-api-key", "anthropic-caller")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(directory.json::<Value>()?["data"][0]["type"], "model");
+    let model = app
+        .call(
+            http::Request::get("/v1/models/claude-public")
+                .header("x-api-key", "anthropic-caller")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(model.json::<Value>()?["id"], "claude-public");
+    let model = send(
+        &mut app,
+        "/v1/models/claude-public",
+        Some("Bearer anthropic-caller"),
+        None,
+    )
+    .await?;
+    assert_eq!(model.status(), StatusCode::NOT_FOUND);
+
+    let messages = |path: &str, key: &str, stream: bool| {
+        http::Request::post(path).header("x-api-key", key)
+            .header("content-type", "application/json")
+            .body(Body::from(json!({"model":"claude-public","max_tokens":100,"stream":stream,"messages":[{"role":"user","content":"Hi!"}]}).to_string()))
+            .unwrap()
+    };
+    let denied = app
+        .call(messages("/v1/messages", "anthropic-upstream", true))
+        .await?;
+    assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        denied.json::<Value>()?["error"]["type"],
+        "authentication_error"
+    );
+    let streamed = app
+        .call(messages("/v1/messages", "anthropic-caller", true))
+        .await?;
+    assert_eq!(streamed.status(), StatusCode::OK);
+    let frames = std::str::from_utf8(streamed.streamed_content())?;
+    assert!(frames.contains("event: message_stop"));
+    assert!(frames.contains("claude-public"));
+    assert!(!frames.contains("claude-private"));
+    let count = app
+        .call(messages(
+            "/v1/messages/count_tokens",
+            "anthropic-caller",
+            false,
+        ))
+        .await?;
+    assert_eq!(count.json::<Value>()?["input_tokens"], 6);
+    task.await?;
+    Ok(())
+}

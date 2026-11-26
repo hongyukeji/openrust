@@ -31,7 +31,7 @@ let answer = response.text;
 
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。已提供預設位址的供應商中，使用 Anthropic 和 Gemini 原生協定的連線仍待支援。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 原生連線也支援一般文字、SSE 與分頁模型目錄。Gemini 原生連線仍待實作。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
 
 ## 模型閘道 {#model-gateway}
 
@@ -47,3 +47,5 @@ let answer = response.text;
 在應用程式環境中為 `AI_GATEWAY_SUPPORT_KEY` 設定獨立的隨機金鑰，`DEEPSEEK_API_KEY` 仍由上游連線單獨使用。外部用戶端的基礎 URL 設為 `https://你的應用程式網域/v1`，使用下游 Key 作為 Bearer 憑證，模型填寫 `support-chat`。`GET /v1/models` 只顯示目前 Key 有權呼叫的已發佈模型。選用的 `requests_per_minute` 由應用程式的速率限制快取執行。
 
 `POST /v1/chat/completions` 支援 OpenAI 和相容連線。`POST /v1/responses` 目前需要 OpenAI 協定連線。兩個入口皆支援 JSON 和 SSE。Responses 目前採用無狀態模式，將 `store` 設為 `false`，並拒絕上游會話、舊 Response ID 和伺服器端工具。閘道使用結構化日誌 `ai_gateway.call` 記錄呼叫結果和上游回報的 Token 數。可用 `usage_channel` 指定日誌通道，通道必須允許 `info` 層級。未回報的計數記為 `null`。
+
+使用 Anthropic 用戶端時，基礎 URL 指向應用程式網域，下游 Key 透過 `x-api-key` 提交。閘道支援 `/v1/messages` 和 `/v1/messages/count_tokens`，模型須對應到 Anthropic 原生連線。附帶 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目錄使用 OpenAI 格式。
