@@ -158,7 +158,7 @@ impl TerminalElement {
         callback: impl FnOnce(&mut TerminalStyles<'_>) -> Result<T, ConsoleError>,
     ) -> Result<T, ConsoleError> {
         let mut style = self.styles.try_write().ok_or_else(style_busy)?;
-        callback(&mut TerminalStyles::new(
+        callback(&mut TerminalStyles::borrow(
             &mut style,
             self.repository.as_ref(),
             self.kind.tag(),

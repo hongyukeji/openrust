@@ -1,4 +1,5 @@
 // 第三方许可见 ../LICENSE.renderer。
+use super::StyleArgument;
 use crate::{console::ConsoleError, support::input_scalars};
 use regex::Regex;
 use std::{
@@ -92,35 +93,77 @@ pub(super) fn parent_width(
         chain.push(&node.dimensions);
         current = node.parent.as_deref();
     }
-    let mut width = viewport;
-    for d in chain.into_iter().rev() {
-        let mut value =
-            d.width
-                .clone()
-                .unwrap_or(Dimension::Integer(0))
-                .maximum(Dimension::Integer(
-                    d.min.as_ref().map_or(0, Dimension::integer),
-                ));
-        if value.compare(&Dimension::Integer(1)).is_lt() {
-            value = Dimension::Integer(width);
-        } else if let Dimension::Integer(n) = value {
-            value = Dimension::Integer(n.checked_add(d.margin).ok_or_else(overflow)?);
-        }
-        width = match &value {
-            Dimension::Text(text) => fraction(text, width)?.unwrap_or_else(|| value.integer()),
-            Dimension::Integer(n) => *n,
-        };
-        let max = d.max.as_ref().map_or(0, Dimension::integer);
-        if max > 0 {
-            width = width.min(max);
-        }
-        width = width
-            .checked_sub(d.margin)
-            .and_then(|n| n.checked_sub(d.padding))
-            .ok_or_else(overflow)?;
+    chain
+        .into_iter()
+        .rev()
+        .try_fold(viewport, parent_width_step)
+}
+
+fn parent_width_step(mut width: i64, d: &Dimensions) -> Result<i64, ConsoleError> {
+    let mut value = d
+        .width
+        .clone()
+        .unwrap_or(Dimension::Integer(0))
+        .maximum(Dimension::Integer(
+            d.min.as_ref().map_or(0, Dimension::integer),
+        ));
+    if value.compare(&Dimension::Integer(1)).is_lt() {
+        value = Dimension::Integer(width);
+    } else if let Dimension::Integer(n) = value {
+        value = Dimension::Integer(n.checked_add(d.margin).ok_or_else(overflow)?);
     }
+    width = match &value {
+        Dimension::Text(text) => fraction(text, width)?.unwrap_or_else(|| value.integer()),
+        Dimension::Integer(n) => *n,
+    };
+    let max = d.max.as_ref().map_or(0, Dimension::integer);
+    if max > 0 {
+        width = width.min(max);
+    }
+    width = width
+        .checked_sub(d.margin)
+        .and_then(|n| n.checked_sub(d.padding))
+        .ok_or_else(overflow)?;
     Ok(width)
 }
+
+/// 祖先元素提供的宽度约束。边距和内边距按左、右顺序排列。
+pub struct TerminalDimensions<'a> {
+    pub width: StyleArgument<'a>,
+    pub min_width: i64,
+    pub max_width: i64,
+    pub margin: [i64; 2],
+    pub padding: [i64; 2],
+}
+
+pub(super) fn width_from_ancestors(
+    ancestors: &[TerminalDimensions<'_>],
+    viewport: i64,
+) -> Result<i64, ConsoleError> {
+    ancestors.iter().try_fold(viewport, |width, ancestor| {
+        let candidate = match ancestor.width {
+            StyleArgument::Integer(value) => Dimension::Integer(value),
+            StyleArgument::Text(value) => Dimension::Text(value.to_owned()),
+        };
+        let margin = ancestor.margin[0]
+            .checked_add(ancestor.margin[1])
+            .ok_or_else(overflow)?;
+        let padding = ancestor.padding[0]
+            .checked_add(ancestor.padding[1])
+            .ok_or_else(overflow)?;
+        parent_width_step(
+            width,
+            &Dimensions {
+                width: Some(candidate),
+                min: Some(Dimension::Integer(ancestor.min_width)),
+                max: Some(Dimension::Integer(ancestor.max_width)),
+                margin,
+                padding,
+            },
+        )
+    })
+}
+
 pub(super) enum Target {
     Unchanged,
     Empty,

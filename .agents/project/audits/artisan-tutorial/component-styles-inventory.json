@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "repository_direct_mutations_typed_element_verified_owned_properties_pending",
+  "status": "standalone_style_and_dimensions_verified_properties_attachment_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -13,7 +13,8 @@
     "component-code-contracts.json",
     "style-repository-contracts.json",
     "terminal-style-methods-contracts.json",
-    "terminal-element-contracts.json"
+    "terminal-element-contracts.json",
+    "standalone-terminal-styles-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1395,7 +1396,15 @@
       "content_repeat",
       "prepend",
       "append",
-      "list / list_with"
+      "list / list_with",
+      "new / Default",
+      "with_default_styles",
+      "default_styles",
+      "with_repository",
+      "format",
+      "get_length",
+      "get_inner_width",
+      "get_parent_width"
     ],
     "TerminalElement": [
       "new",
@@ -1428,6 +1437,13 @@
     "TerminalChild": [
       "Text",
       "Element"
+    ],
+    "TerminalDimensions": [
+      "width",
+      "min_width",
+      "max_width",
+      "margin",
+      "padding"
     ]
   }
 }

@@ -4,45 +4,104 @@ use super::{
     StyleArgument,
     style::{self, Style},
 };
-use crate::console::ConsoleError;
+use crate::console::{ConsoleError, Terminal};
 use parking_lot::RwLock;
-use std::{collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
+
+enum StyleStorage<'a> {
+    Borrowed(&'a mut Style),
+    Owned(Box<Style>),
+}
+
+impl StyleStorage<'_> {
+    fn get(&self) -> &Style {
+        match self {
+            Self::Borrowed(style) => style,
+            Self::Owned(style) => style,
+        }
+    }
+
+    fn get_mut(&mut self) -> &mut Style {
+        match self {
+            Self::Borrowed(style) => style,
+            Self::Owned(style) => style,
+        }
+    }
+}
 
 /// 自定义样式操作当前元素的实际设置，共用渲染器的布局和格式化管线。
 pub struct TerminalStyles<'a> {
-    state: &'a mut Style,
-    repository: Option<&'a StyleRepository>,
+    state: StyleStorage<'a>,
+    repository: Option<Cow<'a, StyleRepository>>,
+    defaults: Option<Cow<'a, [String]>>,
     tag: &'a str,
     depth: usize,
 }
 
 impl<'a> TerminalStyles<'a> {
-    pub(super) fn new(
+    pub(super) fn borrow(
         state: &'a mut Style,
         repository: Option<&'a StyleRepository>,
         tag: &'a str,
         depth: usize,
     ) -> Self {
         Self {
-            state,
-            repository,
+            state: StyleStorage::Borrowed(state),
+            repository: repository.map(Cow::Borrowed),
+            defaults: None,
             tag,
             depth,
         }
     }
 
+    fn reborrow(&mut self) -> TerminalStyles<'_> {
+        TerminalStyles {
+            state: StyleStorage::Borrowed(self.state.get_mut()),
+            repository: self.repository.as_deref().map(Cow::Borrowed),
+            defaults: self.defaults.as_deref().map(Cow::Borrowed),
+            tag: self.tag,
+            depth: self.depth + 1,
+        }
+    }
+
+    pub(super) fn set_default_classes(&mut self, defaults: &'a [String]) {
+        self.defaults = Some(Cow::Borrowed(defaults));
+    }
+
+    pub fn default_styles(&self) -> impl Iterator<Item = &str> {
+        let implicit = if self.defaults.is_none() {
+            style::default_classes(self.tag)
+        } else {
+            ""
+        };
+        implicit.split_ascii_whitespace().chain(
+            self.defaults
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(String::as_str),
+        )
+    }
+
     pub fn apply(&mut self, classes: &str) -> Result<&mut Self, ConsoleError> {
-        style::apply(self.state, classes, self.tag, self.depth, self.repository)?;
+        style::apply_with_defaults(
+            self.state.get_mut(),
+            classes,
+            self.tag,
+            self.depth,
+            self.repository.as_deref(),
+            self.defaults.as_deref(),
+        )?;
         Ok(self)
     }
 
     pub fn set_style(&mut self, name: &str) -> &mut Self {
-        style::mark(self.state, name);
+        style::mark(self.state.get_mut(), name);
         self
     }
 
     pub fn has_style(&self, name: &str) -> bool {
-        self.state.markers.iter().any(|style| style == name)
+        self.state.get().markers.iter().any(|style| style == name)
     }
 
     fn change(
@@ -51,11 +110,9 @@ impl<'a> TerminalStyles<'a> {
         args: &[StyleArgument<'_>],
     ) -> Result<&mut Self, ConsoleError> {
         style::apply_method(
-            self.state,
+            self.state.get_mut(),
             MethodCall { name, args },
-            self.tag,
-            self.depth,
-            self.repository,
+            self.repository.as_deref(),
             name,
         )?;
         Ok(self)
@@ -130,12 +187,12 @@ impl<'a> TerminalStyles<'a> {
     }
 
     pub fn uppercase(&mut self) -> &mut Self {
-        style::transform(self.state, "upper");
+        style::transform(self.state.get_mut(), "upper");
         self
     }
 
     pub fn font_bold(&mut self) -> &mut Self {
-        self.state.bold = Some(true);
+        self.state.get_mut().bold = Some(true);
         self
     }
 
@@ -292,6 +349,75 @@ impl<'a> TerminalStyles<'a> {
     }
 }
 
+impl Default for TerminalStyles<'static> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TerminalStyles<'static> {
+    /// 不绑定任何元素的独立样式，可直接格式化文本。
+    pub fn new() -> Self {
+        Self {
+            state: StyleStorage::Owned(Box::new(Style {
+                element: "generic",
+                display: "inline",
+                ..Style::default()
+            })),
+            repository: None,
+            defaults: None,
+            tag: "span",
+            depth: 0,
+        }
+    }
+
+    pub fn with_default_styles(
+        mut self,
+        defaults: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.defaults = Some(Cow::Owned(defaults.into_iter().map(Into::into).collect()));
+        self
+    }
+
+    pub fn with_repository(mut self, repository: StyleRepository) -> Self {
+        self.repository = Some(Cow::Owned(repository));
+        self
+    }
+
+    pub fn format(&self, content: &str) -> Result<String, ConsoleError> {
+        style::format(
+            content.to_owned(),
+            self.state.get(),
+            &None,
+            Terminal::new().get_width(),
+            false,
+            [0; 2],
+        )
+    }
+
+    pub fn get_length(&self, content: Option<&str>) -> i64 {
+        length(content.unwrap_or_default())
+    }
+
+    pub fn get_parent_width(
+        ancestors: &[super::TerminalDimensions<'_>],
+    ) -> Result<i64, ConsoleError> {
+        super::dimensions::width_from_ancestors(ancestors, Terminal::new().get_width())
+    }
+
+    pub fn get_inner_width(&self) -> i64 {
+        let style = self.state.get();
+        let [_, right, _, left] = style.margins(false, [0; 2]);
+        self.get_length(None) - (left + right) as i64
+    }
+}
+
+fn length(value: &str) -> i64 {
+    super::super::display::visible_width(value)
+        .try_into()
+        .unwrap_or(i64::MAX)
+}
+
 type Callback =
     dyn Fn(&mut TerminalStyles<'_>, &[StyleArgument<'_>]) -> Result<(), ConsoleError> + Send + Sync;
 
@@ -365,12 +491,7 @@ impl TerminalStyle {
         if styles.depth >= MAX_STYLE_DEPTH {
             return Err(ConsoleError::new("组件样式递归超出范围"));
         }
-        let mut styles = TerminalStyles::new(
-            styles.state,
-            styles.repository,
-            styles.tag,
-            styles.depth + 1,
-        );
+        let mut styles = styles.reborrow();
         let layers = self.definition.read().layers.clone();
         if let Some(callback) = &self.callback {
             callback(&mut styles, arguments)?;

@@ -2252,7 +2252,8 @@
     "64: Default helper registry and execution metadata are verified for typed and closure commands. Renderer repository and Factory container override remain open.",
     "65: Custom style and color registration and the style handle are verified. Standalone Styles and Element methods, HTML recovery and Factory container override remain open.",
     "66: Typed style mutation entrypoints are verified. Owned style properties, element relationships and additional renderer contracts stay open.",
-    "67: Typed element construction, shared styles, content replacement and output are verified. Generic style properties and dynamic methods stay open."
+    "67: Typed element construction, shared styles, content replacement and output are verified. Generic style properties and dynamic methods stay open.",
+    "68: Standalone style construction, defaults and width measurements are verified. Attached-element and generic style property APIs stay open."
   ],
   "native_adaptations": [
     {
@@ -2964,6 +2965,25 @@
     "TerminalChild": [
       "Text",
       "Element"
+    ]
+  },
+  "standalone_terminal_styles": {
+    "TerminalStyles": [
+      "new / Default",
+      "with_default_styles",
+      "default_styles",
+      "with_repository",
+      "format",
+      "get_length",
+      "get_inner_width",
+      "get_parent_width"
+    ],
+    "TerminalDimensions": [
+      "width",
+      "min_width",
+      "max_width",
+      "margin",
+      "padding"
     ]
   }
 }

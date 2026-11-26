@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第68簇独立终端样式与祖先宽度已验，继续样式属性合并及元素关联。见[验收契约](audits/artisan-tutorial/standalone-terminal-styles-contracts.json)。
+
 - Artisan 第67簇独立终端元素与内容替换已验，继续样式属性、关联与通用恢复。见[验收契约](audits/artisan-tutorial/terminal-element-contracts.json)。
 
 - Artisan 第66簇终端样式类型化设置已验，继续独立样式属性与元素入口。见[验收契约](audits/artisan-tutorial/terminal-style-methods-contracts.json)。

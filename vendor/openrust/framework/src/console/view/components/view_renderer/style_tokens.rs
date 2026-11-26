@@ -4,7 +4,12 @@ pub(super) struct Token<'a> {
     pub original: &'a str,
     pub resolved: Option<&'a str>,
 }
-pub(super) fn tokens(input: &str, width: i64, include_inactive: bool) -> Vec<Token<'_>> {
+pub(super) fn tokens<'a>(
+    input: &'a str,
+    width: i64,
+    include_inactive: bool,
+    defaults: impl Iterator<Item = &'a str>,
+) -> Vec<Token<'a>> {
     // 对应“空白后，在下一个左方括号前没有右方括号”；反向扫描避免重复搜索。
     let mut closing = None;
     let mut opening = None;
@@ -22,17 +27,18 @@ pub(super) fn tokens(input: &str, width: i64, include_inactive: bool) -> Vec<Tok
         }
     }
     let mut start = 0;
-    let mut values = vec![];
-    for end in boundaries
+    let classes = boundaries
         .into_iter()
         .rev()
         .chain(std::iter::once(input.len()))
-    {
-        let original = &input[start..end];
-        start = end + 1;
-        if original.is_empty() || original == "0" {
-            continue;
-        }
+        .map(|end| {
+            let value = &input[start..end];
+            start = end + 1;
+            value
+        })
+        .filter(|value| !value.is_empty() && *value != "0");
+    let mut values = vec![];
+    for original in defaults.chain(classes) {
         let (rank, resolved, active) = match original.split_once(':') {
             Some(("sm", value)) => (1, value, width >= 64),
             Some(("md", value)) => (2, value, width >= 76),

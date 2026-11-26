@@ -363,6 +363,10 @@ async fn formal_progress_example(){
     terminal_element_checks=terminal_style_checks.replace('formal_terminal_style_methods_example','formal_terminal_elements_example').replace('register_terminal_styles)','register_terminal_elements)').replace('"tools:report-label"','"tools:terminal-element"').replace('assert!(output.stdout.contains("REPORT READY"),"{flag}: {:?}",output.stdout);','let plain=openrust::console::Helper::remove_decoration(output.get_formatter().as_ref(),Some(&output.stdout)).unwrap();assert!(plain.contains("Status ready"),"{flag}: {plain:?}");')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_elements{\n'+terminal_element_snippet+terminal_element_checks+'}\n')
 
+    standalone_styles_snippet=re.search(r'```rust\n(.*?)```',text.split('{#standalone-terminal-styles}',1)[1],re.S).group(1)
+    standalone_styles_checks=terminal_element_checks.replace('formal_terminal_elements_example','formal_standalone_style_example').replace('register_terminal_elements)','register_standalone_styles)').replace('"tools:terminal-element"','"tools:standalone-style"').replace('"Status ready"','"Available: 9 columns"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_standalone_styles{\n'+standalone_styles_snippet+standalone_styles_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

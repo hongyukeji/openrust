@@ -136,17 +136,39 @@ pub(super) fn apply(
     depth: usize,
     styles: Option<&StyleRepository>,
 ) -> Result<(), ConsoleError> {
+    apply_with_defaults(s, input, tag, depth, styles, None)
+}
+
+pub(super) fn apply_with_defaults(
+    s: &mut Style,
+    input: &str,
+    tag: &str,
+    depth: usize,
+    styles: Option<&StyleRepository>,
+    defaults: Option<&[String]>,
+) -> Result<(), ConsoleError> {
     if depth > 256 {
         return Err(ConsoleError::new("组件样式递归超出范围"));
     }
-    let defaults = default_classes(tag);
+    let defaults_classes = if defaults.is_none() {
+        default_classes(tag)
+    } else {
+        ""
+    };
+    let entries = defaults_classes
+        .split_ascii_whitespace()
+        .chain(defaults.unwrap_or_default().iter().map(String::as_str));
     for token in style_tokens::tokens(
-        &format!("{defaults} {input}"),
+        input,
         Terminal::new().get_width(),
         styles.is_some(),
+        entries,
     ) {
         if let Some(registered) = styles.and_then(|repo| repo.lookup(token.original)) {
-            let mut formatter = TerminalStyles::new(s, styles, tag, depth);
+            let mut formatter = TerminalStyles::borrow(s, styles, tag, depth);
+            if let Some(defaults) = defaults {
+                formatter.set_default_classes(defaults);
+            }
             registered.invoke(&mut formatter, &[])?;
             continue;
         }
@@ -155,7 +177,11 @@ pub(super) fn apply(
         };
         let m = style_methods::resolve(resolved)?;
         mark(s, token.original);
-        apply_method(s, m.as_call(), tag, depth, styles, token.original)?;
+        if m.name == "addstyle" {
+            apply_with_defaults(s, m.as_call().text(0)?, tag, depth + 1, styles, defaults)?;
+        } else {
+            apply_method(s, m.as_call(), styles, token.original)?;
+        }
     }
     Ok(())
 }
@@ -163,8 +189,6 @@ pub(super) fn apply(
 pub(super) fn apply_method(
     s: &mut Style,
     m: MethodCall<'_>,
-    tag: &str,
-    depth: usize,
     styles: Option<&StyleRepository>,
     expression: &str,
 ) -> Result<(), ConsoleError> {
@@ -293,7 +317,6 @@ pub(super) fn apply_method(
             }
         }
         "setstyle" => mark(s, m.text(0)?),
-        "addstyle" => apply(s, m.text(0)?, tag, depth + 1, styles)?,
         "m" | "mt" | "mr" | "mb" | "ml" | "mx" | "my" | "p" | "pt" | "pr" | "pb" | "pl" | "px"
         | "py" | "spacex" | "spacey" => {
             let n = m.integer(0)?;

@@ -2562,3 +2562,34 @@ fn register_terminal_elements() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Standalone terminal styles {#standalone-terminal-styles}
+
+Construct standalone `TerminalStyles` to apply formatting to text without creating an element. `with_default_styles` stores the default class names. `add_style` applies them together with the supplied classes. `format` returns styled markup.
+
+`get_length` measures display columns and ignores formatter markup. For a standalone style with no content, `get_inner_width` subtracts left and right margins from zero. `get_parent_width` accepts ancestor constraints from the outermost to the innermost element.
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::TerminalStyles,
+};
+use openrust::support::facades::Artisan;
+
+fn register_standalone_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:standalone-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut styles = TerminalStyles::new().with_default_styles(["font-bold", "text-cyan"]);
+            styles.add_style("ml-2")?;
+
+            let message = "Available";
+            let width = styles.get_length(Some(message));
+            let formatted = styles.format(&format!("{message}: {width} columns"))?;
+
+            output.as_output().writeln(&formatted, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

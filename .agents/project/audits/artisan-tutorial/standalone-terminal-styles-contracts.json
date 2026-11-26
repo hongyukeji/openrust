@@ -1,0 +1,49 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_standalone_styles_and_parent_width",
+  "bindings": {
+    "TerminalStyles": [
+      "new / Default",
+      "with_default_styles",
+      "default_styles",
+      "with_repository",
+      "format",
+      "get_length",
+      "get_inner_width",
+      "get_parent_width"
+    ],
+    "TerminalDimensions": [
+      "width",
+      "min_width",
+      "max_width",
+      "margin",
+      "padding"
+    ]
+  },
+  "source_oracles": [
+    "standalone-terminal-styles-oracle.json",
+    "terminal-parent-width-oracle.json"
+  ],
+  "runtime": {
+    "source_standalone_cases": 51,
+    "source_parent_width_cases": 39,
+    "framework_targets": 12,
+    "framework_parent_tests": 45,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 207,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "独立样式对象与现有元素回调共用原生样式状态。独立对象拥有状态，渲染过程按原有短借用运行。",
+    "默认类存储时不自动应用，执行 add_style 才按源顺序合并。默认类数组里的每个条目保留各自边界。",
+    "长度忽略格式标签和控制序列，保留相应宽字符计数。无关联元素时 get_length(None) 为零，内宽仍扣除左右边距。",
+    "祖先宽度沿用现有计算，按外到内处理约束。整数、文本值和分数保持区别，显式组合通过 Rust 类型传递。"
+  ],
+  "remaining": [
+    "样式属性替换／递归合并、元素关联、继承控制、Style::flex1 和附着元素的隐式宽度查询。",
+    "Element 动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造和其他 Artisan 锚点。"
+  ]
+}

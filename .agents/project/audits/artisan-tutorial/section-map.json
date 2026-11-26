@@ -362,7 +362,8 @@
       ],
       "style_repository": "style-repository-contracts.json",
       "terminal_style_methods": "terminal-style-methods-contracts.json",
-      "terminal_element": "terminal-element-contracts.json"
+      "terminal_element": "terminal-element-contracts.json",
+      "standalone_terminal_styles": "standalone-terminal-styles-contracts.json"
     },
     {
       "anchor": "tables",
@@ -716,6 +717,14 @@
     "remaining": [
       "独立 Styles 构造、共享元素关系与属性集合、继承控制、长度与格式查询、flex1。",
       "Element 的动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造与其他 Artisan 锚点。"
+    ]
+  },
+  "standalone_terminal_styles": {
+    "status": "verified_standalone_styles_and_parent_width",
+    "contract": "standalone-terminal-styles-contracts.json",
+    "remaining": [
+      "样式属性替换／递归合并、元素关联、继承控制、Style::flex1 和附着元素的隐式宽度查询。",
+      "Element 动态转发与源属性输入、通用 HTML 恢复、Factory 容器构造和其他 Artisan 锚点。"
     ]
   }
 }

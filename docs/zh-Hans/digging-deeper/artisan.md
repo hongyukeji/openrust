@@ -2562,3 +2562,34 @@ fn register_terminal_elements() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 独立终端样式 {#standalone-terminal-styles}
+
+构造独立的 `TerminalStyles` 可直接格式化文本。`with_default_styles` 保存默认类名，`add_style` 同时应用默认类和传入的类。`format` 返回带样式标记的文本。
+
+`get_length` 忽略格式标记并测量显示列数。独立样式没有内容时，`get_inner_width` 从零减去左右边距。`get_parent_width` 按从外到内的顺序接收祖先元素的宽度约束。
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::TerminalStyles,
+};
+use openrust::support::facades::Artisan;
+
+fn register_standalone_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:standalone-style", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut styles = TerminalStyles::new().with_default_styles(["font-bold", "text-cyan"]);
+            styles.add_style("ml-2")?;
+
+            let message = "Available";
+            let width = styles.get_length(Some(message));
+            let formatted = styles.format(&format!("{message}: {width} columns"))?;
+
+            output.as_output().writeln(&formatted, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

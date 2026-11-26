@@ -1,0 +1,1079 @@
+[
+    {
+        "kind": "basic",
+        "defaults": [],
+        "classes": "",
+        "width": 20,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "basic",
+        "defaults": [],
+        "classes": "",
+        "width": 40,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "basic",
+        "defaults": [],
+        "classes": "",
+        "width": 83,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "styles",
+        "defaults": [],
+        "classes": "font-bold text-red",
+        "width": 20,
+        "content": "Hello world",
+        "out": "<fg=red;options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": {
+                "fg": "red"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "styles",
+        "defaults": [],
+        "classes": "font-bold text-red",
+        "width": 40,
+        "content": "Hello world",
+        "out": "<fg=red;options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": {
+                "fg": "red"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "styles",
+        "defaults": [],
+        "classes": "font-bold text-red",
+        "width": 83,
+        "content": "Hello world",
+        "out": "<fg=red;options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": {
+                "fg": "red"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "custom-defaults",
+        "defaults": [
+            "font-bold",
+            "text-green",
+            "ml-2"
+        ],
+        "classes": "font-normal text-blue",
+        "width": 20,
+        "content": "Hello world",
+        "out": "  <fg=blue;options=,>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -2,
+        "properties": {
+            "colors": {
+                "fg": "blue"
+            },
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "custom-defaults",
+        "defaults": [
+            "font-bold",
+            "text-green",
+            "ml-2"
+        ],
+        "classes": "font-normal text-blue",
+        "width": 40,
+        "content": "Hello world",
+        "out": "  <fg=blue;options=,>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -2,
+        "properties": {
+            "colors": {
+                "fg": "blue"
+            },
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "custom-defaults",
+        "defaults": [
+            "font-bold",
+            "text-green",
+            "ml-2"
+        ],
+        "classes": "font-normal text-blue",
+        "width": 83,
+        "content": "Hello world",
+        "out": "  <fg=blue;options=,>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -2,
+        "properties": {
+            "colors": {
+                "fg": "blue"
+            },
+            "options": {
+                "bold": false
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "defaults-no-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": null,
+        "width": 20,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "defaults-no-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": null,
+        "width": 40,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "defaults-no-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": null,
+        "width": 83,
+        "content": "Hello world",
+        "out": "Hello world",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "defaults-after-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": "",
+        "width": 20,
+        "content": "Hello world",
+        "out": "   <options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -3,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "defaults-after-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": "",
+        "width": 40,
+        "content": "Hello world",
+        "out": "   <options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -3,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "defaults-after-addstyle",
+        "defaults": [
+            "font-bold",
+            "ml-3"
+        ],
+        "classes": "",
+        "width": 83,
+        "content": "Hello world",
+        "out": "   <options=bold>Hello world<\/>",
+        "error": null,
+        "length": 11,
+        "none_length": 0,
+        "inner_width": -3,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false,
+            "styles": {
+                "ml": 3
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "margin-width",
+        "defaults": [],
+        "classes": "mx-2 my-1",
+        "width": 20,
+        "content": "Line one",
+        "out": "\n  Line one  \n",
+        "error": null,
+        "length": 8,
+        "none_length": 0,
+        "inner_width": -4,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "margin-width",
+        "defaults": [],
+        "classes": "mx-2 my-1",
+        "width": 40,
+        "content": "Line one",
+        "out": "\n  Line one  \n",
+        "error": null,
+        "length": 8,
+        "none_length": 0,
+        "inner_width": -4,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "margin-width",
+        "defaults": [],
+        "classes": "mx-2 my-1",
+        "width": 83,
+        "content": "Line one",
+        "out": "\n  Line one  \n",
+        "error": null,
+        "length": 8,
+        "none_length": 0,
+        "inner_width": -4,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 2,
+                "mr": 2,
+                "mt": 1,
+                "mb": 1
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "explicit-zero-margin",
+        "defaults": [],
+        "classes": "mx-0 my-0",
+        "width": 20,
+        "content": "Space",
+        "out": "Space",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 0,
+                "mr": 0,
+                "mt": 0,
+                "mb": 0
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "explicit-zero-margin",
+        "defaults": [],
+        "classes": "mx-0 my-0",
+        "width": 40,
+        "content": "Space",
+        "out": "Space",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 0,
+                "mr": 0,
+                "mt": 0,
+                "mb": 0
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "explicit-zero-margin",
+        "defaults": [],
+        "classes": "mx-0 my-0",
+        "width": 83,
+        "content": "Space",
+        "out": "Space",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "ml": 0,
+                "mr": 0,
+                "mt": 0,
+                "mb": 0
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "fraction",
+        "defaults": [],
+        "classes": "w-1\/4 pl-2",
+        "width": 20,
+        "content": "中文🦀",
+        "out": "  中",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/4",
+                "pl": 2
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "fraction",
+        "defaults": [],
+        "classes": "w-1\/4 pl-2",
+        "width": 40,
+        "content": "中文🦀",
+        "out": "  中文🦀  ",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/4",
+                "pl": 2
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "fraction",
+        "defaults": [],
+        "classes": "w-1\/4 pl-2",
+        "width": 83,
+        "content": "中文🦀",
+        "out": "  中文🦀            ",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/4",
+                "pl": 2
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "styles-in-input",
+        "defaults": [],
+        "classes": "font-bold",
+        "width": 20,
+        "content": "<fg=gray>READY<\/>",
+        "out": "<options=bold><fg=gray>READY<\/><\/>",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "styles-in-input",
+        "defaults": [],
+        "classes": "font-bold",
+        "width": 40,
+        "content": "<fg=gray>READY<\/>",
+        "out": "<options=bold><fg=gray>READY<\/><\/>",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "styles-in-input",
+        "defaults": [],
+        "classes": "font-bold",
+        "width": 83,
+        "content": "<fg=gray>READY<\/>",
+        "out": "<options=bold><fg=gray>READY<\/><\/>",
+        "error": null,
+        "length": 5,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "no-element-hidden",
+        "defaults": [],
+        "classes": "hidden",
+        "width": 20,
+        "content": "Hidden",
+        "out": "",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "no-element-hidden",
+        "defaults": [],
+        "classes": "hidden",
+        "width": 40,
+        "content": "Hidden",
+        "out": "",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "no-element-hidden",
+        "defaults": [],
+        "classes": "hidden",
+        "width": 83,
+        "content": "Hidden",
+        "out": "",
+        "error": null,
+        "length": 6,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "display": "hidden"
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "repeat",
+        "defaults": [],
+        "classes": "content-repeat-[.]",
+        "width": 20,
+        "content": "x",
+        "out": "....................",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "contentRepeat": true
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "repeat",
+        "defaults": [],
+        "classes": "content-repeat-[.]",
+        "width": 40,
+        "content": "x",
+        "out": "........................................",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "contentRepeat": true
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "repeat",
+        "defaults": [],
+        "classes": "content-repeat-[.]",
+        "width": 83,
+        "content": "x",
+        "out": "...................................................................................",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "contentRepeat": true
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "invalid",
+        "defaults": [],
+        "classes": "w-1\/0",
+        "width": 20,
+        "content": "Invalid",
+        "out": null,
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "length": 7,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "invalid",
+        "defaults": [],
+        "classes": "w-1\/0",
+        "width": 40,
+        "content": "Invalid",
+        "out": null,
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "length": 7,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "invalid",
+        "defaults": [],
+        "classes": "w-1\/0",
+        "width": 83,
+        "content": "Invalid",
+        "out": null,
+        "error": "Termwind\\Exceptions\\InvalidStyle:Style [w-1\/0] is invalid.",
+        "length": 7,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false,
+            "styles": {
+                "width": "1\/0"
+            }
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "length-csi",
+        "defaults": [],
+        "classes": null,
+        "width": 20,
+        "content": "\u001b[32mA\u001b[0m",
+        "out": "\u001b[32mA\u001b[0m",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "length-csi",
+        "defaults": [],
+        "classes": null,
+        "width": 40,
+        "content": "\u001b[32mA\u001b[0m",
+        "out": "\u001b[32mA\u001b[0m",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "length-csi",
+        "defaults": [],
+        "classes": null,
+        "width": 83,
+        "content": "\u001b[32mA\u001b[0m",
+        "out": "\u001b[32mA\u001b[0m",
+        "error": null,
+        "length": 1,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "length-href",
+        "defaults": [],
+        "classes": null,
+        "width": 20,
+        "content": "<href=https:\/\/example.test>one<\/>",
+        "out": "<href=https:\/\/example.test>one<\/>",
+        "error": null,
+        "length": 3,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "length-href",
+        "defaults": [],
+        "classes": null,
+        "width": 40,
+        "content": "<href=https:\/\/example.test>one<\/>",
+        "out": "<href=https:\/\/example.test>one<\/>",
+        "error": null,
+        "length": 3,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "length-href",
+        "defaults": [],
+        "classes": null,
+        "width": 83,
+        "content": "<href=https:\/\/example.test>one<\/>",
+        "out": "<href=https:\/\/example.test>one<\/>",
+        "error": null,
+        "length": 3,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "length-cjk",
+        "defaults": [],
+        "classes": null,
+        "width": 20,
+        "content": "全角ＡB🦀é",
+        "out": "全角ＡB🦀é",
+        "error": null,
+        "length": 10,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "length-cjk",
+        "defaults": [],
+        "classes": null,
+        "width": 40,
+        "content": "全角ＡB🦀é",
+        "out": "全角ＡB🦀é",
+        "error": null,
+        "length": 10,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "length-cjk",
+        "defaults": [],
+        "classes": null,
+        "width": 83,
+        "content": "全角ＡB🦀é",
+        "out": "全角ＡB🦀é",
+        "error": null,
+        "length": 10,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "length-unknown-layout-tags",
+        "defaults": [],
+        "classes": null,
+        "width": 20,
+        "content": "A<whatever>x<\/whatever>",
+        "out": "A<whatever>x<\/whatever>",
+        "error": null,
+        "length": 2,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "length-unknown-layout-tags",
+        "defaults": [],
+        "classes": null,
+        "width": 40,
+        "content": "A<whatever>x<\/whatever>",
+        "out": "A<whatever>x<\/whatever>",
+        "error": null,
+        "length": 2,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "length-unknown-layout-tags",
+        "defaults": [],
+        "classes": null,
+        "width": 83,
+        "content": "A<whatever>x<\/whatever>",
+        "out": "A<whatever>x<\/whatever>",
+        "error": null,
+        "length": 2,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    },
+    {
+        "kind": "length-empty",
+        "defaults": [],
+        "classes": null,
+        "width": 20,
+        "content": "",
+        "out": "",
+        "error": null,
+        "length": 0,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 20
+    },
+    {
+        "kind": "length-empty",
+        "defaults": [],
+        "classes": null,
+        "width": 40,
+        "content": "",
+        "out": "",
+        "error": null,
+        "length": 0,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 40
+    },
+    {
+        "kind": "length-empty",
+        "defaults": [],
+        "classes": null,
+        "width": 83,
+        "content": "",
+        "out": "",
+        "error": null,
+        "length": 0,
+        "none_length": 0,
+        "inner_width": 0,
+        "properties": {
+            "colors": [],
+            "options": [],
+            "isFirstChild": false
+        },
+        "parent_width": 83
+    }
+]

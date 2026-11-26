@@ -1,6 +1,7 @@
 // 第三方许可见 LICENSE.renderer。
 mod code;
 mod dimensions;
+pub use dimensions::TerminalDimensions;
 mod dom;
 mod element;
 pub use element::{TerminalChild, TerminalContent, TerminalElement, TerminalElementKind};
