@@ -16,6 +16,8 @@ use crate::{
 const REPORTS: &str = "ai_gateway_cost_reports";
 const EVIDENCE: &str = "ai_gateway_cost_evidence";
 
+mod pages;
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CostReport {
@@ -25,6 +27,8 @@ pub(crate) struct CostReport {
     complete: bool,
     starts_at: i64,
     ends_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    page: Option<pages::Page>,
     #[serde(default)]
     entries: Vec<CostEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -49,6 +53,8 @@ pub(crate) struct ImportResult {
     entries: Vec<ImportedEntry>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     totals: Vec<ComparedTotal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pagination: Option<pages::Progress>,
 }
 
 #[derive(Serialize)]
@@ -64,6 +70,8 @@ pub(crate) struct StoredReport {
     imported_at: i64,
     entries: Vec<StoredEntry>,
     totals: Vec<ComparedTotal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pagination: Option<pages::Progress>,
 }
 
 #[derive(Serialize)]
@@ -98,6 +106,7 @@ impl CostReport {
             || self.revision < 1
             || self.starts_at < 0
             || self.ends_at <= self.starts_at
+            || self.page.is_some_and(|page| !page.valid())
         {
             return Err(DatabaseError::InvalidQuery(
                 "AI 网关账单标识、版本或时间窗口无效",
@@ -149,7 +158,7 @@ pub(crate) async fn import(
                 let report = report.clone();
                 let actor = actor.clone();
                 let source = query_source.clone();
-                Box::pin(async move { insert_report(transaction, &source, &report, &actor).await })
+                Box::pin(async move { pages::import(transaction, &source, report, &actor).await })
             },
             3,
         )
@@ -165,6 +174,7 @@ pub(crate) async fn read(
             move |transaction| {
                 let id = id.clone();
                 Box::pin(async move {
+                    let progress = pages::read_progress(transaction, &id).await?;
                     let Some(header) = transaction
                         .table(REPORTS)
                         .select([
@@ -181,14 +191,18 @@ pub(crate) async fn read(
                         .first()
                         .await?
                     else {
-                        return Ok(None);
+                        return match progress {
+                            Some(progress) => {
+                                pages::pending(transaction, id, progress).await.map(Some)
+                            }
+                            None => Ok(None),
+                        };
                     };
                     let required = |key| integer(&header, key)?.ok_or(DatabaseError::InvalidScalar);
-                    let complete = match header.get("complete") {
-                        Some(Value::Bool(value)) => *value,
-                        Some(Value::Integer(0) | Value::Unsigned(0)) => false,
-                        Some(Value::Integer(1) | Value::Unsigned(1)) => true,
-                        _ => return Err(DatabaseError::InvalidScalar),
+                    let complete = flag(&header, "complete")?;
+                    let pagination = match progress {
+                        Some(progress) => Some(progress),
+                        None => pages::read_progress(transaction, &id).await?,
                     };
                     let entries = stored_entries(transaction, &id).await?;
                     let totals = aggregate_costs::load(transaction, &id).await?;
@@ -204,6 +218,7 @@ pub(crate) async fn read(
                         imported_at: required("imported_at")?,
                         entries,
                         totals,
+                        pagination,
                     }))
                 })
             },
@@ -309,6 +324,7 @@ async fn insert_report(
         duplicate: inserted == 0,
         entries,
         totals,
+        pagination: None,
     })
 }
 
@@ -492,6 +508,15 @@ pub(crate) fn optional_text(row: &Row, key: &str) -> DatabaseResult<Option<Strin
     match row.get(key) {
         Some(Value::Text(text)) => Ok(Some(text.clone())),
         Some(Value::Null) => Ok(None),
+        _ => Err(DatabaseError::InvalidScalar),
+    }
+}
+
+fn flag(row: &Row, key: &str) -> DatabaseResult<bool> {
+    match row.get(key) {
+        Some(Value::Bool(value)) => Ok(*value),
+        Some(Value::Integer(0) | Value::Unsigned(0)) => Ok(false),
+        Some(Value::Integer(1) | Value::Unsigned(1)) => Ok(true),
         _ => Err(DatabaseError::InvalidScalar),
     }
 }

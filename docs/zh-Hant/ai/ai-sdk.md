@@ -306,6 +306,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 使用匯入指令傳回的 `report_id` 執行 `./artisan ai:gateway:billing:report <report-id>`，可查看已儲存的明細、彙總差額與匯入記錄。
 
+帳單分成多個檔案時，加入 `"page": {"number": 1, "total": 3}`，各檔案的來源、帳單 ID、版本、UTC 帳期與 `complete` 一致。用同一個指令依任意順序匯入各檔案。可透過 `billing:report` 的 `pagination.received_pages` 找出缺頁。閘道在收到全部頁面後合併帳單並記錄證據。所有分頁提交完畢且聲明 `complete: false` 時，仍按部分帳單處理。
+
 ### 分組每日貨幣預算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。

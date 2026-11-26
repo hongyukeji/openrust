@@ -30,6 +30,8 @@ mod commands;
 mod compatibility;
 #[path = "../config/ai_gateway.rs"]
 mod configuration;
+#[path = "../database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs"]
+mod cost_pages_migration;
 mod gateway;
 mod invocation;
 #[path = "../database/migrations/2026_11_26_000008_add_invocation_to_ai_gateway_usage.rs"]
@@ -85,6 +87,8 @@ const ACCOUNT_BUDGET_MIGRATION: &str =
     "database/migrations/2026_11_26_000010_add_ai_gateway_account_budgets.rs";
 const AGGREGATE_COSTS_MIGRATION: &str =
     "database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs";
+const COST_PAGES_MIGRATION: &str =
+    "database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs";
 static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
@@ -125,6 +129,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs",
         &aggregate_costs_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs",
+        &cost_pages_migration::MIGRATION,
     ),
 ];
 
@@ -201,6 +209,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         AGGREGATE_COSTS_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs"),
+                    ),
+                    (
+                        COST_PAGES_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

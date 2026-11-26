@@ -306,6 +306,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 使用导入命令返回的 `report_id` 运行 `./artisan ai:gateway:billing:report <report-id>`，可查看已保存的明细、汇总差额和导入记录。
 
+账单分成多个文件时，加入 `"page": {"number": 1, "total": 3}`，各文件的来源、账单 ID、版本、UTC 账期和 `complete` 保持一致。用同一命令导入各文件，顺序不限。可通过 `billing:report` 的 `pagination.received_pages` 找出缺页。网关在全部页收到后合并账单并记录证据。所有分页提交完毕且声明 `complete: false` 时，仍按部分账单处理。
+
 ### 分组每日货币预算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。

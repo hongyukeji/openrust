@@ -306,6 +306,8 @@ At import, the gateway compares each total with the ledger for that connection, 
 
 Run `./artisan ai:gateway:billing:report <report-id>` to read the saved entries, comparison and import details. Use the `report_id` printed by the import command.
 
+For a statement split across files, include `"page": {"number": 1, "total": 3}` and keep the source, statement ID, revision, UTC window and `complete` value identical across files. Run the same import command for each file, in any order. Use `billing:report` and its `pagination.received_pages` field to find missing pages. The gateway assembles the statement and records its evidence after all pages arrive. A complete set of pages declared with `complete: false` stays a partial statement.
+
 ### Daily group billing budget {#billing-budget}
 
 In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.
