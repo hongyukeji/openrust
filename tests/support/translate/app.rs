@@ -141,9 +141,15 @@ impl Listener for Observe {
 }
 
 async fn sample() -> openrust_translate::TranslationResult<Value> {
-    let default = Translate::translate(" 你好 ", "EN-us").await?;
+    let (default_text, default_target, named_text, named_target, named_source) =
+        if std::env::var_os("TRANSLATE_TEST_LIBRETRANSLATE").is_some() {
+            ("Hello world.", "es", "Hello world.", "es", "en")
+        } else {
+            (" 你好 ", "EN-us", "你好", "fr", "zh-Hans")
+        };
+    let default = Translate::translate(default_text, default_target).await?;
     let driver = Translate::driver("office")?;
-    let request = TranslationRequest::new("你好", "fr")?.with_source("zh-Hans")?;
+    let request = TranslationRequest::new(named_text, named_target)?.with_source(named_source)?;
     let named = driver.translate(request).await?;
     Ok(json!({
         "default": default.text(), "named": named.text(),

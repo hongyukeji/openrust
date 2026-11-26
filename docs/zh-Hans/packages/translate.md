@@ -92,6 +92,8 @@ async fn preview() -> TranslationResult<String> {
 | `azure` | 用 `api_key_env` 指定订阅密钥。区域和多服务资源需设置 `region`。`base_url` 可包含自定义资源地址的路径前缀。 | 调用 `/translate`，发送 `api-version=3.0` 和一个 `to`。自动识别时省略 `from`。保留 `zh-Hans` 与 `zh-Hant` 区分。 |
 | `google` | 设置 `project` 和 `location`（默认 `global`），可选 `quota_project`、`base_url`。进程使用 Google 应用默认凭据。 | 调用 Cloud Translation Advanced v3，使用 `text/plain`。`zh-Hans`、`zh-Hant` 对应 `zh-CN`、`zh-TW`。自动识别时省略 `sourceLanguageCode`。 |
 
+通过反向代理访问 LibreTranslate 时，将路径前缀写入 `base_url`，例如 `https://translate.example.com/mt`。每个应用和 Worker 都应信任反向代理的 TLS 证书。
+
 ```json
 {
     "default": "office",

@@ -78,7 +78,7 @@ Rust 1.94 的格式、工作区与启用功能后的严格 Clippy、包公开契
 
 - LibreTranslate 1.9.6 已使用官方 Linux ARM64 镜像、Argos en→es 1.0 模型和隔离 HTTP。真实独立 Artisan 将 `Hello world.` 翻译为 `Hola mundo.`，显式语言和自动识别都通过，后者返回 `en`。初次容器启动未在时限内装好模型，改用预下载模型后通过。两次验收容器均已回收。镜像多架构摘要 `sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32`。日志见 `target/tmp/localization-translate/libretranslate-real-retry.log`。
 - DeepL 的 Free／Pro 权限与实际额度、腾讯云的站点及模型权限、阿里云的区域与 RAM／STS、百度的产品开通与 APP ID、Azure 的区域资源与订阅权限、Google Cloud 的项目／地点、生产 ADC 身份与 IAM，均留待分别使用授权凭据和端点验收实际译文、配额、计费错误与失败恢复。
-- LibreTranslate 的其他部署、模型组合及远端 TLS／API key 由对应发布环境验收。AI Agent 翻译仍属于后续计划。
+- [LibreTranslate 隔离 HTTPS](#libretranslate-https)已验证远端 TLS、API key 和共享数据库 Worker。真实部署入口、其他模型组合和正式凭据由对应环境验收。AI Agent 翻译仍属于后续计划。
 
 ## 合入基线复验（2026-11-26）
 
@@ -93,3 +93,13 @@ Rust 1.94 的格式、工作区与启用功能后的严格 Clippy、包公开契
 - 保留主分支独立的词条包改名及 `init:full` 预设，合入既有六批拆分提交。以 `bcbd85b31` 解决冲突并执行验收。期间主分支前进至 `225679f4a`，新增提交与已验的合并改动无同文件重叠，作为最终合并父提交一并保留。
 - Rust 1.94 格式、25 项框架词条、两个包的 11 项公开接口及 SQLite 回归、两包严格 Clippy 均通过。独立进程重跑 SQLite／MySQL／PostgreSQL 的 HTTP、Artisan 和 Worker、外部驱动及七个内置驱动协议，全部通过。三语站点构建及两挂载路径的 6 项浏览器检查通过；真实 `init:full --dry-run` 选中 `localization-database`。
 - 当次记录保存在 `target/tmp/localization-master-merge/` 的 `verify.log`、`docs.log` 和 `preset.log`。供应商真实账号验收沿用上列待验条件。
+
+## LibreTranslate 隔离 HTTPS {#libretranslate-https}
+
+以 `b67dbabd0` 的冻结源码和 Rust 1.94.0 为底，加上原验收应用的 en→es 测试入口。运行 LibreTranslate 1.9.6 官方 Linux ARM64 容器，固定镜像摘要 `sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32`。预置 Argos en→es、es→en 1.0 和官方 MiniSBD v0.0.1 的 en/es 分句模型。在禁止外网访问的容器网络启动服务，使用 `ltmanage` 初始化两枚合成 API key。Nginx 1.30.7 用测试 CA 终止 HTTPS，入口使用 `/mt` 前缀，转发至私网 HTTP 后端的 `/translate`。服务端初次启动曾因模型及分句缓存未完全预置失败，补齐 Argos 实际读取的模型路径后重跑。 [固定 LibreTranslate](https://github.com/LibreTranslate/LibreTranslate/tree/v1.9.6) · [自托管 API key](https://docs.libretranslate.com/guides/manage_api_keys/) · [Argos 模型](https://data.argosopentech.com/argospm/v1/) · [固定 MiniSBD 发布](https://github.com/LibreTranslate/MiniSBD/releases/tag/v0.0.1)
+
+- 两个实际应用进程使用独立的配置和路由缓存。原配置环境移除后，HTTP 与 Artisan 仍解析到含点号的默认具名键 `local.service` 及 `office`。真实 Artisan 分别通过显式及自动识别翻译 `Hello world.`，均得到 `Hola mundo.`，自动识别返回 `en`。
+- 二者共用 PostgreSQL 18.7。节点 A 的独立 Artisan 迁移并入队，节点 B 的原生 Worker 使用自己的缓存、运行时密钥与证书读取任务。输出保留两个具名调用的真实译文，数据库待处理队列和失败队列均为零。第一、第二节点分别使用相反的环境密钥分配，缓存只保存变量名。读取缺失的 Lang 词条未触发翻译请求。
+- 单次有效验收的 Nginx 日志为八次 `POST /mt/translate` 返回 200。错误密钥由服务返回 403，OpenRust 报鉴权失败；未配置凭据的匿名请求在强制密钥模式收到 400。配置声明的密钥环境变量缺失时，OpenRust 直接报配置错误。应用未信任测试 CA 时，HTTPS 在请求发往后端前失败。真实 HTTP Client 事件未保留密钥、原文或译文。
+
+LibreTranslate 镜像内许可证为 AGPL v3。本轮通过 HTTP 使用验收服务，模型和镜像均留在测试范围，正式制品的模型再分发许可、公开 CA 和实际多主机环境另行核对。其他六个内置驱动的正式身份、区域、配额及服务商语料验收仍开放。原外部驱动、缓存及 Worker 回归同次重跑。冻结源码工作区格式、验收应用严格 Clippy、三语静态构建及两个部署路径的浏览器检查通过。复验可通过 `TRANSLATE_TEST_LIBRETRANSLATE=1` 启用验收应用的 en→es 默认／具名请求。容器、私网、临时模型和证书均已清理。日志和测试模型摘要位于 `target/tmp/libretranslate-https/`。

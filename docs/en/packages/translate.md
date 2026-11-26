@@ -92,6 +92,8 @@ Set the `driver` field of a profile as shown below. The `api_key_env` field hold
 | `azure` | Set `api_key_env` for the subscription key. Set `region` for regional and multi-service resources. `base_url` may include the path prefix of a custom resource endpoint. | Requests `/translate` with `api-version=3.0` and one `to`. Omits `from` for detection. Preserves `zh-Hans` and `zh-Hant`. |
 | `google` | Set `project` and `location` (default `global`). `quota_project` and `base_url` are optional. Use Google Application Default Credentials in the process environment. | Uses Cloud Translation Advanced v3 with `text/plain`. Maps `zh-Hans` and `zh-Hant` `to` `zh-CN` and `zh-TW`. Omits `sourceLanguageCode` for detection. |
 
+For LibreTranslate behind a reverse proxy, include any path prefix in `base_url`, such as `https://translate.example.com/mt`. Ensure every application and Worker trusts the proxy’s TLS certificate.
+
 ```json
 {
     "default": "office",
