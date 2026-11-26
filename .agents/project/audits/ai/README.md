@@ -98,7 +98,7 @@ HTTP Kernel 与多个实际 TCP 模拟上游验证非流式和流式回退、400
 
 ## GW-01 官方 Sub2API 进程当前证据
 
-已下载并按 GitHub 发布记录中的 SHA-256 校验 Sub2API `v0.2.25` Darwin ARM64 发行包。二进制自报编译修订 `348997267d756eab5729bb6b78a275a15d18796a`。在回环隔离环境使用 PostgreSQL 18.7、Redis 8、临时管理员及模拟协议上游，已启动并登录。创建分组返回 HTTP `423 ADMIN_COMPLIANCE_ACK_REQUIRED`，要求管理员确认 `v2026.06.10` 的合规承诺。配置真实分组、API Key 和 OpenRust 请求链路仍待经确认的验收实例，当前网关测试是协议模拟。
+已下载并按 GitHub 发布记录中的 SHA-256 校验 Sub2API `v0.2.25` Darwin ARM64 发行包。二进制自报编译修订 `348997267d756eab5729bb6b78a275a15d18796a`。在回环隔离环境使用 PostgreSQL 18.7、Redis 8、临时管理员及模拟协议上游，已启动并登录。创建分组返回 HTTP `423 ADMIN_COMPLIANCE_ACK_REQUIRED`，要求管理员确认 `v2026.06.10` 的合规承诺。此隔离进程验收到登录。SDK 到既有部署的结果见[授权 Sub2API 实例实测](#gw-01-授权-sub2api-实例实测)。
 
 ## AI-01 按需实例生命周期
 
@@ -421,3 +421,20 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 核对待审批项和决定集合。实际 HTTP 验证普通请求、Vercel 流式错误、并列工具无副作用，以及无须审批的普通调用。相关包测试、严格 Clippy 与三语文档验收通过。持久化审批、恢复执行和独立审批事件仍待实施。
 
 - [固定 Laravel Approvable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/Approvable.php) · [固定 Laravel 审批类型](https://github.com/laravel/ai/tree/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Approvals)
+
+## GW-01 授权 Sub2API 实例实测
+
+2026-11-26，使用现有调用方 Bearer Key 和连接级附加头，经 OpenRust SDK 连接授权的 Sub2API 实例，协议为 OpenAI Responses，模型为 `gpt-6.1-sol`。实例的账号、分组与管理配置保持原样。部署版本、分组名及实际选中的上游账号无法由调用方接口确认，未借用独立隔离实例的版本信息。
+
+| 实测入口 | 结果 |
+|---|---|
+| Artisan `ai:models sub2api --json` → `GET /v1/models` | HTTP 200，发现 12 个模型，`gpt-6.1-sol` 同时标记为已配置和已发现。目录未声明用于本次验收的嵌入、音频和原生图片模型。 |
+| Artisan Agent 与应用 HTTP 路由 → `POST /v1/responses` | 普通文本成功，输入／输出 Token 为 26／8。Artisan 和 HTTP 路由分别收到 5 个 SSE 文本增量及结束事件，HTTP 路由返回 200；该路由此次报告 27／9 Token。 |
+| Artisan Agent 客户端函数 → `POST /v1/responses` | 强制选择库存工具、核对参数、执行本地工具、提交工具结果并收到模型总结，累计 168／24 Token。 |
+| Artisan 严格 JSON Schema → `POST /v1/responses` | 初次返回 400。递归关闭出站对象的 `additionalProperties` 后成功返回布尔字段，报告 44／12 Token。 |
+| Artisan Embeddings → `POST /v1/embeddings` | 使用已授权文本模型试请求，返回 503。向量实机仍需该实例提供可用向量模型。 |
+| Artisan Responses `image_generation` 工具 | 返回 403。直连 Images 与音频未取得该实例的可用模型证据。当前实例的媒体实机验收仍未完成。 |
+
+连接级 `headers` 沿用固定 Laravel 的配置名，在 SDK 共享 HTTP 入口合并并标记为敏感值。实际 Artisan 配置入口验证保留鉴权头、重复名称及非法头值被拒绝。回归测试通过 Chat Completions 与 Responses 核对嵌套 Schema；Anthropic、Gemini 同样使用对象转换。此记录对应 SDK 消费既有实例，OpenRust 自托管网关及实际客户端入站证据见[网关端点账本](gateway.md)。
+
+- [固定 Laravel Provider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [固定 Laravel ObjectSchema](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/ObjectSchema.php)

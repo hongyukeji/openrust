@@ -533,13 +533,11 @@ async fn structured_prompt_sends_nested_schema_and_rejects_invalid_results() -> 
             .with_routing(Routing::default().web(|| {
                 Route::get("/structured", || async {
                     let nested =
-                        JsonSchema::object([("name", JsonSchema::string().required(true).into())])
-                            .without_additional_properties();
+                        JsonSchema::object([("name", JsonSchema::string().required(true).into())]);
                     let schema = JsonSchema::object([(
                         "rows",
                         JsonSchema::array().items(nested).required(true).into(),
-                    )])
-                    .without_additional_properties();
+                    )]);
                     let agent = agent("Return rows.").with_schema(schema).strict();
                     let good = agent.prompt("A row").await.unwrap();
                     assert_eq!(good.structured["rows"][0]["name"], "sample");

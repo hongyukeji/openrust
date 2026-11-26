@@ -19,6 +19,42 @@ pub struct StructuredOutput<'a> {
     pub strict: bool,
 }
 
+impl StructuredOutput<'_> {
+    pub(crate) fn object_schema(&self) -> Value {
+        let mut schema = self.schema.clone();
+        close_objects(&mut schema);
+        schema
+    }
+}
+
+fn close_objects(schema: &mut Value) {
+    let Some(schema) = schema.as_object_mut() else {
+        return;
+    };
+    let object_type = schema.get("type").is_some_and(|kind| {
+        kind == "object"
+            || kind
+                .as_array()
+                .is_some_and(|types| types.iter().any(|kind| kind == "object"))
+    });
+    if object_type {
+        schema.insert("additionalProperties".into(), Value::Bool(false));
+        if let Some(properties) = schema.get_mut("properties").and_then(Value::as_object_mut) {
+            for property in properties.values_mut() {
+                close_objects(property);
+            }
+        }
+    }
+    if let Some(items) = schema.get_mut("items") {
+        close_objects(items);
+    }
+    if let Some(branches) = schema.get_mut("anyOf").and_then(Value::as_array_mut) {
+        for branch in branches {
+            close_objects(branch);
+        }
+    }
+}
+
 /// 声明模型应返回的 JSON 对象结构。
 pub trait HasStructuredOutput: Agent {
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType;

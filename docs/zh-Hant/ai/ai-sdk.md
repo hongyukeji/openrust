@@ -37,9 +37,26 @@ let answer = response.text;
 
 在 `to_response()` 之前呼叫 `using_vercel_data_protocol(message_id)` 可回傳 Vercel AI SDK UI 文字事件，呼叫 `using_agent_user_interaction_protocol(thread_id, run_id)` 可回傳 AG-UI 文字事件。傳入 `None` 時由 SDK 提供 ID。兩種格式都會附上結束狀態和上游回報的 Token 用量。應用程式可使用 `using_protocol` 自訂同一批 Agent 事件的輸出格式。
 
-使用 `agent(instructions).with_schema(schema).prompt(text)` 請求 JSON 物件。Schema 使用框架既有的 `JsonSchema` 建立。可讀取 `response.structured`，或透過 `response.decode::<YourType>()` 轉成 Rust 型別。所選模型必須支援連線的原生結構化輸出格式。結構化串流會將 JSON 作為文字增量傳送。可透過 `./artisan ai:prompt` 的 `--schema` 傳入 JSON 物件 Schema 進行試呼叫。
+使用 `agent(instructions).with_schema(schema).prompt(text)` 請求 JSON 物件。Schema 使用框架既有的 `JsonSchema` 建立。可讀取 `response.structured`，或透過 `response.decode::<YourType>()` 轉成 Rust 型別。所選模型必須支援連線的原生結構化輸出格式。結構化串流會將 JSON 作為文字增量傳送。可透過 `./artisan ai:prompt` 的 `--schema` 傳入 JSON 物件 Schema 進行試呼叫。 SDK 會在送出的 Schema 中停用物件的額外屬性，包括巢狀物件。如果模型執行 OpenAI 嚴格 Schema 驗證，請將所有屬性標示為必填。
 
 目前的請求或命令需要暫時連線時，可使用 `Ai::build(config)`，欄位沿用具名連線設定。透過回傳的 `name()` 在提示詞呼叫中指定連線，或在同一作用域內透過 `Ai::text_provider` 查找。框架保留名稱及應用程式既有名稱無法用作暫時連線。`Ai::flush_state()` 會清除目前作用域的暫時連線。
+
+### 接入 Responses 閘道 {#responses-gateway}
+
+接入提供 OpenAI Responses 的 Sub2API 執行個體時，使用 `driver: "openai"` 和該執行個體的 v1 基礎位址。SDK 使用 `/models` 探索模型，透過 `/responses` 發出生成請求。設定 `store: false` 可請求上游關閉回應儲存。
+
+```rust
+config["providers"]["sub2api"] = serde_json::json!({
+    "driver": "openai",
+    "url": env.get_utf8("SUB2API_URL")?.unwrap_or("https://ai.example.com/v1"),
+    "key_env": "SUB2API_API_KEY",
+    "store": false,
+    "models": {"text": {"default": "gpt-6.1-sol"}},
+    "headers": {"x-openai-actor-authorization": "local-image-extension"}
+});
+```
+
+在 `SUB2API_API_KEY` 設定 Bearer 憑證。執行個體需要額外標頭時，可在連線中設定 `headers`。名稱和值均須符合 HTTP 規範，驗證和通訊協定所需的標頭由連線及 SDK 管理。可用 `./artisan ai:models sub2api --json` 確認設定的模型也在探索結果中。
 
 ## Azure OpenAI {#azure-openai}
 

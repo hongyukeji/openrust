@@ -93,8 +93,7 @@ impl GeminiTextProvider {
             body["systemInstruction"] = json!({"parts":[{"text":prompt.text.instructions}]});
         }
         if let Some(output) = &prompt.structured_output {
-            body["generationConfig"] =
-                json!({"responseMimeType":"application/json","responseJsonSchema":output.schema});
+            body["generationConfig"] = json!({"responseMimeType":"application/json","responseJsonSchema":output.object_schema()});
         }
         if let Some(max_tokens) = prompt.options.max_tokens {
             body["generationConfig"]["maxOutputTokens"] = max_tokens.into();

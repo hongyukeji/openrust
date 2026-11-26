@@ -1,4 +1,6 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+
+use http::{HeaderMap, HeaderName, HeaderValue};
 
 use openrust::{
     config::Environment,
@@ -77,6 +79,8 @@ struct Configuration {
     #[serde(default)]
     key_env: Option<String>,
     #[serde(default)]
+    headers: BTreeMap<String, String>,
+    #[serde(default)]
     models: Models,
     #[serde(default)]
     files: Option<FileConfiguration>,
@@ -110,6 +114,7 @@ pub(crate) struct Connection {
     environment: Arc<Environment>,
     http: Arc<Factory>,
     authorization: Authorization,
+    headers: HeaderMap,
     resource_scope: Arc<()>,
 }
 
@@ -149,8 +154,10 @@ impl Connection {
         {
             return Err(AiError::InvalidConfiguration("providers.<name>.url"));
         }
+        let headers = configured_headers(&config.headers)?;
         Ok(Self {
             authorization,
+            headers,
             resource_scope: Arc::new(()),
             config,
             environment,
@@ -164,6 +171,7 @@ impl Connection {
             .pending_request()
             .base_url(&self.config.url)
             .without_redirecting()
+            .replace_headers(self.headers.clone())
             .redact_payload()
             .timeout(timeout.unwrap_or(Duration::from_secs(60)));
         if matches!(self.authorization, Authorization::Anthropic) {
@@ -213,8 +221,13 @@ impl Connection {
         let credential = self
             .credential()?
             .map(|token| format!("{:x}", Sha256::digest(token)));
-        let identity = serde_json::to_vec(&(self.name(), &self.config.url, protocol, credential))
-            .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+        let connection = (self.name(), &self.config.url, protocol, credential);
+        let identity = if self.headers.is_empty() {
+            serde_json::to_vec(&connection)
+        } else {
+            serde_json::to_vec(&(connection, &self.config.headers))
+        }
+        .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
         Ok(format!("{:x}", Sha256::digest(identity)))
     }
 
@@ -411,4 +424,39 @@ impl Connection {
             .await
             .map_err(transport_error)
     }
+}
+
+fn configured_headers(headers: &BTreeMap<String, String>) -> AiResult<HeaderMap> {
+    let error = || AiError::InvalidConfiguration("providers.<name>.headers");
+    let mut parsed = HeaderMap::new();
+    for (name, value) in headers {
+        let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| error())?;
+        if matches!(
+            name.as_str(),
+            "authorization"
+                | "proxy-authorization"
+                | "api-key"
+                | "x-api-key"
+                | "x-goog-api-key"
+                | "anthropic-version"
+                | "accept"
+                | "accept-encoding"
+                | "host"
+                | "proxy-connection"
+                | "connection"
+                | "content-length"
+                | "content-type"
+                | "te"
+                | "trailer"
+                | "transfer-encoding"
+                | "upgrade"
+        ) || parsed.contains_key(&name)
+        {
+            return Err(error());
+        }
+        let mut value: HeaderValue = value.parse().map_err(|_| error())?;
+        value.set_sensitive(true);
+        parsed.insert(name, value);
+    }
+    Ok(parsed)
 }

@@ -805,7 +805,7 @@ impl StepTextGateway for OpenAiTextProvider {
 fn schema_format(output: &StructuredOutput<'_>) -> ResponseFormatJsonSchema {
     ResponseFormatJsonSchema {
         name: "response".into(),
-        schema: output.schema.clone(),
+        schema: output.object_schema(),
         strict: Some(output.strict),
         description: None,
     }

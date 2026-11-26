@@ -89,7 +89,8 @@ impl AnthropicTextProvider {
             }
         }
         if let Some(output) = &prompt.structured_output {
-            body["output_config"] = json!({"format":{"type":"json_schema","schema":output.schema}});
+            body["output_config"] =
+                json!({"format":{"type":"json_schema","schema":output.object_schema()}});
         }
         apply_provider_options(&mut body, prompt.provider_options, false)?;
         Ok(body)

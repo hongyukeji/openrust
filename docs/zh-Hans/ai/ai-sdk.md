@@ -37,9 +37,26 @@ let answer = response.text;
 
 在 `to_response()` 之前调用 `using_vercel_data_protocol(message_id)` 可返回 Vercel AI SDK UI 文本事件，调用 `using_agent_user_interaction_protocol(thread_id, run_id)` 可返回 AG-UI 文本事件。传入 `None` 时由 SDK 提供 ID。两种格式都会附上结束状态和上游报告的 Token 用量。应用可用 `using_protocol` 自定义同一批 Agent 事件的输出格式。
 
-使用 `agent(instructions).with_schema(schema).prompt(text)` 请求 JSON 对象。Schema 用框架已有的 `JsonSchema` 构建。可读取 `response.structured`，或通过 `response.decode::<YourType>()` 转为 Rust 类型。所选模型须支持连接的原生结构化输出格式。结构化流将 JSON 作为文本增量发出。可用 `./artisan ai:prompt` 的 `--schema` 传入 JSON 对象 Schema 试调用。
+使用 `agent(instructions).with_schema(schema).prompt(text)` 请求 JSON 对象。Schema 用框架已有的 `JsonSchema` 构建。可读取 `response.structured`，或通过 `response.decode::<YourType>()` 转为 Rust 类型。所选模型须支持连接的原生结构化输出格式。结构化流将 JSON 作为文本增量发出。可用 `./artisan ai:prompt` 的 `--schema` 传入 JSON 对象 Schema 试调用。 SDK 会在出站 Schema 中禁用对象的额外属性，包括嵌套对象。如果模型执行 OpenAI 严格 Schema 校验，请将所有属性标记为必填。
 
 当前请求或命令需要临时连接时，可用 `Ai::build(config)`，字段沿用具名连接配置。通过返回的 `name()` 在提示词调用中指定连接，或在同一作用域内通过 `Ai::text_provider` 查找。框架保留名及应用已有名称不能用作临时连接。`Ai::flush_state()` 会清除当前作用域的临时连接。
+
+### 接入 Responses 网关 {#responses-gateway}
+
+接入提供 OpenAI Responses 的 Sub2API 实例时，使用 `driver: "openai"` 和实例的 v1 基础地址。SDK 使用 `/models` 发现模型，通过 `/responses` 发起生成请求。设置 `store: false` 可请求上游关闭响应存储。
+
+```rust
+config["providers"]["sub2api"] = serde_json::json!({
+    "driver": "openai",
+    "url": env.get_utf8("SUB2API_URL")?.unwrap_or("https://ai.example.com/v1"),
+    "key_env": "SUB2API_API_KEY",
+    "store": false,
+    "models": {"text": {"default": "gpt-6.1-sol"}},
+    "headers": {"x-openai-actor-authorization": "local-image-extension"}
+});
+```
+
+在 `SUB2API_API_KEY` 中设置 Bearer 凭证。实例需要附加头时，可在连接里配置 `headers`。名称和值均须符合 HTTP 规范，鉴权与协议所需的头由连接和 SDK 管理。可用 `./artisan ai:models sub2api --json` 确认所配置的模型也在发现结果中。
 
 ## Azure OpenAI {#azure-openai}
 

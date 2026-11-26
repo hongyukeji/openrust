@@ -37,9 +37,26 @@ In an HTTP route, return the default SDK SSE events with `agent(instructions).st
 
 Call `using_vercel_data_protocol(message_id)` before `to_response()` to return Vercel AI SDK UI text events. Call `using_agent_user_interaction_protocol(thread_id, run_id)` for AG-UI text events. Pass `None` to let the SDK provide IDs. Both formats include the end state and reported token usage. Use `using_protocol` to provide a custom renderer for the same Agent events.
 
-Use `agent(instructions).with_schema(schema).prompt(text)` to request a JSON object. Build the schema with the framework’s `JsonSchema` builder. Read members from `response.structured` or use `response.decode::<YourType>()`. A model must support the connection’s native structured-output format. The structured stream emits the generated JSON as text deltas. To try a schema from Artisan, pass a JSON object schema to `./artisan ai:prompt` with `--schema`.
+Use `agent(instructions).with_schema(schema).prompt(text)` to request a JSON object. Build the schema with the framework’s `JsonSchema` builder. Read members from `response.structured` or use `response.decode::<YourType>()`. A model must support the connection’s native structured-output format. The structured stream emits the generated JSON as text deltas. To try a schema from Artisan, pass a JSON object schema to `./artisan ai:prompt` with `--schema`. The SDK disables additional properties on objects in the outgoing schema, including nested objects. Mark every property required when your model enforces strict OpenAI schemas.
 
 For a connection needed only during the current request or command, use `Ai::build(config)` with the same fields as a named provider. Use the resulting provider's `name()` in a prompt or look it up with `Ai::text_provider` during that scope. Names reserved by the SDK or configured in the application are unavailable for temporary connections. `Ai::flush_state()` clears the current scope’s temporary connections.
+
+### Connect to a Responses gateway {#responses-gateway}
+
+For a Sub2API connection that exposes OpenAI Responses, use `driver: "openai"` and the gateway's v1 base URL. The SDK uses `/models` for discovery and `/responses` for generation. Set `store: false` to send a request without provider-side storage.
+
+```rust
+config["providers"]["sub2api"] = serde_json::json!({
+    "driver": "openai",
+    "url": env.get_utf8("SUB2API_URL")?.unwrap_or("https://ai.example.com/v1"),
+    "key_env": "SUB2API_API_KEY",
+    "store": false,
+    "models": {"text": {"default": "gpt-6.1-sol"}},
+    "headers": {"x-openai-actor-authorization": "local-image-extension"}
+});
+```
+
+Set the bearer key in `SUB2API_API_KEY`. Add a `headers` object only if your deployment requires extra headers. Names and values must be valid HTTP headers. Authentication and headers managed by the SDK remain controlled by the connection and protocol. Run `./artisan ai:models sub2api --json` to check whether the configured model is also discoverable.
 
 ## Azure OpenAI {#azure-openai}
 
