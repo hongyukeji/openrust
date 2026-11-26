@@ -70,3 +70,14 @@ Rust 1.94.0 在 `177b24933` 快照运行 Pay 包测试，包括既有微信／�
 `tests/pay_driver_acceptance.py` 使用独立应用的公开 Provider／Facade 入口，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过真实迁移、6 次 HTTP 回调及独立 Artisan。隔离 HTTP 夹具使用固定鉴权标记和原文；HMAC 由前述外部驱动测试单独覆盖。先验证非法通知拒绝、业务写入后的失败使两表回滚，再验证成功与重复均返回预期 HTTP 回执且只写入一份业务记录。生成配置／路由缓存后更换进程环境中的商户值，HTTP 和 Artisan 均继续使用缓存配置并确认重复，不再执行业务写入。本批无需真实商户、外部网络或资金交易；真实供应商验收继续单列。
 
 Pay 包 14 项测试、包所有目标与独立应用目标严格 Clippy、全工作区格式检查和 Python 语法均通过。应用 Clippy 首轮因磁盘停线中断，复跑发现夹具中多余的同类型转换。删除该转换后重新构建夹具，三库 HTTP／Artisan 及格式检查复验通过。结果保留于 `target/tmp/pay-custom-driver`。
+
+### 签名回调、双节点事务及独立 Worker {#signed-cluster}
+
+在 `653b8d26e` 快照上复用现有独立应用与公开 Provider／Facade，把 HTTP 夹具的固定鉴权标记替换为原始请求体 HMAC-SHA256。Python 测试端独立生成签名，Rust 夹具复用包已使用的 AWS-LC 验证接口。沿用固定 Yansongda Pay 的具名服务和固定 Laravel 的事务回滚边界。Pay 运行时代码和公开契约未改动。[固定 Yansongda Pay](https://github.com/yansongda/pay/blob/01cf002156d99f61fcba6308be810554dfd879d3/src/Pay.php) · [固定 Laravel 事务](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/ManagesTransactions.php)
+
+- SQLite 单接收进程以及 PostgreSQL 18.7、MySQL 8.4.13 各通过真实迁移及 HTTP 回调。无效签名、签名生成后原文被篡改、签名有效但商户与已缓存配置不符均返回 400。业务写入后故意失败返回 500，独立 Artisan 确认订单和收件记录均为零。生成配置和路由缓存后，运行进程即使收到不同的商户环境变量，仍使用缓存配置。
+- PostgreSQL 和 MySQL 各运行两个独立 HTTP 实例，共享隔离主库。在首节点写入订单且事务尚未提交时强制终止进程，客户端连接断开，另一节点查询仍是零。重启首节点后重新投递。在首事务仍未提交时，第二节点已验签但未返回回执，独立 Artisan 仍查不到未提交的订单。释放首事务后，两次回调均返回驱动指定的 202、`text/plain` 和原回执正文，分别标为已处理和重复。两库均只留下一个订单和一条收件记录。
+- 三库分别通过独立 Artisan 派发数据库队列任务，再由另一进程运行 `queue:work database --queue=pay-probe --once`。Worker 用自己的配置缓存解析同一商户并读取已提交记录。首轮 SQLite 的队列派发因夹具缺任务表失败，复用默认应用的任务表迁移后重跑三库。
+- Rust 1.94.0 的 Pay 包 14 项测试、独立应用目标严格 Clippy、全工作区格式检查、Python 语法、三语站点构建和 30 项浏览器检查通过。日志位于 `target/tmp/pay-signed-cluster/`。
+
+本轮验证同主机隔离环境与测试签名协议。隔离商户账号、公开 HTTPS 回调及真实资金操作仍需对应环境和授权。

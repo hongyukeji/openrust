@@ -1,3 +1,7 @@
+#[path = "../../../database/migrations/0001_01_01_000002_create_jobs_table.rs"]
+mod jobs;
+
+use aws_lc_rs::hmac;
 use openrust::{
     config::{ConfigError, Environment},
     console::{
@@ -11,14 +15,16 @@ use openrust::{
     },
     foundation::Application,
     http::{Body, HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode},
-    support::{ProviderResult, ServiceProvider},
+    support::{ProviderResult, ServiceProvider, facades},
 };
 use openrust_pay::{
     Amount, DatabaseNotifications, DriverNotification, Error, ExpectedPayment, NotificationOutcome,
     Order, PayDriver, PayManager, Payment, Refund, Result, Scene, facades::Pay,
 };
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{ffi::OsString, path::PathBuf, sync::Arc, time::Duration};
+
+const FIXTURE_KEY: &[u8] = b"openrust-pay-fixture-hmac";
 
 pub(super) fn configuration(env: &Environment) -> std::result::Result<Value, ConfigError> {
     Ok(json!({"default":"fixture","drivers":{"fixture":{
@@ -77,13 +83,23 @@ impl PayDriver for ExternalPay {
     }
 
     fn callback(&self, headers: &HeaderMap, body: &[u8]) -> Result<DriverNotification> {
-        // 验收夹具只认可固定标记和预期原文，包级用例另外通过 HMAC 验证外部渠道的实际验签。
-        if headers
-            .get("x-fixture-auth")
+        let mut signatures = headers.get_all("x-fixture-auth").iter();
+        let signature = signatures
+            .next()
             .and_then(|value| value.to_str().ok())
-            != Some("valid")
-            || body != format!("{}:order-1:fx-tx:150", self.0).as_bytes()
-        {
+            .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or(Error::Verification)?;
+        if signatures.next().is_some() {
+            return Err(Error::Verification);
+        }
+        let tag = (0..64)
+            .step_by(2)
+            .map(|offset| u8::from_str_radix(&signature[offset..offset + 2], 16))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| Error::Verification)?;
+        let key = hmac::Key::new(hmac::HMAC_SHA256, FIXTURE_KEY);
+        hmac::verify(&key, body, &tag).map_err(|_| Error::Verification)?;
+        if body != format!("{}:order-1:fx-tx:150", self.0).as_bytes() {
             return Err(Error::Verification);
         }
         DriverNotification::new(
@@ -116,6 +132,21 @@ pub(super) fn callback(
             .callback(request.headers(), &body)
             .map_err(|_| HttpError::InvalidRequest)?;
         let force_rollback = request.has_header("x-fixture-rollback");
+        let barrier =
+            if request.has_header("x-fixture-hold") || request.has_header("x-fixture-observe") {
+                Some(PathBuf::from(
+                    std::env::var_os("PAY_FIXTURE_BARRIER").ok_or(HttpError::InvalidRequest)?,
+                ))
+            } else {
+                None
+            };
+        let hold = if request.has_header("x-fixture-observe") {
+            let directory = barrier.ok_or(HttpError::InvalidRequest)?;
+            std::fs::write(directory.join("verified"), b"verified").map_err(write_error)?;
+            None
+        } else {
+            barrier
+        };
         let outcome = DatabaseNotifications::new(Db::connection(None).map_err(write_error)?)
             .process(
                 &notification,
@@ -124,12 +155,16 @@ pub(super) fn callback(
                     amount: Amount::from_fen(150).map_err(write_error)?,
                 },
                 move |tx, notice| {
+                    let hold = hold.clone();
                     Box::pin(async move {
                         tx.table("pay_fixture_orders")
                             .insert(&[[("id".into(), notice.out_trade_no().into())]
                                 .into_iter()
                                 .collect()])
                             .await?;
+                        if let Some(directory) = hold {
+                            wait_for_release(directory).await?;
+                        }
                         if force_rollback {
                             return Err(DatabaseError::InvalidConfiguration("fixture rollback"));
                         }
@@ -153,6 +188,19 @@ pub(super) fn callback(
     })
 }
 
+async fn wait_for_release(directory: PathBuf) -> DatabaseResult<()> {
+    std::fs::write(directory.join("entered"), b"locked")
+        .map_err(|error| DatabaseError::Embedding(Box::new(error)))?;
+    let release = directory.join("release");
+    tokio::time::timeout(Duration::from_secs(12), async {
+        while !release.exists() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .map_err(|error| DatabaseError::Embedding(Box::new(error)))
+}
+
 struct Probe(CommandDefinition);
 
 impl Command for Probe {
@@ -163,10 +211,23 @@ impl Command for Probe {
     fn handle<'a>(
         &'a self,
         _: &'a Application,
-        _: &'a Input,
+        input: &'a Input,
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, std::result::Result<i32, ConsoleError>> {
         Box::pin(async move {
+            if let Some(path) = input.option("queue-output") {
+                let args = [
+                    OsString::from("--receipt-output"),
+                    OsString::from(path.as_str().expect("output path")),
+                ];
+                facades::Artisan::queue("drivers:pay", &args)
+                    .on_connection("database")
+                    .on_queue("pay-probe")
+                    .dispatch()
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
             let gateway = Pay::default_driver().map_err(ConsoleError::from_source)?;
             let payment = gateway
                 .pay(
@@ -194,27 +255,35 @@ impl Command for Probe {
                 .count("*")
                 .await
                 .map_err(ConsoleError::from_source)?;
-            output
-                .write_raw(&format!(
-                    "{}\n",
-                    json!({"payment":qr,"orders":orders,"notifications":notifications})
-                ))
-                .map_err(ConsoleError::from_source)?;
+            let result = json!({"payment":qr,"orders":orders,"notifications":notifications});
+            if let Some(path) = input.option("receipt-output") {
+                std::fs::write(path.as_str().expect("receipt path"), result.to_string())
+                    .map_err(ConsoleError::from_source)?;
+            } else {
+                output
+                    .write_raw(&format!("{result}\n"))
+                    .map_err(ConsoleError::from_source)?;
+            }
             Ok(0)
         })
     }
 }
 
 pub(super) fn register_command(artisan: &mut Artisan) -> std::result::Result<(), ConsoleError> {
-    artisan.add_command(Box::new(Probe(CommandDefinition::new(clap::Command::new(
-        "drivers:pay",
-    )))))
+    artisan.add_command(Box::new(Probe(CommandDefinition::new(
+        clap::Command::new("drivers:pay")
+            .arg(clap::Arg::new("queue-output").long("queue-output"))
+            .arg(clap::Arg::new("receipt-output").long("receipt-output")),
+    ))))
 }
 
-pub(super) static MIGRATIONS: &[MigrationEntry] = &[MigrationEntry::new(
-    "2026_11_26_000001_create_pay_fixture_orders.rs",
-    &CreateOrders,
-)];
+pub(super) static MIGRATIONS: &[MigrationEntry] = &[
+    MigrationEntry::new("0001_01_01_000002_create_jobs_table.rs", &jobs::Definition),
+    MigrationEntry::new(
+        "2026_11_26_000001_create_pay_fixture_orders.rs",
+        &CreateOrders,
+    ),
+];
 
 struct CreateOrders;
 

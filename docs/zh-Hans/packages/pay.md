@@ -103,6 +103,8 @@ let response = notification.success();
 
 沿用人民币金额、订单校验和支付结果类型。不支持的操作应明确返回错误。驱动负责验证厂商响应，并在验证回调原始签名、事件和商户后构造 `DriverNotification`，传入稳定的已验证商户身份和厂商要求的 HTTP 成功回执。网关构造 `VerifiedNotification`，按驱动、商户和交易生成去重身份。用可信业务订单调用 `DatabaseNotifications::process`，提交后发送 `notification.success()`。重命名配置时保持商户身份不变。
 
+回调由多个实例接收时，在各实例注册同一驱动，并使用相同的可信商户身份和主写数据库保存收件及业务订单。原事务提交后，重复通知才返回厂商要求的成功回执。需要解析支付配置的 Worker 也应注册该驱动。
+
 ## 网关生命周期 {#gateway-lifecycle}
 
 `PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::default_driver()` 解析它。`forget_drivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。

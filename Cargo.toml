@@ -104,6 +104,7 @@ tokio = { version = "1.54.1", features = ["macros", "rt"] }
 openrust-package-discovery = { path = "vendor/openrust/package-discovery" }
 
 [dev-dependencies]
+aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["net"] }
 tonic = { version = "~0.14.6", default-features = false, features = ["channel"] }

@@ -103,6 +103,8 @@ let response = notification.success();
 
 沿用人民幣金額、訂單驗證和支付結果型別。不支援的操作應明確回傳錯誤。驅動負責驗證廠商回應，並在驗證回呼原始簽章、事件和商戶後建構 `DriverNotification`，傳入穩定的已驗證商戶身分和廠商要求的 HTTP 成功回執。閘道建構 `VerifiedNotification`，依驅動、商戶和交易產生去重身分。用可信業務訂單呼叫 `DatabaseNotifications::process`，提交後傳送 `notification.success()`。重新命名設定時保持商戶身分不變。
 
+回呼由多個實例接收時，在各實例註冊同一驅動，並使用相同的可信商戶身分和主寫資料庫保存收件及業務訂單。原交易提交後，重複通知才回傳供應商要求的成功回執。需要解析付款設定的 Worker 也應註冊該驅動。
+
 ## 閘道生命週期 {#gateway-lifecycle}
 
 `PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::default_driver()` 解析它。`forget_drivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。

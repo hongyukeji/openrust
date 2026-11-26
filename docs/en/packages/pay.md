@@ -103,6 +103,8 @@ Implement `PayDriver` in your application or a separate crate. In a service prov
 
 Use the existing CNY amounts, order validation and payment result types. Return an explicit error for an unsupported operation. The driver verifies provider responses and verifies the original callback signature, event and merchant before constructing `DriverNotification`. Supply a stable, verified merchant identity and the provider’s successful HTTP acknowledgment. The Gateway constructs `VerifiedNotification` and derives its deduplication identity from the driver, merchant and transaction. Call `DatabaseNotifications::process` against a trusted business order and send `notification.success()` after it commits. Keep the merchant identity stable if you rename a profile.
 
+For a replicated callback endpoint, register the same driver on each receiver and use the same trusted merchant identity and primary database for the inbox and business order. A duplicate callback receives the provider’s acknowledgment after the original transaction commits. Register the driver in any Worker that resolves the payment profile.
+
 ## Gateway lifecycle {#gateway-lifecycle}
 
 `PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `get_default_driver` reads the current default; `Pay::default_driver()` resolves it. `forget_drivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.
