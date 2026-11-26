@@ -50,7 +50,12 @@ pub struct Pulse {
     lottery: openrust::support::Lottery,
 }
 tokio::task_local! {
-    static IGNORED: Vec<Arc<Options>>;
+    static IGNORED: Vec<Arc<IgnoreScope>>;
+}
+struct IgnoreScope {
+    options: Arc<Options>,
+    owner: usize,
+    recording: AtomicBool,
 }
 struct Ignore<'a>(&'a AtomicUsize);
 impl Drop for Ignore<'_> {
@@ -221,28 +226,57 @@ impl Pulse {
         self.options.registers_routes.load(Ordering::Relaxed)
     }
     pub fn start_recording(&self) {
-        self.should_record.store(true, Ordering::Relaxed);
+        self.set_recording(true);
     }
     pub fn stop_recording(&self) {
-        self.should_record.store(false, Ordering::Relaxed);
+        self.set_recording(false);
+    }
+    fn set_recording(&self, enabled: bool) {
+        let owner = std::ptr::from_ref(self).addr();
+        let changed = IGNORED
+            .try_with(|ignored| {
+                let scope = ignored.iter().rev().find(|scope| scope.owner == owner)?;
+                scope.recording.store(enabled, Ordering::Relaxed);
+                Some(())
+            })
+            .ok()
+            .flatten();
+        if changed.is_none() {
+            self.should_record.store(enabled, Ordering::Relaxed);
+        }
+    }
+    fn ignore_scope(options: &Arc<Options>) -> Option<Arc<IgnoreScope>> {
+        IGNORED
+            .try_with(|ignored| {
+                ignored
+                    .iter()
+                    .rev()
+                    .find(|scope| Arc::ptr_eq(&scope.options, options))
+                    .cloned()
+            })
+            .ok()
+            .flatten()
     }
     pub(crate) fn is_ignoring(options: &Arc<Options>) -> bool {
-        IGNORED
-            .try_with(|ignored| ignored.iter().any(|owner| Arc::ptr_eq(owner, options)))
-            .unwrap_or(false)
+        Self::ignore_scope(options).is_some_and(|scope| !scope.recording.load(Ordering::Relaxed))
     }
     pub fn is_recording(&self) -> bool {
-        self.should_record.load(Ordering::Relaxed)
-            && self.ignoring.load(Ordering::Relaxed) == 0
-            && !Self::is_ignoring(&self.options)
+        if let Some(scope) = Self::ignore_scope(&self.options) {
+            return scope.owner == std::ptr::from_ref(self).addr()
+                && scope.recording.load(Ordering::Relaxed);
+        }
+        self.should_record.load(Ordering::Relaxed) && self.ignoring.load(Ordering::Relaxed) == 0
     }
     pub async fn ignore<T>(&self, callback: impl Future<Output = T>) -> T {
         self.ignoring.fetch_add(1, Ordering::Relaxed);
         let _guard = Ignore(&self.ignoring);
-        // Deferred callbacks run after the original container scope closes. Keep
-        // suppression with this application while native events resolve a fresh scope.
+        // 延迟回调可能解析新容器作用域。只有当前实例可在回调内临时恢复采集。
         let mut ignored = IGNORED.try_with(Clone::clone).unwrap_or_default();
-        ignored.push(self.options.clone());
+        ignored.push(Arc::new(IgnoreScope {
+            options: self.options.clone(),
+            owner: std::ptr::from_ref(self).addr(),
+            recording: AtomicBool::new(false),
+        }));
         IGNORED.scope(ignored, callback).await
     }
     pub fn handle_exceptions_using(&self, callback: impl Fn(&Error) + Send + Sync + 'static) {

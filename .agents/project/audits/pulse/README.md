@@ -234,6 +234,12 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 PHP 相对时间语法的其余边界、Livewire 更新事件和缓存包装仍需消费者验收。目标平台与发布组合继续验收。
 
+## 采集暂停回调中的显式状态切换
+
+固定 Pulse 的 `ignore` 进入时暂停采集，回调可用 `startRecording` 临时恢复，退出时恢复入口状态。PHP 8.5.12 通过实际 `record` 和 `wantsIngesting` 确认原先开启／关闭、嵌套回调与异常退出。证据为 `target/tmp/observability-parity/pulse-ignore-control-upstream.log`。原生前态的真实 HTTP 回归在回调结束后仍保持错误的采集状态，见 `pulse-ignore-control-macos-baseline.log`。 [固定 Pulse](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Pulse.php#L225-L263)
+
+原生回调在当前应用任务和同一 Pulse 实例内临时切换采集。嵌套回调结束或取消后恢复之前状态，其他容器实例仍沿用内部遥测抑制。真实 HTTP 和自定义 Recorder 验证默认暂停、主动恢复、嵌套切换、取消和应用隔离，实际写入 SQLite、PostgreSQL 18.7、MySQL 8.4.13。Pulse Provider 27 项、隔离快照格式、Pulse 库和 Provider 严格 Clippy、三语文档构建及桌面和移动视口通过。证据为 `target/tmp/observability-parity/observability-host-and-{pulse-ignore-macos,ignore-docs}.log`。最终 Release 部署组合继续验收。
+
 ## pulse:check 的心跳实例与 Vapor
 
 固定 `CheckCommand::handle` 通过 `Env::get` 判断 Vapor，使用 `Str::random()` 的默认 16 个字母数字字符作为一次命令运行的 `SharedBeat.instance`。PHP 8.5.12 的命令探针接入真实事件 Dispatcher 和 ArrayStore，替换数据写入及 Telescope 收集边界。空值、`0`、大小写混合的 `false`、`(false)`、`(null)`、`EMPTY` 和带成对引号的 `0` 使用普通实例。带成对引号的字符串 `false` 和参数路径启用 Vapor，只检查一次并派发 `vapor`。证据为 `target/tmp/observability-parity/pulse-check-instance-fixed-command.log`。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 Env](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Env.php#L252-L276)

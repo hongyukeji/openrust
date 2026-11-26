@@ -94,7 +94,7 @@ let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 
 `record` 返回 Entry，可选择 `count`、`min`、`max`、`sum`、`avg`；`only_buckets` 仅写聚合。返回 Entry 与缓冲项共享聚合标志，其他字段遵循 Rust 值所有权，修改副本不会改写缓冲项。`set` 为同类型／键保留最后传入的值。四种窗口为 1 小时、6 小时、24 小时和 7 天，图表填充 60 个时间点。
 
-`filter` 筛选入库项；`ignore(future)` 临时忽略采集并在取消时恢复；`lazy` 延迟生成指标；`handle_exceptions_using` 接收入库与记录器错误。`flush` 丢弃当前缓冲，`ingest` 立即提交。查询接口包括 `values`、`graph`、`aggregate`、`aggregate_types` 和 `aggregate_total`。后者接收类型切片并返回每类型结果，空集合结果为 `None`。
+`filter` 筛选入库项；`ignore(future)` 进入时暂停采集，回调内可用 `start_recording` 临时恢复，回调结束或取消时恢复进入前的状态；`lazy` 延迟生成指标；`handle_exceptions_using` 接收入库与记录器错误。`flush` 丢弃当前缓冲，`ingest` 立即提交。查询接口包括 `values`、`graph`、`aggregate`、`aggregate_types` 和 `aggregate_total`。后者接收类型切片并返回每类型结果，空集合结果为 `None`。
 
 实现 `recorders::Recorder` 的 `name`、`listens` 与异步 `record`，在包启动后的应用 Provider 调用 `pulse.register(vec![recorder])`，即可监听原生事件。使用 `recorders()` 查看注册实例。Rust 通过编译型类型与显式事件名称替代 PHP 类反射；自定义 HTML 卡片通过发布模板实现。
 

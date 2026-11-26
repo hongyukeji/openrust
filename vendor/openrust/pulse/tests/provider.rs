@@ -2242,16 +2242,54 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Ok(Response::from("recorded"))
     })
 }
+
+fn recording_control_probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::support::facades::Event;
+        use openrust_pulse::facades::Pulse as PulseFacade;
+
+        let pulse = PulseFacade::manager()?;
+        pulse.ignore(async { pulse.stop_recording() }).await;
+        assert!(pulse.is_recording());
+        pulse.stop_recording();
+        let result = pulse
+            .ignore(async {
+                assert!(!pulse.is_recording());
+                Event::dispatch(openrust::events::NamedEvent::new("PulseCustomProbe", ())).await?;
+                pulse.start_recording();
+                pulse.ignore(async { pulse.stop_recording() }).await;
+                assert!(pulse.is_recording());
+                Event::dispatch(openrust::events::NamedEvent::new("PulseCustomProbe", ())).await
+            })
+            .await;
+        result?;
+        assert!(!pulse.is_recording());
+        let cancelled = tokio::time::timeout(
+            std::time::Duration::from_millis(1),
+            pulse.ignore(async {
+                pulse.start_recording();
+                assert!(pulse.is_recording());
+                std::future::pending::<()>().await;
+            }),
+        )
+        .await;
+        assert!(cancelled.is_err());
+        assert!(!pulse.is_recording());
+        Ok(Response::from("recording state restored"))
+    })
+}
+
 #[tokio::test]
 async fn compiled_custom_recorders_register_native_event_listeners_in_each_application() {
     let mut fixture = TestApp::create(|b| {
-        b.with_config(config)
+        b.with_config(recorder_database_config)
             .with_providers(vec![
                 Box::new(PulseServiceProvider),
                 Box::new(CustomProvider),
             ])
             .with_routing(Routing::default().api(|| {
                 Route::get("/probe", probe)?;
+                Route::get("/recording-control", recording_control_probe)?;
                 Ok(())
             }))
     })
@@ -2261,6 +2299,11 @@ async fn compiled_custom_recorders_register_native_event_listeners_in_each_appli
         .await
         .assert_successful();
     fixture.get("/api/probe").await.unwrap().assert_ok();
+    fixture
+        .get("/api/recording-control")
+        .await
+        .unwrap()
+        .assert_ok();
     let storage = fixture.app().make::<DatabaseStorage>().await.unwrap();
     assert_eq!(
         storage
@@ -2270,7 +2313,7 @@ async fn compiled_custom_recorders_register_native_event_listeners_in_each_appli
             .count("*")
             .await
             .unwrap(),
-        1
+        2
     );
     let mut other = app();
     other
