@@ -274,6 +274,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 部分账单使用 `complete: false`。更正时沿用来源、账单 ID 和时间窗口并增加版本号。同版本同内容可重复导入。用量清单中的 `amount` 保留费率计算值，`actual` 展示有证据的供应商成本。币种不符或报告冲突会保留供运维核对。
 
+启用网关计费后，用已分组的 Key 请求 `GET /v1/sub2api/billing`。响应采用 Sub2API 第 1 版 Token 计费元数据格式。OpenRust 直接使用公开模型的配置费率，响应中的倍率为 `1`。附加 `?include=group` 可查询当前 Key 的分组名称。上游成本与其他分组的余额由运维命令查询。
+
 ### 分组每日货币预算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。

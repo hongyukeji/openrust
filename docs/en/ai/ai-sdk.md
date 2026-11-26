@@ -274,6 +274,8 @@ Use `./artisan ai:gateway:billing:import invoice.json --actor=operator` for a pr
 
 Use `complete: false` for a partial statement. For a corrected statement, keep its source, statement ID and time window, then increase the revision. Reimporting the same revision and contents is idempotent. The usage list's original `amount` preserves the rate-based estimate, and `actual` shows the confirmed supplier cost when available. A currency mismatch or conflicting report is visible for operator review.
 
+When gateway billing is enabled, request `GET /v1/sub2api/billing` with a Key assigned to a group. The response uses the Sub2API version 1 token billing metadata format. OpenRust charges the configured published-model rates directly, so the response reports a multiplier of `1`. Add `?include=group` to see the calling Key’s group name. Upstream costs and other groups’ balances are available through operator commands.
+
 ### Daily group billing budget {#billing-budget}
 
 In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.

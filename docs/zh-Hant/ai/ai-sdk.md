@@ -274,6 +274,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 部分帳單使用 `complete: false`。更正時沿用來源、帳單 ID 和時間範圍並增加版本號。同版本同內容可重複匯入。用量清單的 `amount` 保留費率計算值，`actual` 顯示已有證據的供應商成本。幣別不符或報表衝突會保留供維運核對。
 
+啟用閘道計費後，使用已分組的 Key 請求 `GET /v1/sub2api/billing`。回應採用 Sub2API 第 1 版 Token 計費中繼資料格式。OpenRust 直接使用公開模型的設定費率，回應中的倍率為 `1`。附加 `?include=group` 可查詢目前 Key 的群組名稱。上游成本與其他群組的餘額由維運指令查詢。
+
 ### 分組每日貨幣預算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。

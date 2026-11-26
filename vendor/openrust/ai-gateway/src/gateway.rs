@@ -114,6 +114,10 @@ pub(crate) struct Key {
 }
 
 impl Key {
+    pub(crate) fn group_name(&self) -> Option<&str> {
+        self.group.as_ref().map(|group| group.name.as_str())
+    }
+
     pub(crate) fn limiter_key(&self) -> String {
         match &self.managed_id {
             Some(id) => format!("ai-gateway:managed-key:{id}"),
@@ -514,6 +518,10 @@ impl Gateway {
 
     pub(crate) fn has_group(&self, name: &str) -> bool {
         self.groups.contains_key(name)
+    }
+
+    pub(crate) fn billing_enabled(&self) -> bool {
+        self.billing.is_some()
     }
 
     pub(crate) fn group_budget(&self, name: &str) -> Option<&Budget> {

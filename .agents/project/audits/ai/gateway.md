@@ -30,7 +30,7 @@
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06／GW-03／04 待逐操作核对，音色资源要求所属校验。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
-| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。货币计量、`/v1/sub2api/billing` 待核对。 |
+| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。另实测 `/v1/sub2api/billing` 的固定源第 1 版 Token 计费元数据、分组限定与 Key 生命周期。见本账本末节。 |
 
 ## 兼容路径与账号类型
 
@@ -264,3 +264,10 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测两个网关进程在同组跨 K
 `ai:gateway:budget:recover <group>` 在数据库用与出站标记互斥的更新条件关闭超时未出站记录，并在同一事务将原快照标记为不计费、释放应收预占及同次预留的输出 Token。可按记录年龄和条数执行，重试及并发恢复只释放一次。已有出站标记的费用继续保留供对账。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 在隔离库预置未出站记录，经 Artisan 验证回滚、分批、双进程重复恢复、费用快照保留和输出配额释放。HTTP 进程在真正向合成上游送出请求后被终止，重启后恢复指令保留该笔预占。本轮两包测试、严格 Clippy 和三语文档通过。
+
+
+## GW-04 Sub2API Key 计费元数据
+
+`GET /v1/sub2api/billing` 沿用固定 [Sub2API Key 计费处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_key_billing.go) 的对象标识、版本、当前倍率字段、UTC 观察时间和无缓存响应。仅已启用计费且通过鉴权的分组 Key 可查询。OpenRust 使用公开模型的最终费率，倍率为 1，高峰倍率关闭。重复或逗号分隔的 `include` 可请求该 Key 的分组名称，分组说明为空。此入口的回传范围限于计费元数据。
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测静态 Key、Bearer 与 `x-api-key`、无凭证和无分组的拒绝、同一查询无法指定其他分组。实际 Artisan 签发、轮换和撤销托管 Key 后分别验证 HTTP 行为。停用计费时已认证请求返回 404，验证该端点未触发上游。两包测试、严格 Clippy 和三语文档通过。用户级和高峰倍率属于后续计费策略。
