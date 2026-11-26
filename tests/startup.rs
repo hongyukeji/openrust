@@ -1864,8 +1864,8 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(value["data"]["name"], "Startup Test");
-    assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(value["name"], "Startup Test");
+    assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
 
     let welcome_request = || {
         axum::extract::Request::builder()

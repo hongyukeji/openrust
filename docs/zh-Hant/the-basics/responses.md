@@ -474,7 +474,9 @@ fn sparse_item_response() -> ApiResponse<Value> {
 
 ### 應用資訊介面 {#api-application-info}
 
-根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
+根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。此端點透過 `Response::json` 傳回頂層欄位 `name` 和 `version`。
+
+`ApiResponse` 的預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
 
 ## 重新導向回應
 

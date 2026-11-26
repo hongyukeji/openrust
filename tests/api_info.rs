@@ -219,6 +219,10 @@ fn extra_routes() -> Result<(), openrust::routing::RoutingError> {
 #[tokio::test]
 async fn real_api_uses_configuration_localizes_and_keeps_top_level_edits() {
     let server = Server::new("/api", "", true).await;
+    let (status, headers, body) = server.send("GET", "/api", "zh-Hans").await;
+    assert_eq!(status, 200);
+    assert!(headers.contains("content-type: application/json"));
+    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
     for (locale, message) in [
         ("en", "Success"),
         ("zh-Hans", "成功"),
@@ -239,12 +243,12 @@ async fn real_api_uses_configuration_localizes_and_keeps_top_level_edits() {
         ("ar", "تم بنجاح"),
         ("th", "สำเร็จ"),
     ] {
-        let (status, headers, body) = server.send("GET", "/api", locale).await;
+        let (status, headers, body) = server.send("GET", "/api/empty", locale).await;
         assert_eq!(status, 200);
         assert!(headers.contains("content-type: application/json"));
         assert_eq!(
             body,
-            json!({"success":true,"code":"ok","message":message,"data":{"name":"测试应用","version":"1.2.3-test"}})
+            json!({"success":true,"code":"ok","message":message})
         );
     }
     assert_eq!(
@@ -277,9 +281,9 @@ async fn real_api_uses_configuration_localizes_and_keeps_top_level_edits() {
     );
     assert_eq!(server.send("HEAD", "/api", "en").await.2, Value::Null);
     let (english, chinese, german) = tokio::join!(
-        server.send("GET", "/api", "en"),
-        server.send("GET", "/api", "zh-Hans"),
-        server.send("GET", "/api", "de")
+        server.send("GET", "/api/empty", "en"),
+        server.send("GET", "/api/empty", "zh-Hans"),
+        server.send("GET", "/api/empty", "de")
     );
     assert_eq!(english.2["message"], "Success");
     assert_eq!(chinese.2["message"], "成功");
@@ -291,7 +295,7 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
     let server = Server::new("api/admin", "", true).await;
     let (status, _, body) = server.send("GET", "/api/admin", "zh-Hans").await;
     assert_eq!(status, 200);
-    assert_eq!(body["message"], "成功");
+    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
     for (method, path, status, code) in [
         ("POST", "/api/admin", 405, "method_not_allowed"),
         ("GET", "/api/admin/missing", 404, "not_found"),
@@ -311,6 +315,9 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
     assert_eq!(server.send("GET", "/api", "en").await.0, 404);
     server.close().await;
     let native = Server::new("api", "", false).await;
+    let (status, _, body) = native.send("GET", "/api", "en").await;
+    assert_eq!(status, 200);
+    assert_eq!(body, json!({"name":"测试应用","version":"1.2.3-test"}));
     let (_, _, body) = native.send("GET", "/api/missing", "en").await;
     assert!(body.get("success").is_none());
     assert!(body.get("message").is_some());
@@ -408,7 +415,7 @@ async fn invalid_translation_source_becomes_a_safe_http_error() {
         "private-invalid-translation",
     )
     .unwrap();
-    let (status, _, body) = server.send("GET", "/api", "en").await;
+    let (status, _, body) = server.send("GET", "/api/empty", "en").await;
     assert_eq!(status, 500);
     assert_eq!(body["code"], "internal_error");
     assert_eq!(body["success"], false);

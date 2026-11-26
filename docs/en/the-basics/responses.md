@@ -474,7 +474,9 @@ Use contiguous indexes when the public contract requires a JSON array. Removing 
 
 ### Application information {#api-application-info}
 
-The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. The default message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
+The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. The endpoint returns `name` and `version` as top-level fields through `Response::json`.
+
+The default `ApiResponse` message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
 
 ## Redirect responses
 

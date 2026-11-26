@@ -474,7 +474,9 @@ fn sparse_item_response() -> ApiResponse<Value> {
 
 ### 应用信息接口 {#api-application-info}
 
-根应用通过 `ApiController::index` 提供公开的 `GET /api`。名称和版本读取 `app.name`、`app.version`，可通过 `APP_NAME`、`APP_VERSION` 设置；地址遵循 `API_PREFIX`，例如 `api/admin` 对应 `/api/admin`。无需认证扩展或数据库。默认消息使用请求语言，英文为 `Success`，简体和繁体中文为 `成功`。框架随附现有 18 种默认语言的响应词条，`lang:publish` 会发布 `response.json` 供应用覆盖。自定义键缺失时遵循既有语言回退；翻译源格式错误时返回安全的服务异常，不把翻译诊断伪装成成功消息。
+根应用通过 `ApiController::index` 提供公开的 `GET /api`。名称和版本读取 `app.name`、`app.version`，可通过 `APP_NAME`、`APP_VERSION` 设置；地址遵循 `API_PREFIX`，例如 `api/admin` 对应 `/api/admin`。无需认证扩展或数据库。此端点通过 `Response::json` 返回顶层字段 `name` 和 `version`。
+
+`ApiResponse` 的默认消息使用请求语言，英文为 `Success`，简体和繁体中文为 `成功`。框架随附现有 18 种默认语言的响应词条，`lang:publish` 会发布 `response.json` 供应用覆盖。自定义键缺失时遵循既有语言回退；翻译源格式错误时返回安全的服务异常，不把翻译诊断伪装成成功消息。
 
 ## 重定向响应
 
