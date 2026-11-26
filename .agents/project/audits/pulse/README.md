@@ -148,7 +148,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 服务器当前内存和磁盘读数按固定视图以 1024 换算 MB、GB、TB，内存最多一位小数，磁盘取整数。原生仪表用原始读数计算使用率。实际 Chrome 桌面和移动视口验证内存 `2GB / 8GB` 与 25%、磁盘 `100MB / 200MB` 与 50%。证据为 `target/tmp/observability-parity/pulse-dashboard-server-size-verified.log`。
 
-接续核对集合字段排序和 PHP 相对时间语法其余边界。固定 PHP 探针使用真实 `render` 和存储，Livewire 更新事件和缓存包装仍需完整消费者验收。目标平台与发布组合继续验收。
+固定 PHP 的实际 `render` 进一步确认数值主机名按数值排序，`cpu`、`memory`、`storage` 可以作为集合排序字段，`storage.0.used` 支持嵌套取值。未知字段保留原始存储顺序。Rust 当前使用字符串主机名排序，只支持已记录的标量字段，未知字段回退到主机名。这些差异继续处理。证据为 `target/tmp/observability-parity/pulse-dashboard-server-sort-upstream.log`。
+
+PHP 相对时间语法的其余边界、Livewire 更新事件和缓存包装仍需消费者验收。目标平台与发布组合继续验收。
 
 ## SlowJobs 任务尝试计时
 
