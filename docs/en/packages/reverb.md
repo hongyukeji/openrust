@@ -45,6 +45,8 @@ New presence subscriptions receive the cluster-wide member list and count. A use
 
 Redis Pub/Sub delivers signed HTTP publications and authorized client events across nodes. Client events go to other subscribers in the same app and channel, excluding the sending socket. When a node loses its Redis subscription, it closes its presence sockets so clients reconnect and subscribe again after recovery. Delivery is best effort, with no replay of events missed during an outage.
 
+A node disconnected from Redis returns HTTP `503` for signed user event publishes. A healthy node can still publish to its subscribers. Its success response confirms that Redis accepted the event. Users connected to an isolated node can miss it.
+
 ## Pusher HTTP API and cache channels {#pusher-http-api}
 
 Send signed requests to `POST /apps/{id}/events` or `POST /apps/{id}/batch_events`. A batch accepts an ordered `batch` array with an event name, channel, JSON-encoded `data`, and optional `socket_id` and `info` per item. The server validates the whole batch before dispatching it. Both endpoints can return the requested channel statistics.

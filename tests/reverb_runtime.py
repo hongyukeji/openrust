@@ -1,13 +1,15 @@
 from pathlib import Path
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, ExitStack
 import asyncio
 import hashlib
 import hmac
 import json
 import os
+import runpy
 import socket
 import subprocess
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -238,18 +240,115 @@ async def open_peer(stack, port, key):
     return peer, greeting["socket_id"]
 
 
-async def sign_in(peer, socket_id, user_id):
+def signed_sign_in(socket_id, user_id):
     user_data = json.dumps({"id": user_id})
     signed = f"{socket_id}::user::{user_data}"
     signature = hmac.new(b"probe-secret", signed.encode(), hashlib.sha256).hexdigest()
-    await peer.send(json.dumps({"event": "pusher:signin", "data": {
+    return {"event": "pusher:signin", "data": {
         "auth": f"probe:{signature}", "user_data": user_data,
-    }}))
-    assert (await frame(peer, "pusher:signin_success"))[1]["user_data"] == user_data
+    }}
+
+
+async def sign_in(peer, socket_id, user_id):
+    message = signed_sign_in(socket_id, user_id)
+    await peer.send(json.dumps(message))
+    assert (await frame(peer, "pusher:signin_success"))[1]["user_data"] == message["data"]["user_data"]
     channel = f"#server-to-user-{user_id}"
     await peer.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": channel}}))
     assert (await frame(peer, "pusher_internal:subscription_succeeded"))[0]["channel"] == channel
     return channel
+
+
+async def verify_redis_user_partition(base, redis_url):
+    support = Path(__file__).resolve().parent / "support/backend_gate.py"
+    interruptible_backend = runpy.run_path(str(support))["interruptible_backend"]
+    ports = [socket_port() for _ in range(2)]
+    common = dict(os.environ, CACHE_STORE="file", REVERB_SERVER_HOST="127.0.0.1",
+                  REVERB_APP_KEY="probe", REVERB_APP_SECRET="probe-secret", REVERB_APP_ID="42",
+                  REVERB_SCALING_ENABLED="true", REVERB_SCALING_CHANNEL=f"accept-{uuid.uuid4().hex}",
+                  REDIS_TIMEOUT="2")
+    processes = []
+
+    async def observe_partition(port, disconnected):
+        deadline = asyncio.get_running_loop().time() + 12
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                metrics = await asyncio.to_thread(signed_api, port, "/apps/42/connections")
+            except urllib.error.HTTPError as error:
+                assert error.code == 503, error
+                if disconnected:
+                    return
+            else:
+                if not disconnected and metrics == {"connections": 3}:
+                    return
+            await asyncio.sleep(.2)
+        raise AssertionError("Redis 订阅状态与预期的网络分区不符")
+
+    async def publish(port, channel, event):
+        return await asyncio.to_thread(signed_api, port, "/apps/42/events", {
+            "channel": channel, "name": event, "data": '{"source":"fixture"}',
+        })
+
+    with ExitStack() as resources:
+        gate, isolated_url = interruptible_backend(resources, redis_url)
+        try:
+            for index, (port, url) in enumerate(zip(ports, (isolated_url, redis_url), strict=True)):
+                root = base / f"user-partition-{index}"
+                root.mkdir()
+                env = dict(common, APP_BASE_PATH=str(root), REDIS_URL=url)
+                log = resources.enter_context((root / "reverb.log").open("w"))
+                process = subprocess.Popen([binary, "artisan", "reverb:start", f"--port={port}"],
+                                           env=env, stdout=log, stderr=subprocess.STDOUT)
+                processes.append(process)
+                await wait_port(port, process)
+
+            async with AsyncExitStack() as clients:
+                first, first_id = await open_peer(clients, ports[0], "probe")
+                second, second_id = await open_peer(clients, ports[1], "probe")
+                outsider, outsider_id = await open_peer(clients, ports[1], "probe")
+                channel = await sign_in(first, first_id, "007")
+                await sign_in(second, second_id, "007")
+                await sign_in(outsider, outsider_id, "009")
+                assert await publish(ports[0], channel, "before-partition") == {}
+                await frame(first, "before-partition")
+                await frame(second, "before-partition")
+                await quiet(first, second, outsider)
+
+                with gate.interrupted():
+                    await observe_partition(ports[0], disconnected=True)
+                    try:
+                        await publish(ports[0], channel, "isolated-publish")
+                    except urllib.error.HTTPError as error:
+                        assert error.code == 503, error
+                    else:
+                        raise AssertionError("Redis 已断开的节点接受了定向发布")
+                    assert await publish(ports[1], channel, "during-partition") == {}
+                    await frame(second, "during-partition")
+                    await quiet(first, second, outsider)
+
+                await observe_partition(ports[0], disconnected=False)
+                await quiet(first, second, outsider)
+                assert await publish(ports[0], channel, "after-recovery") == {}
+                await frame(first, "after-recovery")
+                await frame(second, "after-recovery")
+                await quiet(first, second, outsider)
+
+                await first.close()
+                replacement, new_id = await open_peer(clients, ports[0], "probe")
+                assert new_id != first_id
+                await replacement.send(json.dumps(signed_sign_in(first_id, "007")))
+                assert (await frame(replacement, "pusher:error"))[1]["code"] == 4009
+                await sign_in(replacement, new_id, "007")
+                assert await publish(ports[1], channel, "after-sign-in") == {}
+                await frame(replacement, "after-sign-in")
+                await frame(second, "after-sign-in")
+                await quiet(replacement, second, outsider)
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.terminate()
+                assert process.wait(timeout=8) == 0
+    print("Asymmetric Redis partition preserved user isolation, returned 503, and recovered without replay")
 
 
 async def subscribe(peer, socket_id, channel, key, user=None):
@@ -423,5 +522,6 @@ if __name__ == "__main__":
         asyncio.run(verify(Path(directory)))
         if redis_url := os.environ.get("REVERB_TEST_REDIS_URL"):
             asyncio.run(verify_redis(Path(directory), redis_url))
+            asyncio.run(verify_redis_user_partition(Path(directory), redis_url))
             if mysql_url := os.environ.get("REVERB_TEST_MYSQL_URL"):
                 asyncio.run(verify_cluster(Path(directory), redis_url, mysql_url))

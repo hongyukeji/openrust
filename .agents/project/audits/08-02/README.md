@@ -68,3 +68,13 @@ pusher-js 8.6.0 登录后订阅 `#server-to-user-<id>` 并在重连时重新认�
 Chrome 使用 Echo 2.2.6 和 pusher-js 8.6.0，通过实际代理验证 `reverb` 和具名 `pusher` 的公开、私有和在线频道，用户认证在自动重连后重新执行，重连前后的 Artisan 定向发布均送达。Rust 发布额外验证信任测试 CA 后送达、未信任 CA／错误 CA／主机名错配时拒绝。普通 HTTP、原 TLS 转发器和 Nginx 三种入口各通过 6 项。独立应用二进制和两项 `artisan reverb:start` 进程复跑 Redis 扩展、签名投递、登录和跨节点重连。
 
 复验入口为 `tests/reverb_tls_acceptance.py --nginx IMAGE -- <transport 测试二进制>`，使用本机 Docker Desktop 镜像和既有 Echo 夹具参数。包装器清理本批证书、容器和独立网络。格式、包全目标严格 Clippy、三语站点构建和浏览器检查通过。证据位于 `target/tmp/reverb-nginx/`。正式域名证书、选定发布入口及物理跨节点部署仍保留验收。
+
+## 定向投递的单节点 Redis 分区 {#redis-user-partition}
+
+使用 `577daf16f` 快照、Rust 1.94.0 和 macOS ARM64 的主应用二进制。两个实际 `artisan reverb:start` 进程使用同一个 Redis 8.10.3。复用 Webhook 验收的 TCP 断连夹具，只中断第一个节点的现有及新建 Redis 连接。固定版 Reverb 的 Redis 发布客户端暂存断线发布，OpenRust 沿用既有 HTTP 503 和尽力投递契约。[固定 Reverb Redis 发布客户端](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Servers/Reverb/Publishing/RedisPublishClient.php) · [Redis Pub/Sub 投递语义](https://redis.io/docs/latest/develop/pubsub/)
+
+用户 `007` 的两条签名登录连接分别驻留在两个节点，用户 `009` 作为隔离参照。断连前，两条目标连接各收到一条事件。分区时，从隔离节点发布返回 HTTP 503。健康节点的发布仍到达其目标连接，同一应用的其他用户及隔离节点均未收到。恢复后，全局连接统计稳定为三条，新事件跨节点各送达一次，分区期间的事件未补发。重连的新套接字拒绝原签名，重新认证后恢复定向投递。
+
+同一二进制复跑内嵌 HTTP、独立 Artisan、签名发布和三应用的全局在线成员、应用隔离、客户端事件、退出清理及 Redis 重启。首轮重启用例因 Docker 重分配随机宿主端口导致客户端仍访问旧端口。另用独立实例确认端口会变，固定回环映射后复验通过。MySQL 8.4.13 与 Redis 均为独立测试实例。日志保存在 `target/tmp/reverb-user-redis-partition/`。正式域名证书、选定代理和跨物理节点部署仍按目标环境验收。
+
+工作区格式检查、主应用与 Reverb 扩展全目标严格 Clippy、三项签名及用户认证契约测试通过。三语站点构建及根路径与 `/docs/` 下的 Reverb 页面浏览器检查通过。验收容器、隔离源码与文档产物已清理。
