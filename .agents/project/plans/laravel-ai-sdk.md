@@ -137,6 +137,23 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 
 用户确认优先交付 Sub2API 式自托管网关能力。部署者自行接入和管理上游账号、定义对外模型及路由、签发并限制下游 Key，客户端通过 OpenRust 网关地址使用这些能力。首个可独立验收的网关须跑通「配置上游账号 → 发布模型名 → 签发下游 Key → 客户端调用 → 查看实际用量」。TokenHub 作为可配置上游及多协议补充参考。
 
+### 成熟实现与复用选择
+
+| 来源 | 核对结果及采用方式 |
+|---|---|
+| [Sub2API 固定组合路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/docs/COMPOSITE_GROUPS.md) | 按公开模型、请求端点和分组决定目标，再选择该目标的上游账号。用其可观察行为核对别名、组合路由、账号和用量。保留 OpenRust 原生装配。 |
+| [Prism Server 固定源码](https://github.com/prism-php/prism/blob/385022b5e0fec9be49a5b8e9a468fdafaa8f1267/src/PrismServer.php) · [路由](https://github.com/prism-php/prism/blob/385022b5e0fec9be49a5b8e9a468fdafaa8f1267/src/Routes/PrismServer.php) | Laravel 生态已有在 ServiceProvider 注册公开名、按路由中间件启用模型目录和 Chat Completions 的实现。采用显式发布、可选 Provider 注册路由、共享 SDK 调用能力的做法。对外兼容路径按 E07 约定。 |
+| [LiteLLM Router 固定源码](https://github.com/BerriAI/litellm/blob/3c18ad5c0f5c607359737390d6aded832969b288/litellm/router.py) · [Key、限流与预算](https://docs.litellm.ai/docs/proxy/users) | 参考部署目标分组、按凭证或分组限制访问、冷却，以及失败切换前校验访问权限和限额。用量记录和硬限额分别验收。 |
+| [Bifrost 固定路由设计](https://github.com/maximhq/bifrost/blob/53c2fcc22acd5ec4a02b4bd03da9bcb34856c055/docs/providers/provider-routing.mdx) | 参考先选 Provider、再选上游 Key，以及会话黏性仅在可用目标内调整顺序。GW-04 先用可重复验收的顺序、轮询或固定权重规则。企业版自适应评分作为调研记录。 |
+| [Portkey 固定项目文档](https://github.com/Portkey-AI/gateway/tree/669825cbe89ee51569918b8f78a9db486fd69dd4) · [TensorZero 重试与回退](https://www.tensorzero.com/docs/gateway/guides/retries-fallbacks) | 分别参考有条件的重试和有序回退、流式首块超时与每次尝试的超时。OpenRust 设置一次请求的总尝试次数和总时限，并保留协议自身的错误分类。 |
+
+运行时保持纯 Rust。上述项目用于验证设计或作为兼容上游，基础协议仍使用 E07 已选的 Rust 类型、框架 HTTP 和既有 Provider 装配，网关按需加载。复核的源码许可分别为 Sub2API LGPL-3.0、Prism MIT、Bifrost Apache-2.0、Portkey MIT；LiteLLM 根许可区分 MIT 部分与企业目录。当前采用行为参考和协议测试样例，源码或依赖复用须核对具体文件许可与接入成本。
+
+网关按 **下游 Key 鉴权与授权 → 公开模型路由 → 上游账号选择 → 协议调用 → 用量记录** 执行。GW-02 每步先提供一个可用选项。GW-03 增加按端点和模型的规则，GW-04 在已授权路由内增加账号池与限额，每次回退重新核对目标权限。保持配置的 `providers`、`driver`、`models` 和项目既有 ServiceProvider／中间件用法；网关账号或路由管理随相关批次接入现有管理入口。
+
+- **下游 Key。** 复用框架现有凭证机制时核对主体、撤销和过期契约，以兼容协议要求的 Bearer 或 `x-api-key` 收取 Key。参考 Laravel Sanctum 的明文只在签发时输出和摘要持久化做法。上游凭证通过运行时引用读取。验收泄露防护、Key 撤销、目录与调用权限一致，以及同一上游账号被多个下游 Key 使用时的归属隔离。 [Laravel Sanctum](https://laravel.com/framework/docs/sanctum) · [OpenRust 凭证实现](../../../vendor/openrust/framework/src/sanctum/personal_access_token.rs)
+- **限额与用量。** 请求次数优先复用现有 `RateLimiter::reserve` 和支持对应原子语义的 Cache Store。Token 或金额硬限额单独验收并发扣减、取消、中途断流和结算失败的行为。记录外部请求与各次上游尝试的关联、实际 Provider、账号标识和上游报告用量，无法核实的用量标记为未知；核对重试与回退对配额、审计和总时限的影响。 [OpenRust RateLimiter](../../../vendor/openrust/framework/src/cache/rate_limiter.rs)
+
 | 使用方式 | 装配与行为 |
 |---|---|
 | 框架内调用 | 应用通过 `openrust-ai` 的 `Ai`、`Agent`、各能力入口和测试 Fake 调用模型。进程内直接使用容器中的 `AiManager`，按配置选直连供应商、自建服务或外部网关。 |
