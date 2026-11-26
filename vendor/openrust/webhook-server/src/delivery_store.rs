@@ -15,7 +15,7 @@ use crate::{
     endpoints::{EndpointPermission, EndpointStore},
     events::WebhookTransportFailure,
     idempotency::IdempotencyKind,
-    limits::{self, DeliveryLimits},
+    limits::{self, DeliveryConcurrencyLimits, DeliveryLimits},
     publication::MESSAGES,
     replay::ReplayRecord,
     snapshot::Snapshot,
@@ -564,9 +564,19 @@ impl DeliveryStore {
         id: &str,
         claim: &Claim,
         limits: DeliveryLimits,
+        concurrency: DeliveryConcurrencyLimits,
     ) -> Result<()> {
         let mut tx = self.connection.begin_transaction().await?;
         let result = async {
+            let endpoint = claim
+                .snapshot
+                .endpoint
+                .as_ref()
+                .map(|endpoint| endpoint.id.as_str());
+            let limit_active = concurrency.applies(endpoint.is_some());
+            if limit_active {
+                concurrency.lock(&mut tx, &self.scope_key).await?;
+            }
             let now = self.time_in(&mut tx).await?;
             if let Some(limit) = limits.sends_per_scope {
                 limits::consume(&mut tx, &self.scope_key, "scope", "", limit, now).await?;
@@ -594,12 +604,24 @@ impl DeliveryStore {
                     &format!("lease_until > {clock} and deadline > {clock}"),
                     vec![],
                 )
-                .select(["id"])
+                .select(["lease_until"])
                 .lock_for_update()
                 .first()
-                .await?;
-            if owned.is_none() {
-                return Err(Error::LeaseLost);
+                .await?
+                .ok_or(Error::LeaseLost)?;
+            if limit_active {
+                // 使用包含余量的领取租约，避免秒级截止时间提前释放尚在途的连接。
+                let lease_until = number(&owned, "lease_until")?;
+                concurrency
+                    .acquire(
+                        &mut tx,
+                        &self.scope_key,
+                        endpoint,
+                        &claim.token,
+                        now,
+                        lease_until,
+                    )
+                    .await?;
             }
             Ok(())
         }

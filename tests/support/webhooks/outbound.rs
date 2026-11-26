@@ -58,7 +58,8 @@ impl DeliveryPolicy for FixturePolicy {
         Box::pin(async move {
             let permitted_scope = context.scope == SCOPE
                 || context.scope == ALTERNATE_LIMIT_SCOPE
-                    && std::env::var_os("FIXTURE_SEND_LIMITS").is_some();
+                    && (std::env::var_os("FIXTURE_SEND_LIMITS").is_some()
+                        || std::env::var_os("FIXTURE_SEND_CONCURRENCY").is_some());
             if !permitted_scope || std::env::var_os("FIXTURE_SEND_REVOKED").is_some() {
                 return Ok(None);
             }
@@ -372,6 +373,27 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
                 },
             )?;
         }
+        if std::env::var_os("FIXTURE_SEND_CONCURRENCY").is_some() {
+            use openrust_webhook_server::{
+                DeliveryConcurrencyLimits, DeliveryLimit, DeliveryLimits,
+                register_delivery_concurrency_limits, register_delivery_limits,
+            };
+            use std::num::NonZeroU32;
+            register_delivery_concurrency_limits(
+                app.container(),
+                DeliveryConcurrencyLimits {
+                    sends_per_scope: NonZeroU32::new(2),
+                    sends_per_endpoint: NonZeroU32::new(1),
+                },
+            )?;
+            register_delivery_limits(
+                app.container(),
+                DeliveryLimits {
+                    sends_per_scope: Some(DeliveryLimit::new(100, 60)?),
+                    ..Default::default()
+                },
+            )?;
+        }
         if (std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
             || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some()
             || std::env::var_os("FIXTURE_SEND_LIMITS").is_some()
@@ -457,6 +479,8 @@ pub(super) fn submit(
             .on_queue(Some("webhook-outgoing".into()))
             .timeout_in_seconds(if mode == "timeout" {
                 1
+            } else if key.starts_with("slot-hold-") {
+                20
             } else if key == "endpoint-late-pause" || key == "endpoint-inflight" {
                 10
             } else {

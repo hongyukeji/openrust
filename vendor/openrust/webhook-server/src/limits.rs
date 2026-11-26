@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 use openrust::{
     container::{Container, ServiceKey},
@@ -49,18 +49,43 @@ pub fn register_delivery_limits(container: &Container, limits: DeliveryLimits) -
         .map_err(|_| Error::InvalidConfig("delivery.limits"))
 }
 
+/// 当前处于网络传输阶段的投递上限，独立于每个时间窗口的请求额度。
+#[derive(Clone, Copy, Default)]
+pub struct DeliveryConcurrencyLimits {
+    pub sends_per_scope: Option<NonZeroU32>,
+    pub sends_per_endpoint: Option<NonZeroU32>,
+}
+
+pub fn register_delivery_concurrency_limits(
+    container: &Container,
+    limits: DeliveryConcurrencyLimits,
+) -> Result<()> {
+    container
+        .instance(Arc::new(limits))
+        .map(|_| ())
+        .map_err(|_| Error::InvalidConfig("delivery.concurrency"))
+}
+
 pub(crate) fn current() -> Result<DeliveryLimits> {
+    application_limits("delivery.limits")
+}
+
+pub(crate) fn concurrency() -> Result<DeliveryConcurrencyLimits> {
+    application_limits("delivery.concurrency")
+}
+
+fn application_limits<T: Copy + Default + Send + Sync + 'static>(field: &'static str) -> Result<T> {
     let Ok(app) = App::get_facade_root() else {
-        return Ok(DeliveryLimits::default());
+        return Ok(T::default());
     };
     let container = app.container();
-    if !container.has(ServiceKey::typed::<DeliveryLimits>()) {
-        return Ok(DeliveryLimits::default());
+    if !container.has(ServiceKey::typed::<T>()) {
+        return Ok(T::default());
     }
     container
-        .make::<DeliveryLimits>()
+        .make::<T>()
         .map(|limits| *limits)
-        .map_err(|_| Error::InvalidConfig("delivery.limits"))
+        .map_err(|_| Error::InvalidConfig(field))
 }
 
 /// 在调用者的数据库事务内保留额度。所有发送先锁范围再锁端点。
@@ -72,22 +97,7 @@ pub(crate) async fn consume(
     limit: DeliveryLimit,
     now: i64,
 ) -> Result<()> {
-    let id = hash(format!("webhook-limit:{scope_key}:{kind}:{endpoint}").as_bytes());
-    tx.table(BUCKETS)
-        .upsert(
-            &[[
-                ("id".into(), id.as_str().into()),
-                ("scope_key".into(), scope_key.into()),
-                ("kind".into(), kind.into()),
-                ("used".into(), 0.into()),
-                ("reset_at".into(), 0.into()),
-            ]
-            .into_iter()
-            .collect()],
-            &["id"],
-            Some(&["id"]),
-        )
-        .await?;
+    let id = lock_bucket(tx, scope_key, kind, endpoint).await?;
     let expires = now
         .checked_add(i64::from(limit.seconds))
         .ok_or(Error::InvalidRecord)?;
@@ -135,4 +145,29 @@ pub(crate) async fn consume(
     Err(Error::RateLimited {
         retry_at: number(&row, "reset_at")?,
     })
+}
+
+pub(crate) async fn lock_bucket(
+    tx: &mut Transaction,
+    scope_key: &str,
+    kind: &str,
+    endpoint: &str,
+) -> Result<String> {
+    let id = hash(format!("webhook-limit:{scope_key}:{kind}:{endpoint}").as_bytes());
+    tx.table(BUCKETS)
+        .upsert(
+            &[[
+                ("id".into(), id.as_str().into()),
+                ("scope_key".into(), scope_key.into()),
+                ("kind".into(), kind.into()),
+                ("used".into(), 0.into()),
+                ("reset_at".into(), 0.into()),
+            ]
+            .into_iter()
+            .collect()],
+            &["id"],
+            Some(&["id"]),
+        )
+        .await?;
+    Ok(id)
 }

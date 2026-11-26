@@ -322,6 +322,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 發送達到限額時，投遞等待視窗恢復，保留原嘗試額度及截止時間。重放登記達到限額時會回傳下一次可申請的 Unix 時間戳錯誤。共用投遞資料庫的所有節點應使用一致的限額設定。
 
+用 `register_delivery_concurrency_limits` 註冊 `DeliveryConcurrencyLimits`，依範圍或具名端點限制實際在途的傳送數。啟用的欄位使用 `NonZeroU32`。同一端點在不同設定修訂中共用上限。名額用盡時，投遞維持待處理並保留嘗試次數和速率額度。嘗試結算或租約過期後會釋放名額。啟用前先遷移、升級所有 Worker，等待上一批在途傳送結算，再讓各副本使用同一策略。
+
 ### 查詢投遞與嘗試 {#inspect}
 
 使用 `./artisan webhook-server:inspect <id> --scope=<scope>` 查詢投遞 ID。查詢 `publish` 回傳的內部訊息 ID 時加入 `--message`。加入 `--attempts --limit=25` 讀取一頁嘗試，下一頁透過 `--after` 傳入回傳的 `next_after`。時間欄位以 Unix 秒表示。使用 `--database` 選擇具名資料庫連線。

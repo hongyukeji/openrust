@@ -322,6 +322,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 发送达到限额时，投递等待窗口恢复，保留原尝试额度及截止时间。重放登记达到限额时返回带下次可申请 Unix 时间戳的错误。共享投递数据库的所有节点应使用一致的限额配置。
 
+用 `register_delivery_concurrency_limits` 注册 `DeliveryConcurrencyLimits`，按范围或具名端点限制实际在途的发送数。启用的字段使用 `NonZeroU32`。同一端点在不同配置修订中共用上限。名额用尽时，投递保持待处理并保留尝试次数和速率额度。尝试结算或租约过期后释放名额。启用前先迁移、升级所有 Worker，等待上一批在途发送结算，再让各副本使用同一策略。
+
 ### 查询投递与尝试 {#inspect}
 
 使用 `./artisan webhook-server:inspect <id> --scope=<scope>` 查询投递 ID。查询 `publish` 返回的内部消息 ID 时添加 `--message`。添加 `--attempts --limit=25` 读取一页尝试，下一页通过 `--after` 传入返回的 `next_after`。时间字段以 Unix 秒表示。使用 `--database` 选择具名数据库连接。

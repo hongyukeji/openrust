@@ -403,10 +403,18 @@ impl DeliveryService {
         let Ok(limits) = limits::current() else {
             return AttemptResult::transient("unresolved").into();
         };
+        let Ok(concurrency) = limits::concurrency() else {
+            return AttemptResult::transient("unresolved").into();
+        };
         if limits.sends_per_scope.is_some()
             || limits.sends_per_endpoint.is_some() && snapshot.endpoint.is_some()
+            || concurrency.applies(snapshot.endpoint.is_some())
         {
-            match self.store.reserve_send(id, claim, limits).await {
+            match self
+                .store
+                .reserve_send(id, claim, limits, concurrency)
+                .await
+            {
                 Ok(()) => {}
                 Err(Error::RateLimited { retry_at }) => {
                     return TransportAttempt {

@@ -322,6 +322,8 @@ Register `DeliveryLimits` in the application on each node. A scope limit include
 
 When a send reaches a limit, the delivery waits until the bucket resets with its original attempt budget and deadline. A limited replay registration returns an error with the next eligible Unix timestamp. Keep the limit configuration consistent on all nodes sharing the delivery database.
 
+Use `register_delivery_concurrency_limits` with `DeliveryConcurrencyLimits` to cap in-flight sends per scope or named endpoint. Each enabled field takes a `NonZeroU32`. The same endpoint keeps its limit across configuration revisions. A delivery that cannot reserve a slot remains pending and keeps its attempt and rate budgets. Slots free when the attempt settles or its lease expires. Before enabling the limit, apply migrations, upgrade all Workers, and let earlier sends settle. Use the same policy on every replica.
+
 ### Inspect deliveries and attempts {#inspect}
 
 Use `./artisan webhook-server:inspect <id> --scope=<scope>` for a delivery ID. Add `--message` for the internal message ID returned by `publish`. Add `--attempts --limit=25` for an attempt page, then pass the returned `next_after` to `--after` if another page exists. All timestamps are Unix seconds. `--database` selects a named database connection.

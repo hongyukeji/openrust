@@ -46,7 +46,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             if isinstance(self.connection, ssl.SSLSocket):
                 owner.client_certificates[key] = self.connection.getpeercert(binary_form=True)
             attempt = len(deliveries)
-        if key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight") and attempt == 1:
+        if (key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight")
+                or key.startswith("slot-hold-")) and attempt == 1:
             owner.entered[key].set()
             if not owner.release[key].wait(timeout=12):
                 return
@@ -102,8 +103,8 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert (result.returncode == 0) == success, result.stdout + result.stderr
         return result.stdout
 
-    def submit(key, mode="normal", body=BODY, expected=202):
-        connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
+    def submit(key, mode="normal", body=BODY, expected=202, current=env):
+        connection = http.client.HTTPConnection("127.0.0.1", int(current["APP_PORT"]), timeout=20)
         try:
             connection.request("POST", f"/api/outbound/{mode}/{key}", body,
                                {"Accept": "application/json"})
@@ -1047,6 +1048,135 @@ def exercise(binary, env, log, receiver, driver, sql):
         verify_requests(missing, [])
 
         print(f"{driver}: 消息幂等、固定订阅集合、同事务回滚、扇出上限及共享正文通过", flush=True)
+        return
+
+    if env.get("FIXTURE_SEND_CONCURRENCY"):
+        scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
+        def charged():
+            return sql(f"SELECT used FROM webhook_rate_buckets WHERE kind='scope' AND scope_key='{scope_hash}'")
+
+        def reject_without_attempt(identifier, key):
+            assert '"pending"' in send(identifier, current=peer)
+            assert read(identifier) == "pending\t0" and not attempts(identifier)
+            assert int(sql(f"SELECT available_at FROM webhook_deliveries WHERE id='{identifier}'")) > 0
+            captured(key, 0)
+
+        def holder(key, endpoint, node):
+            identifier = submit(key, f"endpoint-{endpoint}", current=node)
+            if key == "slot-hold-two":
+                update(identifier, f"deadline={int(time.time()) + 15}")
+            enqueue(identifier)
+            process = subprocess.Popen([str(binary), "artisan", *worker], env=node,
+                                       stdout=log, stderr=log, text=True)
+            held.append(process)
+            assert receiver.entered[key].wait(timeout=8)
+            assert read(identifier) == "running\t1"
+            slot, lease, deadline = map(int, sql(
+                "SELECT a.send_lease_until,d.lease_until,d.deadline FROM webhook_delivery_attempts a "
+                f"JOIN webhook_deliveries d ON a.delivery_id=d.id WHERE d.id='{identifier}'"
+            ).split())
+            assert slot == lease and slot > 0
+            if key == "slot-hold-two":
+                assert slot > deadline
+            return identifier, process
+
+        command("webhooks:fixture-endpoint", "create", "one")
+        command("webhooks:fixture-endpoint", "create", "two")
+        peer_root = Path(env["APP_BASE_PATH"]) / "concurrency-peer"
+        peer_root.mkdir()
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        peer = env | {"APP_BASE_PATH": str(peer_root), "APP_PORT": str(port),
+                      "APP_URL": f"http://127.0.0.1:{port}",
+                      "APP_CONFIG_CACHE": str(peer_root / "config.json"),
+                      "APP_ROUTES_CACHE": str(peer_root / "routes.json")}
+        command("config:cache", current=peer)
+        command("route:cache", current=peer)
+        peer_http = http_helpers["serve"](binary, peer, log)
+        held = []
+        try:
+            first, first_worker = holder("slot-hold-one", "one", env)
+            same_endpoint = submit("slot-same-endpoint", "endpoint-one", current=peer)
+            reject_without_attempt(same_endpoint, "slot-same-endpoint")
+            assert charged() == "1"
+            second, second_worker = holder("slot-hold-two", "two", peer)
+            waiting = submit("slot-same-scope", current=peer)
+            reject_without_attempt(waiting, "slot-same-scope")
+            assert charged() == "2"
+            isolated = submit("slot-other-scope", "limit-other-scope", current=peer)
+            assert '"succeeded"' in send(isolated, scope="webhook-outbound-limit-alternate", current=peer)
+            captured("slot-other-scope")
+            assert charged() == "2"
+            migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                         "2026_11_25_000001_extend_webhook_attempts_for_concurrency.rs")
+            command("migrate:rollback", migration, "--step=1000", "--force", success=False)
+
+            receiver.release["slot-hold-one"].set()
+            assert first_worker.wait(timeout=8) == 0 and read(first) == "succeeded\t1"
+            update(same_endpoint, "available_at=0")
+            enqueue(same_endpoint)
+            command(*worker, current=peer)
+            assert read(same_endpoint) == "succeeded\t1" and charged() == "3"
+            captured("slot-same-endpoint")
+
+            second_worker.kill()
+            second_worker.wait(timeout=8)
+            receiver.release["slot-hold-two"].set()
+            after_crash = submit("slot-after-crash", "endpoint-two", current=peer)
+            reject_without_attempt(after_crash, "slot-after-crash")
+            assert charged() == "3"
+            update(second, "lease_until=0")
+            routes["write_database"](driver, sql,
+                f"UPDATE webhook_delivery_attempts SET send_lease_until=0 WHERE delivery_id='{second}'")
+            update(after_crash, "available_at=0")
+            assert '"succeeded"' in send(after_crash, current=peer)
+            assert charged() == "4"
+            captured("slot-after-crash")
+            assert '"succeeded"' in send(second, current=peer)
+            assert attempts(second) == "1\tunknown\t0\n2\tsucceeded\t204"
+            captured("slot-hold-two", 2)
+            update(waiting, "available_at=0")
+            assert '"succeeded"' in send(waiting, current=peer)
+            captured("slot-same-scope")
+            assert sql("SELECT COUNT(*) FROM webhook_delivery_attempts WHERE send_lease_until IS NOT NULL AND finished_at IS NULL") == "0"
+            assert "extend_webhook_attempts_for_concurrency" in command("migrate:rollback", migration, "--step=1000", "--force")
+            assert "extend_webhook_attempts_for_concurrency" in command("migrate", migration, "--force")
+
+            keys = ("slot-hold-race-one", "slot-hold-race-two")
+            nodes = (env, peer)
+            deliveries = [submit(key, "endpoint-one", current=node) for key, node in zip(keys, nodes)]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(send, identifier, current=node)
+                           for identifier, node in zip(deliveries, nodes)]
+                try:
+                    complete, _ = concurrent.futures.wait(
+                        futures, timeout=7, return_when=concurrent.futures.FIRST_COMPLETED)
+                    assert len(complete) == 1, complete
+                    declined = futures.index(next(iter(complete)))
+                    winner = 1 - declined
+                    assert '"pending"' in futures[declined].result()
+                    assert receiver.entered[keys[winner]].wait(timeout=4)
+                    assert not receiver.entered[keys[declined]].is_set()
+                    assert read(deliveries[declined]) == "pending\t0" and not attempts(deliveries[declined])
+                finally:
+                    for key in keys:
+                        receiver.release[key].set()
+                assert '"succeeded"' in futures[winner].result()
+            captured(keys[winner])
+            captured(keys[declined], 0)
+            update(deliveries[declined], "available_at=0")
+            assert '"succeeded"' in send(deliveries[declined], current=nodes[declined])
+            captured(keys[declined])
+        finally:
+            for key in ("slot-hold-one", "slot-hold-two"):
+                receiver.release[key].set()
+            for process in held:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=8)
+            http_helpers["stop"](peer_http)
+        print(f"{driver}: 两节点发送在途范围／端点上限、速率回滚、独立 Worker 崩溃后回收和迁移通过", flush=True)
         return
 
     if env.get("FIXTURE_SEND_LIMITS"):
@@ -2086,7 +2216,10 @@ def main():
     receiver.received = {}
     receiver.unexpected = []
     receiver.client_certificates = {}
-    receiver.entered = {name: threading.Event() for name in ("crash", "concurrent", "stale", "timeout", "endpoint-inflight")}
+    receiver.entered = {name: threading.Event() for name in (
+        "crash", "concurrent", "stale", "timeout", "endpoint-inflight",
+        "slot-hold-one", "slot-hold-two", "slot-hold-race-one", "slot-hold-race-two",
+    )}
     receiver.release = {name: threading.Event() for name in receiver.entered}
     peer = threading.Thread(target=receiver.serve_forever, daemon=True)
     proxy = proxy_thread = None
@@ -2197,6 +2330,7 @@ def main():
                     http_helpers["stop"](app)
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
+                or os.environ.get("FIXTURE_SEND_CONCURRENCY")
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
                 or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")
                 or os.environ.get("FIXTURE_SEND_KEY_BINDINGS") or os.environ.get("FIXTURE_SEND_KEY_EXPIRY")

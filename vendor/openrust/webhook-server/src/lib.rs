@@ -3,6 +3,9 @@
 mod backoff_strategy;
 mod body;
 mod call_webhook_job;
+mod concurrency;
+#[path = "../database/migrations/2026_11_25_000001_extend_webhook_attempts_for_concurrency.rs"]
+mod concurrency_migration;
 #[path = "../config/webhook_server.rs"]
 mod configuration;
 mod console;
@@ -83,7 +86,10 @@ pub use extensions::{register_backoff_strategy, register_call_webhook_job, regis
 pub use history_retention::HistoryPruneReport;
 pub use idempotency::IdempotencyKind;
 pub use idempotency_expiry::IdempotencyPruneReport;
-pub use limits::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
+pub use limits::{
+    DeliveryConcurrencyLimits, DeliveryLimit, DeliveryLimits, register_delivery_concurrency_limits,
+    register_delivery_limits,
+};
 pub use message_retention::PublicationPruneReport;
 pub use publication::{EventType, PublishOptions, PublishedMessage};
 pub use recovery::RecoveryReport;
@@ -148,6 +154,7 @@ openrust::compiled_migration_assets!("webhook-server";
     "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs" => delivery_idempotency_expiry_migration,
     "2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs" => message_idempotency_expiry_migration,
     "2026_11_25_000001_add_transport_to_webhook_delivery_attempts.rs" => transport_migration,
+    "2026_11_25_000001_extend_webhook_attempts_for_concurrency.rs" => concurrency_migration,
 );
 
 impl WebhookServerServiceProvider {
