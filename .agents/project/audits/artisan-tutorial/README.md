@@ -972,3 +972,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 12 个固定源码场景验证隐式成功、显式正负退出值、带消息和默认手动失败、普通错误，以及带与不带 ANSI 的完整输出。Rust 通过 Result 传播手动失败并保留结束事件，默认消息使用应用语言。该教程节已闭合。
 
 86 个框架父测试、真实 Artisan 5 进程、HTTP 4 请求、231 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。见 artisan-exit-codes-contracts.json 与 accepted-artisan-exit-codes.json。
+
+
+## 77. 命令 I/O、输出、表格和进度条终审
+
+按四节原文复核解析输入与输出借用、八个消息方法、表格真实行列计算、迭代和手动进度。已有实现与验收复用，三语新增对齐锚点并保留原链接。通用程序调用输出仍单列，组件覆盖差异已在对应契约记录。
+
+10 个真实消费者目标共 63 项父测试通过，含 HTTP、Artisan、分区流、问答及错误恢复。保留上批相同源码的 231 项正式示例与严格 Clippy 证据，本批重建三语站点并复验 12 组浏览器。见 command-io-final-contracts.json 与 accepted-command-io-final.json。

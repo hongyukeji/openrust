@@ -323,6 +323,10 @@ fn register_injected() -> Result<(), ConsoleError> {
 }
 ```
 
+## Command Input and Output {#command-io}
+
+Use `input.io(output)` to access the command’s parsed values and its original output together. See [typed input](#typed-command-input), [interactive questions](#interactive-questions), [messages](#writing-output), [tables](#tables), and [progress bars](#progress-bars).
+
 ## Typed command input {#typed-command-input}
 
 `Input::input()` returns a `CommandInput` snapshot. `input_value(key, default)` reads one value. The bag offers `string`/`str`, `integer`, `float`, `boolean`, their `_or` and `_strict` variants, `clamp`, `date`, `interval`, backed `r#enum`/`enums`, `array`, and `collect`, reusing the request input conversion rules. Date parsing uses the application time zone unless supplied, and returns an error for invalid input; the original error remains available through `ConsoleError::source`.
@@ -484,6 +488,8 @@ fn register_counter() -> Result<(), ConsoleError> {
 Each invocation keeps its own input, output, verbosity and lifecycle scope. A command failure does not rebuild the registry. Failed registration does not publish a partial registry and may retry. No registry lock is held during command execution, so nested calls remain possible.
 
 Concurrent requests may execute the same command object. Keep shared fields thread safe, and resolve request-specific inputs, users and dependencies inside `handle` or the current `command_with` callback; do not capture request data while registering commands.
+
+<a id="writing-output"></a>
 
 ## Writing command output {#writing-command-output}
 

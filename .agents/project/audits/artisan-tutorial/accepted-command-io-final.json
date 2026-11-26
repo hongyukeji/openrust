@@ -1,0 +1,35 @@
+{
+  "base": "8c52e5a0cf88d8174dcf7a64422f2897e6ea0798",
+  "bindings": "command-io-final-contracts.json",
+  "runtime": {
+    "framework_targets": 10,
+    "framework_parent_tests": 63,
+    "formal_document_consumers": 231,
+    "browser_checks": 12,
+    "final_regression": "artisan-io-final-gates.log",
+    "unchanged_source_strict_gate": "artisan-exit-codes-gates.log"
+  },
+  "results": [
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.42s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.96s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.39s",
+    "test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.71s",
+    "test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+    "test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.97s",
+    "test result: ok. 5 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 2.03s",
+    "test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.34s",
+    "test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.26s"
+  ],
+  "remaining": [
+    "通用 OutputInterface 和程序调用第三参数任意自定义流／分区，继续按 programmatically-executing-commands 验收。",
+    "原生组件动态绑定可覆盖动态入口，类型化行组件覆盖范围与对象借用持续沿用 command-component-factory 契约。",
+    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。"
+  ],
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-io-final-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-exit-codes-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-io-final-site.log"
+  ],
+  "pushed": false
+}

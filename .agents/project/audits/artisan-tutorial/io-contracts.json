@@ -2261,7 +2261,8 @@
     "73: Typed element entry and runtime forwarding, values and errors verified. General HTML recovery stays open.",
     "74: HTML4 fragment recovery verified against 252 source oracle cases, plus terminal and HTTP consumers. Factory injection remains open.",
     "75: Bind and construct command component dispatch once per execution, preserve its original output and verify dynamic/sync customization.",
-    "76: Command manual failure renders a component and reports code 1; explicit codes and ordinary errors preserve their established paths."
+    "76: Command manual failure renders a component and reports code 1; explicit codes and ordinary errors preserve their established paths.",
+    "77: Verified the four tutorial sections for command I/O, output, tables and progress against their documented methods and actual consumers."
   ],
   "native_adaptations": [
     {
@@ -2826,8 +2827,9 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "4种变换器及14种具体组件、TaskResult、默认耗时与QuestionHelper核心/作用域已验；抽象Component/Factory/CommandIo、Helper/HelperSet SDK、一般输出接口仍开放。",
-    "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
+    "通用 OutputInterface 和程序调用第三参数任意自定义流／分区，继续按 programmatically-executing-commands 验收。",
+    "原生组件动态绑定可覆盖动态入口，类型化行组件覆盖范围与对象借用持续沿用 command-component-factory 契约。",
+    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。"
   ],
   "output_format_explicit_normal": {
     "Normal": 0,

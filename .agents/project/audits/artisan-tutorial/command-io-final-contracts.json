@@ -1,0 +1,71 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "sections": {
+    "command-io": {
+      "binding": "Input::io -> CommandIo, CommandInput, OutputStyle",
+      "consumers": [
+        "console_io_tutorial",
+        "console_questions_tutorial"
+      ],
+      "evidence": [
+        "accepted-input-edit.json",
+        "accepted-questions.json",
+        "accepted-output-style.json"
+      ]
+    },
+    "writing-output": {
+      "binding": "CommandIo::{line,new_line,info,comment,question,warn,alert,error}",
+      "consumers": [
+        "console_io_tutorial",
+        "console_command_component_factory",
+        "console_terminal_html_recovery"
+      ],
+      "evidence": [
+        "accepted-output-style.json",
+        "accepted-command-component-factory.json",
+        "accepted-terminal-html-recovery.json"
+      ]
+    },
+    "tables": {
+      "binding": "CommandIo::table -> OutputStyle::table and Table",
+      "consumers": [
+        "console_tables_tutorial",
+        "console_table_outputs",
+        "console_style_tables"
+      ],
+      "evidence": [
+        "accepted-table-layout.json",
+        "accepted-table-spans.json",
+        "accepted-section-consumers.json"
+      ]
+    },
+    "progress-bars": {
+      "binding": "CommandIo::with_progress_bar*, OutputStyle::create_progress_bar, ProgressBar::{start,advance,finish}",
+      "consumers": [
+        "console_progress_tutorial",
+        "console_progress_output",
+        "console_progress_iteration"
+      ],
+      "evidence": [
+        "accepted-progress-core.json",
+        "accepted-progress-async.json",
+        "accepted-progress-output.json"
+      ]
+    }
+  },
+  "status": "verified_tutorial_scope",
+  "runtime": {
+    "framework_targets": 10,
+    "framework_parent_tests": 63,
+    "formal_document_consumers": 231,
+    "browser_checks": 12,
+    "final_regression": "artisan-io-final-gates.log",
+    "unchanged_source_strict_gate": "artisan-exit-codes-gates.log"
+  },
+  "remaining": [
+    "通用 OutputInterface 和程序调用第三参数任意自定义流／分区，继续按 programmatically-executing-commands 验收。",
+    "原生组件动态绑定可覆盖动态入口，类型化行组件覆盖范围与对象借用持续沿用 command-component-factory 契约。",
+    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。"
+  ]
+}

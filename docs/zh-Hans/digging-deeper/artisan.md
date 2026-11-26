@@ -323,6 +323,10 @@ fn register_injected() -> Result<(), ConsoleError> {
 }
 ```
 
+## 命令输入与输出 {#command-io}
+
+用 `input.io(output)` 同时访问命令解析后的值和原始输出。参见[类型化输入](#typed-command-input)、[交互问答](#interactive-questions)、[输出消息](#writing-output)、[表格](#tables)和[进度条](#progress-bars)。
+
 ## 类型化命令输入 {#typed-command-input}
 
 `Input::input()` 返回 `CommandInput` 快照，`input_value(key, default)` 读取单个值。支持 `string`／`str`、`integer`、`float`、`boolean` 及其 `_or`／`_strict`、`clamp`、`date`、`interval`、backed `r#enum`／`enums`、`array` 和 `collect`，复用请求输入的转换规则。未指定日期时区时使用应用配置；无效日期返回错误，`ConsoleError::source` 保留原始错误来源。
@@ -484,6 +488,8 @@ fn register_counter() -> Result<(), ConsoleError> {
 每次调用独立持有输入、输出、详细程度和生命周期作用域。命令执行失败不会重建注册表；注册失败不会公开半成品，后续可以重试。执行命令时不持有注册表锁，因此支持嵌套调用。
 
 并发请求可能执行同一个命令对象。共享字段须保证线程安全；请求输入、用户和请求级依赖在 `handle` 或当前 `command_with` 回调中解析，不在命令注册时捕获请求数据。
+
+<a id="writing-output"></a>
 
 ## 写入命令输出 {#writing-command-output}
 

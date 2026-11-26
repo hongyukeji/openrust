@@ -24,6 +24,8 @@ try {
                     assert.equal(await page.locator('h2#prompting-for-missing-input').count(),1);
                     assert.equal(await page.locator('h2#command-lifecycle').count(),1);
                     assert.equal(await page.locator('h2#writing-command-output').count(),1);
+                    assert.equal(await page.locator('h2#command-io').count(),1);
+                    assert.equal(await page.locator('a#writing-output').count(),1);
                     assert.equal(await page.locator('h2#output-style-verbosity').count(),1);
                     assert.equal(await page.locator('h2#interactive-questions').count(),1);
                     assert.equal(await page.locator('h2#choice-questions').count(),1);

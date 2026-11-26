@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 命令 I/O、输出、表格与进度条四节已闭合，继续命令生成及注册。见[终审](audits/artisan-tutorial/command-io-final-contracts.json)。
+
 - Artisan 第76簇退出码和手动失败已验，继续命令 I/O 四个锚点终审和命令注册。见[验收契约](audits/artisan-tutorial/artisan-exit-codes-contracts.json)。
 
 - Artisan 第75簇命令组件工厂已验，继续退出语义及命令注册。见[验收契约](audits/artisan-tutorial/command-component-factory-contracts.json)。

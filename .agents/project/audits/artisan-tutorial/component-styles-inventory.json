@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "command_factory_injection_verified_output_sections_final_review_pending",
+  "status": "terminal_style_and_factory_verified_for_command_io_tutorial",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -21,7 +21,8 @@
     "terminal-style-modifiers-contracts.json",
     "terminal-element-dispatch-contracts.json",
     "terminal-html-recovery-contracts.json",
-    "command-component-factory-contracts.json"
+    "command-component-factory-contracts.json",
+    "command-io-final-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1329,8 +1330,9 @@
     ]
   },
   "remaining": [
-    "终端SDK继续样式/颜色仓库、独立Styles/Element/Style/Repository公开扩展对象及通用HTML4/HTML5恢复；默认文本/列表/分隔线/pre/table/code已验不重开。",
-    "Factory的Command容器构造/覆盖、Helper/HelperSet与Artisan剩余锚点仍开放。"
+    "通用 OutputInterface 和程序调用第三参数任意自定义流／分区，继续按 programmatically-executing-commands 验收。",
+    "原生组件动态绑定可覆盖动态入口，类型化行组件覆盖范围与对象借用持续沿用 command-component-factory 契约。",
+    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。"
   ],
   "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes.",
   "list_border_backend": "list and borderT verified through owning generic component renderer with actual li/ul/ol/hr element checks; not an export of standalone dependency Styles.",
