@@ -94,8 +94,9 @@ pub use reranking::{
     RerankingProvider, RerankingResponse, Reranks,
 };
 pub use stores::{
-    ProviderStoreFilePage, ProviderStorePage, Store, StoreFile, StoreFileCounts, StoreFileInfo,
-    StoreFilePage, StoreInfo, StoreOptions, StorePage, StoreProvider, Stores,
+    FakeStoreGateway, ProviderStoreFilePage, ProviderStorePage, RecordedStoreCreation,
+    RecordedStoreDeletion, Store, StoreFile, StoreFileCounts, StoreFileInfo, StoreFilePage,
+    StoreInfo, StoreOptions, StorePage, StoreProvider, Stores,
 };
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,

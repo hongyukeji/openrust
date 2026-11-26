@@ -475,3 +475,5 @@ let ready = store.refresh().await?.is_ready();
 仓库与文件须来自同一连接。`Store::remove(&member, false)` 移除成员并保留原文件。传入 `true` 会继续删除原文件。移除后删除失败时，`DetachedFileDeletionFailed` 会带回原文件 ID 供单独处理。使用 `add_file_id` 前先在应用中校验文件 ID 的归属。
 
 使用 Gemini 时，原文件 ID 可用 `files/policy` 这样的资源名。导入等待索引操作完成，并返回单独的文档 ID。原文件 ID 已知时，`StoreFile::file_id()` 返回 `Some`。Gemini 文档列表省略原文件 ID，因此通过 `remove(&member, false)` 移除列表中的文档。若仓库已创建，但某个初始文件导入失败，`StorePopulationFailed` 会携带已创建的仓库 ID。
+
+用 `Stores::fake([])?` 在内存中测试仓库创建、成员管理和删除。它也启用文件 Fake，便于上传文件、加入仓库并断言原文件是否删除。要保留当前文件连接，可用 `Stores::fake_with_files([], false)?`。可以传入查询名称序列，或用 `fake_with` 设置回调。可用 `assert_created`、`assert_not_created`、`assert_deleted` 和 `assert_not_deleted` 断言仓库操作。

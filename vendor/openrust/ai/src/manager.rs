@@ -40,6 +40,7 @@ pub struct AiManager {
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
+    store_fake: RwLock<Option<Arc<crate::stores::FakeStoreGateway>>>,
     file_fake: RwLock<Option<Arc<crate::files::FakeFileGateway>>>,
     classification_fake: RwLock<Option<Arc<FakeClassificationGateway>>>,
     reranking_fake: RwLock<Option<Arc<FakeRerankingGateway>>>,
@@ -59,6 +60,7 @@ impl AiManager {
             fakes: RwLock::default(),
             embeddings_fake: RwLock::default(),
             file_fake: RwLock::default(),
+            store_fake: RwLock::default(),
             classification_fake: RwLock::default(),
             reranking_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
@@ -371,11 +373,7 @@ impl AiManager {
         let Some(fake) = self.files_fake() else {
             return self.file_provider(name);
         };
-        let name = match self.provider_name_for(name, "default_for_files") {
-            Ok(name) => name,
-            Err(AiError::DefaultNotConfigured) => "fake".into(),
-            Err(error) => return Err(error),
-        };
+        let name = self.fake_provider_name(name, "default_for_files")?;
         Ok(fake.provider(name))
     }
 
@@ -411,6 +409,57 @@ impl AiManager {
         self.text_provider(Some(&name))?
             .store_provider()
             .ok_or(AiError::StoresNotSupported)
+    }
+
+    pub fn fakeable_store_provider(
+        &self,
+        name: Option<&str>,
+    ) -> AiResult<Arc<dyn crate::StoreProvider>> {
+        let Some(fake) = self.stores_fake() else {
+            return self.store_provider(name);
+        };
+        let name = self.fake_provider_name(name, "default_for_stores")?;
+        let files = match self.fakeable_file_provider(Some(&name)) {
+            Ok(provider) => Some(provider),
+            Err(AiError::ProviderNotConfigured | AiError::FilesNotSupported) => None,
+            Err(error) => return Err(error),
+        };
+        Ok(fake.provider(name, files))
+    }
+
+    fn fake_provider_name(&self, name: Option<&str>, default: &'static str) -> AiResult<String> {
+        match self.provider_name_for(name, default) {
+            Ok(name) => Ok(name),
+            Err(AiError::DefaultNotConfigured) => Ok("fake".into()),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn fake_stores(
+        &self,
+        responses: impl IntoIterator<Item = String>,
+    ) -> Arc<crate::stores::FakeStoreGateway> {
+        self.install_store_fake(crate::stores::FakeStoreGateway::new(responses))
+    }
+
+    pub fn fake_stores_with(
+        &self,
+        resolve: impl Fn(&str) -> AiResult<String> + Send + Sync + 'static,
+    ) -> Arc<crate::stores::FakeStoreGateway> {
+        self.install_store_fake(crate::stores::FakeStoreGateway::with(resolve))
+    }
+
+    fn install_store_fake(
+        &self,
+        fake: crate::stores::FakeStoreGateway,
+    ) -> Arc<crate::stores::FakeStoreGateway> {
+        let fake = Arc::new(fake);
+        *self.store_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn stores_fake(&self) -> Option<Arc<crate::stores::FakeStoreGateway>> {
+        self.store_fake.read().unwrap().clone()
     }
 
     pub fn classification_provider(

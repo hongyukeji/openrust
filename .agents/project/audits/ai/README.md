@@ -333,3 +333,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 ## GW-05 固定 DSH 客户端验收
 
 固定 DSH 0.2.3-alpha.2 真实进程已通过四种外部流式协议。真实 DSH Web 验证模型发现、手填、保存、选择及生成。协议和验收条件见[网关验收账本](gateway.md#gw-05-固定-dsh-客户端)。
+
+## AI-06 向量仓库 Fake
+
+`Stores::fake` 连同文件 Fake 装配，覆盖创建、获取、模拟响应回调／序列、成员关系、分页、删除与断言。可选择保留已有文件连接。公开名称和所有权都跟随具名上下文，同一文件可通过同一连接加入和删除。不同仓库、不同连接和不同 Fake 实例之间的成员隔离。
+
+独立 Artisan 验证固定 ID、严格序列、选项和断言。独立 HTTP 验证回调、文件 Fake 联动、成员分页、只操作当前连接与 Fake、删除成员和原文件。OpenAI 向量仓库回归、两个包测试与严格 Clippy、三语构建、十二组浏览器及导航通过。
+
+- [固定 Laravel Stores 入口](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Stores.php) · [固定 Laravel FakeStoreGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/FakeStoreGateway.php)

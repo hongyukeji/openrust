@@ -6,15 +6,119 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     Ai, AiError, AiResult, FileProvider, FileResponse,
-    files::{Deleted, OpenAiFileProvider, OpenAiPage, same_resource_scope, validate_id},
+    files::{Deleted, OpenAiFileProvider, OpenAiPage, validate_id},
     text::validate,
 };
 
+mod fake;
 mod gemini;
+pub use fake::{FakeStoreGateway, RecordedStoreCreation, RecordedStoreDeletion};
 
 pub struct Stores;
 
 impl Stores {
+    pub fn fake(responses: impl IntoIterator<Item = String>) -> AiResult<Arc<FakeStoreGateway>> {
+        Self::fake_with_files(responses, true)
+    }
+
+    pub fn fake_with_files(
+        responses: impl IntoIterator<Item = String>,
+        files: bool,
+    ) -> AiResult<Arc<FakeStoreGateway>> {
+        let manager = Ai::manager()?;
+        if files {
+            manager.fake_files([]);
+        }
+        Ok(manager.fake_stores(responses))
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&str) -> AiResult<String> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeStoreGateway>> {
+        let manager = Ai::manager()?;
+        manager.fake_files([]);
+        Ok(manager.fake_stores_with(resolve))
+    }
+
+    pub fn fake_id(name: &str) -> String {
+        use openrust::support::Str;
+        format!("fake_store_{}", Str::of(name).hash::<md5::Md5>().value())
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::stores_are_faked()
+    }
+
+    #[track_caller]
+    pub fn assert_created(name: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_created(name);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_created_where(matches: impl Fn(&RecordedStoreCreation) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_created_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_created(name: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_created(name);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_created_where(
+        matches: impl Fn(&RecordedStoreCreation) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_created_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_created() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_created();
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_deleted(id: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_deleted(id);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_deleted_where(matches: impl Fn(&RecordedStoreDeletion) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_deleted_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_deleted(id: &str) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_deleted(id);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_deleted_where(
+        matches: impl Fn(&RecordedStoreDeletion) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_deleted_where(matches);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_deleted() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_deleted();
+        Ok(())
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeStoreGateway>> {
+        Ai::manager()?
+            .stores_fake()
+            .ok_or(AiError::FakeNotInstalled)
+    }
+
     pub async fn create(name: &str, provider: Option<&str>) -> AiResult<Store> {
         Self::create_with(name, StoreOptions::default(), provider).await
     }
@@ -27,7 +131,7 @@ impl Stores {
         if name.trim().is_empty() || options.expires_after_days.is_some_and(|days| days == 0) {
             return Err(AiError::InvalidStore);
         }
-        let provider = Ai::store_provider(provider)?;
+        let provider = Ai::fakeable_store_provider(provider)?;
         for id in options.file_ids {
             provider.canonical_id(id)?;
         }
@@ -36,7 +140,7 @@ impl Stores {
     }
 
     pub async fn get(id: &str, provider: Option<&str>) -> AiResult<Store> {
-        let provider = Ai::store_provider(provider)?;
+        let provider = Ai::fakeable_store_provider(provider)?;
         let id = provider.canonical_store_id(id)?;
         let result = provider.get_store(&id).await?;
         verify_resource(&id, &result.id)?;
@@ -44,7 +148,7 @@ impl Stores {
     }
 
     pub async fn delete(id: &str, provider: Option<&str>) -> AiResult<bool> {
-        let provider = Ai::store_provider(provider)?;
+        let provider = Ai::fakeable_store_provider(provider)?;
         let id = provider.canonical_store_id(id)?;
         provider.delete_store(&id).await
     }
@@ -54,7 +158,7 @@ impl Stores {
         limit: u16,
         provider: Option<&str>,
     ) -> AiResult<StorePage> {
-        let provider = Ai::store_provider(provider)?;
+        let provider = Ai::fakeable_store_provider(provider)?;
         validate_page(provider.as_ref(), after, limit)?;
         let result = provider.list_stores(after, limit).await?;
         validate_next_cursor(provider.as_ref(), after, result.next_cursor.as_deref())?;
@@ -183,9 +287,13 @@ impl Store {
     }
 
     pub async fn remove(&self, file: &StoreFile, delete_file: bool) -> AiResult<bool> {
+        let same_scope = self
+            .provider
+            .store_scope()
+            .zip(file.provider.store_scope())
+            .is_some_and(|(store, member)| Arc::ptr_eq(store, member));
         if self.id() != file.info.store_id
-            || (!Arc::ptr_eq(&self.provider, &file.provider)
-                && !same_resource_scope(self.provider.as_ref(), file.provider.as_ref()))
+            || (!Arc::ptr_eq(&self.provider, &file.provider) && !same_scope)
         {
             return Err(AiError::ResourceScopeMismatch);
         }
@@ -279,6 +387,10 @@ pub struct ProviderStoreFilePage {
 }
 
 pub trait StoreProvider: FileProvider {
+    fn store_scope(&self) -> Option<&Arc<()>> {
+        self.resource_scope()
+    }
+
     fn canonical_store_id<'a>(&self, id: &'a str) -> AiResult<Cow<'a, str>> {
         validate_id(id)?;
         Ok(Cow::Borrowed(id))

@@ -475,3 +475,5 @@ let ready = store.refresh().await?.is_ready();
 儲存庫與檔案須來自同一連線。`Store::remove(&member, false)` 移除成員並保留原檔案。傳入 `true` 會繼續刪除原檔案。移除後刪除失敗時，`DetachedFileDeletionFailed` 會傳回原檔案 ID 供個別處理。使用 `add_file_id` 前先在應用程式中查驗檔案 ID 的歸屬。
 
 使用 Gemini 時，原檔 ID 可使用 `files/policy` 這類資源名稱。匯入會等待索引操作完成，並傳回獨立的文件 ID。已知原檔 ID 時，`StoreFile::file_id()` 傳回 `Some`。Gemini 文件清單省略原檔 ID，因此透過 `remove(&member, false)` 移除清單中的文件。若已建立儲存庫，但有初始檔案匯入失敗，`StorePopulationFailed` 會攜帶已建立的儲存庫 ID。
+
+使用 `Stores::fake([])?` 在記憶體中測試儲存庫建立、成員管理與刪除。它也啟用檔案 Fake，便於上傳檔案、加入儲存庫並驗證是否刪除原檔。若要保留目前的檔案連線，可用 `Stores::fake_with_files([], false)?`。可傳入查詢名稱序列，或用 `fake_with` 設定回呼。可用 `assert_created`、`assert_not_created`、`assert_deleted` 和 `assert_not_deleted` 驗證儲存庫操作。

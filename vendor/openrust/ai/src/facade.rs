@@ -99,6 +99,20 @@ impl Ai {
         Self::manager()?.store_provider(name)
     }
 
+    pub fn fakeable_store_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::StoreProvider>> {
+        Self::manager()?.fakeable_store_provider(name)
+    }
+
+    pub fn fake_stores(
+        responses: impl IntoIterator<Item = String>,
+    ) -> AiResult<Arc<crate::FakeStoreGateway>> {
+        Ok(Self::manager()?.fake_stores(responses))
+    }
+
+    pub fn stores_are_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.stores_fake().is_some())
+    }
+
     pub fn fake_classification(
         responses: impl IntoIterator<Item = FakeClassificationResult>,
     ) -> AiResult<Arc<FakeClassificationGateway>> {
