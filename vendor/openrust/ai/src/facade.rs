@@ -22,6 +22,15 @@ impl Ai {
         Self::get_facade_root().map_err(|_| AiError::Unavailable)
     }
 
+    pub fn build(config: serde_json::Value) -> AiResult<Arc<dyn TextProvider>> {
+        Self::manager()?.build(config)
+    }
+
+    pub fn flush_state() -> AiResult<()> {
+        Self::manager()?.flush_state();
+        Ok(())
+    }
+
     pub fn text_provider(name: Option<&str>) -> AiResult<Arc<dyn TextProvider>> {
         Self::manager()?.text_provider(name)
     }

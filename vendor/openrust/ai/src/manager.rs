@@ -4,7 +4,13 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use openrust::{config::Environment, contracts::config::Repository, http::client::Factory};
+use md5::Md5;
+use openrust::{
+    config::Environment,
+    contracts::config::Repository,
+    http::client::Factory,
+    support::{Str, facades::Facade},
+};
 use serde_json::Value;
 
 use crate::{
@@ -12,6 +18,7 @@ use crate::{
     PromptOptions, StreamableAgentResponse, StructuredOutput, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     gemini::GeminiTextProvider,
+    on_demand::{OnDemandProviders, reserved_name},
     text::{OpenAiProtocol, OpenAiTextProvider},
 };
 
@@ -24,6 +31,7 @@ pub struct AiManager {
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
+    on_demand: Arc<OnDemandProviders>,
 }
 
 impl AiManager {
@@ -37,6 +45,7 @@ impl AiManager {
             factories: RwLock::default(),
             providers: Mutex::default(),
             fakes: RwLock::default(),
+            on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
         };
         for (driver, protocol) in [
             ("openai", OpenAiProtocol::Responses),
@@ -74,6 +83,52 @@ impl AiManager {
         manager
     }
 
+    pub(crate) fn with_scope_owner(mut self, owner: Arc<()>) -> Self {
+        self.on_demand = Arc::new(OnDemandProviders::new(owner));
+        self
+    }
+
+    fn on_demand(&self) -> Arc<OnDemandProviders> {
+        OnDemandProviders::get_facade_root()
+            .ok()
+            .filter(|scope| Arc::ptr_eq(&scope.owner, &self.on_demand.owner))
+            .unwrap_or_else(|| self.on_demand.clone())
+    }
+
+    /// 注册当前执行范围可用的按需 Provider。
+    pub fn build(&self, mut config: Value) -> AiResult<Arc<dyn TextProvider>> {
+        let name = match config.get("name") {
+            None | Some(Value::Null) => {
+                let encoded = serde_json::to_string(&config)
+                    .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+                format!("ondemand_{}", Str::of(encoded).hash::<Md5>().value())
+            }
+            Some(Value::String(name)) if !name.trim().is_empty() => name.clone(),
+            _ => return Err(AiError::InvalidConfiguration("providers.<name>.name")),
+        };
+        if reserved_name(&name)
+            || self
+                .config
+                .get("ai.providers")
+                .is_some_and(|providers| providers.get(&name).is_some())
+        {
+            return Err(AiError::ProviderNameTaken);
+        }
+        let fields = config
+            .as_object_mut()
+            .ok_or(AiError::InvalidConfiguration("providers.<name>"))?;
+        fields.insert("name".into(), name.clone().into());
+        fields.insert("ondemand".into(), true.into());
+        let provider = self.create_text_provider(config.clone())?;
+        self.on_demand().insert(name, config, provider.clone());
+        Ok(provider)
+    }
+
+    /// 清除当前执行范围的按需 Provider。
+    pub fn flush_state(&self) {
+        self.on_demand().clear();
+    }
+
     pub fn extend(
         &self,
         driver: impl Into<String>,
@@ -104,6 +159,13 @@ impl AiManager {
     }
 
     pub fn get_instance_config(&self, name: &str) -> AiResult<Value> {
+        if let Some(entry) = self.on_demand().entry(name) {
+            return Ok(entry.config.clone());
+        }
+        self.configured_instance(name)
+    }
+
+    fn configured_instance(&self, name: &str) -> AiResult<Value> {
         let mut profile = self
             .config
             .get("ai.providers")
@@ -126,6 +188,9 @@ impl AiManager {
                 &default
             }
         };
+        if let Some(entry) = self.on_demand().entry(name) {
+            return entry.instance(|config| self.create_text_provider(config));
+        }
         let slot = self
             .providers
             .lock()
@@ -137,7 +202,7 @@ impl AiManager {
         if let Some(provider) = cached.as_ref() {
             return Ok(provider.clone());
         }
-        let provider = self.create_text_provider(self.get_instance_config(name)?)?;
+        let provider = self.create_text_provider(self.configured_instance(name)?)?;
         *cached = Some(provider.clone());
         Ok(provider)
     }
@@ -182,7 +247,11 @@ impl AiManager {
     }
 
     pub fn forget_instance(&self, name: &str) {
-        self.providers.lock().unwrap().remove(name);
+        if let Some(entry) = self.on_demand().entry(name) {
+            entry.forget_instance();
+        } else {
+            self.providers.lock().unwrap().remove(name);
+        }
     }
 
     pub fn fake<A: Agent>(

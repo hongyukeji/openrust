@@ -7,7 +7,7 @@
 | 上游位置及成员 | 公开实现及裁决 |
 |---|---|
 | `src/AiServiceProvider.php` 的包配置、Manager 单例、配置发布 | `AiServiceProvider` 通过已有 Cargo 包发现启用，`Ai::manager` 与容器的 `AiManager` 指向应用级单例。发布标签为 `ai`、`ai-config`。stub 与迁移发布归 AI-03／04。 |
-| `src/AiManager.php` 的 `getDefaultInstance`、`setDefaultInstance`、`getInstanceConfig`、`textProvider`、`textProviderFor` 及继承的实例缓存、扩展 | `AiManager` 对应的 Rust 方法为 `get_default_instance`、`set_default_instance`、`get_instance_config`、`text_provider`、`text_provider_for`、`extend`、`forget_instance`。按具名配置惰性解析，应用缺默认连接时错误留在调用时。尚待核对基本方法完整的消费者覆盖、按需实例 `build`／`flushState`、驱动别名及其他能力和生命周期。 |
+| `src/AiManager.php` 的 `getDefaultInstance`、`setDefaultInstance`、`getInstanceConfig`、`textProvider`、`textProviderFor` 及继承的实例缓存、扩展 | `AiManager` 对应的 Rust 方法为 `get_default_instance`、`set_default_instance`、`get_instance_config`、`text_provider`、`text_provider_for`、`extend`、`forget_instance`。按具名配置惰性解析，应用缺默认连接时错误留在调用时。尚待核对基本方法完整的消费者覆盖、驱动别名及其他能力和生命周期。按需实例在下方单独记录。 |
 | `src/Contracts/Agent.php`、`src/Promptable.php`、`functions.php` 的 `instructions`、`prompt`、`agent()` | `Agent::instructions`、`Agent::prompt` 与 `agent()` 可用于单条文本；Rust 以 `prompt_with` 加 `PromptOptions` 实现 Provider／模型／超时覆盖。普通和显式配置验收见包测试。Trait 的 `provider`／`model` 钩子保留单连接的选择优先级。普通用户和助手历史消息在 AI-02 实现。待补 schema、数组／按需 Provider 选择、附件、事件及其余成员。 |
 | `src/Providers/OpenAiProvider.php`、`OpenAiCompatibleProvider.php` 和对应 Gateway 的非流式请求与响应 | 用 `async-openai` 的请求类型，OpenRust HTTP 工厂实际发送两种协议。由内部投影解析文本及上游用量，非成功状态返回不带上游载荷的错误。用户确认预设不指定默认模型，各上游模型需显式选择。待补高级模型选项、普通与流式终止细节、响应元数据完整契约和供应商实机。 |
 | `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 可从 `Agent::fake` 或 `Ai::fake` 在作用域内对 Agent 类型安装字符串响应序列。已提供记录、匹配、反向、计数和防止非预期请求。待补按需响应闭包、结构化输出、排队和流式等。 |
@@ -95,3 +95,9 @@ HTTP Kernel 与多个实际 TCP 模拟上游验证非流式和流式回退、400
 ## GW-01 官方 Sub2API 进程当前证据
 
 已下载并按 GitHub 发布记录中的 SHA-256 校验 Sub2API `v0.2.25` Darwin ARM64 发行包。二进制自报编译修订 `348997267d756eab5729bb6b78a275a15d18796a`。在回环隔离环境使用 PostgreSQL 18.7、Redis 8、临时管理员及模拟协议上游，已启动并登录。创建分组返回 HTTP `423 ADMIN_COMPLIANCE_ACK_REQUIRED`，要求管理员确认 `v2026.06.10` 的合规承诺。配置真实分组、API Key 和 OpenRust 请求链路仍待经确认的验收实例，当前网关测试是协议模拟。
+
+## AI-01 按需实例生命周期
+
+固定 `AiManager.php::build` 与 `flushState` 已对应为 `Ai::build`、`AiManager::build`、`flush_state`，沿用 `ondemand_` 名称规则和固定 `Lab` 保留名。状态置于框架容器当前请求／命令作用域。按需配置可用名字解析并刷新实例，构造失败保留原先有效实例。清理只针对当前作用域的按需连接。已有常驻配置走应用级实例缓存。
+
+HTTP Kernel 及本地协议上游覆盖具名与自动命名、同名重建、失败保持、普通实例保留、实际提示和后续请求查找失败。独立 Artisan 通过应用注册的命令验证按需查找与清理。Worker 等生命周期的独立实测归 AI-04。

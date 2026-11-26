@@ -24,6 +24,7 @@ mod gemini;
 mod manager;
 mod messages;
 mod models;
+mod on_demand;
 mod streaming;
 mod structured;
 mod text;
@@ -57,12 +58,22 @@ impl ServiceProvider for AiServiceProvider {
                     self.merge_config_from(app, default_config(&environment)?, "ai")?;
                 }
             }
-            app.container().singleton(|container| {
-                Ok(Arc::new(AiManager::with_http(
-                    container.get("config")?,
-                    container.make()?,
-                    container.make()?,
+            let owner = Arc::new(());
+            let scope_owner = owner.clone();
+            app.container().scoped(move |_| {
+                Ok(Arc::new(on_demand::OnDemandProviders::new(
+                    scope_owner.clone(),
                 )))
+            })?;
+            app.container().singleton(move |container| {
+                Ok(Arc::new(
+                    AiManager::with_http(
+                        container.get("config")?,
+                        container.make()?,
+                        container.make()?,
+                    )
+                    .with_scope_owner(owner.clone()),
+                ))
             })?;
             Ok(())
         })
