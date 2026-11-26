@@ -2,6 +2,27 @@
 
 集中列出已发现的未完成事项及条件性后续；已完成范围和验收边界见[当前交接](current.md)及对应主题记录。本页不是全框架审计已经结束的声明，接手时仍须按最新源码和逐项账本核对。
 
+## 双机接续顺序（2026-11-26）
+
+本轮暂停开发。恢复后，开发机按下表接续源码和测试夹具，验收机按下一表接收固定提交。两台机器可并行处理不同批次，同一候选由一台机器维护。交接时记录提交 SHA、目标或 feature、测试命令、工具链和服务版本。尚未提交的工作区改动与 `target/tmp/` 候选只在当前机器可用，须先按原交接记录恢复候选并交接，再由另一台机器验收。验收失败回原批次修正，修正后用新 SHA 复验。
+
+### 开发顺序
+
+| 顺序 | 开发机任务 | 可并行和前置条件 |
+| --- | --- | --- |
+| 1 | 恢复 [Webhook 出站恢复事件](#webhook-recovery-handoff)与[调度作业诊断候选](#observability-handoff)，核对差异、修复夹具或实现缺口，分批交接。 | 两项可并行。现有候选优先收口，先核对已提交基线和各自文件范围。 |
+| 2 | 按 [Artisan 与 Controllers 交接](#artisan-controllers-handoff)恢复可选 Tinker，再接续 Controllers 的批量单例、URI 动词及剩余锚点。 | Tinker 与第 1 项可并行。Controllers 接续保留的上游对照与源码快照。 |
+| 3 | 按各自账本继续 Webhook、内容审核、观测扩展和全仓 Laravel 对齐。Webhook 可靠接收接缝是内容审核相关回调工作的前置。 | Pulse、Telescope 逐项核对剩余契约。可独立交付的组件分批推进，公共接口取决于上游裁决及共享模块的已固定提交。 |
+
+### 验收顺序
+
+| 顺序 | 验收机任务 | 输入和通过条件 |
+| --- | --- | --- |
+| 1 | 从已提交源码并行恢复平台专项。 | 依冻结 SHA 跑较新 Linux ARM64 生产制品、Linux 调度用户矩阵。Docker／Lima 就绪后使用原交接命令，分别记录实际架构、HTTP／Artisan／Worker 与平台结果。 |
+| 2 | 验收开发机交接的各批候选，到一批验一批。 | Webhook 跑恢复、旧租约和双 Scheduler，再补 PostgreSQL／MySQL 与 Redis。Telescope 跑调度诊断、PostgreSQL／MySQL 和严格 Clippy。Tinker 跑真实 PTY、单次求值、默认关闭和部署烟测。Controllers 跑上游对照、真实 TCP、`route:list` 和三语。细项与命令见各自交接。 |
+| 3 | 选定最终交付快照后，执行 [REL-V01](#平台与发布条件)及完整平台矩阵。 | 固定源码、依赖、feature 与制品，运行组合回归、迁移、启动关停及许可核对。已验旧制品的结果只适用于对应快照。 |
+| 4 | [真实供应商与部署验收](#external-acceptance)。 | 授权账号、实际端点和平台齐备后按各条执行。BCP 47 实际迁移由目标环境部署者按备份和冲突审阅流程独立推进。发布须完成最终分发批准。 |
+
 ## 待认领的缺口
 
 2026-11-26 核对本机 Codex 对话后，以下范围尚未确认有对话负责。认领前先核对当前交接、最新源码和相关对话，避免重复进行已验收或正在执行的批次。认领后在对应条目记录对话名称、承接范围和外部条件，完成后补验收证据。
@@ -88,6 +109,8 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 - **路由编译原型后续评估（仅在继续推进或评估生产接入时）**：原型优化本轮目标已通过，正式Router未替换；[同基线三版记录](audits/route-registration-allocations/compiled-prototype/refinement/README.md)仍保留退化：万条overlap靠后静态优先命中22.08→77.5ns、万条static首次编译573.79→851.88µs、128条static完整注册相对基线增加13.02%。后续若推进，先定位这些代价，再补真实业务命中权重、分散前缀、多种前缀长度／根动态密集、多方法／域名、并发、旧路由缓存冷热、跨平台与长期RSS测量；保持注册／重复覆盖、方法／Allow、约束、默认值、绑定、Unicode／解码、隔离及缓存格式。不得把旧固定负载的零预热分配当成整个HTTP零分配，或直接据此更换生产Router。
 - **crates.io等注册表发布（仅在另行确定发布方式后）**：[统一版本管理](audits/workspace-versions/README.md)已完成，21包继承、业务版本独立、三语自动片段及叶子包归一化／独立构建已验；不是待重做的版本同步任务。当前publish=false是保留策略，现有path依赖没有全部声明注册表版本约束，也未验证20个官方包逐包独立发布。若以后选择注册表分发，另行核对依赖版本来源／发布顺序、归档包含文件与许可、工作区元数据归一化及独立消费者，再按当次授权处理；不能仅打开publish或搬出成员目录就称可发布，不要重复手填散落版本号。
 
+<a id="external-acceptance"></a>
+
 ## 真实服务验收（等待条件，不纳入本轮本地收尾）
 
 2026-11-21 用户确认真实服务验收目前无法执行，待条件具备后继续。以下项目均未验收；本地协议模拟、测试容器或浏览器虚拟设备不能替代实际目标结果。每项使用授权的隔离账号和测试数据，记录运行版本、失败恢复及资源收尾。
@@ -107,3 +130,32 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 - [ ] **REL-V01 最终交付快照与项目生产回归（待选定交付组合后验收）**：先锁定具体提交、依赖、目标平台和实际业务依赖，再对该组合执行相关全量回归及业务端到端验收。[2026-11-23全量记录](audits/project-validation-2026-11-23.md)对应固定提交的21包403目标，不能外推为随后所有修改或当前未提交工作区都通过。按项目实际数据库／缓存／Worker组合验证HTTP与独立Artisan、迁移与缓存、服务重启／正常关停及失败恢复，记录实测版本和未验边界。容量压测按[暂缓范围](#待认领的缺口)处理。与真实供应商／Windows／最终分发批准配合，不把模拟阶段闭合、功能测试数量或开发版本号当成生产发行结论，也不要求为不使用的可选能力重复造实现。
 - [ ] **最终 Windows 矩阵**。Windows 11 ARM64 的 Parallels 共享文件系统曾在生成 Rust archive 时返回 `os error 87`。使用镜像放在项目临时目录的原生 NTFS 验收盘及 ARM64 Clang、CMake 后，Rust 1.94.0 已完成三个观测扩展的定向构建与运行验收。最终交付快照仍需核对 Windows ARM64 和 x64、真实终端、服务启动与关停、实际 Docker Desktop／Compose／Buildx 后端。 [扩展平台记录](audits/extension-parity.md)
 - [ ] **最终分发批准**：确定发布版本与目标硬件、复核实际交付物的依赖许可和升级说明，完成用户验收后，再按明确授权改版本、打 tag、推送、创建 Release 或部署。当前 `0.0.0` 仍为开发版本，本地验收不代表已发布。
+
+<a id="webhook-recovery-handoff"></a>
+
+## 顺序 2–10 交接（Webhook 恢复事件与组合制品验收）
+
+- [ ] **本地剩余开发**。Webhook 出站恢复的 `WebhookCallUnknownEvent` 已起草。Worker 重新领取和 Artisan 收尾将未完成尝试持久记为 `unknown` 后通知监听器，正常结果事件和查询维持既有语义。通知为进程内观察入口，持久状态以尝试查询为准。修改归本批，目前均未提交。文件为 `vendor/openrust/webhook-server/src/{delivery,delivery_store,events,recovery}.rs`、`tests/support/webhooks/outbound.rs`、`tests/webhooks_send_acceptance.py`、`docs/{en,zh-Hans,zh-Hant}/packages/webhook-server.md`。先验证后提交，保留其他工作区改动。
+- [ ] **Webhook 恢复事件验收**。隔离快照基于 `7ed3f823a354af2d444c7f9d6747b18e9ea07542`，叠加上述修改。Rust 格式检查、Python 语法检查和三语 VitePress 构建通过。第一次编译的变量遮蔽已修正，重跑编译到测试应用时因把夹具登记成 `[[bin]]` 而无法访问根清单里已有的 `axum` dev-dependency。恢复后在隔离清单将 `tests/support/webhooks/app.rs` 登记为 `[[example]]`，使用 `cargo +1.94.0 build --locked --offline --features webhook-client,webhook-server --example webhook-unknown-fixture`。经项目构建守卫分别运行 `FIXTURE_SEND_SCHEDULE=1 python3 -B tests/webhooks_send_acceptance.py <夹具>` 和无该变量的同一命令。核对 HTTP、Artisan、独立 Worker、监听器读到已提交状态、旧租约完成被拒及双 Scheduler 只通知一次。再复跑 PostgreSQL／MySQL 及 Redis 队列组合，执行扩展包、测试应用的严格 Clippy 和扩展包测试。日志与隔离快照在 `target/tmp/goal-webhook-unknown-observation/`，构建产物由汇总工作流统一清理。
+- [ ] **较新 Linux 生产 Dockerfile 验收**。冻结源码 `6a7874a3cb04a5319a9fdfa98d28a82d328a3f26` 的首次 ARM64 构建触及 32 GB 停线，续跑因 Docker 引擎持续超时安全结束，尚无该快照的运行镜像。引擎恢复且有足够空间后，经构建守卫续接 `target/tmp/goal-extension-linux-current-release/run.sh`，运行出包、11 份许可逐字节核对、58 项 SQLite 迁移、缓存前后 HTTP、Reverb、独立 Artisan Worker 和 OTLP。两种较早冻结 Linux 镜像、两份 Windows ZIP 和 macOS ARM64 新归档的已验结果在[发行验收记录](audits/extension-release-licenses.md)，不得外推为该 Linux 构建已验。
+- [ ] **实机与外部条件**。原生 Linux x86_64 需已核实的隔离主机登录及非交互 Docker 权限，原生 Windows x64／Docker Desktop、macOS Developer ID 与公证、生产 TLS、托管 SQS 和真实审核／翻译／短信／支付／订阅／New Relic 环境按[顺序 2–10 验收账本](audits/extension-goal-gates.md)分项推进。先确认测试身份、范围、回调和费用授权，再核验真实服务。协议模拟和虚机证据按各自范围保留。
+- **已提交及交接状态**。版权打包 `6db5a9be0`，Windows ZIP 实测 `146f7e907`，两种 Linux 冻结候选复验 `fae3a31e1`，macOS 冷构建 `6a7874a3c`，环境就绪复查 `f02caf1b6`，较新 Linux 停点 `fb9ced397`。本工作流的构建与验收均已退出。未推送。未验改动、日志与构建产物留给汇总工作流，顺序 2–10 未闭合。
+
+<a id="observability-handoff"></a>
+
+## 2026-11-26 观测扩展对齐暂停交接
+
+- **已本地提交。** Telescope 的 Artisan 仓储恢复 `5a51f8358`、历史排除键 `796f6b595`、调度用户和诊断载荷 `3097087b1`。Pulse 的卡片筛选链接 `071ea533b` 经固定 Livewire 3.8.12／4.4.10 和原生桌面／移动验收。Horizon 的集群实现 `12c1459b0`、Linux 自动选主证据 `352a6be6b`／`2cbc59c43`、Linux Supervisor 排空 `3227965d2` 已提交。三扩展同批默认回归 159 项通过。系统用户调度已有 macOS 真正切换到 `nobody`、Redis 锁释放、三库字段验证和 Windows 11 ARM64 上 AMD64 测试程序的三项证据。详细见[对齐账本](audits/extension-parity.md)。
+- **未提交开发和验收。** 保留 `vendor/openrust/framework/src/console/scheduling/event.rs` 与 `vendor/openrust/telescope/tests/provider.rs` 两处本批改动。基线复现了调度作业缺默认描述、`command` 错填任务名。候选只改完成事件的诊断字段，沿用作业展示名和显式标题，保持调度及互斥键。SQLite 实际 Artisan 跑通两项同步作业，`telescope:show --json` 通过，调度、时钟及 Provider 回归 92 项通过。先核对这两份差异，再在隔离快照执行 `cargo test --locked -p openrust-telescope --test provider scheduled_jobs_report_callback_and_display_description -- --exact`，并按项目夹具对 PostgreSQL 18／MySQL 8.4 各复验同一用例。严格 Clippy 已按停工要求中止，恢复后执行 `cargo clippy --locked -p openrust-framework -p openrust-telescope --lib --test provider -- -D warnings` 后单独提交。日志位于 `target/tmp/observability-parity/horizon-cluster-reference/telescope-scheduled-jobs-{baseline,fixed,clippy}.log`。
+- **Linux 与发布验收。** Docker Engine 在 Rust 调度身份测试期间连续超时。隔离 Debian ARM64 Lima 实例已启动至可执行 `sudo -n -u nobody -- /usr/bin/id -un`，本批 Rust Linux 进程矩阵尚未执行，停工时已关闭实例。恢复后任选已恢复的 Docker 或项目内 `target/tmp/ov-vz` 的 Lima 实例 `ovs`，待依赖就绪后用 Rust 1.94.0 运行 `/acceptance-input/run-scheduler-vz.sh`，验证命令与文件身份、后台钩子、Redis 8.10.3 互斥锁、命令环境及实际 Telescope 持久化。保留项目内镜像和启动日志。Docker 旧构建的宿主进程已退出，Engine 恢复后以全名核对本批旧容器 `openrust-telescope-scheduled-user-8018b2443e4bbd8d-build` 的残留状态。Horizon 集群的目标 Release、实际 Redis 端点、物理 x86_64 及最终业务部署矩阵继续按 REL-V01 验收。Pulse 剩余 Recorder／Livewire、Telescope Watcher 剩余契约仍在各自审计。当前证据不足以标记三个扩展完整对等或生产就绪。
+- **交接状态。** 本批宿主构建、定向验收和 Lima 已停止。保留源码、隔离快照、日志、独立制品以及未提交改动；后续推送和编译产物清理由汇总对话统一执行。
+
+<a id="artisan-controllers-handoff"></a>
+
+## 固定教程逐章对齐交接（2026-11-26，Artisan REPL 与 Controllers）
+
+- **已收口并本地提交**。Artisan 核心 43 节见[逐节对账](audits/artisan-tutorial/section-map.json)，`212a55c2c` 记录可选 REPL 单列。Controllers 已验 17/30 节，有 1 节部分通过、12 节待验。最近的独立提交为 `9dff257d9`、`80ab58e7e`、`8f0768cf8`、`53502b042`、`6ed6e97e7`、`f94a29999`、`6d80dbb23`、`02dad56ed`。以[控制器账本](audits/controllers-tutorial/section-map.json)确认边界，不重复开发已闭合入口。
+- **恢复时优先完成可选 Tinker**。保留已随 `64c37b98f` 提交的[接续计划](plans/tinker-native-repl.md)和 `target/tmp/artisan-tutorial-20261125/tinker-integration/` 源码快照。该快照的 `Cargo.toml`、`Cargo.lock`、`vendor/openrust/tinker/`、三语 Artisan 正文及 `docs/tests/check_artisan_tutorial.mjs` 属于此单元。它包含最后调整的 IDE 求值退出码和本地 CLI 限制。另保留同级 `tinker-artisan-acceptance.py`、证据日志和 `tinker-integration-base.txt`，以及 `target/tmp/logging-tutorial-20261124/source/` 已验证交互消费者的隔离副本。两处快照切勿全量覆盖活跃工作区。
+- **Tinker 已有证据与余项**。固定 Evcxr 0.21.1、Rust 1.94.0、macOS ARM64 的真实 `./artisan tinker` 通过了预载、交互持久状态、三语使用示例、容器与 Facade 同一实例、命令允许清单、别名排除后恢复及正常退出清理。SQLite 独立审计恰好一次 INSERT 和一次 UPDATE。启用扩展的实际独立 Artisan、`/up`、首页和 SIGTERM 通过。三语站点及 12 组浏览器检查通过。相关日志为 `tinker-artisan-live.log`、`tinker-http-smoke-enabled.log`、`tinker-artisan-docs-exact.log`。固定引擎的小型 PTY 与 IDE 状态反例通过，不能代替完整应用验收。完整应用 PTY 和最后版单次求值按停止指令取消，默认关闭与独立部署调用仍待验。恢复时用 `tests/build_guard.py` 包装 `tinker-artisan-acceptance.py --source <项目内隔离副本> --engine <项目内 Evcxr 0.21.1> --phase terminal|execute|disabled`，核对真实 Ctrl+C、panic 后可用、临时目录回收、单次求值成功或失败的退出码，以及格式化 panic 前的数据库写入仅一次。再跑最新候选 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --features tinker --locked -- -D warnings` 和默认部署烟测。通过后更新三语、Artisan 五节账本并单独本地提交。Linux／Windows 动态装载和真机终端随发布核对。既有 `tinker-integration-gates.log` 早于最后两处命令调整。
+- **随后继续 Controllers**。保留 `target/tmp/artisan-tutorial-20261125/controller-singleton-source/` 中的 `routing/{router,resource}.rs`、`support/facades.rs`、`controller_singleton_routes.rs`、`singleton-routes-oracle.json`、三语 Controllers 正文及浏览器检查。这批 Router／Facade 批量单例与资源 URI 动词为未验候选。固定框架的真实 PHP Router 已生成 41 条注册记录，日志旁的 `controllers-singletons-native-routes.json` 可复查。先在最新提交基线运行 `cargo test -p openrust-framework --locked --test controller_singleton_routes`，核对 Router、Facade、真实 TCP 和 Artisan `route:list`，再完成三语正式示例、站点及既有资源路由回归。此后核对普通控制器、依赖注入、中间件和授权属性，以及默认嵌套关系推断。依赖注入的固定上游 POST／PUT 返回向量已保存在 `controller-dependency-injection-reference.json`。
+- **安全接手**。本次停手只追加此条账本。两批候选均未暂存、未提交。候选源码、独立测试脚本、日志和引擎证据须在清理时保留，可清理归属已确认的编译产物。本对话的终端、求值、Cargo 守卫和计时已停止。推送及编译产物清理由汇总对话统一接手。
