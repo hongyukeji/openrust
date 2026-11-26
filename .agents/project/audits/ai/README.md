@@ -645,7 +645,7 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 真实 Artisan 与 HTTP 通过隔离协议服务核对普通和结构化 Responses、Chat Completions 空引文、Unicode 分段、空缺标题、非法 URL 和文件注解、未知注解结构、实际模型以及计数。文本、工具、UI、会话回归、SDK 严格 Clippy 和三语站点通过。缓冲 Responses 工具调用的顶层 `meta` 取终步，与固定基线 `RunContext::recordedResponse` 一致。Artisan 与 HTTP 核对首轮与终轮各自带引文，终步模型和引文正确、结果回传一次、引文不随工具结果回传上游，计数为 18 输入和 6 输出 Token。仓库回归、SDK 严格 Clippy 和三语文档通过。待补各步公开元数据与其他协议引文。
 
-非流式 Anthropic Messages 从网页搜索引文和成功网页抓取中提取 URL，Gemini GenerateContent 从所选候选的 Grounding 网页块提取 URL。两者保留首次出现的 URL 及公开标题。真实 HTTP 与 Artisan 覆盖普通和两步工具调用、重复 URL、非法 URL、其他候选和非网页来源的隔离、正常用量，以及私有签名／抓取正文保留在协议所需范围。仓库工具回归、SDK 严格 Clippy 和三语站点通过。原生 Messages 与 Gemini 的流式引文待验。
+非流式 Anthropic Messages 从网页搜索引文和成功网页抓取中提取 URL，Gemini GenerateContent 从所选候选的 Grounding 网页块提取 URL。两者保留首次出现的 URL 及公开标题。真实 HTTP 与 Artisan 覆盖普通和两步工具调用、重复 URL、非法 URL、其他候选和非网页来源的隔离、正常用量，以及私有签名／抓取正文保留在协议所需范围。仓库工具回归、SDK 严格 Clippy 和三语站点通过。原生 Messages 流也已验收。实际 Artisan 与 HTTP 覆盖普通和两步工具调用、网页引文增量、抓取来源、同一步去重、文本结束后的消息关联以及原生 SSE、Vercel 和 AG-UI 三种输出。完成回调可读取公开引文，续轮保留 Anthropic 所需的原始引用字段。两步用量为 15 输入和 8 输出 Token。文本、工具和 UI 回归、SDK 严格 Clippy、三语站点均通过。Gemini 流式引文待验。
 
 - [Anthropic Web Search](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool) · [Anthropic Web Fetch](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-fetch-tool) · [Gemini Grounding](https://ai.google.dev/gemini-api/docs/google-search)
 

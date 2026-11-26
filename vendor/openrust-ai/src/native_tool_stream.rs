@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eventsource_stream::{Event, EventStreamError, Eventsource};
 use futures_util::StreamExt;
 use openrust::http::client::{Error, ResponseStream};
@@ -13,6 +15,7 @@ pub(crate) fn anthropic(upstream: ResponseStream) -> StepEventStream {
         let mut message = Value::Null;
         let mut contents = Vec::new();
         let mut active = None::<AnthropicBlock>;
+        let mut cited_urls = HashSet::new();
         while let Some(frame) = source.next().await {
             let data = decode(frame)?;
             match data["type"].as_str() {
@@ -76,6 +79,11 @@ pub(crate) fn anthropic(upstream: ResponseStream) -> StepEventStream {
                     return;
                 }
                 _ => Err(AiError::InvalidResponse)?,
+            }
+            for citation in anthropic::stream_citations(&data) {
+                if cited_urls.insert(citation.url.clone()) {
+                    yield StepEvent::Citation { part: None, citation };
+                }
             }
         }
         Err(AiError::InvalidResponse)?;

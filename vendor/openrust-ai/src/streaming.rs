@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     pin::Pin,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -278,6 +278,7 @@ impl StreamableAgentResponse {
             let mut source = stream.eventsource();
             let mut messages = TextMessages::default();
             let mut reasoning = TextMessages::default();
+            let mut cited_urls = HashSet::new();
             let mut started = false;
             let mut reason = None;
             let mut usage = Usage::default();
@@ -299,8 +300,10 @@ impl StreamableAgentResponse {
                         yield event(&invocation, data);
                     }
                 }
-                if let Some(citation) = part.citation {
-                    yield event(&invocation, messages.citation(part.output_part.as_ref(), citation));
+                for citation in part.citations {
+                    if protocol != TextEndpoint::Messages || cited_urls.insert(citation.url.clone()) {
+                        yield event(&invocation, messages.citation(part.output_part.as_ref(), citation));
+                    }
                 }
                 if let Some(part) = part.reasoning {
                     for data in reasoning.reasoning(part).into_iter().flatten() {
@@ -371,6 +374,7 @@ pub(crate) fn output_part(value: &Value) -> Option<OutputPart> {
 pub(crate) struct TextMessages {
     indexed: BTreeMap<OutputPart, TextMessage>,
     anonymous: Option<TextMessage>,
+    last_anonymous_id: Option<String>,
 }
 
 struct TextMessage {
@@ -406,7 +410,14 @@ impl TextMessages {
         part: Option<&OutputPart>,
         citation: UrlCitation,
     ) -> StreamEventData {
-        let message_id = self.get(part).id.clone();
+        let message_id = if part.is_none()
+            && self.anonymous.is_none()
+            && let Some(previous) = &self.last_anonymous_id
+        {
+            previous.clone()
+        } else {
+            self.get(part).id.clone()
+        };
         StreamEventData::Citation {
             message_id,
             citation,
@@ -430,11 +441,14 @@ impl TextMessages {
                 let message = self.indexed.get_mut(part)?;
                 std::mem::take(&mut message.open).then(|| message.id.clone())
             }
-            None => self
-                .anonymous
-                .take()
-                .filter(|message| message.open)
-                .map(|message| message.id),
+            None => {
+                if !self.anonymous.as_ref().is_some_and(|message| message.open) {
+                    return None;
+                }
+                let message = self.anonymous.take()?;
+                self.last_anonymous_id = Some(message.id.clone());
+                Some(message.id)
+            }
         }
     }
 
@@ -452,7 +466,7 @@ struct Part {
     model: Option<String>,
     delta: Option<String>,
     output_part: Option<OutputPart>,
-    citation: Option<UrlCitation>,
+    citations: Vec<UrlCitation>,
     reasoning: Option<ReasoningPart>,
     usage: Option<Usage>,
     reason: Option<String>,
@@ -508,7 +522,9 @@ impl TextEndpoint {
                     }),
                     Some("response.output_text.annotation.added") => Ok(Part {
                         output_part,
-                        citation: UrlCitation::from_annotation(&value["annotation"]),
+                        citations: UrlCitation::from_annotation(&value["annotation"])
+                            .into_iter()
+                            .collect(),
                         ..Default::default()
                     }),
                     Some("response.refusal.delta" | "response.refusal.done") => {
@@ -558,6 +574,7 @@ impl TextEndpoint {
                         None => None,
                     },
                     usage: usage.map(Usage::from_anthropic),
+                    citations: crate::anthropic::stream_citations(&value),
                     end_message: value["type"] == "content_block_stop",
                     done: value["type"] == "message_stop",
                     ..Default::default()

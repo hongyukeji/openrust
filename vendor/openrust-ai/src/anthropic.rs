@@ -440,3 +440,17 @@ fn citations(blocks: &[Value]) -> Vec<UrlCitation> {
     }
     UrlCitation::unique_sources(sources)
 }
+
+pub(crate) fn stream_citations(frame: &Value) -> Vec<UrlCitation> {
+    match frame["type"].as_str() {
+        Some("content_block_start") => citations(std::slice::from_ref(&frame["content_block"])),
+        Some("content_block_delta") if frame["delta"]["type"] == "citations_delta" => {
+            let citation = &frame["delta"]["citation"];
+            if citation["type"] == "web_search_result_location" {
+                return UrlCitation::unique_sources([(&citation["url"], &citation["title"])]);
+            }
+            Vec::new()
+        }
+        _ => Vec::new(),
+    }
+}
