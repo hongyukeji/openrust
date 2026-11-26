@@ -30,6 +30,14 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "OPENAI_API_KEY",
         "OPENAI_MODEL",
     )?;
+    let mut groq = provider(
+        "groq",
+        "GROQ_URL",
+        "https://api.groq.com/openai/v1",
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+    )?;
+    groq["models"]["transcription"] = json!({"default": env.get_utf8("GROQ_TRANSCRIPTION_MODEL")?});
     let mut mistral = provider(
         "mistral",
         "MISTRAL_URL",
@@ -179,6 +187,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
                 },
             },
             "mistral": mistral,
+            "groq": groq,
             "azure": azure,
             "openrouter": openrouter,
             "cohere": reranker("cohere", "COHERE_URL", "https://api.cohere.com/v2", "COHERE_API_KEY", "COHERE_RERANK_MODEL")?,

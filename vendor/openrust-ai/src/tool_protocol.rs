@@ -119,6 +119,27 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
     })
 }
 
+pub(crate) fn groq_step(data: Value) -> AiResult<StepResponse> {
+    if !data["error"].is_null() {
+        return Err(AiError::InvalidResponse);
+    }
+    let reasoning = data["choices"][0]["message"]["reasoning"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    let usage = groq_usage(&data);
+    let mut response = chat_step(data)?;
+    response.reasoning = reasoning;
+    response.usage = usage;
+    Ok(response)
+}
+
+pub(crate) fn groq_usage(data: &Value) -> Usage {
+    let mut usage = Usage::from_openai(&data["x_groq"]["usage"]);
+    usage.update(Usage::from_openai(&data["usage"]));
+    usage
+}
+
 pub(crate) fn mistral_step(mut data: Value) -> AiResult<StepResponse> {
     if data["object"] == "error" || !data["error"].is_null() {
         return Err(AiError::InvalidResponse);

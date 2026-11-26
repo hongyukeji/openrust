@@ -398,6 +398,7 @@ pub struct TranscriptionResponse {
 pub(crate) enum TranscriptionProtocol {
     OpenAi,
     Mistral,
+    Groq,
 }
 
 pub(crate) struct HttpTranscriptionProvider {
@@ -421,6 +422,10 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
         Box::pin(async move {
             prompt.validate()?;
             let mistral = matches!(self.protocol, TranscriptionProtocol::Mistral);
+            let groq = matches!(self.protocol, TranscriptionProtocol::Groq);
+            if groq && prompt.diarize {
+                return Err(AiError::InvalidConfiguration("transcription.diarize"));
+            }
             let body = if mistral {
                 let mut fields = vec![json!({"name":"model","contents":prompt.model})];
                 if prompt.diarize {
@@ -431,7 +436,7 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                 }
                 Value::Array(fields)
             } else {
-                let mut fields = json!({"model":prompt.model,"response_format":"json"});
+                let mut fields = json!({"model":prompt.model,"response_format":if groq {"verbose_json"} else {"json"}});
                 if let Some(language) = prompt.language {
                     fields["language"] = language.into();
                 }
@@ -484,6 +489,7 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                     usage["prompt_tokens_details"]["audio_tokens"].as_u64(),
                     usage["prompt_audio_seconds"].as_f64(),
                 ),
+                TranscriptionProtocol::Groq => (Usage::default(), None, data["duration"].as_f64()),
                 TranscriptionProtocol::OpenAi => (
                     Usage {
                         prompt_tokens: usage["input_tokens"].as_u64(),

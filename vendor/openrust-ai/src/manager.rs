@@ -89,6 +89,7 @@ impl AiManager {
             ("openai", OpenAiProtocol::Responses),
             ("openai-compatible", OpenAiProtocol::ChatCompletions),
             ("mistral", OpenAiProtocol::Mistral),
+            ("groq", OpenAiProtocol::Groq),
         ] {
             let environment = environment.clone();
             let http = http.clone();

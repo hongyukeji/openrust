@@ -12,11 +12,16 @@ use crate::{
     tool_protocol,
 };
 
-pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> StepEventStream {
+pub(crate) fn openai(
+    protocol: OpenAiProtocol,
+    upstream: ResponseStream,
+    structured: bool,
+) -> StepEventStream {
     Box::pin(async_stream::try_stream! {
         let mut source = upstream.eventsource();
         let mut chat = Chat::default();
         let mistral = matches!(protocol, OpenAiProtocol::Mistral);
+        let groq = matches!(protocol, OpenAiProtocol::Groq);
         let mut thinking = String::new();
         let mut reasoning_open = false;
         let mut reasoning_id = 0;
@@ -25,11 +30,18 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                 EventStreamError::Transport(error) => transport_error(error),
                 _ => AiError::InvalidResponse,
             })?;
-            if frame.data == "[DONE]" && matches!(protocol, OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral) {
+            if frame.data == "[DONE]" && !matches!(protocol, OpenAiProtocol::Responses) {
                 if reasoning_open {
                     yield StepEvent::Reasoning(ReasoningPart::End { part: ("thinking".into(), reasoning_id), text: None });
                 }
                 let (mut response, reason) = chat.finish()?;
+                if groq && structured && response.tool_calls.is_empty()
+                    && serde_json::from_str::<serde_json::Map<String, Value>>(
+                        response.text.as_deref().unwrap_or_default(),
+                    ).is_err()
+                {
+                    Err(AiError::InvalidStructuredResponse)?;
+                }
                 response.reasoning = thinking;
                 yield StepEvent::Finished { response: Box::new(response), reason };
                 return;
@@ -39,11 +51,14 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                 Err(AiError::InvalidResponse)?;
             }
             match protocol {
-                OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
-                    if mistral
+                OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {
+                    if groq {
+                        chat.usage.update(tool_protocol::groq_usage(&data));
+                    }
+                    if (mistral || groq)
                         && let Some(choice) = data.get_mut("choices").and_then(|choices| choices.get_mut(0))
                     {
-                        if let Some(reason) = choice.get_mut("finish_reason").filter(|reason| *reason == "model_length") {
+                        if mistral && let Some(reason) = choice.get_mut("finish_reason").filter(|reason| *reason == "model_length") {
                             *reason = "length".into();
                         }
                         let delta = choice.get_mut("delta").and_then(Value::as_object_mut);
@@ -51,7 +66,14 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                             chat.consume(&data)?;
                             continue;
                         };
-                        let (text, thought) = tool_protocol::mistral_content(delta.get("content").unwrap_or(&Value::Null));
+                        let (text, thought) = if mistral {
+                            tool_protocol::mistral_content(delta.get("content").unwrap_or(&Value::Null))
+                        } else {
+                            (
+                                delta.get("content").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                                delta.get("reasoning").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                            )
+                        };
                         if !thought.is_empty() {
                             thinking.push_str(&thought);
                             reasoning_open = true;
@@ -65,7 +87,7 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                             reasoning_id += 1;
                             reasoning_open = false;
                         }
-                        if let Some(content) = delta.get_mut("content").filter(|content| content.is_array()) {
+                        if mistral && let Some(content) = delta.get_mut("content").filter(|content| content.is_array()) {
                             *content = text.into();
                         }
                     }

@@ -359,13 +359,14 @@ impl TextEndpoint {
 pub(crate) enum OpenAiProtocol {
     ChatCompletions,
     Mistral,
+    Groq,
     Responses,
 }
 
 impl OpenAiProtocol {
     fn endpoint(self) -> TextEndpoint {
         match self {
-            Self::ChatCompletions | Self::Mistral => TextEndpoint::ChatCompletions,
+            Self::ChatCompletions | Self::Mistral | Self::Groq => TextEndpoint::ChatCompletions,
             Self::Responses => TextEndpoint::Responses,
         }
     }
@@ -434,7 +435,8 @@ impl OpenAiTextProvider {
                         })
                     }
                     Attachment::Document(document)
-                        if document.is_pdf()
+                        if (document.is_pdf()
+                            && !matches!(self.protocol, OpenAiProtocol::Groq))
                             || matches!(self.protocol, OpenAiProtocol::Mistral) =>
                     {
                         File(ChatCompletionRequestMessageContentPartFile {
@@ -536,11 +538,15 @@ impl OpenAiTextProvider {
                 }
             }),
             stream: stream.then_some(true),
-            stream_options: (stream && !matches!(self.protocol, OpenAiProtocol::Mistral))
-                .then_some(ChatCompletionStreamOptions {
-                    include_usage: Some(true),
-                    ..Default::default()
-                }),
+            stream_options: (stream
+                && !matches!(
+                    self.protocol,
+                    OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+                ))
+            .then_some(ChatCompletionStreamOptions {
+                include_usage: Some(true),
+                ..Default::default()
+            }),
             ..Default::default()
         })
     }
@@ -649,7 +655,7 @@ impl OpenAiTextProvider {
 
     fn request_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Value> {
         let mut body = match self.protocol {
-            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
+            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {
                 serde_json::to_value(self.chat_body(prompt, stream)?)
             }
             OpenAiProtocol::Responses => serde_json::to_value(self.responses_body(prompt, stream)),
@@ -657,6 +663,17 @@ impl OpenAiTextProvider {
         .map_err(|_| AiError::InvalidSchema)?;
         if matches!(self.protocol, OpenAiProtocol::Mistral) {
             mistral_document_parts(&mut body);
+        }
+        if matches!(self.protocol, OpenAiProtocol::Groq) {
+            if let Some(tokens) = body
+                .as_object_mut()
+                .and_then(|body| body.remove("max_tokens"))
+            {
+                body["max_completion_tokens"] = tokens;
+            }
+            if stream {
+                inline_groq_schema(&mut body)?;
+            }
         }
         apply_provider_options(&mut body, prompt.provider_options, false)?;
         if matches!(self.protocol, OpenAiProtocol::Responses) {
@@ -674,7 +691,7 @@ impl OpenAiTextProvider {
                 OpenAiProtocol::ChatCompletions => {
                     restore_chat_reasoning(&mut body, prompt, &scope)
                 }
-                OpenAiProtocol::Mistral => {}
+                OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {}
                 OpenAiProtocol::Responses => restore_responses_items(&mut body, prompt, &scope)?,
             }
         }
@@ -683,9 +700,25 @@ impl OpenAiTextProvider {
 
     async fn send_text(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
         let body = self.request_body(prompt, stream)?;
-        self.connection
-            .send_sdk_text(self.protocol.endpoint(), &body, stream, prompt.text.timeout)
+        self.send_sdk_body(&body, stream, prompt.text.timeout).await
+    }
+
+    async fn send_sdk_body(
+        &self,
+        body: &Value,
+        stream: bool,
+        timeout: Option<Duration>,
+    ) -> AiResult<Response> {
+        match self
+            .connection
+            .send_sdk_text(self.protocol.endpoint(), body, stream, timeout)
             .await
+        {
+            Err(AiError::ProviderStatus(498)) if matches!(self.protocol, OpenAiProtocol::Groq) => {
+                Err(AiError::ProviderOverloaded(498))
+            }
+            result => result,
+        }
     }
 }
 
@@ -732,6 +765,7 @@ impl TextProvider for OpenAiTextProvider {
     fn transcription_provider(&self) -> Option<Arc<dyn TranscriptionProvider>> {
         let protocol = match self.protocol {
             OpenAiProtocol::Mistral => TranscriptionProtocol::Mistral,
+            OpenAiProtocol::Groq => TranscriptionProtocol::Groq,
             OpenAiProtocol::Responses => TranscriptionProtocol::OpenAi,
             OpenAiProtocol::ChatCompletions if self.connection.transcription_configured() => {
                 TranscriptionProtocol::OpenAi
@@ -867,7 +901,12 @@ impl TextProvider for OpenAiTextProvider {
             let response = self.send_text(&prompt, false).await?;
             let result = match self.protocol {
                 OpenAiProtocol::ChatCompletions => parse_chat(response)?,
-                OpenAiProtocol::Mistral => parse_mistral(response)?,
+                OpenAiProtocol::Mistral => {
+                    parse_native_chat(response, crate::tool_protocol::mistral_step)?
+                }
+                OpenAiProtocol::Groq => {
+                    parse_native_chat(response, crate::tool_protocol::groq_step)?
+                }
                 OpenAiProtocol::Responses => parse_responses(response)?,
             };
             Ok(AgentResponse {
@@ -889,7 +928,10 @@ impl TextProvider for OpenAiTextProvider {
         prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
-            if matches!(self.protocol, OpenAiProtocol::Mistral) {
+            if matches!(
+                self.protocol,
+                OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+            ) {
                 let events = self.stream_text_step(&prompt, &[], &[]).await?;
                 let events = crate::StepResult::Stream(events)
                     .probe()
@@ -928,28 +970,41 @@ impl OpenAiTextProvider {
     ) -> AiResult<Value> {
         let body = self.request_body(prompt, stream)?;
         let mut body = match self.protocol {
-            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
+            OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral | OpenAiProtocol::Groq => {
                 crate::tool_protocol::chat_request(body, tools, history)?
             }
             OpenAiProtocol::Responses => {
                 crate::tool_protocol::responses_request(body, tools, history)?
             }
         };
-        if tools.is_empty() && (stream || matches!(self.protocol, OpenAiProtocol::Mistral)) {
+        if tools.is_empty()
+            && (stream
+                || matches!(
+                    self.protocol,
+                    OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+                ))
+        {
             body.as_object_mut()
                 .ok_or(AiError::InvalidResponse)?
                 .remove("tools");
         }
-        let choice = prompt
-            .tool_choice
-            .or(matches!(self.protocol, OpenAiProtocol::Mistral).then_some(&ToolChoice::Auto));
+        if !tools.is_empty() && matches!(self.protocol, OpenAiProtocol::Groq) {
+            inline_groq_schema(&mut body)?;
+        }
+        let choice = prompt.tool_choice.or(matches!(
+            self.protocol,
+            OpenAiProtocol::Mistral | OpenAiProtocol::Groq
+        )
+        .then_some(&ToolChoice::Auto));
         if let Some(choice) = choice.filter(|_| !tools.is_empty()) {
             body["tool_choice"] = match choice {
                 ToolChoice::Auto => "auto".into(),
                 ToolChoice::None => "none".into(),
                 ToolChoice::Required => "required".into(),
                 ToolChoice::Tool(name) => match self.protocol {
-                    OpenAiProtocol::ChatCompletions | OpenAiProtocol::Mistral => {
+                    OpenAiProtocol::ChatCompletions
+                    | OpenAiProtocol::Mistral
+                    | OpenAiProtocol::Groq => {
                         json!({"type":"function","function":{"name":name}})
                     }
                     OpenAiProtocol::Responses => json!({"type":"function","name":name}),
@@ -965,6 +1020,7 @@ impl StepTextGateway for OpenAiTextProvider {
         let protocol = match self.protocol {
             OpenAiProtocol::ChatCompletions => "chat-tool-replay",
             OpenAiProtocol::Mistral => "mistral-chat-tool-replay",
+            OpenAiProtocol::Groq => "groq-chat-tool-replay",
             OpenAiProtocol::Responses => "responses-tool-replay",
         };
         self.connection.request_namespace(protocol).map(Some)
@@ -979,13 +1035,7 @@ impl StepTextGateway for OpenAiTextProvider {
         Box::pin(async move {
             let payload = self.tool_payload(prompt, tools, history, false)?;
             let response = self
-                .connection
-                .send_sdk_text(
-                    self.protocol.endpoint(),
-                    &payload,
-                    false,
-                    prompt.text.timeout,
-                )
+                .send_sdk_body(&payload, false, prompt.text.timeout)
                 .await?;
             let response = response
                 .json::<Value>()
@@ -993,6 +1043,7 @@ impl StepTextGateway for OpenAiTextProvider {
             match self.protocol {
                 OpenAiProtocol::ChatCompletions => crate::tool_protocol::chat_step(response),
                 OpenAiProtocol::Mistral => crate::tool_protocol::mistral_step(response),
+                OpenAiProtocol::Groq => crate::tool_protocol::groq_step(response),
                 OpenAiProtocol::Responses => crate::tool_protocol::responses_step(response),
             }
         })
@@ -1006,19 +1057,17 @@ impl StepTextGateway for OpenAiTextProvider {
         Box::pin(async move {
             let payload = self.tool_payload(prompt, tools, history, true)?;
             let response = self
-                .connection
-                .send_sdk_text(
-                    self.protocol.endpoint(),
-                    &payload,
-                    true,
-                    prompt.text.timeout,
-                )
+                .send_sdk_body(&payload, true, prompt.text.timeout)
                 .await?;
             if !crate::streaming::is_event_stream(&response) {
                 return Err(AiError::InvalidResponse);
             }
             let stream = response.into_stream().map_err(transport_error)?;
-            Ok(crate::tool_stream_protocol::openai(self.protocol, stream))
+            Ok(crate::tool_stream_protocol::openai(
+                self.protocol,
+                stream,
+                prompt.structured_output.is_some(),
+            ))
         })
     }
 }
@@ -1262,9 +1311,39 @@ fn mistral_document_parts(body: &mut Value) {
     }
 }
 
-fn parse_mistral(response: Response) -> AiResult<ParsedText> {
-    let result =
-        crate::tool_protocol::mistral_step(response.json().map_err(|_| AiError::InvalidResponse)?)?;
+fn inline_groq_schema(body: &mut Value) -> AiResult<()> {
+    let Some(format) = body
+        .get("response_format")
+        .filter(|format| format["type"] == "json_schema")
+    else {
+        return Ok(());
+    };
+    let schema = &format["json_schema"]["schema"];
+    let instruction =
+        format!("Return only a JSON object matching this schema when answering:\n{schema}");
+    body.as_object_mut()
+        .ok_or(AiError::InvalidSchema)?
+        .remove("response_format");
+    let messages = body["messages"]
+        .as_array_mut()
+        .ok_or(AiError::InvalidSchema)?;
+    if let Some(system) = messages
+        .first_mut()
+        .filter(|message| message["role"] == "system")
+    {
+        let previous = system["content"].as_str().unwrap_or_default();
+        system["content"] = format!("{previous}\n\n{instruction}").into();
+    } else {
+        messages.insert(0, json!({"role":"system","content":instruction}));
+    }
+    Ok(())
+}
+
+fn parse_native_chat(
+    response: Response,
+    parse_step: fn(Value) -> AiResult<StepResponse>,
+) -> AiResult<ParsedText> {
+    let result = parse_step(response.json().map_err(|_| AiError::InvalidResponse)?)?;
     Ok(ParsedText {
         text: result.text.ok_or(AiError::InvalidResponse)?,
         reasoning: result.reasoning,

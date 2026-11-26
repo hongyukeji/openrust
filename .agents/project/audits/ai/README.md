@@ -672,6 +672,14 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 - [固定 Laravel Mistral Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Mistral/MistralGateway.php) · [Mistral Chat](https://docs.mistral.ai/api/endpoint/chat) · [Mistral 推理块](https://docs.mistral.ai/inference/conversations/reasoning) · [Mistral Embeddings](https://docs.mistral.ai/api/endpoint/embeddings)
 
+### Groq 文本与转录
+
+`groq` 连接复用 Chat Completions 的工具与 SSE。SDK 使用 `max_completion_tokens`，传入图片并拒绝文档，普通及流式响应读取推理内容。仅非流式无工具请求使用原生 JSON Schema。有工具或流时在指令内附带 Schema，终态要求结果可解析为 JSON 对象。498 容量不足进入文本故障转移。转录使用 `verbose_json` multipart，返回原文、分段和上游时长。说话人区分请求在出站前返回配置错误。
+
+独立 Artisan 和 HTTP 经本地协议服务验证目录、原生结构化输出、带工具的结构化续步、图片早期 SSE、推理、`x_groq` 用量、流式 JSON 对象与错误终态、498 切换下一条连接、音频原始字节和无效参数阻断。20 项 SDK 回归、严格 Clippy 及三语站点通过。Groq 内置浏览器搜索、代码执行工具及官方账户实机结果仍待验收。
+
+- [固定 Laravel Groq Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Groq/GroqGateway.php) · [Groq 结构化输出](https://console.groq.com/docs/structured-outputs) · [Groq 音频转录](https://console.groq.com/docs/speech-to-text)
+
 AI-06 接通同一 Mistral 连接的语音合成和音频转录。语音沿用固定 Laravel 的默认 MP3 和音色映射，按官方格式补充 WAV、Opus、FLAC、PCM，校验 Base64 与解码后的音频。转录按基线选择语言提示或说话人分段，保留上游模型、说话人、时间戳、Token 及音频秒数。
 
 独立 Artisan 通过本地协议服务获取真实编码的 MP3 并保存到私有 Storage。另一 HTTP 进程从 Storage 读取并逐字节核对 multipart 上传。验收覆盖代理路径、鉴权、MP3／WAV／Opus／FLAC／PCM、默认及自定义音色、模型覆盖、无标签分段、AAC 拒绝、无效 Base64 和格式不匹配。19 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。官方账户实机结果继续待验。
