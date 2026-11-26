@@ -18,7 +18,7 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 列表和帮助成功时返回退出码 0。未知命令和非法参数返回 1。标记为 `Planned` 的条目可以查看帮助，执行时返回 1。
 
-通过 `with_commands` 接入 `app/console/commands/mod.rs` 中的命令类型。在 `bootstrap/app.rs` 的 `with_routing` 中声明 `routes/console.rs` 的控制台路由。应用命令可以替换同名占位项。
+生成到 `app/console/commands` 的命令在构建时注册。需要显式注册时，使用 `with_commands` 和 `app/console/commands/mod.rs`。在 `bootstrap/app.rs` 的 `with_routing` 中声明 `routes/console.rs` 的控制台路由。应用命令可以替换同名占位项。
 
 `routes/console.rs` 导入 `openrust::support::facades::Artisan`，通过 `Artisan::command("inspire", …)` 向 `register()` 执行期间绑定的控制台注册闭包，通过 `purpose()` 设置帮助和命令列表中的说明。闭包接收命令输出对象，正常返回时退出码为 0。
 
@@ -226,9 +226,11 @@ Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生
 
 第一条命令写入 `app/console/commands/send_report.rs`，命令签名为 `app:send-report`。第二条在 `reports` 模块下生成命令并显式指定签名。使用 `-f` 或 `--force` 覆盖已有文件。
 
-在 `app/console/commands/mod.rs` 声明新模块并注册命令。以 `SendReport` 为例，添加 `mod send_report;`，在 `register` 内调用 `artisan.add_command(Box::new(send_report::SendReport::default()))?;`。重新构建后运行 `./artisan app:send-report`。
+在生成的 `handle` 方法中填写命令逻辑，然后重新构建。默认模板声明 `COMMAND` 注册入口，构建时自动发现 `app/console/commands` 下的文件并注册到 Artisan。编译完成后可运行 `./artisan app:send-report` 或 `./artisan help app:send-report`。
 
 在应用根目录放置 `stubs/console.rs.stub` 可自定义生成内容。生成器替换 `{{class}}` 和 `{{command}}`。
+
+自定义模板保留顶层的 `COMMAND` 注册入口即可参与自动发现。没有这个入口的旧文件可以沿用显式模块和注册。可在 `build.rs` 的 `COMMANDS` 中添加应用命令目录。
 
 ### 生成配套测试 {#generating-an-accompanying-test}
 

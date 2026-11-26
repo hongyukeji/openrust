@@ -1,0 +1,40 @@
+{
+  "base": "04db6702dcfe690c118211cf2eeae9c07c8ee9f3",
+  "contract": "artisan-command-discovery-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.42s",
+    "test result: ok. 231 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s"
+  ],
+  "runtime": {
+    "independent_startup_and_registry_tests": 5,
+    "formal_document_consumers": 231,
+    "browser_checks": 12,
+    "source_roots_exercised": [
+      "app/console/commands",
+      "app/docs_commands"
+    ],
+    "runtime_requests": 2,
+    "runtime_cargo_rebuilds": 2,
+    "full_startup_baseline": "27 passed / 1 independent reproduced failure"
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-runtime-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-runtime-second.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-runtime.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-startup-full.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-command-discovery-baseline.log"
+  ],
+  "unaccepted_attempts": [
+    "初次HTTP夹具用 serve 的环境变量启动统一运行器，未命中测试端口。改为 APP_HOST／APP_PORT 后确认默认数据库Session无法用于无数据库隔离夹具；改用数组Session，同一二进制的HTTP复验通过。",
+    "全量启动回归有已复现的旧失败 failed_provider_prevents_listening_and_is_not_retried：已有 f81ca8fae 让 BootstrapError::ProviderBootFailed 摘要带来源，旧断言仍要求隐藏。保留该冲突，不计为通过。"
+  ],
+  "remaining": [
+    "类型和容器显式注册、注册后的类型入口及命令结构仍需要对应独立消费者。",
+    "构建清单以独立顶层 COMMAND 常量显式区分独立命令和普通模块，遵循编译后的目录装配。"
+  ],
+  "pushed": false
+}

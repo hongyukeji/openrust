@@ -1,0 +1,40 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "runtime": {
+    "independent_startup_and_registry_tests": 5,
+    "formal_document_consumers": 231,
+    "browser_checks": 12,
+    "source_roots_exercised": [
+      "app/console/commands",
+      "app/docs_commands"
+    ],
+    "runtime_requests": 2,
+    "runtime_cargo_rebuilds": 2,
+    "full_startup_baseline": "27 passed / 1 independent reproduced failure"
+  },
+  "remaining": [
+    "类型和容器显式注册、注册后的类型入口及命令结构仍需要对应独立消费者。",
+    "构建清单以独立顶层 COMMAND 常量显式区分独立命令和普通模块，遵循编译后的目录装配。"
+  ],
+  "upstream": [
+    "ConsoleMakeCommand::replaceClass/getStub/getDefaultNamespace",
+    "ApplicationBuilder::withCommands",
+    "Foundation Console Kernel::discoverCommands"
+  ],
+  "public_consumers": [
+    "make:command",
+    "list",
+    "help",
+    "Application::handle_command",
+    "Artisan::call"
+  ],
+  "decisions": [
+    "默认和 --command 自定义签名仍由同一生成器处理；自定义模板、并发安全生成、强制覆盖和错误退出均保留。",
+    "应用构建读取默认和显式配置的源目录。syn 复用已锁定版本，按 Rust 顶层常量发现注册入口，不把注释当成声明。",
+    "只生成模块及注册清单数据。正式 commands::register 和 compiled::entries 始终在 Rust 文件，兼容 IDE 与传统手动模块。",
+    "生成件经实际构建后同时出现在 CLI、help 与 HTTP 调用，删除后下一次构建清除注册，默认 inspire 保留。",
+    "目录处理所用瞬态 HTTP 路由、额外命令和手动命令来自隔离快照，均已恢复，不属于提交范围。"
+  ]
+}

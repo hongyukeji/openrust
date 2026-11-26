@@ -18,7 +18,7 @@ On Windows, use `artisan.bat`. The compiled application accepts the same command
 
 Listing and help exit with status 0. Unknown commands and invalid arguments exit with status 1. Entries marked `Planned` have help available and exit with status 1 when invoked.
 
-Register command types through `with_commands`, using `app/console/commands/mod.rs`. Declare the console routes from `routes/console.rs` through `with_routing` in `bootstrap/app.rs`. A command registered under the same name replaces its planned entry.
+Commands generated under `app/console/commands` are registered when the application is built. Use `with_commands` and `app/console/commands/mod.rs` for explicit registration. Declare the console routes from `routes/console.rs` through `with_routing` in `bootstrap/app.rs`. A command registered under the same name replaces its planned entry.
 
 In `routes/console.rs`, import `openrust::support::facades::Artisan`. `Artisan::command("inspire", …)` registers the closure with the console bound while `register()` runs and `purpose()` sets the description shown by Artisan help and list. The closure receives the command’s output and returns normally with exit status 0.
 
@@ -226,9 +226,11 @@ Create a command from a source checkout. The generated type implements the Artis
 
 The first command writes `app/console/commands/send_report.rs` with the signature `app:send-report`. The second writes a command under the `reports` module and sets its signature explicitly. Use `-f` or `--force` to replace an existing file.
 
-Declare the new module and register the command in `app/console/commands/mod.rs`. For `SendReport`, add `mod send_report;` and call `artisan.add_command(Box::new(send_report::SendReport::default()))?;` inside `register`. Then rebuild and run `./artisan app:send-report`.
+Set up the command in the generated `handle` method and rebuild. The default stub declares a `COMMAND` registrar, so the build discovers the file under `app/console/commands` and adds it to Artisan automatically. Run `./artisan app:send-report` or `./artisan help app:send-report` after compilation.
 
 To customize generated code, add `stubs/console.rs.stub` at the application root. The generator substitutes `{{class}}` and `{{command}}`.
+
+Keep the top-level `COMMAND` registrar in a custom stub to use automatic discovery. Existing files with no registrar can keep their explicit modules and registration. The source configuration `COMMANDS` in `build.rs` can include additional application command directories.
 
 ### Generating an accompanying test {#generating-an-accompanying-test}
 

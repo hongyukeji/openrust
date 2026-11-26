@@ -548,6 +548,13 @@ fn artisan_generates_commands_and_preserves_existing_source() {
     );
     let original = fs::read_to_string(&path).unwrap();
     assert!(original.contains("pub struct SendReport"));
+    assert!(original.contains("pub(crate) const COMMAND"));
+    let success = results
+        .iter()
+        .find(|result| result.status.success())
+        .unwrap();
+    assert!(String::from_utf8_lossy(&success.stdout).contains("重新构建应用"));
+
     assert!(original.contains(r#""app:send-report""#));
     assert_eq!(run(&["Reports/SendReport"]).status.code(), Some(1));
     assert_eq!(fs::read_to_string(&path).unwrap(), original);

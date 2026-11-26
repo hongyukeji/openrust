@@ -102,6 +102,7 @@ try {
                     assert.equal(await page.locator('h3#terminal-html-recovery').count(),1);
                     assert.equal(await page.locator('h3#command-component-factory').count(),1);
                     assert.equal(await page.locator('h3#exit-codes').count(),1);
+                    assert.equal(await page.locator('h2#generating-commands').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

@@ -74,9 +74,7 @@ impl Command for ConsoleMakeCommand {
                 "Console command [{}] created successfully.",
                 relative.display()
             ));
-            output.stdout.push_str(
-                "Declare the module and register the command in app/console/commands/mod.rs.\n",
-            );
+            output.stdout.push_str("重新构建应用以加载新命令。\n");
             if input.matches().get_flag("test") {
                 let name = command_type(input);
                 let name = name.strip_suffix(".rs").unwrap_or(name).replace('\\', "/");

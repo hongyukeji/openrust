@@ -44,8 +44,12 @@
     },
     {
       "anchor": "generating-commands",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-command-discovery-contracts.json",
+        "accepted-artisan-command-discovery.json",
+        "startup::artisan_generates_commands_and_preserves_existing_source"
+      ]
     },
     {
       "anchor": "command-structure",
@@ -454,9 +458,10 @@
       "evidence": [
         "console_registry_lifecycle",
         "registry-oracle.json",
-        "accepted-registry.json"
+        "accepted-registry.json",
+        "artisan-command-discovery-contracts.json"
       ],
-      "remaining": "一次装配与命令实例生命周期已修复验收；其余目录／类型发现、with_commands及生成模板入口仍待逐项核对"
+      "remaining": "编译目录发现、旧手动注册和实际运行已验。继续类型及容器解析、注册类入口与消费者。"
     },
     {
       "anchor": "programmatically-executing-commands",

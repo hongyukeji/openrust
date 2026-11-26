@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const COMMANDS: &[&str] = &["app/console/commands"];
 const FACTORIES: &str = "database/factories";
 const MIGRATIONS: &str = "database/migrations";
 const SEEDERS: &str = "database/seeders";
@@ -24,10 +25,70 @@ fn main() -> io::Result<()> {
     openrust_package_discovery::generate()?;
     generate_migrations(&root, &output)?;
     generate_seeders(&root, &output)?;
+    generate_commands(&root, &output)?;
     fs::write(
         output.join("factories.rs"),
         factory_modules(&root.join(FACTORIES), 0)?,
     )
+}
+
+fn generate_commands(root: &Path, output: &Path) -> io::Result<()> {
+    let mut files = Vec::new();
+    for directory in COMMANDS {
+        println!("cargo:rerun-if-changed={directory}");
+        let directory = root.join(directory);
+        if directory.is_dir() {
+            collect_commands(&directory, &mut files)?;
+        }
+    }
+    files.sort_unstable();
+    files.dedup();
+    let mut modules = String::new();
+    let mut entries = String::new();
+    for (index, path) in files.iter().enumerate() {
+        let source = source_path(path)?;
+        writeln!(modules, "#[path = {source:?}]\nmod command_{index};").unwrap();
+        writeln!(entries, "    command_{index}::COMMAND,").unwrap();
+    }
+    fs::write(output.join("commands.rs"), modules)?;
+    fs::write(
+        output.join("command_entries.rs"),
+        format!("&[\n{entries}]\n"),
+    )
+}
+
+fn collect_commands(directory: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
+    for file in sorted_entries(directory)? {
+        let kind = file.file_type()?;
+        let path = file.path();
+        if kind.is_dir() {
+            collect_commands(&path, files)?;
+        } else if kind.is_file()
+            && path.extension().is_some_and(|ext| ext == "rs")
+            && file.file_name() != "mod.rs"
+            && fs::read_to_string(&path).and_then(|text| command_entry(&path, &text))?
+        {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn command_entry(path: &Path, text: &str) -> io::Result<bool> {
+    // 只发现声明注册常量的文件；注释、嵌套常量和旧的手动模块保持原状。
+    if !text.contains("COMMAND") {
+        return Ok(false);
+    }
+    let file = syn::parse_file(text).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{}: {error}", path.display()),
+        )
+    })?;
+    Ok(file
+        .items
+        .iter()
+        .any(|item| matches!(item, syn::Item::Const(constant) if constant.ident == "COMMAND")))
 }
 
 fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {

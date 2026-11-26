@@ -106,6 +106,7 @@ tokio = { version = "1.54.1", features = ["macros", "rt"] }
 
 [build-dependencies]
 openrust-package-discovery = { path = "vendor/openrust/package-discovery" }
+syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
 
 [dev-dependencies]
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }

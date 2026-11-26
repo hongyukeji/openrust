@@ -4567,6 +4567,7 @@ dependencies = [
  "openrust-webhook-server",
  "serde",
  "serde_json",
+ "syn 2.0.119",
  "tokio",
  "tonic",
  "tonic-health",

@@ -979,3 +979,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 按四节原文复核解析输入与输出借用、八个消息方法、表格真实行列计算、迭代和手动进度。已有实现与验收复用，三语新增对齐锚点并保留原链接。通用程序调用输出仍单列，组件覆盖差异已在对应契约记录。
 
 10 个真实消费者目标共 63 项父测试通过，含 HTTP、Artisan、分区流、问答及错误恢复。保留上批相同源码的 231 项正式示例与严格 Clippy 证据，本批重建三语站点并复验 12 组浏览器。见 command-io-final-contracts.json 与 accepted-command-io-final.json。
+
+
+## 78. 生成命令与编译发现
+
+默认与嵌套命令经真正的 make:command 生成，默认目录和额外目录在编译后自动注册。验证原手动注册仍工作、列表和帮助能发现命令、命令体真实执行、HTTP 调用、删除后清单重建。正式入口保留原装配，Rust 源用顶层 COMMAND 常量识别可发现的命令。
+
+根启动与命令注册 5 项、231 个三语文档示例、12 组浏览器检查、锁定严格 Clippy 和格式检查通过。真实 HTTP 夹具用本地数组 Session，保留项目数据库 Session 默认值。额外全量启动回归 27 项通过、1 项旧失败。与本批无关的 Provider 错误摘要断言在增量前基线上同样失败，记录证据，保留当前错误格式。见 artisan-command-discovery-contracts.json 与 accepted-artisan-command-discovery.json。
