@@ -317,3 +317,7 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 本地 TCP 上游与独立 Artisan、HTTP 应用验收资源地址和完整 v1 URL、默认及显式上传用途、认证头诊断脱敏、Responses 文本部署、创建仓库、成员分页、移除以及同时删除原文件。独立 OpenAI 文件回归、两个包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及完整导航通过。Azure 实机、Azure 特有的图像及 Embeddings 有待各自的协议与部署验收。
 
 - [固定 Laravel Azure OpenAI 客户端](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/AzureOpenAi/Concerns/CreatesAzureOpenAiClient.php) · [Microsoft Files](https://learn.microsoft.com/en-us/rest/api/microsoft-foundry/azureopenai/files) · [Microsoft Vector Stores](https://learn.microsoft.com/en-us/rest/api/aifoundry/azureopenai/vector_stores)
+
+## GW-04 调用方用量
+
+`GET /v1/usage` 按当前凭证返回当日、累计及 UTC 日序列。已通过 SQLite、MySQL 和 PostgreSQL 独立 HTTP 与 Artisan 验收。见[网关验收账本](gateway.md#gw-04-调用方用量)。

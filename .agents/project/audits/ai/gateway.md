@@ -30,7 +30,7 @@
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06／GW-03／04 待逐操作核对，音色资源要求所属校验。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
-| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-02 已交付结构化调用与实报 Token 日志。GW-04 待交付可查询用量、计量及权限；商业套餐与付费账单界面由独立项目承载。 |
+| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合与 UTC 日序列。货币计量、`/v1/sub2api/billing` 及固定上游的模型范围统计字段待核对。 |
 
 ## 兼容路径与账号类型
 
@@ -136,3 +136,11 @@ Messages 现在可在保留原生优先级的情况下选择 Responses 或 Chat-
 独立 WebSocket 客户端使用实际网关进程，并通过独立 Artisan 撤销 Key。实测未鉴权、别名、首段早于完成、Chat 上游回退、权限撤销、取消、关闭码及 SQLite 用量入账。上游使用本地 TCP 服务。包测试、严格 Clippy、三语构建、两种部署路径的十二组浏览器及完整导航通过。上游 WebSocket、同连接历史续接和并行通道继续单列。
 
 - [OpenAI Responses WebSocket](https://developers.openai.com/api/docs/guides/websocket-mode) · [Sub2API 固定路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)
+
+## GW-04 调用方用量
+
+`GET /v1/usage` 接受 Bearer 或 `x-api-key`，在同一数据库查询内汇总当日、累计和最多 90 天的 UTC 日数据。仅使用当前凭证对应的托管 Key ID 或环境 Key 的私有作用域筛选记录。托管 Key 轮换保留历史。环境 Key 换凭证后新建统计范围，迁移前无法确定归属的环境 Key 记录仍可由运维通过 Artisan 查询。调用方响应省略上游名称、请求明细与凭证。
+
+SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了迁移发布、回退的请求／尝试去重、真实与缺失用量、UTC 日序列、两种鉴权头、仅大小写不同的 Key 名称隔离、凭证轮换、撤销及同名更换。两个包测试、严格 Clippy 与三语页面验收通过。依供应商价格计量、私有账单接口和固定基线的模型区间聚合继续单列。
+
+- [Sub2API 固定 Usage handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler.go)

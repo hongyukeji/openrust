@@ -24,12 +24,14 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod usage_summary;
 mod websocket;
 
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
         shared_routes(router)?;
         router.post("/messages", messages)?;
+        router.get("/usage", usage_summary::show)?;
         Ok(())
     })?;
     Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {

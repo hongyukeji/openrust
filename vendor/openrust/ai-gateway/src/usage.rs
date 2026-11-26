@@ -36,6 +36,56 @@ const COLUMNS: [&str; 19] = [
     "finished_at",
 ];
 
+const DAY: i64 = 86_400;
+const DAY_START: &str = "started_at - (started_at % 86400)";
+const ROLLUP: &str = "
+    COUNT(DISTINCT request_id) AS requests, COUNT(*) AS attempts,
+    COUNT(finished_at) AS settled_attempts, SUM(input_tokens) AS input_tokens,
+    SUM(output_tokens) AS output_tokens, SUM(cached_input_tokens) AS cache_read_tokens,
+    SUM(cache_write_input_tokens) AS cache_creation_tokens, SUM(reasoning_tokens) AS reasoning_tokens,
+    SUM(CASE WHEN input_tokens IS NOT NULL THEN input_tokens + COALESCE(output_tokens, 0)
+        + CASE WHEN upstream_endpoint = 'messages' THEN COALESCE(cached_input_tokens, 0)
+        + COALESCE(cache_write_input_tokens, 0) ELSE 0 END END) AS total_tokens
+";
+
+pub(crate) enum UsageOwner<'a> {
+    Managed(&'a str),
+    Static(String),
+}
+
+impl UsageOwner<'_> {
+    fn filter<'a>(&self, query: Builder<'a>) -> Builder<'a> {
+        match self {
+            Self::Managed(id) => query.r#where("key_id", "=", *id),
+            Self::Static(scope) => {
+                query
+                    .where_null("key_id")
+                    .r#where("static_key_scope", "=", scope.as_str())
+            }
+        }
+    }
+}
+
+#[derive(Default, Serialize)]
+pub(crate) struct UsageTotals {
+    requests: u64,
+    attempts: u64,
+    settled_attempts: u64,
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    cache_read_tokens: Option<u64>,
+    cache_creation_tokens: Option<u64>,
+    reasoning_tokens: Option<u64>,
+    total_tokens: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct DailyUsage {
+    date: String,
+    #[serde(flatten)]
+    totals: UsageTotals,
+}
+
 #[derive(Clone)]
 pub(crate) struct UsageStore {
     connection: Connection,
@@ -107,6 +157,7 @@ impl UsageStore {
         &self,
         context: &LogContext,
         quota: Option<QuotaReservation>,
+        owner: UsageOwner<'_>,
     ) -> DatabaseResult<Option<UsageAttempt>> {
         let id = Str::ulid().to_string();
         let field = |key: &str| {
@@ -129,6 +180,9 @@ impl UsageStore {
             ("outcome".into(), "pending".into()),
             ("started_at".into(), now().into()),
         ]);
+        if let UsageOwner::Static(scope) = owner {
+            record.insert("static_key_scope".into(), scope.into());
+        }
         if let Some(reservation) = &quota {
             record.insert("output_quota_id".into(), reservation.id.as_str().into());
             record.insert("reserved_output_tokens".into(), reservation.amount.into());
@@ -161,6 +215,52 @@ impl UsageStore {
             id,
             quota,
         }))
+    }
+
+    pub(crate) async fn key_summary(
+        &self,
+        owner: &UsageOwner<'_>,
+        days: u8,
+    ) -> DatabaseResult<(UsageTotals, Vec<DailyUsage>)> {
+        let scope = || owner.filter(self.connection.table(TABLE).use_write_pdo());
+        let today = now().div_euclid(DAY) * DAY;
+        let start = today - i64::from(days - 1) * DAY;
+        let mut recent = scope()
+            .r#where("started_at", ">=", start)
+            .r#where("started_at", "<", today + DAY)
+            .select_raw(&format!("{DAY_START} AS day_start, {ROLLUP}"), Vec::new())
+            .group_by_raw(DAY_START, Vec::new());
+        let rows = scope()
+            .select_raw(&format!("NULL AS day_start, {ROLLUP}"), Vec::new())
+            .union_all(&mut recent)?
+            .get()
+            .await?;
+        let mut total = None;
+        let mut buckets = std::collections::BTreeMap::new();
+        for row in rows {
+            let totals = UsageTotals::from_row(&row)?;
+            if let Some(start) = super::managed_keys::integer(&row, "day_start")? {
+                buckets.insert(start, totals);
+            } else {
+                total = Some(totals);
+            }
+        }
+        let mut daily = Vec::with_capacity(usize::from(days));
+        for offset in 0..days {
+            let day = start + i64::from(offset) * DAY;
+            let date = openrust::support::facades::Date::create_from_timestamp_utc(day)
+                .and_then(|date| date.format("Y-m-d"))
+                .map_err(|_| DatabaseError::InvalidScalar)?;
+            daily.push(DailyUsage {
+                date,
+                totals: buckets.remove(&day).unwrap_or_default(),
+            });
+        }
+        Ok((total.ok_or(DatabaseError::InvalidScalar)?, daily))
+    }
+
+    pub(crate) fn today(daily: &[DailyUsage]) -> Option<&UsageTotals> {
+        daily.last().map(|day| &day.totals)
     }
 
     pub(crate) async fn list(
@@ -300,4 +400,36 @@ fn decode(row: Row) -> DatabaseResult<UsageRecord> {
         started_at: integer("started_at")?.ok_or(DatabaseError::InvalidScalar)?,
         finished_at: integer("finished_at")?,
     })
+}
+
+impl UsageTotals {
+    fn from_row(row: &Row) -> DatabaseResult<Self> {
+        fn number(row: &Row, column: &str) -> DatabaseResult<Option<u64>> {
+            match row.get(column) {
+                Some(Value::Unsigned(value)) => Ok(Some(*value)),
+                Some(Value::Integer(value)) => u64::try_from(*value)
+                    .map(Some)
+                    .map_err(|_| DatabaseError::InvalidScalar),
+                Some(Value::Text(value)) => value
+                    .parse()
+                    .map(Some)
+                    .map_err(|_| DatabaseError::InvalidScalar),
+                Some(Value::Null) => Ok(None),
+                _ => Err(DatabaseError::InvalidScalar),
+            }
+        }
+
+        let count = |column| number(row, column)?.ok_or(DatabaseError::InvalidScalar);
+        Ok(Self {
+            requests: count("requests")?,
+            attempts: count("attempts")?,
+            settled_attempts: count("settled_attempts")?,
+            input_tokens: number(row, "input_tokens")?,
+            output_tokens: number(row, "output_tokens")?,
+            cache_read_tokens: number(row, "cache_read_tokens")?,
+            cache_creation_tokens: number(row, "cache_creation_tokens")?,
+            reasoning_tokens: number(row, "reasoning_tokens")?,
+            total_tokens: number(row, "total_tokens")?,
+        })
+    }
 }

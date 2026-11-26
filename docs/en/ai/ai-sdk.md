@@ -159,6 +159,10 @@ Each upstream attempt has its own record. Retries share a `request_id`. The reco
 
 A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.
 
+With the same Key used for generation, call `GET /v1/usage?days=7` using Bearer or `x-api-key` authentication. The response includes today's totals, lifetime totals, and a daily series in UTC for that Key. Set `days` from 1 to 90. Retries count once as a request and separately as attempts. Missing token counts remain `null`.
+
+Managed Keys retain their usage history after rotation. Replacing an environment Key starts a new history for its new credential. The operator's Artisan ledger includes earlier attempts and upstream details.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

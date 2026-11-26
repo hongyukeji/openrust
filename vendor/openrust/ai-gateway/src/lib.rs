@@ -31,6 +31,8 @@ mod session_affinity;
 mod usage;
 #[path = "../database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs"]
 mod usage_migration;
+#[path = "../database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs"]
+mod usage_scope_migration;
 
 pub use configuration::load as default_config;
 use gateway::Gateway;
@@ -48,6 +50,8 @@ const USAGE_MIGRATION: &str =
     "database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs";
 const OUTPUT_QUOTA_MIGRATION: &str =
     "database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs";
+const USAGE_SCOPE_MIGRATION: &str =
+    "database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs";
 static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
@@ -56,6 +60,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
     MigrationEntry::new(
         "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs",
         &output_quota_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs",
+        &usage_scope_migration::MIGRATION,
     ),
 ];
 
@@ -100,6 +108,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         OUTPUT_QUOTA_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs"),
+                    ),
+                    (
+                        USAGE_SCOPE_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

@@ -20,7 +20,7 @@ use crate::{
     managed_keys::KeyStore,
     output_quota::{OutputQuota, QuotaReservation},
     session_affinity::{self, SessionAffinity},
-    usage::{Settlement, UsageAttempt, UsageStore},
+    usage::{Settlement, UsageAttempt, UsageOwner, UsageStore},
 };
 
 #[derive(Default, Deserialize)]
@@ -100,6 +100,25 @@ impl Key {
             Some(id) => format!("ai-gateway:managed-key:{id}"),
             None => format!("ai-gateway:{}", self.name),
         }
+    }
+
+    pub(crate) fn usage_owner(&self) -> UsageOwner<'_> {
+        match (&self.managed_id, &self.digest) {
+            (Some(id), _) => UsageOwner::Managed(id),
+            (_, Some(digest)) => UsageOwner::Static(format!(
+                "{:x}",
+                Sha256::new()
+                    .chain_update(b"openrust.ai-gateway.usage")
+                    .chain_update(digest)
+                    .chain_update(self.name.as_bytes())
+                    .finalize(),
+            )),
+            _ => unreachable!("authorized keys have an identifier"),
+        }
+    }
+
+    pub(crate) fn output_quota(&self) -> Option<OutputQuota> {
+        self.group.as_ref().and_then(|group| group.quota)
     }
 
     pub(crate) fn output_reservation(
@@ -516,7 +535,7 @@ impl Gateway {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
                 let attempt = store
-                    .begin(&context, reservation)
+                    .begin(&context, reservation, key.usage_owner())
                     .await
                     .map_err(|_| UsageAdmission::Unavailable)?
                     .ok_or_else(|| {

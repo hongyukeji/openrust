@@ -159,6 +159,10 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 网关先登记尝试，再向上游发送请求。正常结束、出错和取消都会结算。进程在结算之前退出时，账本可能保留 `pending` 记录供核对。
 
+使用发起模型调用的 Key，以 Bearer 或 `x-api-key` 鉴权请求 `GET /v1/usage?days=7`。返回该 Key 当日、累计以及按 UTC 日期汇总的用量。`days` 可设为 1 至 90。回退只计为一次请求，同时按实际出站次数统计尝试。缺失的 Token 数保持 `null`。
+
+托管 Key 轮换后保留历史。替换环境 Key 后，新凭证开始累积自己的历史。运维可通过 Artisan 账本查询早期记录和上游明细。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。
