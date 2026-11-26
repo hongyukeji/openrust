@@ -196,6 +196,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 私有 S3 磁盘通过 TLS 反向代理提供下载时，将审核配置的 `media_origin` 与磁盘的 `temporary_url` 设为同一个 HTTPS 来源。默认 S3 磁盘使用 `AWS_TEMPORARY_URL`。代理转发至存储端点时保留签名中的原始 Host、路径和查询串。保持存储桶私有，代理访问日志应省略签名查询串。[S3 临时链接](../digging-deeper/filesystem.md#s3-temporary-url-origin)
 
+启用存储素材审核前，确认厂商能通过该 HTTPS 入口下载签名对应的对象版本，且无签名请求会被拒绝。
+
 需要延后查单时，在 `moderation.profile_revisions.<名称>.<修订>` 下声明完整配置，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可选模态为 `text`、`visual`、`speech` 和 `ocr`。`account` 填部署时与该凭据配对的账号或项目别名。地址、模型、策略或凭据修订发生变化时创建新配置修订，并保留未完成任务引用的旧配置。
 
 提交前用 `Moderation::pin_profile(name, revision)` 固定配置，用 `Moderation::driver_for_revision(&profile)` 解析驱动。应用将返回的配置定位符、远端 `TaskId` 和原对象版本一起持久化，查单时按该定位符重新解析。原配置被原地修改、移除或对应凭据无法读取时，恢复失败。待处理、失败或必检覆盖不完整时均无法批准发布。

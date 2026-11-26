@@ -9,7 +9,6 @@ from pathlib import Path
 import runpy
 import socket
 import sqlite3
-import ssl
 import subprocess
 import tempfile
 import threading
@@ -116,17 +115,21 @@ def generate(directory, name, color, audio):
     return path.read_bytes()
 
 
-def exercise(binary, root, storage_env, storage, *, media_ca=None, video_dir=None):
+def video_samples(root, original_color, revised_color):
+    if directory := os.environ.get("OPENRUST_TEST_MODERATION_VIDEO_DIR"):
+        first = (Path(directory) / "video-with-audio.mp4").read_bytes()
+        revised = (Path(directory) / "video-visual-only.mp4").read_bytes()
+        assert first and revised and first != revised
+        return first, revised
+    return (generate(root, "video-with-audio.mp4", original_color, True),
+            generate(root, "video-visual-only.mp4", revised_color, False))
+
+
+def exercise(binary, root, storage_env, storage, *, media_ca=None):
     storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
-    if video_dir is None:
-        first_clip = generate(root, "video-with-audio.mp4", "blue", True)
-        new_clip = generate(root, "video-visual-only.mp4", "red", False)
-    else:
-        first_clip = (video_dir / "video-with-audio.mp4").read_bytes()
-        new_clip = (video_dir / "video-visual-only.mp4").read_bytes()
-        assert first_clip and new_clip and first_clip != new_clip
+    first_clip, new_clip = video_samples(root, "blue", "red")
     storage("PUT", KEY, content=first_clip)
     storage("PUT", KEY, content=new_clip)
     listing = XML.fromstring(storage("GET", query="versions="))
@@ -143,10 +146,7 @@ def exercise(binary, root, storage_env, storage, *, media_ca=None, video_dir=Non
     supplier.lock, supplier.nonces, supplier.unexpected = threading.Lock(), set(), []
     supplier.submissions, supplier.queries = [], []
     supplier.submit_mode = "accepted"
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
-    supplier.media_tls = ssl.create_default_context(cafile=media_ca) if media_ca else None
-    supplier.tls_verified = False
-    supplier.latest = last
+    OBJECTS["configure_media"](supplier, storage_env, (first, last), media_ca)
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
 
@@ -273,9 +273,7 @@ if __name__ == "__main__":
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
     media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
-    video_dir = os.environ.get("OPENRUST_TEST_MODERATION_VIDEO_DIR")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-aliyun-video-") as work, \
             OBJECTS["storage_fixture"](media_ca) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request, media_ca=media_ca,
-                 video_dir=Path(video_dir) if video_dir else None)
+        exercise(args.binary.resolve(), Path(work), env, request, media_ca=media_ca)
     print("阿里云点播：HTTP／Artisan／独立 Worker、ACS3、私有视频版本、时间证据和状态通过")

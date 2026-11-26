@@ -19,6 +19,7 @@ import xml.etree.ElementTree as XML
 ROOT = Path(__file__).resolve().parents[1]
 TC3 = runpy.run_path(str(ROOT / "tests/moderation_tencent_text_acceptance.py"))
 ALIYUN = runpy.run_path(str(ROOT / "tests/moderation_aliyun_video_acceptance.py"))
+MEDIA = ALIYUN["OBJECTS"]
 ORIGIN, KEY = ALIYUN["ORIGIN"], ALIYUN["KEY"]
 PRIVATE = TC3["PRIVATE_MARKER"]
 COMMAND = "drivers:moderation-tencent-video"
@@ -43,15 +44,8 @@ class Supplier(TC3["Supplier"]):
             query = parse_qs(source.query, strict_parsing=True)
             version, = query["versionId"]
             assert "X-Amz-Signature" in query and 0 < int(query["X-Amz-Expires"][0]) <= 300
-            backend = self.server.storage
-            connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-            try:
-                connection.request("GET", source.path + "?" + source.query, headers={"Host": backend.netloc})
-                response = connection.getresponse()
-                payload = response.read()
-                assert response.status == 200
-            finally:
-                connection.close()
+            status, payload = MEDIA["download_media"](self.server, source)
+            assert status == 200
             with self.server.lock:
                 data_id = task["DataId"]
                 assert data_id not in self.server.references
@@ -133,15 +127,14 @@ class Supplier(TC3["Supplier"]):
         self.wfile.write(response)
 
 
-def exercise(binary, directory, storage_env, storage):
-    storage("PUT", query="versioning", content=(
+def exercise(binary, directory, storage_env, storage, *, media_ca=None):
+    storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
-    original = ALIYUN["generate"](directory, "original.mp4", "green", True)
-    changed = ALIYUN["generate"](directory, "changed.mp4", "yellow", False)
+    original, changed = ALIYUN["video_samples"](directory, "green", "yellow")
     storage("PUT", KEY, content=original)
     storage("PUT", KEY, content=changed)
-    result = XML.fromstring(storage("GET", query="versions&prefix=versions%2Fclip.mp4"))
+    result = XML.fromstring(storage("GET", query="versions="))
     versions = {node.findtext("{*}IsLatest"): node.findtext("{*}VersionId")
                 for node in result.findall("{*}Version") if node.findtext("{*}Key") == KEY}
     first, last = versions["false"], versions["true"]
@@ -156,7 +149,7 @@ def exercise(binary, directory, storage_env, storage):
     supplier.references, supplier.cancelled = set(), set()
     supplier.submissions, supplier.queries, supplier.cancellations, supplier.unexpected = [], [], [], []
     supplier.submit_mode = "accepted"
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    MEDIA["configure_media"](supplier, storage_env, (first, last), media_ca)
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
 
@@ -268,6 +261,7 @@ def exercise(binary, directory, storage_env, storage):
         assert supplier.cancellations == ["pending-race", "pending"] and not supplier.unexpected
         assert sum(task == TASK and all_segments for task, all_segments in supplier.queries) == 3
         assert sum(not all_segments for _, all_segments in supplier.queries) == 6
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -278,7 +272,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-tencent-video-") as work, \
-            ALIYUN["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request)
+            MEDIA["storage_fixture"](media_ca) as (env, request):
+        exercise(args.binary.resolve(), Path(work), env, request, media_ca=media_ca)
     print("腾讯云 VM 点播：HTTP／Artisan／Worker、待处理取消、TC3、视频时间和覆盖通过")

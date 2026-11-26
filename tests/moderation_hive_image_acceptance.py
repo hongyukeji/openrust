@@ -18,6 +18,7 @@ import xml.etree.ElementTree as XML
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGES = runpy.run_path(str(ROOT / "tests/moderation_sightengine_image_acceptance.py"))
+MEDIA = IMAGES["IMAGES"]
 TEXT = runpy.run_path(str(ROOT / "tests/moderation_hive_text_acceptance.py"))
 ORIGIN, KEY = IMAGES["ORIGIN"], IMAGES["KEY"]
 TEXT_TOKEN = TEXT["CURRENT"]
@@ -68,14 +69,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
             query = parse_qs(public.query, strict_parsing=True)
             version, = query["versionId"]
             assert "X-Amz-Signature" in query and 0 < int(query["X-Amz-Expires"][0]) <= 300
-            backend = self.server.storage
-            connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-            try:
-                connection.request("GET", public.path + "?" + public.query, headers={"Host": backend.netloc})
-                response = connection.getresponse()
-                code, payload = response.status, response.read()
-            finally:
-                connection.close()
+            code, payload = MEDIA["download_media"](self.server, public)
         assert token == "Token " + IMAGE_TOKEN
         with self.server.lock:
             self.server.calls.append((version, code, payload if code == 200 else None))
@@ -121,14 +115,14 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 
-def exercise(binary, work, storage_env, storage):
-    storage("PUT", query="versioning", content=(
+def exercise(binary, work, storage_env, storage, *, media_ca=None):
+    storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
     original, changed = IMAGES["png"](44, 33, 22), IMAGES["png"](11, 99, 88)
     storage("PUT", KEY, content=original)
     storage("PUT", KEY, content=changed)
-    document = XML.fromstring(storage("GET", query="versions&prefix=versions%2Fimage.png"))
+    document = XML.fromstring(storage("GET", query="versions="))
     versions = {version.findtext("{*}IsLatest"): version.findtext("{*}VersionId")
                 for version in document.findall("{*}Version") if version.findtext("{*}Key") == KEY}
     first, latest = versions["false"], versions["true"]
@@ -140,7 +134,7 @@ def exercise(binary, work, storage_env, storage):
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.calls, supplier.mode = threading.Lock(), [], None
     supplier.text_calls = 0
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    MEDIA["configure_media"](supplier, storage_env, (first, latest), media_ca)
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
     env = os.environ | storage_env | {
@@ -220,6 +214,7 @@ def exercise(binary, work, storage_env, storage):
         assert supplier.text_calls == 1
         assert supplier.calls == [(first, 200, original), (None, 200, original), (latest, 200, changed),
                                   (None, 200, IMAGES["ANIMATION"])] + [(None, 200, changed)] * 5 + [(None, 200, original), (unknown, 404, None)]
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -230,7 +225,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-hive-image-") as directory, \
-            IMAGES["IMAGES"]["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(directory), env, request)
+            MEDIA["storage_fixture"](media_ca) as (env, request):
+        exercise(args.binary.resolve(), Path(directory), env, request, media_ca=media_ca)
     print("Hive V2 图片：HTTP／Artisan、项目凭据隔离、multipart、私有 S3、采样与失败检查通过")

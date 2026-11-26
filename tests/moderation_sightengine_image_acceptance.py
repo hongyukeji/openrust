@@ -65,14 +65,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
             query = parse_qs(public.query, strict_parsing=True)
             version, = query["versionId"]
             assert 0 < int(query["X-Amz-Expires"][0]) <= 300
-            backend = self.server.storage
-            connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-            try:
-                connection.request("GET", public.path + "?" + public.query, headers={"Host": backend.netloc})
-                response = connection.getresponse()
-                status, content = response.status, response.read()
-            finally:
-                connection.close()
+            status, content = IMAGES["download_media"](self.server, public)
         assert fields == {"api_user": "local-image-user", "api_secret": SECRET,
                           "models": MODELS, "text_categories": "email,insult"}
         with self.server.lock:
@@ -106,14 +99,14 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def exercise(binary, root, storage_env, storage):
-    storage("PUT", query="versioning", content=(
+def exercise(binary, root, storage_env, storage, *, media_ca=None):
+    storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
     original, changed = png(15, 16, 17), png(80, 81, 82)
     storage("PUT", KEY, content=original)
     storage("PUT", KEY, content=changed)
-    document = XML.fromstring(storage("GET", query="versions&prefix=versions%2Fimage.png"))
+    document = XML.fromstring(storage("GET", query="versions="))
     versions = {version.findtext("{*}IsLatest"): version.findtext("{*}VersionId")
                 for version in document.findall("{*}Version") if version.findtext("{*}Key") == KEY}
     first, latest = versions["false"], versions["true"]
@@ -124,7 +117,7 @@ def exercise(binary, root, storage_env, storage):
         app_port = listener.getsockname()[1]
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.calls, supplier.mode = threading.Lock(), [], None
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    IMAGES["configure_media"](supplier, storage_env, (first, latest), media_ca)
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
     env = os.environ | storage_env | {
@@ -198,6 +191,7 @@ def exercise(binary, root, storage_env, storage):
         assert supplier.calls == [(first, 200, original), (None, 200, original), (latest, 200, changed),
                                   (None, 200, ANIMATION), (None, 200, changed), (None, 200, changed),
                                   (unknown, 404, None)]
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -208,7 +202,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-sightengine-image-") as work, \
-            IMAGES["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request)
+            IMAGES["storage_fixture"](media_ca) as (env, request):
+        exercise(args.binary.resolve(), Path(work), env, request, media_ca=media_ca)
     print("Sightengine 图像：HTTP／Artisan、multipart、私有 S3 版本、OCR 及帧取样通过")

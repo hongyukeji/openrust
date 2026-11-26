@@ -25,6 +25,16 @@ Rust 1.94.0 全工作区格式检查与 macOS ARM64 的验收应用严格 Clippy
 
 本次覆盖阿里云图片与点播使用 HTTPS 读取私有对象的隔离路径。其他三家的协议测试范围见上表。正式 DNS、公开 CA、厂商出站网络和托管 S3 权限随目标环境验证。
 
+## 四家私有素材 HTTPS 与分段读取 {#four-provider-private-media-https}
+
+在 `4da97d589` 快照上，用 Rust 1.94.0 重建 macOS ARM64 验收应用。沿用固定 Laravel S3 签名边界和上一批的版本化素材契约。四家图片、点播共用同一个下载探针，配置缓存、各供应商签名与结果断言沿用各自的夹具。
+
+本机编译 Nginx 1.30.7，使用校验过 SHA-256 的 SeaweedFS 4.53 ARM64 官方制品。两者监听隔离的回环地址。访问端仅在验收进程内将 `moderation-media.fixture.invalid` 映射到 Nginx 的动态端口，请求保持原 SNI，并用专用 CA 验证证书。Nginx 转发签名时使用的源站 Host、路径及查询串。访问日志关闭。视频样本用 FFmpeg 生成，并经 ffprobe 区分有音轨和无音轨的版本。[Nginx 源码](https://nginx.org/download/nginx-1.30.7.tar.gz) · [SeaweedFS 4.53](https://github.com/seaweedfs/seaweedfs/releases/tag/4.53)
+
+阿里云、腾讯云、Sightengine、Hive 的八组真实 HTTP 和 Artisan 用例通过。每组对比旧版、新版素材的字节，使用同一签名链接读取 `bytes=0-15` 得到 206 和正确的 16 字节。系统 CA 拒绝私有测试证书。无签名、换成另一有效对象版本、修改签名均返回 403。四家点播用例另经独立 SQLite 队列 Worker 查单。Sightengine 与 Hive 的图片上传、OCR 和部分覆盖断言继续通过，腾讯云点播保留取消断言。
+
+全工作区格式检查、macOS ARM64 的应用目标严格 Clippy、Python 夹具加载、三语站点构建与两种挂载路径的浏览器检查通过。Linux 冷构建长时间停留在图像依赖的代码生成阶段，Docker 未在限时内确认停止。八组结果来自原生 macOS 实跑。已回收原生服务、证书、样本和文档产物，保留 Linux 构建仍可能使用的源码快照。执行日志位于 `target/tmp/moderation-provider-media-https/`。本次使用厂商协议夹具和私有测试 CA。正式访问权限、域名、公信证书及实际厂商出站下载继续在目标环境验收。
+
 ## 真实验收的前置条件
 
 本轮环境没有配置专用凭据目录。需要以下测试项目及权限，凭据通过受保护目录挂载，勿写入仓库或验收日志。

@@ -17,6 +17,7 @@ import xml.etree.ElementTree as XML
 
 ROOT = Path(__file__).resolve().parents[1]
 VIDEO = runpy.run_path(str(ROOT / "tests/moderation_aliyun_video_acceptance.py"))
+MEDIA = VIDEO["OBJECTS"]
 HTTP = VIDEO["ALIYUN"]["HTTP"]
 ORIGIN, KEY = VIDEO["ORIGIN"], VIDEO["KEY"]
 SECRET = "sightengine-video-private+/"
@@ -59,15 +60,8 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         version, = query["versionId"]
         assert f"{source.scheme}://{source.netloc}" == ORIGIN and source.path.endswith("/" + KEY)
         assert "X-Amz-Signature" in query and 0 < int(query["X-Amz-Expires"][0]) <= 300
-        backend = self.server.storage
-        connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-        try:
-            connection.request("GET", source.path + "?" + source.query, headers={"Host": backend.netloc})
-            response = connection.getresponse()
-            clip_data = response.read()
-            assert response.status == 200
-        finally:
-            connection.close()
+        status, clip_data = MEDIA["download_media"](self.server, source)
+        assert status == 200
         with self.server.lock:
             self.server.posted.append((version, clip_data))
             mode = self.server.mode
@@ -124,14 +118,13 @@ class Supplier(http.server.BaseHTTPRequestHandler):
 
 
 def versioned_clips(work, storage):
-    storage("PUT", query="versioning", content=(
+    storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
-    original = VIDEO["generate"](work, "original.mp4", "purple", True)
-    changed = VIDEO["generate"](work, "changed.mp4", "white", False)
+    original, changed = VIDEO["video_samples"](work, "purple", "white")
     storage("PUT", KEY, content=original)
     storage("PUT", KEY, content=changed)
-    result = XML.fromstring(storage("GET", query="versions&prefix=versions%2Fclip.mp4"))
+    result = XML.fromstring(storage("GET", query="versions="))
     versions = {node.findtext("{*}IsLatest"): node.findtext("{*}VersionId")
                 for node in result.findall("{*}Version") if node.findtext("{*}Key") == KEY}
     first, last = versions["false"], versions["true"]
@@ -140,7 +133,7 @@ def versioned_clips(work, storage):
     return first, last, original, changed
 
 
-def exercise(binary, work, storage_env, storage, *, credentials=False):
+def exercise(binary, work, storage_env, storage, *, credentials=False, media_ca=None):
     first, last, original, changed = versioned_clips(work, storage)
 
     with socket.socket() as listener:
@@ -150,7 +143,7 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
     supplier.lock, supplier.mode = threading.Lock(), "accepted"
     supplier.expected_secret = SECRET
     supplier.posted, supplier.queried, supplier.stops = [], [], []
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    MEDIA["configure_media"](supplier, storage_env, (first, last), media_ca)
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
     database = work / "queue.sqlite"
@@ -354,6 +347,7 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
             original_credential.unlink()
             artisan(changed, COMMAND, "query-pinned", encoded, successful=False)
             assert len(supplier.queried) == 16
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -364,9 +358,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     credentials = os.environ.get("MODERATION_TEST_MOUNTED_CREDENTIALS") == "1"
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-sightengine-video-") as work, \
-            VIDEO["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request, credentials=credentials)
+            MEDIA["storage_fixture"](media_ca) as (env, request):
+        exercise(args.binary.resolve(), Path(work), env, request, credentials=credentials, media_ca=media_ca)
     print("Sightengine 点播：HTTP／Artisan／独立 Worker、查询凭据保护、取消和时间证据通过",
           "（挂载凭据版本）" if credentials else "（显式环境注入）")

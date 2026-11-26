@@ -41,6 +41,13 @@ def storage_fixture(media_ca):
     yield env, request
 
 
+def configure_media(server, storage_env, versions, media_ca):
+    server.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    server.media_versions = versions
+    server.media_tls = ssl.create_default_context(cafile=media_ca) if media_ca else None
+    server.tls_verified = False
+
+
 def download_media(server, source):
     def get(connection, path, headers=None):
         try:
@@ -69,13 +76,18 @@ def download_media(server, source):
                 raise AssertionError("私有 CA 未配置时仍可下载")
             assert get(https(server.media_tls), source.path)[0] == 403
             version, = parse_qs(source.query)["versionId"]
-            assert version != server.latest
-            replaced = target.replace(f"versionId={version}", f"versionId={server.latest}", 1)
+            assert version in server.media_versions
+            alternate = next(value for value in server.media_versions if value != version)
+            replaced = target.replace(f"versionId={version}", f"versionId={alternate}", 1)
             assert replaced != target and get(https(server.media_tls), replaced)[0] == 403
             signature, = parse_qs(source.query)["X-Amz-Signature"]
             forged = ("0" if signature[0] != "0" else "1") + signature[1:]
             assert get(https(server.media_tls), target.replace(signature, forged, 1))[0] == 403
+            status, payload = get(https(server.media_tls), target)
+            assert status == 200 and len(payload) >= 16
+            assert get(https(server.media_tls), target, {"Range": "bytes=0-15"}) == (206, payload[:16])
             server.tls_verified = True
+            return status, payload
     return get(https(server.media_tls), target)
 
 
@@ -145,9 +157,7 @@ def exercise(binary, root, storage_env, storage_request, *, media_ca=None):
         app_port = listener.getsockname()[1]
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.nonces, supplier.results = threading.Lock(), set(), []
-    supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
-    supplier.media_tls = ssl.create_default_context(cafile=media_ca) if media_ca else None
-    supplier.tls_verified = False
+    configure_media(supplier, storage_env, (first, latest), media_ca)
     supplier.latest = latest
     supplier.response_mode = None
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)

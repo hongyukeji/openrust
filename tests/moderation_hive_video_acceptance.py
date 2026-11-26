@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 VIDEO = runpy.run_path(str(ROOT / "tests/moderation_sightengine_video_acceptance.py"))
+MEDIA = VIDEO["VIDEO"]["OBJECTS"]
 DATABASE = runpy.run_path(str(ROOT / "tests/sms_worker.py"))
 HTTP = VIDEO["HTTP"]
 PROJECT = 48175
@@ -46,15 +47,8 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         signature = parse_qs(source.query, strict_parsing=True)
         assert "X-Amz-Signature" in signature and 0 < int(signature["X-Amz-Expires"][0]) <= 300
         version, = signature["versionId"]
-        backend = self.server.storage
-        connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-        try:
-            connection.request("GET", source.path + "?" + source.query, headers={"Host": backend.netloc})
-            result = connection.getresponse()
-            content = result.read()
-            assert result.status == 200
-        finally:
-            connection.close()
+        status, content = MEDIA["download_media"](self.server, source)
+        assert status == 200
         with self.server.lock:
             self.server.calls.append((version, content))
             mode = self.server.mode
@@ -173,10 +167,10 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.respond(200, json.dumps(task).encode())
 
 
-def exercise(binary, driver, url, root, storage_env, storage):
+def exercise(binary, driver, url, root, storage_env, storage, *, media_ca=None):
     first, last, original, changed = VIDEO["versioned_clips"](root, storage)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
-    server.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    MEDIA["configure_media"](server, storage_env, (first, last), media_ca)
     server.calls, server.mode, server.lock = [], "accepted", threading.Lock()
     server.summary_calls, server.query_mode = [], "paged"
     server.project, server.token, server.video_model = PROJECT, TOKEN, "CATEGORIZATION"
@@ -396,6 +390,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
             assert result["query_failure"] == "incomplete_coverage" and result["decision"] is None
             assert result["assessment"]["labels"] == direct["assessment"]["labels"]
         assert len(server.summary_calls) == 34
+        assert server.tls_verified == (media_ca is not None)
     finally:
         server.shutdown()
         server.server_close()
@@ -406,8 +401,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     driver, url = DATABASE["database_settings"]()
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-hive-video-") as root, \
-            VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
+            MEDIA["storage_fixture"](media_ca) as (env, storage):
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, media_ca=media_ca)
     print(f"{driver}: Hive 点播视觉、OCR 和语音通过真实 HTTP、Artisan 与独立 Worker")
