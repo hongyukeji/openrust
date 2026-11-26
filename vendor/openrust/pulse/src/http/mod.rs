@@ -2,7 +2,11 @@ pub mod middleware;
 use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
-    support::facades::{Config, Facade, Route},
+    support::{
+        data_get,
+        facades::{Config, Facade, Route},
+        php_integer_cast, php_regular_compare,
+    },
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -226,6 +230,10 @@ async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Val
     let sort_by = options["sort_by"].as_str().unwrap_or("name");
     let descending = options["sort_direction"] == "desc";
     let now = jiff::Timestamp::now();
+    let mut graphs = pulse
+        .graph(&["cpu".into(), "memory".into()], "avg", interval)
+        .await?;
+    let mut visible_graphs = serde_json::Map::new();
     let mut systems = Vec::new();
     for system in pulse.values("system", None).await? {
         let mut system = row(system);
@@ -242,42 +250,72 @@ async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Val
             .as_str()
             .and_then(|value| serde_json::from_str::<Value>(value).ok())
             .unwrap_or_default();
-        let order = match sort_by {
-            "cpu_current" => snapshot["cpu"].clone(),
-            "memory_current" => snapshot["memory_used"].clone(),
-            "memory_total" => snapshot["memory_total"].clone(),
-            "updated_at" => system["timestamp"].clone(),
-            "recently_reported" => system["recently_reported"].clone(),
-            _ => snapshot["name"].clone(),
-        };
+        let graph = system["key"]
+            .as_str()
+            .and_then(|key| graphs.remove(key))
+            .map(serde_json::to_value)
+            .transpose()?;
+        let series = graph.as_ref().unwrap_or(&Value::Null);
+        let fields = serde_json::json!({
+            "name": snapshot["name"],
+            "cpu_current": php_integer_cast(&snapshot["cpu"]),
+            "memory_current": php_integer_cast(&snapshot["memory_used"]),
+            "memory_total": php_integer_cast(&snapshot["memory_total"]),
+            "updated_at": timestamp,
+            "recently_reported": system["recently_reported"],
+            "cpu": series.get("cpu").cloned().unwrap_or_else(|| Value::Array(vec![])),
+            "memory": series.get("memory").cloned().unwrap_or_else(|| Value::Array(vec![])),
+            "storage": snapshot.get("storage").cloned().unwrap_or_else(|| Value::Array(vec![])),
+        });
+        let order = data_get(&fields, Some(sort_by)).unwrap_or_default();
+        if let Some((key, graph)) = system["key"].as_str().zip(graph) {
+            visible_graphs.insert(key.into(), graph);
+        }
         systems.push((order, system));
     }
-    systems.sort_by(|(left, _), (right, _)| {
-        let order = match (left, right) {
-            (Value::Number(left), Value::Number(right)) => left
-                .as_f64()
-                .partial_cmp(&right.as_f64())
-                .unwrap_or(std::cmp::Ordering::Equal),
-            (Value::Bool(left), Value::Bool(right)) => left.cmp(right),
-            _ => left.as_str().cmp(&right.as_str()),
-        };
-        if descending { order.reverse() } else { order }
-    });
+    let systems = sort_systems(systems, descending);
+    Ok((
+        systems.into_iter().map(|(_, row)| row).collect(),
+        Value::Object(visible_graphs),
+    ))
+}
 
-    let mut graphs = pulse
-        .graph(&["cpu".into(), "memory".into()], "avg", interval)
-        .await?;
-    let mut visible_graphs = serde_json::Map::new();
-    let mut visible_systems = Vec::new();
-    for (_, system) in systems {
-        if let Some(key) = system["key"].as_str()
-            && let Some(series) = graphs.remove(key)
-        {
-            visible_graphs.insert(key.into(), serde_json::to_value(series)?);
+fn sort_systems(mut systems: Vec<(Value, Value)>, descending: bool) -> Vec<(Value, Value)> {
+    let follows = |left: &Value, right: &Value| {
+        let order = php_regular_compare(left, right);
+        if descending {
+            order.is_lt()
+        } else {
+            order.is_gt()
         }
-        visible_systems.push(system);
+    };
+    // PHP 混合值的比较可能存在循环，不能传给要求全序的切片排序。
+    if systems.len() <= 16 {
+        for index in 1..systems.len() {
+            let mut current = index;
+            while current > 0 && follows(&systems[current - 1].0, &systems[current].0) {
+                systems.swap(current - 1, current);
+                current -= 1;
+            }
+        }
+        return systems;
     }
-    Ok((visible_systems, Value::Object(visible_graphs)))
+    let count = systems.len();
+    let right = systems.split_off(count / 2);
+    let mut left = sort_systems(systems, descending).into_iter().peekable();
+    let mut right = sort_systems(right, descending).into_iter().peekable();
+    let mut sorted = Vec::with_capacity(count);
+    while let (Some(l), Some(r)) = (left.peek(), right.peek()) {
+        let source = if follows(&l.0, &r.0) {
+            &mut right
+        } else {
+            &mut left
+        };
+        sorted.extend(source.next());
+    }
+    sorted.extend(left);
+    sorted.extend(right);
+    sorted
 }
 
 fn server_max_age(value: &Value) -> crate::Result<i128> {

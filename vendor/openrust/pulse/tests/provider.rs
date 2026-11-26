@@ -2073,3 +2073,97 @@ async fn dashboard_server_history_returns_average_series_and_heartbeat_state() {
         }
     }
 }
+
+#[tokio::test]
+async fn dashboard_servers_sort_numeric_names_collections_and_nested_fields() {
+    use openrust::contracts::foundation::Application as _;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_database_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let mut entries = Vec::new();
+    for (key, name, cpu, used, total) in [
+        ("node-10", "10", 25, 30, 80),
+        ("node-2", "2", 50, 100, 200),
+        ("node-alpha", "Alpha", 80, 40, 90),
+    ] {
+        let snapshot = json!({
+            "name": name, "cpu": cpu, "memory_used": 32, "memory_total": 64,
+            "storage": [{"directory": "/", "total": total, "used": used}],
+        });
+        entries.push(
+            openrust_pulse::Value::new(timestamp, "system", key, snapshot.to_string()).into(),
+        );
+        entries.push(
+            openrust_pulse::Entry::new(timestamp, "cpu", key, Some(cpu))
+                .avg()
+                .only_buckets()
+                .into(),
+        );
+    }
+    storage.store(&entries).await.unwrap();
+    let original: Vec<_> = storage
+        .values("system", None)
+        .await
+        .unwrap()
+        .iter()
+        .map(|row| match row.get("key").unwrap() {
+            openrust::database::Value::Text(key) => key.clone(),
+            openrust::database::Value::Bytes(key) => String::from_utf8(key.clone()).unwrap(),
+            key => panic!("无法读取服务器键 {key:?}"),
+        })
+        .collect();
+    let config = app.app().config().unwrap();
+    let by_name = ["node-2", "node-10", "node-alpha"];
+    let by_cpu = ["node-10", "node-2", "node-alpha"];
+    let by_disk = ["node-10", "node-alpha", "node-2"];
+    for (field, asc) in [
+        ("name", by_name.as_slice()),
+        ("cpu", by_cpu.as_slice()),
+        ("storage", by_disk.as_slice()),
+        ("storage.0.used", by_disk.as_slice()),
+    ] {
+        config
+            .set("pulse.dashboard.servers.sort_by", json!(field))
+            .unwrap();
+        for direction in ["asc", "desc"] {
+            config
+                .set("pulse.dashboard.servers.sort_direction", json!(direction))
+                .unwrap();
+            let mut expected = asc.to_vec();
+            if direction == "desc" {
+                expected.reverse();
+            }
+            let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+            response.assert_ok();
+            let data = response.json::<serde_json::Value>().unwrap();
+            let keys: Vec<_> = data["servers"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["key"].as_str().unwrap())
+                .collect();
+            assert_eq!(keys, expected, "{field} {direction}");
+        }
+    }
+    config
+        .set("pulse.dashboard.servers.sort_by", json!("unknown"))
+        .unwrap();
+    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    response.assert_ok();
+    let data = response.json::<serde_json::Value>().unwrap();
+    let keys: Vec<_> = data["servers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(keys, original);
+}

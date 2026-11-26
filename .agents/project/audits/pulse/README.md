@@ -148,7 +148,9 @@ Rust 指标接口保留快照原有字段，增加 `recently_reported`，并通�
 
 服务器当前内存和磁盘读数按固定视图以 1024 换算 MB、GB、TB，内存最多一位小数，磁盘取整数。原生仪表用原始读数计算使用率。实际 Chrome 桌面和移动视口验证内存 `2GB / 8GB` 与 25%、磁盘 `100MB / 200MB` 与 50%。证据为 `target/tmp/observability-parity/pulse-dashboard-server-size-verified.log`。
 
-固定 PHP 的实际 `render` 进一步确认数值主机名按数值排序，`cpu`、`memory`、`storage` 可以作为集合排序字段，`storage.0.used` 支持嵌套取值。未知字段保留原始存储顺序。Rust 当前使用字符串主机名排序，只支持已记录的标量字段，未知字段回退到主机名。这些差异继续处理。证据为 `target/tmp/observability-parity/pulse-dashboard-server-sort-upstream.log`。
+固定 PHP 的实际 `render` 确认数值主机名按数值比较，`cpu`、`memory`、`storage` 可作为集合排序字段，`storage.0.used` 支持嵌套取值。未知字段保留原始存储顺序。Rust 复用框架路径读取与 PHP 数值解析，按这些字段排序并保留等值记录的读取顺序。真实 HTTP 前态将 10 排在 2 之前。相同数据在固定 PHP、SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验证数值主机名、CPU 历史、磁盘集合、嵌套字段和未知字段。Pulse 与 Telescope Provider 共 38 项通过，独立 Redis 用例按环境跳过。全仓格式、相关严格 Clippy、桌面和移动 Chrome、三语站点及六组正文检查通过。证据为 `target/tmp/observability-parity/pulse-dashboard-server-sort-{exact-upstream,baseline,verified,docs}.log`。
+
+混合字段可能出现循环比较。Rust 使用稳定排序处理此类输入，存在循环时的确切输出顺序仍需与 Zend 排序逐项对照。 [PHP 8.5.12 比较实现](https://github.com/php/php-src/blob/php-8.5.12/Zend/zend_operators.c#L3258-L3305) [PHP 8.5.12 排序实现](https://github.com/php/php-src/blob/php-8.5.12/Zend/zend_sort.c#L241-L298)
 
 PHP 相对时间语法的其余边界、Livewire 更新事件和缓存包装仍需消费者验收。目标平台与发布组合继续验收。
 

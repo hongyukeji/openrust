@@ -1,6 +1,7 @@
 //! PHP 64-bit scalar equality bridge for compiled framework extensions.
 //! Ported from openrust-v0.x support/number.rs; no JSON-to-text comparison shortcut.
 use serde_json::Value;
+use std::cmp::Ordering;
 #[derive(Clone, Copy)]
 enum InputNumber {
     Integer(i64),
@@ -143,6 +144,110 @@ fn numeric_string_overflow(text: &str, number: InputNumber) -> i8 {
         if trimmed.starts_with('-') { -1 } else { 1 }
     } else {
         0
+    }
+}
+
+/// 对 JSON 表示的 PHP 标量与数组执行默认排序比较。
+/// 混合类型比较可能不满足传递性，调用者须使用可以处理此情况的排序。
+#[doc(hidden)]
+#[must_use]
+pub fn php_regular_compare(left: &Value, right: &Value) -> Ordering {
+    use Ordering::{Equal, Greater, Less};
+
+    if left.is_boolean() || right.is_boolean() {
+        return super::arr::truthy(left).cmp(&super::arr::truthy(right));
+    }
+    match (left, right) {
+        (Value::Null, Value::String(right)) => "".cmp(right),
+        (Value::String(left), Value::Null) => left.as_str().cmp(""),
+        (Value::Null, _) | (_, Value::Null) => {
+            super::arr::truthy(left).cmp(&super::arr::truthy(right))
+        }
+        (Value::String(left), Value::String(right)) => compare_numeric_strings(left, right),
+        (Value::Number(_), Value::Number(_) | Value::String(_)) => {
+            let left_number = InputNumber::from_value(left).expect("JSON number");
+            if let Some(right_number) = InputNumber::from_value(right) {
+                compare_numbers(left_number, right_number)
+            } else {
+                super::input_scalars::string(left.clone())
+                    .as_str()
+                    .cmp(right.as_str().expect("非数值字符串"))
+            }
+        }
+        (Value::String(_), Value::Number(_)) => php_regular_compare(right, left).reverse(),
+        (Value::Array(_) | Value::Object(_), Value::Array(_) | Value::Object(_)) => {
+            compare_collections(left, right)
+        }
+        (Value::Array(_) | Value::Object(_), _) => Greater,
+        (_, Value::Array(_) | Value::Object(_)) => Less,
+        _ => Equal,
+    }
+}
+
+fn compare_collections(left: &Value, right: &Value) -> Ordering {
+    let length = |value: &Value| {
+        value
+            .as_array()
+            .map(Vec::len)
+            .or_else(|| value.as_object().map(serde_json::Map::len))
+            .unwrap_or_default()
+    };
+    let order = length(left).cmp(&length(right));
+    if !order.is_eq() {
+        return order;
+    }
+    let compare = |key: &str, value: &Value| {
+        super::data::direct(right, key)
+            .map_or(Ordering::Greater, |other| php_regular_compare(value, other))
+    };
+    match left {
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .map(|(index, value)| compare(&index.to_string(), value))
+            .find(|order| !order.is_eq()),
+        Value::Object(items) => items
+            .iter()
+            .map(|(key, value)| compare(key, value))
+            .find(|order| !order.is_eq()),
+        _ => None,
+    }
+    .unwrap_or(Ordering::Equal)
+}
+
+fn compare_numeric_strings(left: &str, right: &str) -> Ordering {
+    let (Some(left_number), Some(right_number)) = (
+        InputNumber::numeric_string(left),
+        InputNumber::numeric_string(right),
+    ) else {
+        return left.cmp(right);
+    };
+    let left_overflow = numeric_string_overflow(left, left_number);
+    let right_overflow = numeric_string_overflow(right, right_number);
+    match (left_number, right_number) {
+        (InputNumber::Integer(_), InputNumber::Float(_)) if right_overflow != 0 => {
+            0.cmp(&right_overflow)
+        }
+        (InputNumber::Float(_), InputNumber::Integer(_)) if left_overflow != 0 => {
+            left_overflow.cmp(&0)
+        }
+        (InputNumber::Float(a), InputNumber::Float(b))
+            if a.partial_cmp(&b) == Some(Ordering::Equal)
+                && (!a.is_finite() || (left_overflow != 0 && left_overflow == right_overflow)) =>
+        {
+            left.cmp(right)
+        }
+        _ => compare_numbers(left_number, right_number),
+    }
+}
+
+fn compare_numbers(left: InputNumber, right: InputNumber) -> Ordering {
+    match (left, right) {
+        (InputNumber::Integer(left), InputNumber::Integer(right)) => left.cmp(&right),
+        (left, right) => left
+            .as_float()
+            .partial_cmp(&right.as_float())
+            .unwrap_or(Ordering::Equal),
     }
 }
 
