@@ -74,6 +74,8 @@
 
 构建、PE 导入及运行日志保存在本机 `target/tmp/goal-extension-combined-windows/`。验收覆盖 Windows ARM64 虚机里的独立 ZIP。Windows Docker Desktop、无 MSVC 工具链的 Windows 安装、原生 Windows x64 和实际发布渠道仍需各自的环境。
 
+根据实际 PE 导入和 Microsoft 的兼容规则，三语部署指南补充 `VCRUNTIME140.dll` 的运行库架构及版本要求。VitePress 构建通过，Playwright 在 `/` 和 `/docs/` 下核对六个页面的已渲染说明及官方链接。该检查覆盖发布文档。 [Microsoft Visual C++ v14 运行库](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
+
 ## Windows x64 组合预检
 
 在同一 Windows 11 ARM64 虚机核对 `7dd141aac` 归档。Rust 1.94.0 已安装 `x86_64-pc-windows-msvc` 标准库，MSVC HostARM64 的 x64 链接器及 Windows SDK 的 x64 库均可用。针对 x64 执行 `cargo tree --locked --offline`，九个扩展依赖均出现。以 `rustc --target x86_64-pc-windows-msvc` 编译最小探针，核对 PE 机器类型为 `0x8664`，在虚机的 x64 兼容层执行成功。此项验证工具链及兼容层加载，完整应用、发布归档、实际运行行为和原生 x64 主机仍需独立验收。

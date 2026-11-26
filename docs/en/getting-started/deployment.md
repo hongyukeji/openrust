@@ -136,6 +136,8 @@ HTTP, the managed Worker, and the scheduler share the application process. The m
 
 Build the release with Rust and the MSVC build tools for the target architecture. On a fresh SQLite deployment, stage the executable, resources, public files, and environment before creating the database and applying migrations.
 
+If `main.exe` imports `VCRUNTIME140.dll`, install the Visual C++ v14 Redistributable for the executable's architecture on the deployment host. Use a runtime version at least as recent as the build tools used to build the executable. [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
+
 ```powershell
 cargo +1.94.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public

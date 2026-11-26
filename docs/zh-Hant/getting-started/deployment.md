@@ -136,6 +136,8 @@ HTTP、受管理的 Worker 和排程器共用應用程式程序。受管理的 W
 
 使用目標架構的 Rust 和 MSVC Build Tools 建置發佈產物。全新 SQLite 部署先準備執行檔、資源、公開檔案與環境，再建立資料庫並執行遷移。
 
+如果 `main.exe` 匯入 `VCRUNTIME140.dll`，請在部署主機安裝與執行檔架構相符的 Visual C++ v14 可轉散發套件，版本至少與建置時使用的工具鏈相同。[Microsoft Visual C++ 可轉散發套件](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
+
 ```powershell
 cargo +1.94.0 build --locked --release --features standalone
 New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
