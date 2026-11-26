@@ -39,6 +39,28 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Ok(())
 }
 
+fn web_routes() -> Result<(), openrust::routing::RoutingError> {
+    openrust::support::facades::Route::get("/request-session", observed_session)?;
+    Ok(())
+}
+
+fn observed_session(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async {
+        use openrust::contracts::session::Session as _;
+        assert!(request.session()?.has("_token"));
+        request
+            .session_mut()?
+            .put("_token", "session-token".into())?;
+        request.session_mut()?.put(
+            "nested",
+            json!({"password":"session-password","remember":"public"}),
+        )?;
+        Ok(openrust::http::Response::from("session probe"))
+    })
+}
+
 fn redis_handler(
     _: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
@@ -282,6 +304,12 @@ fn application_with_config(
             .with_config(config)
             .with_providers(vec![Box::new(TelescopeServiceProvider)])
             .with_middleware(|middleware| {
+                middleware
+                    .trust_proxies(
+                        &["10.0.0.0/8"],
+                        openrust::http::TrustedProxyHeaders::DEFAULT,
+                    )
+                    .unwrap();
                 middleware.skip_trim_strings_when(|request| {
                     request.path().trim_start_matches('/') == "api/unread"
                 });
@@ -291,6 +319,7 @@ fn application_with_config(
             })
             .with_routing(
                 openrust::foundation::configuration::Routing::default()
+                    .web(web_routes)
                     .api(routes)
                     .commands(commands),
             )
@@ -1674,6 +1703,76 @@ async fn console_show_renders_request_exception_and_job_details() {
             .len(),
         16
     );
+}
+
+#[tokio::test]
+async fn request_watcher_records_resolved_address_and_redacted_session() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.hide_request_parameters(&["_token", "nested.password"]);
+    let cases = [
+        (
+            "/request-session",
+            Some("10.0.0.1:1200"),
+            "203.0.113.7, 198.51.100.9, 10.0.0.2",
+            json!("198.51.100.9"),
+        ),
+        (
+            "/api/probe",
+            Some("198.51.100.2:1200"),
+            "203.0.113.7",
+            json!("198.51.100.2"),
+        ),
+        (
+            "/api/probe",
+            Some("[2001:db8::2]:1200"),
+            "",
+            json!("2001:db8::2"),
+        ),
+        ("/api/probe", None, "203.0.113.7", json!(null)),
+    ];
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    for (path, peer, forwarded, expected) in cases {
+        let mut request = http::Request::builder()
+            .uri(path)
+            .header("X-Forwarded-For", forwarded);
+        if let Some(peer) = peer {
+            request = request.extension(axum::extract::ConnectInfo(
+                peer.parse::<std::net::SocketAddr>().unwrap(),
+            ));
+        }
+        let response = app
+            .call(request.body(openrust::http::Body::empty()).unwrap())
+            .await
+            .unwrap();
+        response.assert_ok();
+        let latest = repository
+            .get(
+                Some(EntryType::Request),
+                EntryQueryOptions::default().limit(1),
+            )
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(latest.content["ip_address"], expected, "{path} {peer:?}");
+        assert_eq!(latest.content["uri"], path);
+        assert!(latest.content["duration"].as_u64().is_some());
+        if path == "/request-session" {
+            assert_eq!(latest.content["session"]["_token"], "********");
+            assert_eq!(
+                latest.content["session"]["nested"],
+                json!({"password":"********","remember":"public"})
+            );
+            assert!(!latest.content.to_string().contains("session-password"));
+        } else {
+            assert_eq!(latest.content["session"], json!([]));
+        }
+        assert!(latest.content["memory"].is_null());
+    }
 }
 
 impl openrust::contracts::auth::Authenticatable for ObservedModel {

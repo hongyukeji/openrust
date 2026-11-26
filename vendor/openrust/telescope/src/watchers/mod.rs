@@ -462,7 +462,27 @@ impl NativeWatcher {
                 &event.response,
                 event.response_content.as_deref(),
             );
-            let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.route_name,"payload":event.payload.clone().map(|payload|telescope.request_parameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
+            let session = event
+                .session
+                .clone()
+                .map(|session| telescope.request_parameters(session))
+                .unwrap_or_else(|| json!([]));
+            let content = json!({
+                "ip_address": event.ip_address,
+                "method": event.request.method.as_str(),
+                "uri": event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),
+                "headers": telescope.headers(&event.request.headers),
+                "response_status": event.response.status.as_u16(),
+                "response_headers": telescope.headers(&event.response.headers),
+                "duration": event.duration.as_millis(),
+                "controller_action": route.map(|route| &route.action),
+                "route_name": event.route_name,
+                "payload": event.payload.clone().map(|payload| telescope.request_parameters(payload)),
+                "session": session,
+                "middleware": route.map(|route| &route.middleware),
+                "response": response,
+            });
+            let entry = IncomingEntry::make(content.as_object().unwrap().clone())?;
             telescope.record_request(entry);
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::events::QueryExecuted>()

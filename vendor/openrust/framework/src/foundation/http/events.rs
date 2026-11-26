@@ -1,10 +1,10 @@
 //! Events emitted by the application HTTP kernel.
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, net::IpAddr, time::Duration};
 
 use crate::{
     container::ParameterValue,
-    contracts::events::Event,
+    contracts::{events::Event, session::Session as _},
     http::{Request, RequestParts, Response, ResponseParts},
 };
 
@@ -19,6 +19,10 @@ pub struct RequestHandled {
     pub response_content: Option<axum::body::Bytes>,
     pub attributes: HashMap<String, ParameterValue>,
     pub route_name: Option<String>,
+    /// 使用框架信任代理规则解析后的客户端地址。
+    pub ip_address: Option<IpAddr>,
+    /// 已加载的会话快照。观察者应自行脱敏后再持久化。
+    pub session: Option<serde_json::Value>,
     /// Already-decoded input; an unread body is not consumed for observation.
     pub payload: Option<serde_json::Value>,
     /// Unix milliseconds captured when the kernel begins handling the request.
@@ -28,6 +32,8 @@ pub struct RequestHandled {
 }
 
 impl RequestHandled {
+    pub const NAME: &'static str = r"OpenRust\Foundation\Http\Events\RequestHandled";
+
     pub(super) fn new(
         request: &Request,
         response: &Response,
@@ -42,6 +48,11 @@ impl RequestHandled {
             response_content: response.get_content().cloned(),
             attributes: request.attributes().snapshot(),
             route_name: request.route_name.clone(),
+            ip_address: request.ip(),
+            session: request
+                .session()
+                .ok()
+                .map(|session| serde_json::to_value(session.all()).expect("会话数据可序列化")),
             payload: request.input_snapshot(),
             request_started_at,
             duration,
@@ -51,7 +62,7 @@ impl RequestHandled {
 
 impl Event for RequestHandled {
     fn name(&self) -> &str {
-        r"OpenRust\Foundation\Http\Events\RequestHandled"
+        Self::NAME
     }
 }
 

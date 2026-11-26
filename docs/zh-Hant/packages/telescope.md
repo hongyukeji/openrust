@@ -30,6 +30,8 @@ Telescope 將應用診斷資訊寫入獨立資料庫表，並提供需要授權�
 
 Watcher 涵蓋請求、查詢、例外、日誌、工作、批次、快取、HTTP 用戶端、命令、排程工作、郵件、通知、模型、事件、Gate、檢視、Redis 命令及 Dump。原生生命週期事件提供實際資料，待寫紀錄透過框架延遲回呼寫入；強制終止程序無法保證寫入。
 
+請求記錄包含框架依可信代理設定解析的用戶端 IP，以及已載入的工作階段資料。可用 `hide_request_parameters` 遮罩請求輸入和工作階段中的敏感欄位。請求耗時以整毫秒記錄。PHP 配置器峰值沒有對應的原生單請求讀數。
+
 `openrust_telescope::watchers` 下的 18 類公開結構均實作 `Watcher`。應用 Provider 可使用 `new(options)` 建構並呼叫 `register(app).await?`；獨立註冊前先關閉對應預設設定項，避免重複監聽。套件 Provider 也使用同一入口。`QueryWatcher` 支援 `slow`，`EventWatcher` 支援 `ignore` 模式。預設忽略框架事件；在解析的服務上呼叫 `telescope.ignore_framework_events.store(false, std::sync::atomic::Ordering::Release)` 可開啟，設定僅在目前應用內共用。
 
 應用事件可實作 `Event::properties()` 提供 JSON 診斷快照；Rust 不會反射任意結構欄位。事件監聽器名稱來自實際的派送器註冊。模型載入計數使用原生 Eloquent 生命週期。郵件保留原始 mailable 與佇列旗標；預覽使用瀏覽器沙箱，下載提供擷取的 MIME 郵件。

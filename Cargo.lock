@@ -5067,6 +5067,7 @@ dependencies = [
 name = "openrust-telescope"
 version = "0.0.0"
 dependencies = [
+ "axum",
  "clap",
  "futures-util",
  "hostname",

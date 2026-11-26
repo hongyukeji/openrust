@@ -149,7 +149,13 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 
 ### RequestWatcher 的请求完成字段
 
-对账请求详情发现，固定 `RequestWatcher` 在请求结束时记录客户端 IP、会话数据和 PHP 分配器峰值。当前原生条目缺少这三项。客户端地址待复用框架的可信代理解析，会话待核对真实 HTTP 路径和脱敏。并发 Rust 进程中的全进程内存峰值不能直接当作单请求内存，需单列度量边界。 [固定 RequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L41-L62)
+固定 PHP 8.5.12 实际 `RequestWatcher::recordRequest` 使用请求结束时的客户端 IP、会话数据和整毫秒耗时。探针通过可信代理链、不可信来源伪造头、IPv6、无对端及会话脱敏。Rust 复用 `Request::ip`，在框架请求结束事件中附加已加载会话的快照，有事件观察者时才构造该快照。Watcher 在条目持久化前，对请求载荷和会话应用同一套点路径脱敏。无会话返回空数组。原生耗时使用单调时钟的整毫秒。PHP 分配器峰值无对应的原生单请求读数，Rust 保留缺省内存字段。 [固定 RequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L41-L62)
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用实际 HTTP 内核、Web 会话和请求数据库记录验证地址来源、敏感字段遮罩、会话空值和耗时。Telescope Provider 23 项、Pulse Provider 24 项、仓储 14 项、框架 HTTP 观察 4 项及客户端地址 11 项通过。独占 Telescope Redis 用例沿用环境条件。隔离快照全仓格式、三扩展相关严格 Clippy、三语文档构建及六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-request-session-{upstream,macos-baseline,macos-retry,docs}.log`。
+
+### RequestWatcher 的筛选与响应分类
+
+固定 PHP 8.5.12 探针确认方法选项大小写不敏感且按字面匹配，状态码选项可使用数值字符串。缓冲纯文本在千字符整除后的单位内保留，数值配置为 1 时分别保留 1999 字符、清除 2000 字符；带 JSON 或纯文本的 302 状态仍记录缓冲正文，只有原生重定向响应记录目标，304 空响应返回空响应提示。Rust 当前方法使用大小写敏感通配符，状态排除仅识别整数，记录缓冲响应时按字符数直接比较并把 3xx 状态一概视为重定向。待修复这些可验证的差异，视图来源与绑定数据另行核对。固定探针为 `target/tmp/observability-parity/telescope-request-options-upstream.log`。
 
 ### Query 事务和保存点的调用来源
 

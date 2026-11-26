@@ -109,24 +109,26 @@ impl Kernel {
         head: bool,
     ) -> Response {
         self.prepare_response(request, &mut response, head);
-        let event = Arc::new(events::RequestHandled::new(
-            request,
-            &response,
-            request_started_at,
-            started_at.elapsed(),
-        ));
         let dispatched = match self
             .application
             .container()
             .make::<crate::events::Dispatcher>()
         {
-            Ok(dispatcher) => {
+            Ok(dispatcher) if dispatcher.observes(events::RequestHandled::NAME) => {
                 use crate::contracts::events::Dispatcher as _;
+                let event = Arc::new(events::RequestHandled::new(
+                    request,
+                    &response,
+                    request_started_at,
+                    started_at.elapsed(),
+                ));
                 dispatcher
                     .dispatch(event, &mut crate::events::EventContext::new())
                     .await
+                    .map(|_| ())
                     .map_err(Into::into)
             }
+            Ok(_) => Ok(()),
             Err(source) => Err(crate::http::HttpError::Internal {
                 source: Box::new(source),
             }),
