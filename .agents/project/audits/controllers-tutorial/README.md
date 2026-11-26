@@ -35,3 +35,11 @@ Rust 复用现有 SubstituteBindings、Route::missing 和 Route::with_trashed，
 固定 PHP Router 执行 HasMiddleware 静态声明、动作过滤、组与路由合并、闭包和排除。Rust 在控制器分发器上指定动作名，资源描述符使用约定的动作名，两个公开入口共享同一过滤器。编译后保留实际中间件实例，与路由中间件交同一管线解析。只有全局中间件在路由排除范围外。
 
 真实 TCP 核对普通控制器和资源动作共 6 条执行顺序，包含空 only、only 和 except 交集、同名中间件去重、内联闭包、路由级排除。三语正文的 6 个 Rust 片段套入正式公开入口，执行 3 次真实请求。实际 Artisan、56 项路由／请求及生命周期回归、三语站点、12 组浏览器、格式和隔离仓严格 Clippy 通过。其余控制器属性和授权另按对应锚点跟踪。见[验收记录](accepted-controller-middleware.json)。
+
+## 95. 嵌套资源绑定作用域
+
+固定 PHP 8.5.12 直接使用上游 Router 和 ImplicitRouteBinding，对照 10 个请求路径。Rust 将调用 scoped 与字段覆盖分开处理。空列表仍启用父子约束，未指定的子字段采用模型默认值，重复声明替换字段列表，单路由显式关闭继续生效。
+
+旧实现实际允许错误父模型的请求返回 200。修复后 SQLite 和 MySQL 8.4.13 各 10 次固定对照通过，覆盖普通绑定、空选项、两级关系、替换字段、跨父子拒绝及退出作用域。三语正文的 6 个 Rust 片段直接提取，在真实 SQLite HTTP 中执行对应的 15 次请求。应用内实际 route:cache、独立 Artisan、浏览器、格式和隔离仓严格 Clippy 通过。见[验收记录](accepted-nested-scopes.json)。
+
+教程的关系名推断仍待独立接通。目前使用已有的类型化关系回调，测试明确声明父子关系。

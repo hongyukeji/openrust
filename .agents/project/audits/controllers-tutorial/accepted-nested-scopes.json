@@ -1,0 +1,24 @@
+{
+  "base": "6ed6e97e73db37cf880e43d849a9bd1ae06756a3",
+  "oracle": "nested-scopes-oracle.json",
+  "runtime": {
+    "upstream_implicit_binding_cases": 10,
+    "sqlite_tutorial_requests": 10,
+    "mysql_tutorial_requests": 10,
+    "mysql": "8.4.13",
+    "formal_tutorial_examples": 6,
+    "formal_tutorial_http_requests": 15,
+    "standalone_artisan_invocations": 2,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-red.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-sqlite.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-mysql.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-formal.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-site.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-gates.log",
+    "target/tmp/artisan-tutorial-20261125/controller-nested-scopes-main.log"
+  ],
+  "pushed": false
+}

@@ -170,6 +170,40 @@ impl Model for Post {
     }
 }
 
+struct Note(ModelState);
+
+impl Model for Note {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("route_notes").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn resolve_child_route_binding(
+        binding: BindingContext<'_>,
+    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
+        Box::pin(async move {
+            let Some(post) = binding.parent::<Post>() else {
+                return Ok(None);
+            };
+            HasMany::<Post, Note>::new("id", "post_id")
+                .resolve_route_binding(post, binding)
+                .await
+        })
+    }
+}
+
 struct RequiresBoundPost;
 
 impl Middleware for RequiresBoundPost {
@@ -345,6 +379,28 @@ impl PostResource {
     }
 }
 
+impl PostResource {
+    fn nested<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            request
+                .route_model::<Account>("account")
+                .ok_or(HttpError::NotFound)?;
+            request
+                .route_model::<Post>("post")
+                .ok_or(HttpError::NotFound)?;
+            if request.route("note").is_some() {
+                request
+                    .route_model::<Note>("note")
+                    .ok_or(HttpError::NotFound)?;
+            }
+            Ok(Response::empty(StatusCode::OK))
+        })
+    }
+}
+
 fn resource_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Ok(
@@ -409,8 +465,54 @@ fn resource_routes() -> Result<(), RoutingError> {
     )
 }
 
+fn nested_resources() -> Result<(), RoutingError> {
+    use ResourceAction::Show;
+
+    let pair = || {
+        ResourceController::new()
+            .only(&[Show])
+            .action(Show, PostResource::nested)
+            .configure(|_, route| {
+                route.model::<Account>("account")?.model::<Post>("post")?;
+                Ok(())
+            })
+    };
+    let triple = || {
+        pair().configure(|_, route| {
+            route
+                .model::<Account>("account")?
+                .model::<Post>("post")?
+                .model::<Note>("note")?;
+            Ok(())
+        })
+    };
+    Route::resource("plain/accounts.posts", pair())?;
+    Route::resource("scope/accounts.posts", pair().scoped(&[]))?;
+    Route::resource(
+        "partial/accounts.posts.notes",
+        triple().scoped(&[("post", "slug")]),
+    )?;
+    Route::resource(
+        "replaced/accounts.posts.notes",
+        triple()
+            .scoped(&[("post", "id")])
+            .scoped(&[("note", "uuid")]),
+    )?;
+    Route::resource(
+        "optout/accounts.posts",
+        pair().scoped(&[]).configure(|_, route| {
+            route
+                .model::<Account>("account")?
+                .model::<Post>("post")?
+                .without_scoped_bindings();
+            Ok(())
+        }),
+    )
+}
+
 fn web() -> Result<(), RoutingError> {
     resource_routes()?;
+    nested_resources()?;
     Route::model::<Post>("explicit")?;
     Route::bind("alias", |binding| {
         Box::pin(async move { Ok(Some(binding.value().to_uppercase())) })
@@ -492,12 +594,15 @@ async fn verify(config: Value) {
         .connection(None)
         .unwrap();
     for sql in [
+        "DROP TABLE IF EXISTS route_notes",
         "DROP TABLE IF EXISTS route_tickets",
         "DROP TABLE IF EXISTS route_posts",
         "DROP TABLE IF EXISTS route_accounts",
         "CREATE TABLE route_tickets (id VARCHAR(36) PRIMARY KEY, reference VARCHAR(36) NOT NULL UNIQUE)",
         "CREATE TABLE route_accounts (id BIGINT PRIMARY KEY)",
         "CREATE TABLE route_posts (id BIGINT PRIMARY KEY, account_id BIGINT, slug VARCHAR(40), padded VARCHAR(12), deleted_at VARCHAR(30))",
+        "CREATE TABLE route_notes (id BIGINT PRIMARY KEY, post_id BIGINT NOT NULL, uuid VARCHAR(20) NOT NULL)",
+        "INSERT INTO route_notes VALUES (8, 1, 'abc'), (9, 2, 'xyz')",
         "INSERT INTO route_accounts VALUES (1), (2)",
         "INSERT INTO route_posts VALUES (1, 1, 'first', '007', NULL), (2, 2, 'second', '008', NULL), (3, 1, 'deleted', '009', '2026-01-01 00:00:00')",
     ] {
@@ -570,6 +675,15 @@ async fn verify(config: Value) {
         exchange(address, "DELETE", &format!("/{path}/deleted"), 404).await;
     }
 
+    let scopes: Value = serde_json::from_str(include_str!(
+        "../../../../.agents/project/audits/controllers-tutorial/nested-scopes-oracle.json"
+    ))
+    .unwrap();
+    for row in scopes.as_array().unwrap() {
+        let path = row["uri"].as_str().unwrap();
+        let status = u16::try_from(row["status"].as_u64().unwrap()).unwrap();
+        request(address, path, status).await;
+    }
     let generated: Value =
         serde_json::from_str(&request(address, "/posts/first", 200).await).unwrap();
     assert_eq!(generated["by_id"], "/api/id/1");

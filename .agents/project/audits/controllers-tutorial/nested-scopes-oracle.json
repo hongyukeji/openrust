@@ -1,0 +1,85 @@
+[
+    {
+        "uri": "\/plain\/accounts\/2\/posts\/first",
+        "status": 200,
+        "binding_fields": []
+    },
+    {
+        "uri": "\/scope\/accounts\/2\/posts\/first",
+        "status": 404,
+        "binding_fields": {
+            "account": null,
+            "post": null
+        }
+    },
+    {
+        "uri": "\/scope\/accounts\/1\/posts\/first",
+        "status": 200,
+        "binding_fields": {
+            "account": null,
+            "post": null
+        }
+    },
+    {
+        "uri": "\/partial\/accounts\/1\/posts\/first\/notes\/8",
+        "status": 200,
+        "binding_fields": {
+            "account": null,
+            "post": "slug",
+            "note": null
+        }
+    },
+    {
+        "uri": "\/partial\/accounts\/1\/posts\/first\/notes\/9",
+        "status": 404,
+        "binding_fields": {
+            "account": null,
+            "post": "slug",
+            "note": null
+        }
+    },
+    {
+        "uri": "\/partial\/accounts\/1\/posts\/second\/notes\/9",
+        "status": 404,
+        "binding_fields": {
+            "account": null,
+            "post": "slug",
+            "note": null
+        }
+    },
+    {
+        "uri": "\/replaced\/accounts\/1\/posts\/first\/notes\/abc",
+        "status": 200,
+        "binding_fields": {
+            "account": null,
+            "post": null,
+            "note": "uuid"
+        }
+    },
+    {
+        "uri": "\/replaced\/accounts\/1\/posts\/first\/notes\/xyz",
+        "status": 404,
+        "binding_fields": {
+            "account": null,
+            "post": null,
+            "note": "uuid"
+        }
+    },
+    {
+        "uri": "\/replaced\/accounts\/1\/posts\/1\/notes\/abc",
+        "status": 404,
+        "binding_fields": {
+            "account": null,
+            "post": null,
+            "note": "uuid"
+        }
+    },
+    {
+        "uri": "\/optout\/accounts\/2\/posts\/first",
+        "status": 200,
+        "binding_fields": {
+            "account": null,
+            "post": null
+        }
+    }
+]

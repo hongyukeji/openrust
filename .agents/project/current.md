@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Controllers 嵌套模型绑定的空字段列表、逐层约束和字段替换已验。固定源码、SQLite／MySQL HTTP、Artisan 和三语正文通过。命名关系推断继续单列，见[逐节对账](audits/controllers-tutorial/README.md)。
+
 - Controllers HasMiddleware 和内联闭包已验，固定源码、真实 HTTP、Artisan 和三语示例对账通过。见[逐节对账](audits/controllers-tutorial/README.md)，继续嵌套资源绑定与控制器属性。
 
 - Controllers 资源级中间件已验。与固定源码对账 11 条路径，真实 HTTP、Artisan 和三语示例通过。见[逐节对账](audits/controllers-tutorial/README.md)，继续控制器声明式中间件。

@@ -91,6 +91,24 @@ Route::resources([
 ])?;
 ```
 
+### Scoping Nested Resources {#scoping-nested-resources}
+
+Use `scoped(&[])` to require each nested model to belong to its bound parent. The empty list keeps the models’ default route keys. Register each model type on its parameter.
+
+```rust
+Route::resource("accounts.posts", controller.scoped(&[]))?;
+```
+
+### Scoping Resource Routes {#restful-scoping-resource-routes}
+
+Supply key overrides as parameter and field pairs. Nested models without an override still use their default key and remain scoped to the parent. A second call to `scoped` replaces the field list.
+
+```rust
+Route::resource("accounts.posts.notes", controller.scoped(&[("post", "slug")]))?;
+```
+
+Define the typed child relationship with your model’s `resolve_child_route_binding` and an existing relation such as `HasMany::resolve_route_binding`. Use `without_scoped_bindings()` in `configure` to opt out for an individual route.
+
 ### Customizing Missing Model Behavior {#customizing-missing-model-behavior}
 
 Use `missing` to handle an unresolved model on the show, edit, update, or destroy route. The callback runs during model binding. The index, create, and store routes keep their default handling, including when a nested resource cannot bind its parent.

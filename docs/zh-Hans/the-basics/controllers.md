@@ -91,6 +91,24 @@ Route::resources([
 ])?;
 ```
 
+### 限定嵌套资源的模型绑定 {#scoping-nested-resources}
+
+用 `scoped(&[])` 确保嵌套模型属于已绑定的父模型。空列表保留模型各自的默认路由键。为每个参数注册对应的模型类型。
+
+```rust
+Route::resource("accounts.posts", controller.scoped(&[]))?;
+```
+
+### 限定资源路由的模型绑定 {#restful-scoping-resource-routes}
+
+用参数名和字段名组成的键值对覆盖绑定字段。未指定字段的嵌套模型继续使用自身默认路由键，并受父模型约束。再次调用 `scoped` 会替换字段列表。
+
+```rust
+Route::resource("accounts.posts.notes", controller.scoped(&[("post", "slug")]))?;
+```
+
+在模型的 `resolve_child_route_binding` 中声明类型化子关系，可复用 `HasMany::resolve_route_binding`。在 `configure` 中调用 `without_scoped_bindings()` 可单独关闭某条路由的父子作用域。
+
 ### 自定义模型未命中的行为 {#customizing-missing-model-behavior}
 
 用 `missing` 处理查看、编辑、更新或删除路由中未找到的模型。回调在模型绑定阶段运行。列表、创建表单和保存保留默认处理，嵌套资源找不到父模型时也一样。

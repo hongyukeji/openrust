@@ -142,7 +142,7 @@ pub struct ResourceController<C> {
     except: Vec<ResourceAction>,
     names: HashMap<ResourceAction, String>,
     parameters: HashMap<String, String>,
-    bindings: HashMap<String, String>,
+    bindings: Option<HashMap<String, String>>,
     shallow: bool,
     trashed: Vec<ResourceAction>,
     missing: Option<Arc<dyn Handler>>,
@@ -161,7 +161,7 @@ impl<C> Default for ResourceController<C> {
             except: Vec::new(),
             names: HashMap::new(),
             parameters: HashMap::new(),
-            bindings: HashMap::new(),
+            bindings: None,
             shallow: false,
             trashed: Vec::new(),
             missing: None,
@@ -234,11 +234,13 @@ impl<C> ResourceController<C> {
         self
     }
 
+    /// 在嵌套资源上启用父子模型绑定。空列表保留各模型的默认路由键。
     pub fn scoped(mut self, bindings: &[(&str, &str)]) -> Self {
-        self.bindings.extend(
+        self.bindings = Some(
             bindings
                 .iter()
-                .map(|(parameter, field)| ((*parameter).to_owned(), (*field).to_owned())),
+                .map(|(parameter, field)| ((*parameter).to_owned(), (*field).to_owned()))
+                .collect(),
         );
         self
     }
@@ -360,7 +362,11 @@ impl<C> ResourceController<C> {
             .cloned()
             .unwrap_or_else(|| Str::singular(segment))
             .replace('-', "_");
-        match self.bindings.get(&name) {
+        match self
+            .bindings
+            .as_ref()
+            .and_then(|bindings| bindings.get(&name))
+        {
             Some(field) => format!("{{{name}:{field}}}"),
             None => format!("{{{name}}}"),
         }
@@ -567,6 +573,9 @@ impl Router {
                 {
                     route.set_missing_handler(Arc::clone(missing));
                 }
+            }
+            if controller.bindings.is_some() {
+                route.scope_bindings();
             }
             controller.middleware.apply(action, &mut route);
             if let Some(configure) = &controller.configure {

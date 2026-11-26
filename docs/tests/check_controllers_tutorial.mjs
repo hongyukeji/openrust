@@ -45,6 +45,9 @@ try {
                     assert.equal(await page.locator('#controller-middleware').count(),1);
                     assert(text.includes('impl HasMiddleware for PhotosController'));
                     assert(text.includes('.with_middleware("index")'));
+                    assert.equal(await page.locator('#scoping-nested-resources').count(),1);
+                    assert.equal(await page.locator('#restful-scoping-resource-routes').count(),1);
+                    assert(text.includes('controller.scoped(&[])'));
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: controller generation PASS`);
                     await page.close();

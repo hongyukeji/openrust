@@ -126,9 +126,10 @@
     },
     {
       "anchor": "scoping-nested-resources",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "04-02 模型绑定已验；资源父子作用域仍须直接复核"
+        "nested-scopes-oracle.json",
+        "accepted-nested-scopes.json"
       ]
     },
     {
@@ -154,9 +155,13 @@
     },
     {
       "anchor": "restful-scoping-resource-routes",
-      "status": "pending_public_contract_review",
+      "status": "partial_tutorial_scope",
       "evidence": [
-        "04-02 typed Model 与绑定字段"
+        "nested-scopes-oracle.json",
+        "accepted-nested-scopes.json"
+      ],
+      "remaining": [
+        "已验字段和父子作用域。固定基线会按父模型关系名推断关联，当前显式使用模型 resolve_child_route_binding。继续核对复用 NamedRelations 的默认关系选择。"
       ]
     },
     {

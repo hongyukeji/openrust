@@ -91,6 +91,24 @@ Route::resources([
 ])?;
 ```
 
+### 限制巢狀資源的模型繫結 {#scoping-nested-resources}
+
+用 `scoped(&[])` 確保巢狀模型隸屬於已繫結的父模型。空清單保留模型各自的預設路由鍵。請為每個參數註冊對應的模型型別。
+
+```rust
+Route::resource("accounts.posts", controller.scoped(&[]))?;
+```
+
+### 限制資源路由的模型繫結 {#restful-scoping-resource-routes}
+
+使用參數名稱和欄位名稱組成的鍵值對覆寫繫結欄位。未指定欄位的巢狀模型繼續使用預設路由鍵，並受父模型約束。再次呼叫 `scoped` 會取代欄位清單。
+
+```rust
+Route::resource("accounts.posts.notes", controller.scoped(&[("post", "slug")]))?;
+```
+
+在模型的 `resolve_child_route_binding` 中宣告型別化子關聯，可重用 `HasMany::resolve_route_binding`。在 `configure` 中呼叫 `without_scoped_bindings()` 可單獨關閉某條路由的父子範圍。
+
 ### 自訂找不到模型時的行為 {#customizing-missing-model-behavior}
 
 用 `missing` 處理檢視、編輯、更新或刪除路由中找不到的模型。回呼在模型繫結階段執行。清單、建立表單與儲存保留預設處理，巢狀資源找不到父模型時也一樣。
