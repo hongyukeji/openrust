@@ -726,27 +726,32 @@ async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
     assert_eq!(local.ingest().await, 1);
 }
 
+fn dashboard_cache_config(
+    root: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
+    let mut values = recorder_database_config(root, env)?;
+    values.get_mut("pulse").unwrap()["recorders"]["SlowRequests"] = false.into();
+    if let Ok(url) = std::env::var("PULSE_TEST_CARD_REDIS_URL") {
+        let prefix = root.file_name().unwrap().to_string_lossy();
+        values.get_mut("database").unwrap()["redis"] = json!({
+            "options":{"prefix":format!("{prefix}:")},
+            "default":{"url":url},
+        });
+        values.get_mut("cache").unwrap()["stores"]["cards"] =
+            json!({"driver":"redis","connection":"default"});
+        values.get_mut("pulse").unwrap()["cache"] = json!("cards");
+    }
+    Ok(values)
+}
+
 #[tokio::test]
 async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
     use openrust::contracts::cache::Repository as _;
 
     let mut app = TestApp::create(|builder| {
         builder
-            .with_config(|root, env| {
-                let mut values = recorder_database_config(root, env)?;
-                values.get_mut("pulse").unwrap()["recorders"]["SlowRequests"] = false.into();
-                if let Ok(url) = std::env::var("PULSE_TEST_CARD_REDIS_URL") {
-                    let prefix = root.file_name().unwrap().to_string_lossy();
-                    values.get_mut("database").unwrap()["redis"] = json!({
-                        "options":{"prefix":format!("{prefix}:")},
-                        "default":{"url":url},
-                    });
-                    values.get_mut("cache").unwrap()["stores"]["cards"] =
-                        json!({"driver":"redis","connection":"default"});
-                    values.get_mut("pulse").unwrap()["cache"] = json!("cards");
-                }
-                Ok(values)
-            })
+            .with_config(dashboard_cache_config)
             .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
     })
     .unwrap();
@@ -819,6 +824,55 @@ async fn dashboard_slow_cards_cache_queries_by_card_order_and_period() {
     for (card, _) in kinds {
         assert_eq!(response[card].as_array().unwrap().len(), 2, "{card}");
     }
+}
+
+#[tokio::test]
+async fn dashboard_usage_cache_and_queue_cards_share_five_second_query_results() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(dashboard_cache_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let timestamp = jiff::Timestamp::now().as_second();
+    let rows = |key| {
+        ["user_request", "user_job", "cache_hit", "queued"].map(|kind| {
+            openrust_pulse::Entry::new(timestamp, kind, key, None)
+                .count()
+                .into()
+        })
+    };
+    let target = "/pulse/api/metrics?period=1h";
+    storage.store(&rows("1")).await.unwrap();
+    let first = app.get(target).await.unwrap();
+    first.assert_ok();
+    let first = first.json::<serde_json::Value>().unwrap();
+    storage.store(&rows("2")).await.unwrap();
+
+    let replay = app.get(target).await.unwrap();
+    replay.assert_ok();
+    let replay = replay.json::<serde_json::Value>().unwrap();
+    let new_period = app.get("/pulse/api/metrics?period=6h").await.unwrap();
+    new_period.assert_ok();
+    let new_period = new_period.json::<serde_json::Value>().unwrap();
+    let cards = ["requests", "jobs", "cache", "cache_totals", "queues"];
+    for card in cards {
+        assert_eq!(replay[card], first[card], "{card}");
+        assert_ne!(new_period[card], first[card], "{card}");
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(5200)).await;
+    let refreshed = app.get(target).await.unwrap();
+    refreshed.assert_ok();
+    let refreshed = refreshed.json::<serde_json::Value>().unwrap();
+    for card in cards {
+        assert_ne!(refreshed[card], first[card], "{card}");
+    }
+    assert_eq!(refreshed["cache_totals"]["hits"], 2.0);
 }
 
 #[tokio::test]
@@ -970,7 +1024,12 @@ async fn dashboard_cache_totals_count_keys_beyond_the_table_limit() {
             .into(),
     );
     storage.store(&entries).await.unwrap();
-    let response = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    let cached = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    cached.assert_ok();
+    let cached = cached.json::<serde_json::Value>().unwrap();
+    assert_eq!(cached["cache"], empty["cache"]);
+    assert_eq!(cached["cache_totals"], empty["cache_totals"]);
+    let response = app.get("/pulse/api/metrics?period=6h").await.unwrap();
     response.assert_ok();
     let metrics = response.json::<serde_json::Value>().unwrap();
     assert_eq!(metrics["cache"].as_array().unwrap().len(), 101);

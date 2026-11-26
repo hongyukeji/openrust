@@ -1,6 +1,6 @@
 pub mod middleware;
 use openrust::{
-    cache::{CacheError, Ttl, Value as CacheValue},
+    cache::{CacheError, Repository as CacheRepository, Ttl, Value as CacheValue},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     support::{
@@ -10,7 +10,7 @@ use openrust::{
     },
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
         .map_err(|_| RoutingError::NoRegistrationScope)?
@@ -154,82 +154,76 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 }
             };
             let limit = if is_usage { 10 } else { 101 };
-            let query = async {
-                pulse
-                    .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
-                    .await
-                    .map(|rows| rows.into_iter().map(row).collect::<Vec<_>>())
-            };
-            let mut rows = if is_usage {
-                query.await?
+            let key = if is_usage {
+                format!("usage:{kind}:{period}")
             } else {
-                let key = format!("openrust:pulse:card:{name}:{order}:{period}");
-                let cached = cache
-                    .remember(&key, Some(Ttl::Seconds(5)), async {
-                        let rows = query.await.map_err(|source| CacheError::Backend {
-                            source: Box::new(source),
-                        })?;
-                        Ok(CacheValue::Json(Value::Array(rows)))
-                    })
-                    .await?;
-                let CacheValue::Json(Value::Array(rows)) = cached else {
-                    return Err(CacheError::InvalidValue.into());
-                };
-                rows
+                format!("{name}:{order}:{period}")
             };
-            if is_usage {
-                let keys: Vec<_> = rows
-                    .iter()
-                    .filter_map(|row| row.get("key").and_then(|v| v.as_str()).map(str::to_owned))
-                    .collect();
-                let users = pulse.resolve_users(&keys).await?;
-                for row in &mut rows {
-                    if let Some(key) = row.get("key").and_then(|v| v.as_str()) {
-                        let user = serde_json::to_value(users.find(key))?;
-                        row.as_object_mut()
-                            .expect("database row")
-                            .insert("user".into(), user);
+            let rows = remember_card(&cache, &key, async {
+                let stored = pulse
+                    .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
+                    .await?;
+                let mut rows: Vec<_> = stored.into_iter().map(row).collect();
+                if is_usage {
+                    let keys: Vec<_> = rows
+                        .iter()
+                        .filter_map(|row| row.get("key").and_then(Value::as_str).map(str::to_owned))
+                        .collect();
+                    let users = pulse.resolve_users(&keys).await?;
+                    for row in &mut rows {
+                        if let Some(key) = row.get("key").and_then(Value::as_str) {
+                            let user = serde_json::to_value(users.find(key))?;
+                            row.as_object_mut()
+                                .expect("database row")
+                                .insert("user".into(), user);
+                        }
                     }
                 }
-            }
-            cards.insert(name.into(), serde_json::Value::Array(rows));
+                Ok(Value::Array(rows))
+            })
+            .await?;
+            cards.insert(name.into(), rows);
         }
         let cache_types = ["cache_hit".into(), "cache_miss".into()];
-        let cache = pulse
-            .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
-            .await?;
-        cards.insert(
-            "cache".into(),
-            serde_json::Value::Array(cache.into_iter().map(row).collect()),
-        );
-        let totals = pulse
-            .aggregate_total(&cache_types, "count", interval)
-            .await?;
+        let keys = remember_card(&cache, &format!("cache:keys:{period}"), async {
+            let rows = pulse
+                .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
+                .await?;
+            Ok(Value::Array(rows.into_iter().map(row).collect()))
+        })
+        .await?;
+        cards.insert("cache".into(), keys);
+        let mut totals = remember_card(&cache, &format!("cache:all:{period}"), async {
+            let totals = pulse
+                .aggregate_total(&cache_types, "count", interval)
+                .await?;
+            Ok(serde_json::json!({
+                "hits": totals.get(&cache_types[0]).copied().flatten().unwrap_or(0.0),
+                "misses": totals.get(&cache_types[1]).copied().flatten().unwrap_or(0.0),
+            }))
+        })
+        .await?;
         let sample_rate = config
             .get("pulse.recorders.CacheInteractions.sample_rate")
             .and_then(|value| value.as_f64())
             .unwrap_or(1.0);
-        cards.insert(
-            "cache_totals".into(),
-            serde_json::json!({
-                "hits": totals.get(&cache_types[0]).copied().flatten().unwrap_or(0.0),
-                "misses": totals.get(&cache_types[1]).copied().flatten().unwrap_or(0.0),
-                "sample_rate": sample_rate,
-            }),
-        );
-        cards.insert(
-            "queues".into(),
-            serde_json::to_value(
-                pulse
-                    .graph(
-                        &["queued", "processing", "processed", "released", "failed"]
-                            .map(str::to_owned),
-                        "count",
-                        interval,
-                    )
-                    .await?,
-            )?,
-        );
+        totals
+            .as_object_mut()
+            .ok_or(CacheError::InvalidValue)?
+            .insert("sample_rate".into(), sample_rate.into());
+        cards.insert("cache_totals".into(), totals);
+        let queues = remember_card(&cache, &format!("queues:{period}"), async {
+            let values = pulse
+                .graph(
+                    &["queued", "processing", "processed", "released", "failed"].map(str::to_owned),
+                    "count",
+                    interval,
+                )
+                .await?;
+            Ok(serde_json::to_value(values)?)
+        })
+        .await?;
+        cards.insert("queues".into(), queues);
         let (systems, graphs) = servers(&pulse, interval).await?;
         cards.insert("servers".into(), Value::Array(systems));
         cards.insert("server_graphs".into(), graphs);
@@ -244,6 +238,25 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         );
         Ok(response)
     })
+}
+async fn remember_card(
+    cache: &CacheRepository,
+    key: &str,
+    query: impl Future<Output = crate::Result<Value>>,
+) -> Result<Value, HttpError> {
+    let key = format!("openrust:pulse:card:{key}");
+    let value = cache
+        .remember(&key, Some(Ttl::Seconds(5)), async {
+            let rows = query.await.map_err(|source| CacheError::Backend {
+                source: Box::new(source),
+            })?;
+            Ok(CacheValue::Json(rows))
+        })
+        .await?;
+    let CacheValue::Json(value) = value else {
+        return Err(CacheError::InvalidValue.into());
+    };
+    Ok(value)
 }
 async fn servers(pulse: &crate::Pulse, interval: i64) -> Result<(Vec<Value>, Value), HttpError> {
     let config = Config::get_facade_root()?;
