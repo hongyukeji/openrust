@@ -202,6 +202,14 @@ Windows 11 ARM64 用正常 Cargo 构建及真实 Redis 8.10.3 运行 [进程树�
 
 Windows ARM64 的 Horizon 库与验收示例严格 Clippy 通过。macOS 的框架进程测试 15 项、Horizon 完整进程回归、Horizon 全目标与框架库严格 Clippy 通过。Linux ARM64 复验通过阻塞和非阻塞接管及真实孤儿清理。三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{retention,core-regression,macos-final,linux-final}.log`。
 
+### Windows ARM64 优化构建的进程验收
+
+Windows 11 ARM64 虚机从干净提交 `1a4f386d43603ce1d560bb5224cb0c29e072a5e0` 以 Rust 1.94.0、`aarch64-pc-windows-msvc` 和默认 Release 配置编译 Horizon Artisan 验收程序。验收盘使用原生 NTFS。PE32+ 为 ARM64，栈预留 16 MiB，SHA-256 为 `9b79208ba6abb8e91ab6b2d0e6c4eaec067da3f7c476156811c9a48f350aca0b`。
+
+实际进程通过空闲关停、`--wait` 排空、快速终止、快速重启、Master 丢失、处理器覆盖、Redis 命令队列和文件命令队列八组。独占 Redis 为 8.10.3。启动器也验证了输出回调、控制和独立监督器替换行为。首轮离线解析缺少依赖索引，联网补齐锁定依赖后通过编译。宿主触及磁盘停线后续跑复用了 NTFS 上已完成的编译。运行脚本预先持有 Cargo 进程句柄后成功读取完成状态并验证同一个制品。证据为 `target/tmp/observability-windows/observability-horizon-release-runtime-final.log`。
+
+该证据覆盖 Horizon 进程夹具的固定快照。后续提交、根应用三扩展组合、Windows x64、正式服务管理器和目标 Redis 拓扑各自继续验收。
+
 ## 任务耗时计时契约
 
 固定 Horizon 在 `JobReserved` 的保留状态监听器之后启动 `Stopwatch`，成功删除时读取耗时，异常或失败时清理计时器。PHP 8.5.12 用受控时钟执行固定 `Stopwatch`，确认毫秒保留两位小数，半值进位，重复启动覆盖，未知及清理后的计时返回空值。证据为 `target/tmp/observability-parity/horizon-stopwatch-upstream.log`。 [固定 Stopwatch](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Stopwatch.php) [固定事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)

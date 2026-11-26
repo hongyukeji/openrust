@@ -10,13 +10,19 @@ Telescope 的 `list` 和 `show` 已通过三库 Artisan 验证 UTC 相对时间�
 
 Telescope 已通过三库验证调度任务继承配置时区。正常调度产生任务条目，`schedule:test` 保留普通命令条目，原生调度完成监听器仍会收到事件。 [Telescope 调度时区](telescope/README.md#调度条目的默认时区) [Telescope 手动调度试跑](telescope/README.md#手动调度试跑的记录范围)
 
+同源与跨源跳转均按目标重新生成出站 `Host`。线上请求、响应事件和 Telescope 三库存储已通过回环验收。 [Telescope 重定向头](telescope/README.md#出站重定向的-host)
+
 Pulse 的慢操作、用量、异常、缓存、队列和服务器卡片复用五秒查询快照。查询耗时与执行时间和缓存结果一起刷新，已授权 HTTP 和原生浏览器均有专项证据。 [Pulse 卡片查询审计](pulse/README.md#查询耗时和执行时间)
 
 Pulse 队列卡片的采样峰值、连接标签及逐点读数已在真实看板验收，刷新时保留仍在图中的时间点。卡片内部缓存和看板轮询的自采集已分别修复，后者沿用应用的请求 Recorder 忽略规则。面板兼容固定上游周期链接和已有短写，支持浏览器前进与后退。三库定向结果与桌面、手机版面证据均随批次记录。 [Pulse 队列采样点](pulse/README.md#队列采样点读数与刷新) [Pulse 请求采集](pulse/README.md#面板刷新与请求采集) [Pulse 周期链接](pulse/README.md#周期链接和浏览器历史)
 
 Pulse 已复验慢操作、异常和用量的采样计数，按可视范围独立加载指标卡片，单卡失败时其他卡片继续显示及更新。后台按卡片独立抽样、离线暂停和恢复在线轮询均已通过真实应用浏览器。 [Pulse 卡片加载](pulse/README.md#首屏卡片的延迟加载与隔离) [Pulse 后台轮询](pulse/README.md#后台离线和页面移除的轮询) [Pulse 采样计数](pulse/README.md#慢操作异常和用量的采样计数)
 
-Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化构建验证独占 Redis、三个 Sentinel 和真实故障切换；Windows 11 ARM64 有原生开发构建的进程矩阵。正式目标服务管理器、物理 x86_64、目标 Redis 拓扑和最终发布快照仍按部署条件验收。 [Horizon 专项审计](horizon/README.md) [平台与发布条件](../todo.md#平台与发布条件)
+Pulse 的暂停回调支持显式临时采集。真实 HTTP 和自定义 Recorder 已在三库验证嵌套结束、取消及原状态恢复。 [Pulse 暂停回调](pulse/README.md#采集暂停回调中的显式状态切换)
+
+Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化构建验证独占 Redis、三个 Sentinel 和真实故障切换。Windows 11 ARM64 优化构建通过八组实际进程与 Redis 专项。正式目标服务管理器、物理 x86_64、目标 Redis 拓扑和最终发布快照仍按部署条件验收。 [Horizon Windows 优化构建](horizon/README.md#windows-arm64-优化构建的进程验收) [平台与发布条件](../todo.md#平台与发布条件)
+
+Horizon 的成功任务指标以毫秒保留两位小数后再汇总，已通过真实 Redis 的任务和队列消费者验收。 [Horizon 任务计时](horizon/README.md#任务耗时计时契约)
 
 同一 macOS 隔离快照使用真实 Redis 8.10.3 复验 Horizon 运行时 20 项、Pulse 具名卡片查询缓存与 Telescope Redis 命令诊断。证据为 `target/tmp/observability-parity/observability-request-redis-macos-retry.log`。本批验证实际本地组件入口，发布仍按锁定交付组合执行。
 
