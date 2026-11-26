@@ -86,6 +86,12 @@ macOS 隔离快照通过 PCRE2 库 24 项、三扩展默认 97 项、快照全�
 
 固定 PHP 8.5.12 的真实 CacheInteractions、Pulse 迁移与 DatabaseStorage 补验了 PostgreSQL 18.7 和 MySQL 8.4.13。两条分组规则产生的非法序列分别为 `58c358a958` 和 `59c359a959`。UTF-8 PostgreSQL 拒绝两条写入（SQLSTATE `22021`），严格 `utf8mb4` MySQL 返回 `HY000/1366`。混合合法与非法条目的批次也报错，预先存入的一条事件与四条聚合完整保留，混合批次的新条目和聚合均未留下。MySQL 显式关闭严格模式时，同样两个输入截断为 `X` 和 `Y` 并成功入库。以上是数据库实际处理分组原始字节的结果。Rust 的公开文本分组函数当前在存储前拒绝此输入，SQLite、非严格 MySQL、错误阶段及面板仍有差距。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-database-upstream.log`。
 
+固定 PHP、Predis 2.4.0 和实际 Redis 8.10.3 补验。同一 Recorder 通过上游 RedisIngest 将两个分组键按原始字节写入 Stream。用一次受控存储失败确认两条仍留在 Stream，再用固定 SQLite DatabaseStorage 重试，成功保存后两条均被移除。SQLite 的 `typeof(key)` 为 `text`。固定聚合按原始键分别返回一次 miss，Cache Blade 模板的实际键插值经固定框架编译后显示 `X�X�X` 和 `Y�Y�Y`。探针覆盖实际插值，整个 Livewire 请求和快照序列化继续验证。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-redis-display-upstream.log`。 [固定 RedisIngest](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Ingests/RedisIngest.php)
+
+Rust 的真实文件缓存 HTTP 路由复现了缺口。两个请求均完成，但触发 Pulse 错误回调并丢弃观测条目，只有同一消费者的合法键对照入库。错误分别是文本转换失败及 PCRE2 非法 UTF 偏移。固定 PHP 多次匹配会跳过 UTF 检查。PCRE2 对可用起始偏移仍有前置条件，兼容方案需单独验证，避免从码点内部用未经验证的偏移调用底层匹配器。证据为 `target/tmp/observability-parity/pulse-pcre-invalid-text-native-baseline.log`。 [固定 PHP 替换循环](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L1757-L1819) [PCRE2 API](https://www.pcre.org/current/doc/html/pcre2api.html)
+
+原生 Rust 三库夹具验证了后续存储改动可使用的参数语义。SQLite 将二进制参数显式转换为 TEXT 后保持原字节及 TEXT 类型。PostgreSQL 的 `convert_from` 将字节转换为 UTF-8，数据库返回同一 `22021`。MySQL 将二进制参数直接赋给文本列时，严格模式报错而非严格模式截断，PHP PDO 的对照表明显式 `convert` 会改变严格模式的错误类型，需保留直接赋值。后续需在批量写入和 upsert 使用这些候选绑定并复验完整路径，Redis 的兼容编码与面板按字节区分聚合行也继续验证。证据为 `target/tmp/observability-parity/pulse-byte-key-{parameter-drivers,native-binding}.log`。
+
 ## SlowJobs 任务尝试计时
 
 固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
