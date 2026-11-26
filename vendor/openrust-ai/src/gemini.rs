@@ -109,9 +109,37 @@ impl GeminiTextProvider {
         json!({"functionResponse":response})
     }
 
-    fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
+    fn prompt_body(&self, prompt: &AgentPrompt<'_>) -> AiResult<Value> {
+        let scope = prompt
+            .messages
+            .iter()
+            .any(|message| message.provider_replay.is_some())
+            .then(|| self.approval_replay_scope())
+            .transpose()?
+            .flatten();
+        let mut native_call_ids = None::<Vec<Option<Value>>>;
         let mut contents = Vec::with_capacity(prompt.messages.len() + 1);
         for message in prompt.messages {
+            let native_ids = native_call_ids.take();
+            if let Some(content) = scope.as_deref().and_then(|scope| {
+                message
+                    .provider_replay
+                    .as_ref()?
+                    .gemini_content(scope, prompt.text.model)
+            }) {
+                let parts = content["parts"]
+                    .as_array()
+                    .ok_or(AiError::InvalidResponse)?;
+                native_call_ids = Some(
+                    parts
+                        .iter()
+                        .filter_map(|part| part.get("functionCall"))
+                        .map(|call| call.get("id").cloned())
+                        .collect(),
+                );
+                contents.push(content.clone());
+                continue;
+            }
             let (role, parts) = match message.role {
                 MessageRole::User => (
                     "user",
@@ -134,8 +162,14 @@ impl GeminiTextProvider {
                     message
                         .tool_results
                         .iter()
-                        .map(|result| {
-                            Self::function_result(result, Some(Value::from(result.id.as_str())))
+                        .enumerate()
+                        .map(|(index, result)| {
+                            let id = native_ids
+                                .as_ref()
+                                .and_then(|ids| ids.get(index))
+                                .cloned()
+                                .unwrap_or_else(|| Some(Value::from(result.id.as_str())));
+                            Self::function_result(result, id)
                         })
                         .collect(),
                 ),
@@ -267,7 +301,7 @@ impl TextProvider for GeminiTextProvider {
                 .send_sdk_text(
                     TextEndpoint::GeminiGenerateContent,
                     prompt.text.model,
-                    &Self::prompt_body(&prompt)?,
+                    &self.prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
                 .await?;
@@ -305,7 +339,7 @@ impl TextProvider for GeminiTextProvider {
                 .send_sdk_text(
                     TextEndpoint::GeminiStreamGenerateContent,
                     prompt.text.model,
-                    &Self::prompt_body(&prompt)?,
+                    &self.prompt_body(&prompt)?,
                     prompt.text.timeout,
                 )
                 .await?;
@@ -441,7 +475,7 @@ impl StepTextGateway for GeminiTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            let body = Self::tool_payload(prompt, tools, history)?;
+            let body = self.tool_payload(prompt, tools, history)?;
 
             let value: Value = self
                 .send_sdk_text(
@@ -464,7 +498,7 @@ impl StepTextGateway for GeminiTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
-            let body = Self::tool_payload(prompt, tools, history)?;
+            let body = self.tool_payload(prompt, tools, history)?;
             let response = self
                 .send_sdk_text(
                     TextEndpoint::GeminiStreamGenerateContent,
@@ -485,11 +519,12 @@ impl StepTextGateway for GeminiTextProvider {
 
 impl GeminiTextProvider {
     fn tool_payload(
+        &self,
         prompt: &AgentPrompt<'_>,
         tools: &[ToolDefinition],
         history: &[ToolStep],
     ) -> AiResult<Value> {
-        let mut body = Self::prompt_body(prompt)?;
+        let mut body = self.prompt_body(prompt)?;
         let contents = body["contents"]
             .as_array_mut()
             .ok_or(AiError::InvalidResponse)?;

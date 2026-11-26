@@ -78,11 +78,25 @@ impl AnthropicTextProvider {
             .collect()
     }
 
-    fn prompt_body(prompt: &AgentPrompt<'_>) -> AiResult<Value> {
+    fn prompt_body(&self, prompt: &AgentPrompt<'_>) -> AiResult<Value> {
+        let scope = prompt
+            .messages
+            .iter()
+            .any(|message| message.provider_replay.is_some())
+            .then(|| self.approval_replay_scope())
+            .transpose()?
+            .flatten();
         let mut messages = Vec::with_capacity(prompt.messages.len() + 1);
         for message in prompt.messages {
             if message.role == MessageRole::ToolResult {
                 messages.push(json!({"role":"user","content": Self::tool_results_content(&message.tool_results)}));
+            } else if let Some(blocks) = scope.as_deref().and_then(|scope| {
+                message
+                    .provider_replay
+                    .as_ref()?
+                    .anthropic_blocks(scope, prompt.text.model)
+            }) {
+                messages.push(json!({"role":"assistant", "content":blocks}));
             } else if !message.tool_calls.is_empty() {
                 let mut content = Vec::new();
                 if !message.content.is_empty() {
@@ -128,7 +142,7 @@ impl AnthropicTextProvider {
     }
 
     async fn send(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
-        let mut body = Self::prompt_body(prompt)?;
+        let mut body = self.prompt_body(prompt)?;
         if stream {
             body["stream"] = true.into();
         }
@@ -323,7 +337,7 @@ impl StepTextGateway for AnthropicTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            let body = Self::tool_payload(prompt, tools, history)?;
+            let body = self.tool_payload(prompt, tools, history)?;
 
             let response: Value = self
                 .0
@@ -342,7 +356,7 @@ impl StepTextGateway for AnthropicTextProvider {
         history: &'a [ToolStep],
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
-            let mut body = Self::tool_payload(prompt, tools, history)?;
+            let mut body = self.tool_payload(prompt, tools, history)?;
             if tools.is_empty() {
                 body.as_object_mut()
                     .ok_or(AiError::InvalidResponse)?
@@ -365,11 +379,12 @@ impl StepTextGateway for AnthropicTextProvider {
 
 impl AnthropicTextProvider {
     fn tool_payload(
+        &self,
         prompt: &AgentPrompt<'_>,
         tools: &[ToolDefinition],
         history: &[ToolStep],
     ) -> AiResult<Value> {
-        let mut body = Self::prompt_body(prompt)?;
+        let mut body = self.prompt_body(prompt)?;
         let messages = body["messages"]
             .as_array_mut()
             .ok_or(AiError::InvalidResponse)?;

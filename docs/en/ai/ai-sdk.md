@@ -482,7 +482,7 @@ Override the table names before running the published migration. Set `conversati
 
 Assistant history for completed SDK turns includes the model, total usage, and `steps` with each step’s reported model, usage, finish reason, and tool outcomes. Older records retain their stored steps. The next prompt reconstructs the recorded assistant tool calls and their results in order. `conversations.max_messages` limits the stored rows before expansion. Conversation history pagination still returns each stored row with its `steps`. For manual histories, use `Message::assistant_with_tool_calls` followed by `Message::tool_results`.
 
-Chat Completions can replay a tool step’s private reasoning on the same connection, credentials, and model. Changing the connection or model uses the recorded calls and results. Public history, callbacks, and stream events keep their existing response format.
+A tool step can replay Chat Completions private reasoning, Anthropic signed blocks, or Gemini thought signatures on the same connection, credentials, and model. Changing the connection or model uses the recorded calls and results. Public history, callbacks, and stream events keep their existing response format.
 
 Conversation messages and pending approval checkpoints store file references in the database. Files are written with private visibility to the `local` disk by default. Set `conversations.attachments.disk` in `config/ai.rs` or `AI_CONVERSATION_ATTACHMENTS_DISK` to select a private disk shared by your application processes. Keep disks referenced by existing records available when changing the setting.
 
