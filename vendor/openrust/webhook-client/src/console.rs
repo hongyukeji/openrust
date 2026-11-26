@@ -58,6 +58,29 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 .action(ArgAction::SetTrue),
         );
     Artisan::add(Box::new(Recover(CommandDefinition::new(recover))))?;
+    let inspect = Syntax::new("webhook-client:inspect")
+        .about("查询指定范围内的脱敏接收状态或处理尝试")
+        .arg(Arg::new("id").required(true))
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("attempts")
+                .long("attempts")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("after")
+                .long("after")
+                .requires("attempts")
+                .value_parser(value_parser!(u64)),
+        )
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .requires("attempts")
+                .value_parser(value_parser!(u32).range(1..=100)),
+        );
+    Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))?;
     let exhausted = Syntax::new("webhook-client:exhausted")
         .about("列出当前范围内已耗尽自动派发预算的接收记录")
         .arg(Arg::new("scope").long("scope").required(true))
@@ -213,6 +236,47 @@ impl Command for Recover {
                 ));
             }
             Ok(i32::from(report.failed > 0))
+        })
+    }
+}
+
+struct Inspect(CommandDefinition);
+
+impl Command for Inspect {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = operations_store(app, input).await?;
+            let args = input.matches();
+            let id = args.get_one::<String>("id").expect("必填 ID");
+            let json = if args.get_flag("attempts") {
+                let after = args.get_one::<u64>("after").copied().unwrap_or(0);
+                let limit = args.get_one::<u32>("limit").copied().unwrap_or(50);
+                let page = store
+                    .inspect_processing_attempts(id, after, limit)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                serde_json::to_string(&page)
+            } else {
+                let receipt = store
+                    .inspect_receipt(id)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                serde_json::to_string(&receipt)
+            }
+            .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{json}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
         })
     }
 }

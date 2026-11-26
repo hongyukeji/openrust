@@ -70,16 +70,61 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             f"FROM webhook_processing_attempts WHERE call_id='{receipt}' ORDER BY generation"
         )
 
+    def inspect(receipt, *options, scope="webhook-acceptance"):
+        return json.loads(command(binary, current, "webhook-client:inspect", receipt,
+                                  "--scope", scope, *options))
+
+    def inspect_http(receipt, kind, expected=200, scope="webhook-acceptance", authorized=True):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            headers = {"x-fixture-inspector": "fixture-operator"} if authorized else {}
+            conn.request("GET", f"/api/inbound-inspect/{scope}/{kind}/{receipt}", headers=headers)
+            response = conn.getresponse()
+            body = json.loads(response.read())
+            assert response.status == expected, (response.status, body)
+            return body
+        finally:
+            conn.close()
+
     log_path = root / "processing-lease.log"
     with log_path.open("w+") as log:
         server = http_helpers["serve"](binary, current, log)
         try:
             released = dispatch(b"leased-release")
+            fresh = inspect(released)
+            assert fresh["id"] == released and fresh["profile"] == "leased" and fresh["revision"]
+            assert fresh["state"] == "received" and fresh["generation"] == fresh["replay_generation"] == 0
+            assert fresh["received_at"] > 0 and not fresh["has_exception"]
+            assert fresh["processed_at"] is None and fresh["processing_until"] is None
+            assert inspect(released, "--database=fixture-foreign") == fresh
+            assert inspect_http(released, "receipt") == fresh
+            assert inspect_http(released, "receipt", 403, authorized=False) == {}
+            assert inspect_http(released, "receipt", 403, scope="outside") == {}
+            assert inspect_http("00000000-0000-0000-0000-000000000000", "receipt", 404) == {}
+            assert inspect(released, scope="outside") is None
             run("release")
             assert state(released) == "1\t0\t0" and not (root / "release").exists()
             run("release")
             assert state(released) == "2\t0\t1" and (root / "release").exists()
             assert attempts(released) == "1\treleased\t1\n2\tcompleted\t1"
+            settled = inspect(released)
+            assert settled["state"] == "completed" and settled["processed_at"] > 0
+            page = inspect(released, "--attempts", "--limit=1")
+            assert page["next_after"] == 1 and len(page["data"]) == 1
+            assert page["data"][0]["generation"] == 1 and page["data"][0]["outcome"] == "released"
+            assert page["data"][0]["finished_at"] >= page["data"][0]["started_at"]
+            assert inspect_http(released, "attempts") == page
+            final_page = inspect(released, "--attempts", "--after=1", "--limit=1")
+            assert final_page["next_after"] is None and len(final_page["data"]) == 1
+            assert final_page["data"][0]["generation"] == 2 and final_page["data"][0]["outcome"] == "completed"
+            empty_page = {"data": [], "next_after": None}
+            assert inspect(released, "--attempts", scope="outside") == empty_page
+            assert inspect(released, "--attempts", "--after=18446744073709551615") == empty_page
+            for options in (("--attempts", "--limit=101"), ("--after=3",)):
+                invalid = subprocess.run([str(binary), "artisan", "webhook-client:inspect", released,
+                                          "--scope=webhook-acceptance", *options], env=current,
+                                          capture_output=True, text=True, timeout=20)
+                assert invalid.returncode != 0
 
             duplicate = (
                 "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
@@ -111,6 +156,10 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert not (root / "halted-duplicate-failure.json").exists()
             record = json.loads(command(binary, current, "webhooks:record", halted, "webhook-acceptance"))
             assert record["exception"] == {"code":0,"message":"Webhook 处理已终止"}
+            stopped = inspect(halted)
+            assert stopped["state"] == "stopped" and stopped["stopped_at"] > 0 and stopped["has_exception"]
+            assert not {"exception", "body", "url", "headers", "payload", "scope"}.intersection(stopped)
+            assert inspect_http(halted, "receipt") == stopped
             write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{halted}%'")
 
             completed = dispatch(b"leased-stop-on-success")
@@ -119,6 +168,11 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert (root / "completed-with-control").exists()
             assert not (root / "completed-with-control-failure.json").exists()
             assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count
+            command(binary, current, "webhooks:record", completed, "webhook-acceptance",
+                    '--save-exception={"message":"private-receipt-diagnostic-sentinel"}')
+            observed = inspect(completed)
+            assert observed["has_exception"] and observed["state"] == "completed"
+            assert "private-receipt-diagnostic-sentinel" not in json.dumps(observed)
 
             mismatched = dispatch(b"leased-untrusted-queue-revision")
             job = json.loads(sql("SELECT payload FROM jobs"))
@@ -166,9 +220,11 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             run("crash", FIXTURE_LEASE_CRASH="1")
             assert state(crashed) == "1\t1\t0" and not (root / "crash").exists()
             assert attempts(crashed) == "1\trunning\t0"
+            assert inspect(crashed)["state"] == "processing"
             run("recovered")
             assert state(crashed) == "1\t1\t0" and not (root / "recovered").exists()
             time.sleep(8.2)
+            assert inspect(crashed)["state"] == "lease_expired"
             run("recovered")
             assert state(crashed) == "2\t0\t1" and (root / "recovered").exists()
             assert attempts(crashed) == "1\texpired\t1\n2\tcompleted\t1"
@@ -212,7 +268,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 7 个真实 HTTP、15 个独立 Worker；主动释放、显式终态失败回调、成功保持、失配拒绝、并发重复投递、崩溃重领及旧 Worker 写回隔离通过")
+    print(f"{driver}: 接收处理租约 13 个真实 HTTP、15 个独立 Worker；主动释放、终态回调、脱敏状态和分页、失配拒绝、崩溃接管及旧令牌隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):
@@ -366,6 +422,9 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             waiting, first = dispatch(b"deferred-wait")
             work("wait")
             assert state(waiting) == "1\t1\t1\t0\t0" and not (root / "wait").exists()
+            inspection = json.loads(command(binary, current, "webhook-client:inspect", waiting,
+                                             "--scope=webhook-acceptance"))
+            assert inspection["state"] == "deferred" and inspection["next_processing_at"] > 0
             next_task = json.loads(sql("SELECT payload FROM jobs"))
             assert next_task["uuid"] != first and next_task["data"]["id"] == waiting
             assert sql("SELECT attempts FROM jobs") == "0"
@@ -1672,6 +1731,8 @@ def main():
         assert not failure.exists()
         failed=json.loads(command(binary,current,"webhooks:record",receipt,scope))
         assert failed["exception"]=={"code":0,"message":"Webhook 处理任务执行失败"}
+        diagnostic=json.loads(command(binary,current,"webhook-client:inspect",receipt,"--scope",scope))
+        assert diagnostic["state"]=="failed" and diagnostic["has_exception"] and "exception" not in diagnostic
        work()
        if terminal:
         assert not marker.exists()

@@ -210,6 +210,17 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 使用 `recover_dispatch: true` 和独立队列后端时，调用 `QueuedWebhookJob::register_with_database_recovery_and_deferred_processing` 注册 Worker。接收记录事务一并保存延期状态和下次派发意图，定时运行的 `webhook-client:recover` 到期后派发。队列后端离线时仍可登记提前唤醒。即使已确认入列的唤醒任务丢失且未启用丢失补派，恢复命令仍能在总期限到期后直接终止记录。到期或提前唤醒接续的队列任务有独立的尝试次数，保留接收记录的延期预算及已配置的丢失补派预算。
 
+### 查询接收处理状态 {#receipt-diagnostics}
+
+在已授权范围内运行 `webhook-client:inspect`。摘要返回接收状态、配置修订、各阶段时间、处理和重放代次，以及是否保存了异常。启用租约后，状态可以区分领取有效、租约过期、延期、完成和已终止。未启用处理租约时，业务处理成功后仍可能显示 `received`。
+
+~~~sh
+./artisan webhook-client:inspect <receipt-id> --scope=payments
+./artisan webhook-client:inspect <receipt-id> --scope=payments --attempts --limit=25
+~~~
+
+使用 `--attempts` 按处理代次分页，将返回的 `next_after` 传给 `--after` 读取下一页。应用授权后可调用 `DatabaseWebhookStore::inspect_receipt` 和 `inspect_processing_attempts`。输出省略接收正文、URL、请求头和异常详情。
+
 ### 查询并重放已耗尽的接收记录 {#replay-exhausted}
 
 先运行 `./artisan migrate`，并升级所有 Webhook Worker，再启用重放。`webhook-client:exhausted` 按可信范围列出接收标识和元数据，每次限定 1–500 条。记录须已确认入列、自动补派预算耗尽且等待窗口已过，同时没有活跃租约、计划中的延期或终态。

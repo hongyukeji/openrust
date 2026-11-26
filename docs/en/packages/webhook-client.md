@@ -210,6 +210,17 @@ When the application associates the business record, it can call `QueuedWebhookJ
 
 With `recover_dispatch: true` and a separate queue backend, use `QueuedWebhookJob::register_with_database_recovery_and_deferred_processing`. The receipt transaction records the deferral and its next dispatch intent. The scheduled `webhook-client:recover` command dispatches it when due. An early wake-up updates that intent even when the broker is offline. The command retains enough state to stop expired deferrals even if the broker loses an acknowledged wake-up task and lost-task requeues are disabled. Reaching a deferral time or waking it early creates a new queue task with its own attempts and leaves the receipt’s deferral and optional lost-task requeue budgets in place.
 
+### Inspect receipt processing {#receipt-diagnostics}
+
+Run `webhook-client:inspect` for one authorized scope. The summary shows the receipt state, profile revision, timestamps, processing and replay generations, and whether a stored exception exists. For leased processing, it distinguishes active and expired leases, deferral, completion, and a stopped receipt. An unleased receipt can remain `received` after its application handler succeeds.
+
+~~~sh
+./artisan webhook-client:inspect <receipt-id> --scope=payments
+./artisan webhook-client:inspect <receipt-id> --scope=payments --attempts --limit=25
+~~~
+
+Use `--attempts` to page by processing generation. Pass the returned `next_after` to `--after` for the next page. The service methods `DatabaseWebhookStore::inspect_receipt` and `inspect_processing_attempts` provide the same information to authorized application code. Outputs omit the receipt body, URLs, headers, and exception details.
+
 ### Inspect and replay exhausted receipts {#replay-exhausted}
 
 Run `./artisan migrate` and upgrade all Webhook workers before enabling replay. `webhook-client:exhausted` lists receipt identifiers and metadata in a trusted scope, with a limit of 1–500. It selects acknowledged durable dispatches whose automatic requeue budgets and waiting windows have elapsed, and whose receipts have no active lease, scheduled deferral or terminal state.

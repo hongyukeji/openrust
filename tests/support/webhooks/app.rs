@@ -9,6 +9,7 @@ mod model_pruning;
 mod outbound;
 #[path = "../../../bootstrap/packages.rs"]
 mod packages;
+mod receipt_diagnostics;
 use openrust::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
@@ -1159,6 +1160,10 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::post("/received/{profile}", receive)?;
     Route::post("/outbound/{mode}/{key}", outbound::submit)?;
     Route::get("/outbound-inspect/{scope}/{kind}/{id}", outbound::inspect)?;
+    Route::get(
+        "/inbound-inspect/{scope}/{kind}/{id}",
+        receipt_diagnostics::inspect,
+    )?;
     for route in [
         "atomic",
         "atomic-null",

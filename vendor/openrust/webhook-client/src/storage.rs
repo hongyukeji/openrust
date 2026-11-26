@@ -2,7 +2,11 @@ mod attachment_cleanup;
 mod attachments;
 pub use attachment_cleanup::AttachmentCleanupReport;
 mod attempts;
+mod diagnostics;
 mod dispatch_recovery;
+pub use diagnostics::{
+    ProcessingAttempt, ProcessingAttemptsPage, ReceiptDiagnostics, ReceiptState,
+};
 mod identity;
 mod lease;
 mod replay;
@@ -15,7 +19,7 @@ use http::{
 };
 pub(crate) use lease::{DeferredWakeup, ProcessingClaim, ProcessingOutcome};
 use openrust::{
-    database::{Connection, Row, Transaction, Value},
+    database::{Connection, Row, Transaction, Value, query::Builder},
     http::HttpFuture,
     support::Str,
 };
@@ -80,17 +84,23 @@ impl DatabaseWebhookStore {
             return Ok(None);
         }
         let row = self
-            .connection
-            .table("webhook_calls")
-            .use_write_pdo()
+            .receipt_query(id)
             .select(columns.iter().copied())
-            .r#where("scope_key", "=", scope_key(&self.scope))
-            .r#where("id", "=", id)
             .first()
             .await?;
-        Ok(row.filter(
-            |row| matches!(row.get("scope"), Some(Value::Text(scope)) if scope == &self.scope),
-        ))
+        Ok(row.filter(|row| self.matches_scope(row)))
+    }
+
+    fn receipt_query(&self, id: &str) -> Builder<'_> {
+        self.connection
+            .table("webhook_calls")
+            .use_write_pdo()
+            .r#where("scope_key", "=", scope_key(&self.scope))
+            .r#where("id", "=", id)
+    }
+
+    fn matches_scope(&self, row: &Row) -> bool {
+        matches!(row.get("scope"), Some(Value::Text(scope)) if scope == &self.scope)
     }
 }
 struct PreparedReceipt {

@@ -55,7 +55,10 @@ mod webhook_config;
 
 pub use migration::CreateWebhookCallsTable;
 pub use processor::{VerifiedWebhook, WebhookJobDispatcher, WebhookProcessor, WebhookRuntime};
-pub use storage::{AttachmentCleanupReport, DatabaseWebhookStore, WebhookStore};
+pub use storage::{
+    AttachmentCleanupReport, DatabaseWebhookStore, ProcessingAttempt, ProcessingAttemptsPage,
+    ReceiptDiagnostics, ReceiptState, WebhookStore,
+};
 
 pub use contracts::{
     DefaultRespondsTo, ProcessEverythingWebhookProfile, RespondsToWebhook, SignatureValidator,
