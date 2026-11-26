@@ -480,6 +480,8 @@ The SDK saves completed user and assistant messages together. The next prompt re
 
 Assistant history for completed SDK turns includes the model, total usage, and `steps` with each step’s reported model, usage, finish reason, and tool outcomes. Older records retain their stored steps.
 
+Implement `ConversationStore` and install it during application boot with `Ai::set_conversation_store(Arc::new(store))` to use a different backend. `Ai::conversation_store()` returns the configured store. Each implementation checks participant ownership and saves the user and assistant messages atomically. Use `DatabaseConversationStore` for durable tool approvals.
+
 ## Text generation options {#text-generation-options}
 
 Set the output token limit and sampling options on an Agent. Use `with_generation_options` for an anonymous Agent or implement `Agent::generation_options` for a named Agent. The settings also apply to structured output and streaming tool steps. Agent middleware can override them for one step.

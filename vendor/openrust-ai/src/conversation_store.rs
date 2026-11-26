@@ -1,7 +1,8 @@
-use std::time::SystemTime;
+use std::{any::Any, time::SystemTime};
 
 use openrust::{
     database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
+    http::HttpFuture,
     pagination::{Cursor, CursorOptions},
     support::Str,
 };
@@ -10,7 +11,7 @@ use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AgentResponse, Message, MessageRole, approval_store::ApprovalScope,
+    AgentResponse, AiError, AiResult, Message, MessageRole, approval_store::ApprovalScope,
     approval_turn::ApprovalSession,
 };
 
@@ -73,6 +74,53 @@ pub struct ConversationPage {
     pub messages: Vec<StoredMessage>,
     pub next_cursor: Option<String>,
     pub previous_cursor: Option<String>,
+}
+
+/// 按参与者保存和读取 Agent 会话。历史读取在归属不符时返回 `None`。
+pub trait ConversationStore: Any + Send + Sync {
+    fn conversation_belongs_to<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+    ) -> HttpFuture<'a, AiResult<bool>>;
+
+    fn latest_conversation_id<'a>(
+        &'a self,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+    ) -> HttpFuture<'a, AiResult<Option<String>>>;
+
+    fn get_latest_conversation_messages<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        limit: u64,
+    ) -> HttpFuture<'a, AiResult<Option<Vec<Message>>>>;
+
+    fn paginate_conversation_messages<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        per_page: u64,
+        cursor: Option<&'a Cursor>,
+    ) -> HttpFuture<'a, AiResult<Option<ConversationPage>>>;
+
+    /// 原子保存用户和助手消息。已有会话归属不符时返回 `false`。
+    fn store_turn<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        existing: bool,
+        prompt: &'a str,
+        response: &'a AgentResponse,
+    ) -> HttpFuture<'a, AiResult<bool>>;
+}
+
+impl dyn ConversationStore {
+    pub(crate) fn as_database(&self) -> Option<&DatabaseConversationStore> {
+        (self as &dyn Any).downcast_ref()
+    }
 }
 
 pub struct DatabaseConversationStore {
@@ -310,6 +358,89 @@ impl DatabaseConversationStore {
         transaction.commit().await?;
         Ok(true)
     }
+}
+
+impl ConversationStore for DatabaseConversationStore {
+    fn conversation_belongs_to<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        Box::pin(async move {
+            self.conversation_belongs_to(conversation, participant)
+                .await
+                .map_err(storage_error)
+        })
+    }
+
+    fn latest_conversation_id<'a>(
+        &'a self,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+    ) -> HttpFuture<'a, AiResult<Option<String>>> {
+        Box::pin(async move {
+            self.latest_conversation_id(participant, agent)
+                .await
+                .map_err(storage_error)
+        })
+    }
+
+    fn get_latest_conversation_messages<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        limit: u64,
+    ) -> HttpFuture<'a, AiResult<Option<Vec<Message>>>> {
+        Box::pin(async move {
+            self.get_latest_conversation_messages(conversation, participant, limit)
+                .await
+                .map_err(storage_error)
+        })
+    }
+
+    fn paginate_conversation_messages<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        per_page: u64,
+        cursor: Option<&'a Cursor>,
+    ) -> HttpFuture<'a, AiResult<Option<ConversationPage>>> {
+        Box::pin(async move {
+            self.paginate_conversation_messages(conversation, participant, per_page, cursor)
+                .await
+                .map_err(storage_error)
+        })
+    }
+
+    fn store_turn<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        existing: bool,
+        prompt: &'a str,
+        response: &'a AgentResponse,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        Box::pin(async move {
+            self.store_turn(
+                ApprovalScope {
+                    conversation_id: conversation,
+                    participant,
+                    agent,
+                },
+                existing,
+                prompt,
+                response,
+                None,
+            )
+            .await
+            .map_err(storage_error)
+        })
+    }
+}
+
+fn storage_error(_: DatabaseError) -> AiError {
+    AiError::ConversationStorageUnavailable
 }
 
 fn message_record(

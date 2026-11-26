@@ -480,6 +480,8 @@ SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示�
 
 已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
 
+需要其他對話後端時，實作 `ConversationStore`，並在應用程式啟動時透過 `Ai::set_conversation_store(Arc::new(store))` 登錄。`Ai::conversation_store()` 回傳目前的儲存實作。實作負責檢查參與者歸屬，並以原子操作儲存使用者和助手訊息。需要持久工具審批時使用 `DatabaseConversationStore`。
+
 ## 文字生成選項 {#text-generation-options}
 
 在 Agent 上設定輸出 Token 上限與取樣參數。匿名 Agent 用 `with_generation_options`，具名 Agent 實作 `Agent::generation_options`。這些選項也用於結構化輸出與串流工具續步。Agent 中介層可覆寫目前步驟的選項。

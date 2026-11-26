@@ -46,6 +46,7 @@ pub struct AiManager {
     classification_fake: RwLock<Option<Arc<FakeClassificationGateway>>>,
     reranking_fake: RwLock<Option<Arc<FakeRerankingGateway>>>,
     on_demand: Arc<OnDemandProviders>,
+    conversation_store: RwLock<Option<Arc<dyn crate::ConversationStore>>>,
 }
 
 impl AiManager {
@@ -65,6 +66,7 @@ impl AiManager {
             classification_fake: RwLock::default(),
             reranking_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
+            conversation_store: RwLock::default(),
         };
         for (driver, protocol) in [
             ("openai", OpenAiProtocol::Responses),
@@ -262,21 +264,31 @@ impl AiManager {
         Ok(provider)
     }
 
-    pub(crate) fn conversation_store(&self) -> AiResult<(crate::DatabaseConversationStore, u64)> {
-        let connection = match self.config.get("ai.conversations.connection") {
-            Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
-            Some(Value::Null) | None => None,
-            _ => return Err(AiError::InvalidConfiguration("conversations.connection")),
-        };
+    pub fn set_conversation_store(&self, store: Arc<dyn crate::ConversationStore>) {
+        *self.conversation_store.write().unwrap() = Some(store);
+    }
+
+    pub(crate) fn conversation_store(&self) -> AiResult<(Arc<dyn crate::ConversationStore>, u64)> {
         let history = match self.config.get("ai.conversations.max_messages") {
             Some(value) => value
                 .as_u64()
                 .ok_or(AiError::InvalidConfiguration("conversations.max_messages"))?,
             None => 100,
         };
+        if let Some(store) = self.conversation_store.read().unwrap().as_ref() {
+            return Ok((store.clone(), history));
+        }
+        let connection = match self.config.get("ai.conversations.connection") {
+            Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
+            Some(Value::Null) | None => None,
+            _ => return Err(AiError::InvalidConfiguration("conversations.connection")),
+        };
         let database = openrust::database::Db::connection(connection.as_deref())
             .map_err(|_| AiError::ConversationStorageUnavailable)?;
-        Ok((crate::DatabaseConversationStore::new(database), history))
+        Ok((
+            Arc::new(crate::DatabaseConversationStore::new(database)),
+            history,
+        ))
     }
 
     pub(crate) fn embedding_cache_config(&self) -> Option<Value> {

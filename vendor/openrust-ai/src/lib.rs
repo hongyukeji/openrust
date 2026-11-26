@@ -89,7 +89,8 @@ pub use classification::{
 };
 pub use configuration::load as default_config;
 pub use conversation_store::{
-    ConversationPage, ConversationParticipant, DatabaseConversationStore, StoredMessage,
+    ConversationPage, ConversationParticipant, ConversationStore, DatabaseConversationStore,
+    StoredMessage,
 };
 pub use conversations::{ConversationResponse, PendingConversation, RemembersConversations};
 pub use embeddings::{
