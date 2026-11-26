@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, ModelCatalog, StepEventStream,
     StepResponse, StepTextGateway, StreamableAgentResponse, TextEndpoint, TextModelTier,
-    TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolStep, Usage,
+    TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition, ToolStep, UrlCitation, Usage,
     connection::{Authorization, Connection},
     files::{FileProvider, WorkspaceFileProtocol, WorkspaceFileProvider},
     models::ListedModel,
@@ -205,9 +205,10 @@ impl TextProvider for AnthropicTextProvider {
             if response["stop_reason"] == "refusal" {
                 return Err(AiError::Refused);
             }
-            let text: String = response["content"]
+            let blocks = response["content"]
                 .as_array()
-                .ok_or(AiError::InvalidResponse)?
+                .ok_or(AiError::InvalidResponse)?;
+            let text: String = blocks
                 .iter()
                 .filter(|block| block["type"] == "text")
                 .filter_map(|block| block["text"].as_str())
@@ -223,7 +224,7 @@ impl TextProvider for AnthropicTextProvider {
                     .as_str()
                     .unwrap_or(prompt.text.model)
                     .into(),
-                citations: Vec::new(),
+                citations: citations(blocks),
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
             })
@@ -410,8 +411,32 @@ pub(crate) fn parse_step(mut response: Value) -> AiResult<StepResponse> {
         model: response["model"].as_str().map(str::to_owned),
         text,
         usage: Usage::from_anthropic(&response["usage"]).include_cached_input(),
-        citations: Vec::new(),
+        citations: citations(blocks),
         tool_calls,
         provider_content: Some(content),
     })
+}
+
+fn citations(blocks: &[Value]) -> Vec<UrlCitation> {
+    let mut sources = Vec::new();
+    for block in blocks {
+        match block["type"].as_str() {
+            Some("text") => {
+                sources.extend(
+                    block["citations"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|citation| citation["type"] == "web_search_result_location")
+                        .map(|citation| (&citation["url"], &citation["title"])),
+                );
+            }
+            Some("web_fetch_tool_result") if block["content"]["type"] == "web_fetch_result" => {
+                let content = &block["content"];
+                sources.push((&content["url"], &content["content"]["title"]));
+            }
+            _ => {}
+        }
+    }
+    UrlCitation::unique_sources(sources)
 }

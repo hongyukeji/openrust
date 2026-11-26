@@ -261,12 +261,15 @@ async fn check_tools(provider: &str) {
     assert!(!response.tool_results[0].failed);
     assert_eq!(response.usage.prompt_tokens, Some(11));
     assert_eq!(response.usage.completion_tokens, Some(3));
-    if provider == "openai" {
+    let citation = match provider {
+        "openai" => Some("https://example.test/final"),
+        "anthropic" => Some("https://example.test/anthropic"),
+        "gemini" => Some("https://example.test/gemini"),
+        _ => None,
+    };
+    if let Some(url) = citation {
         assert_eq!(response.meta().citations.len(), 1);
-        assert_eq!(
-            response.meta().citations[0].url,
-            "https://example.test/final"
-        );
+        assert_eq!(response.meta().citations[0].url, url);
     }
 }
 
@@ -280,11 +283,15 @@ async fn sdk_tools_roundtrip_through_anthropic_and_gemini() -> TestResult {
     });
     let gemini_replies = vec![
         json!({"candidates":[{"content":{"role":"model","parts":[gemini_call]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1}}),
-        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"four remaining"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":6,"candidatesTokenCount":2}}),
+        json!({"candidates":[{"content":{"role":"model","parts":[{"text":"four remaining"}]},"finishReason":"STOP",
+            "groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://example.test/gemini","title":"Source"}}]}}],
+            "usageMetadata":{"promptTokenCount":6,"candidatesTokenCount":2}}),
     ];
     let (anthropic, anthropic_calls) = native_fixture("v1", "messages", "x-api-key", "fixture-key", vec![
         json!({"stop_reason":"tool_use","content":[thinking,{"type":"tool_use","id":"call_fixture","name":"lookup","input":{"sku":"demo"}}],"usage":{"input_tokens":5,"output_tokens":1}}),
-        json!({"stop_reason":"end_turn","content":[{"type":"text","text":"four remaining"}],"usage":{"input_tokens":6,"output_tokens":2}}),
+        json!({"stop_reason":"end_turn","content":[{"type":"text","text":"four remaining",
+            "citations":[{"type":"web_search_result_location","url":"https://example.test/anthropic","title":"Source"}]}],
+            "usage":{"input_tokens":6,"output_tokens":2}}),
     ]).await;
     let (gemini, gemini_calls) = native_fixture(
         "v1beta",

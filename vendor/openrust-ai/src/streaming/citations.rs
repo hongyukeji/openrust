@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use serde_json::Value;
 
@@ -23,16 +25,36 @@ impl UrlCitation {
         if value["type"] != "url_citation" {
             return None;
         }
-        let url = value["url"].as_str()?;
+        let mut citation = Self::from_url(value["url"].as_str()?, value["title"].as_str())?;
+        citation.start_index = value["start_index"].as_u64();
+        citation.end_index = value["end_index"].as_u64();
+        Some(citation)
+    }
+
+    pub(crate) fn unique_sources<'a>(
+        sources: impl IntoIterator<Item = (&'a Value, &'a Value)>,
+    ) -> Vec<Self> {
+        let mut seen = HashSet::new();
+        sources
+            .into_iter()
+            .filter_map(|(url, title)| {
+                let url = url.as_str()?;
+                seen.insert(url).then_some(())?;
+                Self::from_url(url, title.as_str())
+            })
+            .collect()
+    }
+
+    fn from_url(url: &str, title: Option<&str>) -> Option<Self> {
         let parsed = url::Url::parse(url).ok()?;
         if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {
             return None;
         }
         Some(Self {
             url: url.into(),
-            title: value["title"].as_str().map(str::to_owned),
-            start_index: value["start_index"].as_u64(),
-            end_index: value["end_index"].as_u64(),
+            title: title.map(str::to_owned),
+            start_index: None,
+            end_index: None,
         })
     }
 }

@@ -15,7 +15,7 @@ use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole,
     ModelCatalog, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     TextEndpoint, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolChoice, ToolDefinition,
-    ToolStep, Usage,
+    ToolStep, UrlCitation, Usage,
     classification::{ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider},
     connection::{Authorization, Connection},
     files::{FileProvider, GeminiFileProvider},
@@ -247,7 +247,7 @@ impl TextProvider for GeminiTextProvider {
                     .as_str()
                     .unwrap_or(prompt.text.model)
                     .into(),
-                citations: Vec::new(),
+                citations: citations(candidate),
                 tool_calls: Vec::new(),
                 tool_results: Vec::new(),
             })
@@ -500,6 +500,7 @@ impl GeminiTextProvider {
 pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
     let candidate = &value["candidates"][0];
     let reason = finish_reason(&value, candidate)?;
+    let citations = citations(candidate);
     let text = text_parts(candidate).fold(None::<String>, |mut text, part| {
         text.get_or_insert_default().push_str(part);
         text
@@ -548,8 +549,17 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
         model: value["modelVersion"].as_str().map(str::to_owned),
         text,
         usage: usage(&value),
-        citations: Vec::new(),
+        citations,
         tool_calls,
         provider_content: Some(content),
     })
+}
+
+fn citations(candidate: &Value) -> Vec<UrlCitation> {
+    let sources = candidate["groundingMetadata"]["groundingChunks"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|chunk| (&chunk["web"]["uri"], &chunk["web"]["title"]));
+    UrlCitation::unique_sources(sources)
 }

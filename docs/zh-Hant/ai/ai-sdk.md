@@ -57,6 +57,8 @@ OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` �
 
 OpenAI Responses 的一般回應可透過 `response.meta()` 讀取來源連線、模型與網頁引文。引文沿用上游順序與各文字分段回報的位置。結構化回應也提供該方法。自訂文字驅動可使用 `AgentResponse::new` 建立回應，再填入引文。 非串流工具呼叫的回應中繼資料取自最後一個模型步驟。
 
+非串流 Anthropic Messages 提供網頁搜尋和擷取引文。非串流 Gemini GenerateContent 提供選中候選的 Grounding 網頁來源。兩者保留每個 URL 首次出現的順序和公開標題。
+
 Responses 模型支援公開推理摘要時，可透過 `with_provider_options` 將 `reasoning.summary` 設為 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用獨立事件。可在完成回呼中用 `StreamedAgentResponse::reasoning()` 讀取合併後的摘要。
 
 Vercel 和 AG-UI 串流配接器使用目前的應用程式語言顯示產生失敗提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆寫 `stream` 文字。
