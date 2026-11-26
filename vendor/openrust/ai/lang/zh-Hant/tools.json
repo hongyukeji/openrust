@@ -2,5 +2,9 @@
   "agent": {
     "description": "將獨立任務交給 :agent 並回傳回答。請說明任務所需的所有資訊，子 Agent 無法讀取父對話記錄。",
     "task": "交給子 Agent 的獨立任務。"
+  },
+  "similarity_search": {
+    "description": "搜尋與指定查詢相似的文件。",
+    "query": "用於搜尋的查詢文字。"
   }
 }

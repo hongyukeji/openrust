@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use openrust::{
     database::eloquent::{Builder, Model},
     http::HttpFuture,
@@ -6,15 +8,16 @@ use openrust::{
 };
 use serde_json::Value;
 
-use crate::{AiError, AiResult, RerankingOptions, Reranks, Tool, ToolRequest};
+use crate::{AiError, AiResult, RerankingOptions, Reranks, Tool, ToolRequest, localization};
 
 type Search = dyn for<'a> Fn(&'a str) -> HttpFuture<'a, AiResult<Vec<Value>>> + Send + Sync;
 type Ranking = dyn Fn(&Value) -> String + Send + Sync;
+const DEFAULT_DESCRIPTION: &str = "Search for documents similar to a given query.";
 
 /// 使用查询文本检索相似文档，必要时用 SDK 的 Reranking 重排。
 pub struct SimilaritySearch {
     search: Box<Search>,
-    description: String,
+    description: Option<String>,
     ranking: Option<(Box<Ranking>, Option<usize>)>,
 }
 
@@ -24,7 +27,7 @@ impl SimilaritySearch {
     ) -> Self {
         Self {
             search: Box::new(search),
-            description: "Search for documents similar to a given query.".into(),
+            description: None,
             ranking: None,
         }
     }
@@ -81,7 +84,7 @@ impl SimilaritySearch {
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Some(description.into());
         self
     }
 
@@ -101,7 +104,18 @@ impl Tool for SimilaritySearch {
     }
 
     fn description(&self) -> &str {
-        &self.description
+        self.description.as_deref().unwrap_or(DEFAULT_DESCRIPTION)
+    }
+
+    fn localized_description(&self) -> Cow<'_, str> {
+        match self.description.as_deref() {
+            Some(custom) => Cow::Borrowed(custom),
+            None => Cow::Owned(localization::text(
+                "ai::tools.similarity_search.description",
+                &Default::default(),
+                DEFAULT_DESCRIPTION,
+            )),
+        }
     }
 
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
@@ -109,7 +123,11 @@ impl Tool for SimilaritySearch {
             "query",
             schema
                 .string()
-                .description("The search query.")
+                .description(localization::text(
+                    "ai::tools.similarity_search.query",
+                    &Default::default(),
+                    "The search query.",
+                ))
                 .required(true)
                 .into(),
         )])

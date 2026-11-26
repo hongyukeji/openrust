@@ -2,5 +2,9 @@
   "agent": {
     "description": "Giao một nhiệm vụ độc lập cho :agent và trả về câu trả lời. Hãy cung cấp đầy đủ thông tin cần thiết vì tác nhân con không thể truy cập lịch sử cuộc trò chuyện của tác nhân cha.",
     "task": "Nhiệm vụ độc lập cần giao cho tác nhân con."
+  },
+  "similarity_search": {
+    "description": "Tìm tài liệu tương tự với truy vấn đã cho.",
+    "query": "Truy vấn dùng để tìm kiếm."
   }
 }

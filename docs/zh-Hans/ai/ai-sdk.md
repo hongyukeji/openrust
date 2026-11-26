@@ -381,6 +381,8 @@ let response = agent("Check inventory before answering.")
 
 `SimilaritySearch::using_model` 把工具收到的查询文字转成向量，再通过 Eloquent 查询文档并返回业务字段。需要附加应用查询条件时使用 `using_model_with`，也可以用 `using` 提供异步检索函数。`rerank` 接收从每条结果提取文本的函数和可选的返回条数，用已配置的重排连接排序。
 
+生成 Schema 时，默认工具说明和 `query` 参数说明使用当前语言。可在 `lang/vendor/ai/<locale>/tools.json` 中覆写 `similarity_search.description` 和 `similarity_search.query`。显式调用 `with_description` 时，直接采用应用提供的说明。
+
 ```rust
 use std::sync::Arc;
 use openrust_ai::{Agent, SimilaritySearch, agent};

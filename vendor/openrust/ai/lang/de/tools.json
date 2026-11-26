@@ -2,5 +2,9 @@
   "agent": {
     "description": "Delegiert eine eigenständige Aufgabe an :agent und gibt dessen Antwort zurück. Geben Sie alle nötigen Informationen an, da der untergeordnete Agent den übergeordneten Gesprächsverlauf nicht einsehen kann.",
     "task": "Die eigenständige Aufgabe für den untergeordneten Agenten."
+  },
+  "similarity_search": {
+    "description": "Sucht Dokumente, die einer angegebenen Suchanfrage ähneln.",
+    "query": "Die Suchanfrage."
   }
 }

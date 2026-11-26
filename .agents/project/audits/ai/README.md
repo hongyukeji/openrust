@@ -488,3 +488,9 @@ AI 服务提供者将 18 种 BCP 47 语言的默认工具文案作为包资源�
 独立 Artisan 核对简中、繁中、英文、日文及未知语言回退。真实 HTTP 在同一应用、同一个 Agent 上并发验证全部 18 语，实测应用逐项覆写、法语回退、日本语流式工具续步及自定义说明。消费进程的应用根只提供覆写文件，默认译文来自运行产物。框架语言路径与语言选择回归、AI 与网关包测试、严格 Clippy 和三语文档均通过。其他内置工具说明、Artisan 和错误文案按国际化计划继续审计。
 
 - [固定 Laravel 工具说明与参数契约](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/AgentTool.php)
+
+## AI-03 相似度工具 Schema 国际化
+
+`SimilaritySearch` 的默认工具说明和 `query` 参数说明通过 AI 包语言资源解析，包含 18 种语言。`with_description` 保留应用文字，字段名、类型与必填约束沿用原契约。目前已检查 SDK 内的 `AgentTool` 与 `SimilaritySearch` 两个内置工具的 Schema 文案。框架新增工具时继续沿用同一语言资源。
+
+独立 Artisan 使用五种语言和回退场景。真实 HTTP 在同一应用进程并发检查 18 语出站 Schema，覆盖流式调用、自定义说明和子 Agent 现有翻译回归。包测试、严格 Clippy 与三语文档通过。

@@ -381,6 +381,8 @@ let response = agent("Check inventory before answering.")
 
 `SimilaritySearch::using_model` converts a tool’s search text into a vector and queries an Eloquent model, returning document fields. Use `using_model_with` to add your application’s query constraints or `using` to supply an async search function. Pass `rerank` a function that extracts text from each result and an optional limit to rank the candidates with your configured reranking connection.
 
+The default tool and `query` descriptions use the current locale when the schema is generated. Override these phrases with `similarity_search.description` and `similarity_search.query` in `lang/vendor/ai/<locale>/tools.json`. An explicit `with_description` is used as provided.
+
 ```rust
 use std::sync::Arc;
 use openrust_ai::{Agent, SimilaritySearch, agent};

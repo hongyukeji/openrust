@@ -2,5 +2,9 @@
   "agent": {
     "description": "Delegate a self-contained task to :agent and return its answer. Include all relevant details because the child agent cannot access the parent conversation.",
     "task": "The self-contained task to delegate to the child agent."
+  },
+  "similarity_search": {
+    "description": "Search for documents similar to a given query.",
+    "query": "The search query."
   }
 }

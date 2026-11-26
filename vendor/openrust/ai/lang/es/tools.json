@@ -2,5 +2,9 @@
   "agent": {
     "description": "Delega una tarea autónoma a :agent y devuelve su respuesta. Incluye toda la información necesaria, ya que el agente secundario no puede ver el historial de la conversación principal.",
     "task": "La tarea autónoma que se delegará al agente secundario."
+  },
+  "similarity_search": {
+    "description": "Busca documentos similares a una consulta determinada.",
+    "query": "La consulta de búsqueda."
   }
 }

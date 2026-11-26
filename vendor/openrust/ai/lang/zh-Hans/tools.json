@@ -2,5 +2,9 @@
   "agent": {
     "description": "将独立任务交给 :agent 并返回回答。请说明任务所需的全部信息，子 Agent 无法读取父会话历史。",
     "task": "交给子 Agent 的独立任务。"
+  },
+  "similarity_search": {
+    "description": "检索与给定查询相似的文档。",
+    "query": "用于检索的查询文本。"
   }
 }
