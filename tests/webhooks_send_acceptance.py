@@ -110,7 +110,7 @@ def exercise(binary, env, log, receiver, driver, sql):
                                {"Accept": "application/json"})
             response = connection.getresponse()
             result = response.read()
-            assert response.status == expected, (response.status, result)
+            assert response.status == expected, (key, mode, response.status, result)
             if expected in (202, 502, 503):
                 identifier = json.loads(result)["id"]
                 assert re.fullmatch("[0-9a-f]{64}", identifier)
@@ -198,6 +198,15 @@ def exercise(binary, env, log, receiver, driver, sql):
                 ("proxy-map-ip-literal", "proxy-map-ip-exclusion", "succeeded"),
                 ("tls-wrong-ca", "proxy", "unknown"),
             ],
+            "proxy-clear": [
+                ("proxy-missing", "proxy", "rejected"),
+                ("proxy-wrong-name", "proxy", "rejected"),
+                ("proxy-wrong-password", "proxy", "unknown"),
+                ("proxy-good", "proxy", "succeeded"),
+                ("proxy-map-http", "proxy-map-http", "succeeded"),
+                ("redirect", "proxy", "http_failure"),
+                ("proxy-direct", "normal", "succeeded"),
+            ],
             "proxy-mutual": [
                 ("tls-client", "proxy", "succeeded"),
                 ("tls-no-client", "proxy", "unknown"),
@@ -207,11 +216,19 @@ def exercise(binary, env, log, receiver, driver, sql):
             "expired": [("tls-ca", "normal", "unknown")],
         }[profile]
         proxy_tls = env.get("FIXTURE_SEND_PROXY_PROTOCOL") == "connect-tls"
+        clear_socks = profile == "proxy-clear" and env.get("FIXTURE_SEND_PROXY_PROTOCOL") == "socks5"
+        if clear_socks:
+            cases = [("proxy-good", "proxy", "rejected"), ("proxy-direct", "normal", "succeeded")]
         if proxy_tls and profile == "proxy":
             cases += [
                 ("proxy-tls-wrong-ca", "proxy", "unknown"),
                 ("proxy-tls-wrong-host", "proxy", "unknown"),
                 ("tls-wrong-ca", "proxy", "unknown"),
+            ]
+        if proxy_tls and profile == "proxy-clear":
+            cases += [
+                ("proxy-tls-wrong-ca", "proxy", "unknown"),
+                ("proxy-tls-wrong-host", "proxy", "unknown"),
             ]
         for key, mode, outcome in cases:
             identifier = submit(key, mode)
@@ -224,7 +241,7 @@ def exercise(binary, env, log, receiver, driver, sql):
             assert attempts(identifier) == f"1\t{outcome}\t{status}", (key, attempts(identifier))
             snapshot = sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{identifier}'")
             assert "PRIVATE KEY" not in snapshot and "FIXTURE_SEND_TLS_DIR" not in snapshot
-            if mode in ("proxy", "proxy-map", "proxy-map-config", "proxy-map-unregistered"):
+            if mode in ("proxy", "proxy-map", "proxy-map-config", "proxy-map-unregistered", "proxy-map-http"):
                 reference = "fixture-missing" if mode == "proxy-map-unregistered" else "fixture-egress"
                 assert json.loads(snapshot)["proxy"] == reference
                 assert "unused-egress" not in snapshot and "unused-egress" not in queue
@@ -247,7 +264,10 @@ def exercise(binary, env, log, receiver, driver, sql):
             }
         assert not receiver.unexpected
         expected_sni = None if profile == "proxy-ip" else "outgoing-fixture.invalid"
-        assert receiver.tls_names and set(receiver.tls_names) == {expected_sni}
+        if profile == "proxy-clear":
+            assert not receiver.tls_names and not receiver.client_certificates
+        else:
+            assert receiver.tls_names and set(receiver.tls_names) == {expected_sni}
         if profile.startswith("proxy"):
             destination = (receiver.server_address[0], receiver.server_port)
             proxy = receiver.proxy
@@ -256,17 +276,20 @@ def exercise(binary, env, log, receiver, driver, sql):
                 target_count += 1  # Target TLS rejects after CONNECT succeeds.
             if profile == "proxy":
                 target_count += 2  # Builder and object configuration both select the HTTPS route.
+            if profile == "proxy-clear":
+                target_count = 0 if clear_socks else 3
             assert proxy.targets == [destination] * target_count, proxy.targets
-            assert proxy.rejected == (1 if profile == "proxy" else 0)
+            assert proxy.rejected == int(profile in ("proxy", "proxy-clear") and not clear_socks)
             if proxy_tls:
                 names = ["proxy-fixture.invalid"] * (target_count + proxy.rejected)
-                if profile == "proxy":
+                if profile in ("proxy", "proxy-clear"):
                     names.extend(["proxy-fixture.invalid", "wrong-proxy.invalid"])
                 assert sorted(proxy.tls_names) == sorted(names), proxy.tls_names
                 assert proxy.client_certificates == [None] * (target_count + proxy.rejected)
         protocol = env.get("FIXTURE_SEND_PROXY_PROTOCOL", "socks5") if profile.startswith("proxy") else "direct"
         network = "IPv6" if env.get("FIXTURE_SEND_IPV6") == "1" else "IPv4"
-        print(f"{driver}: TLS {profile} {protocol} {network} HTTP、Artisan、Worker 及固定连接通过")
+        target_transport = "受信 HTTP 收件端" if profile == "proxy-clear" else f"TLS {profile}"
+        print(f"{driver}: {target_transport} {protocol} {network} HTTP、Artisan、Worker 及固定连接通过")
         return
 
     def admin(operation, name, *options):
@@ -2214,7 +2237,8 @@ def configure_tls(receiver, folder, profile, proxy):
     if profile in ("mutual", "proxy-mutual"):
         context.verify_mode = ssl.CERT_REQUIRED
         context.load_verify_locations(folder / "ca.pem")
-    receiver.socket = context.wrap_socket(receiver.socket, server_side=True)
+    if profile != "proxy-clear":
+        receiver.socket = context.wrap_socket(receiver.socket, server_side=True)
     if proxy is None:
         return
     ca("proxy-ca")
@@ -2293,7 +2317,8 @@ def main():
             }
             if profile:
                 env["FIXTURE_SEND_TLS_DIR"] = str(tls)
-                env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("http:", "https:", 1)
+                if profile != "proxy-clear":
+                    env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("http:", "https:", 1)
                 if profile == "proxy-ip":
                     env["FIXTURE_SEND_TARGET"] = f"https://{socket_authority(local, receiver.server_port)}/receiver"
             if proxy:

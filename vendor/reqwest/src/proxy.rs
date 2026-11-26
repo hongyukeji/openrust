@@ -289,8 +289,9 @@ impl Proxy {
 
     /// Sets the numeric address used in the HTTP CONNECT authority.
     ///
-    /// Use this only with a client restricted to the corresponding HTTPS origin.
-    /// The URL and TLS server identity remain those of the HTTPS request.
+    /// Use this only with a client restricted to the corresponding origin.
+    /// HTTPS retains the original TLS identity. With Rustls, an HTTP request
+    /// uses the pinned tunnel without TLS to the origin.
     #[cfg(feature = "__tls")]
     pub fn with_connect_target(mut self, address: std::net::SocketAddr) -> Self {
         self.extra.connect_target = Some(address);
@@ -630,6 +631,10 @@ impl Intercepted {
     }
 
     pub(crate) fn http_non_tunnel_basic_auth(&self) -> Option<HeaderValue> {
+        #[cfg(feature = "__tls")]
+        if self.connect_target().is_some() {
+            return None;
+        }
         let scheme = self.uri().scheme();
         if scheme == Some(&Scheme::HTTP) || scheme == Some(&Scheme::HTTPS) {
             return self.basic_auth().cloned();
@@ -639,6 +644,10 @@ impl Intercepted {
     }
 
     pub(crate) fn http_non_tunnel_custom_headers(&self) -> Option<HeaderMap> {
+        #[cfg(feature = "__tls")]
+        if self.connect_target().is_some() {
+            return None;
+        }
         let scheme = self.uri().scheme();
         if scheme == Some(&Scheme::HTTP) || scheme == Some(&Scheme::HTTPS) {
             return self.custom_headers().cloned();

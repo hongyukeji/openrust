@@ -10,8 +10,8 @@ use super::factory::{
 use super::transport::{MultipartObservation, Transport};
 use super::uri_template;
 use super::{
-    BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, RecordedRequestDataSource,
-    Response, Result,
+    BatchResults, Error, Factory, Form, PinnedProxy, Pool, RecordedMultipartField,
+    RecordedRequestDataSource, Response, Result,
 };
 use super::{destination::PinnedDestination, digest::DigestCredentials};
 
@@ -640,13 +640,21 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        if (self.tls_ca.is_some() || self.tls_identity.is_some() || self.pinned_proxy.is_some())
+        let pinned_https = self
+            .destination
+            .as_ref()
+            .is_some_and(PinnedDestination::is_https);
+        if (self.tls_ca.is_some() || self.tls_identity.is_some())
             && (!self.verify_tls
                 || self.tls_ca.as_ref().is_some_and(Vec::is_empty)
-                || !self
-                    .destination
-                    .as_ref()
-                    .is_some_and(PinnedDestination::is_https))
+                || !pinned_https)
+        {
+            return Err(Error::Configuration);
+        }
+        if let Some(proxy) = &self.pinned_proxy
+            && (!self.verify_tls
+                || self.destination.is_none()
+                || !pinned_https && !matches!(proxy, PinnedProxy::HttpConnect(_)))
         {
             return Err(Error::Configuration);
         }

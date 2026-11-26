@@ -784,13 +784,18 @@ impl ConnectorService {
         #[cfg(feature = "__rustls")]
         let proxy_tls = proxy.connect_tls();
         #[cfg(feature = "__rustls")]
+        let pinned_http = dst.scheme() == Some(&Scheme::HTTP)
+            && proxy.connect_target().is_some()
+            && matches!(&self.inner, Inner::RustlsTls { .. });
+        #[cfg(all(feature = "__tls", not(feature = "__rustls")))]
+        let pinned_http = false;
+        #[cfg(feature = "__rustls")]
         if proxy_tls.is_some()
             && (proxy_dst.scheme() != Some(&Scheme::HTTPS)
-                || dst.scheme() != Some(&Scheme::HTTPS)
                 || proxy.connect_target().is_none()
                 || !matches!(&self.inner, Inner::RustlsTls { .. }))
         {
-            return Err("independent proxy TLS requires Rustls and pinned HTTPS CONNECT".into());
+            return Err("independent proxy TLS requires Rustls and pinned CONNECT".into());
         }
         #[cfg(feature = "__tls")]
         let numeric_connect = proxy_dst.scheme_str() == Some("http");
@@ -798,11 +803,16 @@ impl ConnectorService {
         let numeric_connect = numeric_connect || proxy_tls.is_some();
         #[cfg(feature = "__tls")]
         let connect_dst = match proxy.connect_target() {
-            Some(address) if numeric_connect && dst.scheme() == Some(&Scheme::HTTPS) => {
-                format!("https://{address}/").parse::<Uri>()?
+            Some(address)
+                if numeric_connect && (dst.scheme() == Some(&Scheme::HTTPS) || pinned_http) =>
+            {
+                format!("{}://{address}/", dst.scheme_str().ok_or("scheme missing")?)
+                    .parse::<Uri>()?
             }
             Some(_) => {
-                return Err("numeric CONNECT requires a supported proxy and HTTPS target".into())
+                return Err(
+                    "numeric CONNECT requires a supported proxy and target transport".into(),
+                )
             }
             None => dst.clone(),
         };
@@ -866,11 +876,11 @@ impl ConnectorService {
                 tls,
                 tls_proxy,
             } => {
-                if dst.scheme() == Some(&Scheme::HTTPS) {
+                if dst.scheme() == Some(&Scheme::HTTPS) || pinned_http {
                     use hyper_rustls::{DefaultServerNameResolver, ResolveServerName};
                     use tokio_rustls::TlsConnector as RustlsConnector;
 
-                    log::trace!("tunneling HTTPS over proxy");
+                    log::trace!("tunneling HTTP connection over proxy");
                     let http = http.clone();
                     let inner = if let Some(proxy_tls) = proxy_tls {
                         let config = rustls::ClientConfig::builder_with_provider(
@@ -904,9 +914,15 @@ impl ConnectorService {
                         headers.insert(http::header::USER_AGENT, ua);
                         tunnel = tunnel.with_headers(headers);
                     }
-                    // We don't wrap this again in an HttpsConnector since that uses Maybe,
-                    // and we know this is definitely HTTPS.
                     let tunneled = tunnel.call(connect_dst).await?;
+                    if pinned_http {
+                        return Ok(Conn {
+                            inner: self.verbose.wrap(tunneled),
+                            is_proxy: false,
+                            tls_info: false,
+                        });
+                    }
+                    // TLS to the original HTTPS origin is independent of the CONNECT handshake.
                     let server_name = DefaultServerNameResolver::default().resolve(&dst)?;
                     let io = RustlsConnector::from(tls.clone())
                         .connect(server_name, TokioIo::new(tunneled))

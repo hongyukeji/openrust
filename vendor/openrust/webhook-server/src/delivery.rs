@@ -117,12 +117,10 @@ impl DeliveryPermission {
 
     fn permits_transport(&self, snapshot: &Snapshot, https: bool) -> bool {
         if let Some(reference) = &snapshot.proxy
-            && (!https
-                || snapshot.unverified_tls
-                || self
-                    .proxy
-                    .as_ref()
-                    .is_none_or(|(name, _)| name != reference))
+            && (snapshot.unverified_tls
+                || self.proxy.as_ref().is_none_or(|(name, proxy)| {
+                    name != reference || !https && !matches!(proxy, PinnedProxy::HttpConnect(_))
+                }))
         {
             return false;
         }

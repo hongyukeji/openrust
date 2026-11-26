@@ -90,7 +90,9 @@ impl DeliveryPolicy for FixturePolicy {
                 return Ok(None);
             }
             let mut permission = DeliveryPermission::new(policy).with_secret(secret.to_owned());
-            if let Some(directory) = std::env::var_os("FIXTURE_SEND_TLS_DIR") {
+            if url.starts_with("https:")
+                && let Some(directory) = std::env::var_os("FIXTURE_SEND_TLS_DIR")
+            {
                 let directory = std::path::PathBuf::from(directory);
                 let read =
                     |name| std::fs::read(directory.join(name)).map_err(|_| Error::InvalidRecord);
@@ -493,6 +495,11 @@ pub(super) fn submit(
             });
         call = match mode.as_str() {
             "proxy" => call.use_proxy(Some("fixture-egress".to_owned())),
+            "proxy-map-http" => call.use_proxy_map(ProxyMap::new(
+                Some("fixture-egress".to_owned()),
+                Some("unused-egress".to_owned()),
+                Vec::new(),
+            )),
             "proxy-map" => call.use_proxy_map(ProxyMap::new(
                 Some("unused-egress".to_owned()),
                 Some("fixture-egress".to_owned()),

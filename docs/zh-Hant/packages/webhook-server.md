@@ -259,9 +259,11 @@ POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 398
 
 在 `webhook-server.proxy` 中設定已核准的名稱，例如 `corp-egress`，也可為單次投遞呼叫 `use_proxy(Some("corp-egress".into()))`。呼叫 `use_proxy(None)` 可選擇直連。應用程式策略授權投遞範圍及目的地後，以 `DeliveryPermission::with_proxy` 核准相同名稱。可覆寫 `DeliveryPolicy::authorize_transport` 讀取所請求的名稱。投遞記錄只儲存名稱。使用可信設定中的數字 Socket 位址建立代理，並在執行時提供選用憑證。
 
-代理設定也接受 `{"https":"corp-egress","no":[".internal.example"]}` 一類物件，依目標協定選擇具名代理。單次投遞可呼叫 `use_proxy_map(ProxyMap::new(...))`。一般網域也會符合子網域，前導點僅符合子網域，清單也支援 IP 字面值及 `*`。符合排除項目或協定未設定名稱時，依同一目的地策略直接連線。固定地址代理傳輸要求目標使用經驗證的 HTTPS。投遞記錄保存選中的名稱，Worker 傳送時重新解析並授權該名稱。
+代理設定也接受 `{"https":"corp-egress","no":[".internal.example"]}` 一類物件，依目標協定選擇具名代理。單次投遞可呼叫 `use_proxy_map(ProxyMap::new(...))`。一般網域也會符合子網域，前導點僅符合子網域，清單也支援 IP 字面值及 `*`。符合排除項目或協定未設定名稱時，依同一目的地策略直接連線。固定地址 SOCKS5 要求目標使用經驗證的 HTTPS。投遞記錄保存選中的名稱，Worker 傳送時重新解析並授權該名稱。
 
 可用 `PinnedSocksProxy` 進行本機解析的 SOCKS5 轉送。使用 CONNECT 時，可用 `PinnedHttpProxy::https` 指定代理的數字位址、憑證名稱和可信 CA 憑證。Worker 分別驗證代理和收件端，收件端的 mTLS 身分只用於收件端。代理收到已驗證的目標 IP 和連接埠，收件端 TLS 和 HTTP 使用原主機。使用 `PinnedHttpProxy::new` 建立明文 HTTP CONNECT 時，鏈路上的代理認證資料未加密，應部署在可信網路。缺少許可或代理連線錯誤時，投遞不回退為直連。目前不支援 SOCKS5 遠端 DNS 或向代理提供 TLS 用戶端憑證。
+
+應用明確核准的內部 HTTP 位址也可使用兩種 CONNECT 代理。代理連線至固定數字位址，收件端收到原主機與路徑。隧道內至收件端使用明文 HTTP。若代理本身使用 HTTPS，Worker 仍驗證代理憑證。代理認證只用於 CONNECT 交握。
 
 ### 登記與投遞 {#delivery}
 

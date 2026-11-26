@@ -775,11 +775,12 @@
       "status": "partial_delivery_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；六个公开派发及条件入口已接入持久登记、同步尝试及原生 Worker。具名 use_job 已接入停止重试和终态钩子；自定义 CA 和 mTLS 通过当前应用策略提供，已验真实 TLS，显式跳过验证需要 Builder 和策略同时许可。具名 SOCKS5 代理及认证已验，固定地址 HTTP CONNECT 已验。HTTPS CONNECT 独立信任和目标客户端证书隔离已接入，具名代理映射、排除列表及 IPv6 已有三库本地证据。固定代理的明文 HTTP 目标、外部代理和部署拓扑仍开放。",
+      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；六个公开派发及条件入口已接入持久登记、同步尝试及原生 Worker。具名 use_job 已接入停止重试和终态钩子；自定义 CA 和 mTLS 通过当前应用策略提供，已验真实 TLS，显式跳过验证需要 Builder 和策略同时许可。具名 SOCKS5 代理及认证已验，固定地址 HTTP CONNECT 已验。HTTPS CONNECT 独立信任和目标客户端证书隔离已接入，具名代理映射、排除列表及 IPv6 已有三库本地证据。明确授权内部 HTTP 目标可用固定地址 CONNECT。外部代理和真实多主机拓扑仍开放。",
       "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/builder.rs",
         ".agents/project/audits/webhooks/proxy-map.md",
+        ".agents/project/audits/webhooks/connect-http-origin.md",
         "vendor/openrust/framework/tests/http_client_options.rs",
         "tests/webhooks_acceptance.py",
         "tests/webhooks_send_acceptance.py"

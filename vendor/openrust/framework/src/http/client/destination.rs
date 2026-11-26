@@ -50,7 +50,7 @@ impl PinnedHttpProxy {
     }
 }
 
-/// 显式授权且限定为固定 HTTPS 目的地的出站代理。
+/// 显式授权的固定地址出站代理。
 pub enum PinnedProxy {
     Socks5(PinnedSocksProxy),
     HttpConnect(PinnedHttpProxy),

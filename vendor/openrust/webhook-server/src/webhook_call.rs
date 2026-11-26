@@ -325,7 +325,7 @@ impl WebhookCall {
             .transpose()?
             .flatten()
             .map(str::to_owned);
-        if proxy.is_some() && (url.scheme() != "https" || !self.config.verify_ssl) {
+        if proxy.is_some() && !self.config.verify_ssl {
             return Err(Error::InvalidConfig("proxy"));
         }
         let (bytes, query) = self.payload.prepare(method == Method::GET)?;

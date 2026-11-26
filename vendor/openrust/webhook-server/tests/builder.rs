@@ -229,7 +229,7 @@ fn builder_rejects_invalid_material_before_preparation() {
 }
 
 #[test]
-fn proxy_requires_a_named_reference_and_verified_https() {
+fn proxy_requires_a_named_reference_and_an_authorized_target() {
     let url = "https://example.test/callback";
     let policy = TargetPolicy::default();
     let build = || WebhookCall::new().unwrap().url(url).do_not_sign();
@@ -270,7 +270,14 @@ fn proxy_requires_a_named_reference_and_verified_https() {
         build()
             .url(internal)
             .use_proxy(Some("corp-egress".into()))
-            .prepare(&internal_policy),
-        Err(Error::InvalidConfig("proxy"))
+            .prepare(&policy),
+        Err(Error::TargetDenied)
     ));
+    assert!(
+        build()
+            .url(internal)
+            .use_proxy(Some("corp-egress".into()))
+            .prepare(&internal_policy)
+            .is_ok()
+    );
 }
