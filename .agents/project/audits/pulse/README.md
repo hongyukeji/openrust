@@ -102,7 +102,7 @@ Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redi
 
 仅写 `(*UTF)` 的零宽分组存在明确的匹配边界。固定 PHP 8.5.12 与 PCRE2 10.44 对 `é` 按字节推进，返回 `58c358a958`。该步骤会在 UTF-8 码点中间继续匹配。PCRE2 的受检接口要求偏移落在码点首字节或字符串末尾。Rust 保留该检查，遇到码点内偏移时返回配置错误。ASCII、消耗完整多字节字符的模式及显式 `u` 按对应规则工作。PHP 和 Rust 均对带 `u` 的用例得到 `XéX`。macOS 的五项规则测试、相关严格 Clippy、全仓格式、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-inline-utf-boundary-{upstream,macos,docs}.log`。 [固定 PHP 替换循环](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L1757-L1819) [PCRE2 受检起始偏移](https://www.pcre.org/current/doc/html/pcre2api.html#SEC25)
 
-完整 Livewire 请求对照及目标平台 Release 继续验收。
+固定 PHP 8.5.12、Laravel 13.40.0、Pulse 和真实 Livewire 3.8.12／4.4.10 的 Cache 卡片均完成浏览器延迟加载及下一次实际轮询。四个 SQLite 字节键保持四行，其中两个显示为相同的 `same�`，仍分别显示四次命中及五次未命中。原生应用通过真实授权 Chrome 在 375px 和 1440px 验证四行、轮询和采样率 0.5 的估算显示，原始计数可见于数字提示。原生浏览器使用按实际存储形状准备的隔离 SQLite，上文的原生 HTTP Recorder／Redis ingest 已独立验证原始键持久化。证据为 `target/tmp/observability-parity/pulse-livewire-byte-reference/{browser-verified,native-browser-replay}.log`。目标平台 Release 继续验收。
 
 #### 含字节键的通用 Graph 与 Value
 
