@@ -396,6 +396,7 @@ impl StreamableAgentResponse {
         stream: ResponseStream,
         provider: String,
         requested_model: String,
+        xai: bool,
     ) -> Self {
         let invocation =
             crate::request_context::invocation_id().unwrap_or_else(|| Str::ulid().to_string());
@@ -415,7 +416,7 @@ impl StreamableAgentResponse {
                     EventStreamError::Transport(error) => transport_error(error),
                     _ => AiError::InvalidResponse,
                 })?.data;
-                let part = protocol.decode(&data)?;
+                let part = protocol.decode(&data, xai)?;
                 if let Some(model) = part.model {
                     resolved_model = Some(model);
                 }
@@ -609,7 +610,7 @@ struct Part {
 }
 
 impl TextEndpoint {
-    fn decode(self, data: &str) -> AiResult<Part> {
+    fn decode(self, data: &str, xai: bool) -> AiResult<Part> {
         if data == "[DONE]" && matches!(self, Self::ChatCompletions) {
             return Ok(Part {
                 done: true,
@@ -673,7 +674,13 @@ impl TextEndpoint {
                                 .unwrap_or("stop")
                                 .into(),
                         ),
-                        usage: usage.is_object().then(|| Usage::from_openai(usage)),
+                        usage: usage.is_object().then(|| {
+                            if xai {
+                                Usage::from_xai_responses(usage)
+                            } else {
+                                Usage::from_openai(usage)
+                            }
+                        }),
                         done: true,
                         ..Default::default()
                     }),

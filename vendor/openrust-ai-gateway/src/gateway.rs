@@ -648,6 +648,7 @@ impl Gateway {
         };
         Ok(Call {
             logger: self.logger.clone(),
+            provider: target.provider.clone(),
             context,
             attempt,
             outcome: "cancelled",
@@ -741,6 +742,7 @@ pub(crate) enum UsageAdmission {
 
 pub(crate) struct Call {
     logger: Arc<Logger>,
+    provider: Arc<dyn TextProvider>,
     context: openrust::log::LogContext,
     attempt: Option<UsageAttempt>,
     outcome: &'static str,
@@ -842,6 +844,11 @@ impl Call {
         }
         let usage = &payload["usage"];
         let google = &payload["usageMetadata"];
+        let normalized_output = self
+            .provider
+            .normalize_reported_usage(usage)
+            .and_then(|usage| usage.completion_tokens)
+            .map_or(Value::Null, |count| json!(count));
         for (metric, candidates) in [
             (
                 "input_tokens",
@@ -855,10 +862,10 @@ impl Call {
             (
                 "output_tokens",
                 [
+                    &normalized_output,
                     &usage["output_tokens"],
                     &usage["completion_tokens"],
                     &google["candidatesTokenCount"],
-                    &Value::Null,
                 ],
             ),
             (

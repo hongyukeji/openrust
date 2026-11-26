@@ -79,6 +79,12 @@ impl Usage {
             .unwrap_or_default()
     }
 
+    pub(crate) fn from_xai_responses(usage: &Value) -> Self {
+        OpenAiUsage::deserialize(usage)
+            .map(OpenAiUsage::into_xai_responses)
+            .unwrap_or_default()
+    }
+
     pub(crate) fn from_anthropic(usage: &Value) -> Self {
         Self {
             prompt_tokens: usage["input_tokens"].as_u64(),
@@ -130,6 +136,7 @@ pub(crate) struct OpenAiUsage {
     prompt_tokens: Option<u64>,
     #[serde(alias = "output_tokens")]
     completion_tokens: Option<u64>,
+    total_tokens: Option<Value>,
     #[serde(alias = "input_tokens_details")]
     prompt_tokens_details: Option<InputDetails>,
     #[serde(alias = "output_tokens_details")]
@@ -145,6 +152,28 @@ struct InputDetails {
 #[derive(Deserialize)]
 struct OutputDetails {
     reasoning_tokens: Option<u64>,
+}
+
+impl OpenAiUsage {
+    pub(crate) fn into_xai_responses(mut self) -> Usage {
+        let total = self.total_tokens.take();
+        // 固定 Laravel 基线使用分开计数。报告总数时，用它区分是否已包含推理。
+        let mut usage = Usage::from(self);
+        if let Some((output, reasoning)) = usage.completion_tokens.zip(usage.reasoning_tokens)
+            && let Some(inclusive) = output.checked_add(reasoning)
+            && total.is_none_or(|total| {
+                total.as_u64().is_some_and(|total| {
+                    usage
+                        .prompt_tokens
+                        .and_then(|input| input.checked_add(inclusive))
+                        == Some(total)
+                })
+            })
+        {
+            usage.completion_tokens = Some(inclusive);
+        }
+        usage
+    }
 }
 
 impl From<OpenAiUsage> for Usage {

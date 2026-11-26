@@ -235,6 +235,12 @@ SQLite 和 PostgreSQL 18.7 的实际 HTTP 和 Artisan 验收费用拆项、人�
 
 - [固定 Sub2API 用量计费事务](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/repository/usage_billing_repo.go) · [固定 Laravel TextUsage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/TextUsage.php)
 
+## GW-04 xAI 原生用量
+
+网关用实际出站连接的 SDK 用量适配器归一化 xAI 输出及推理计数。原生 Responses 的下游 JSON 与 SSE 保留上游用量字段。账本统一以包含推理的输出总量结算，独立推理费率按现有机制从总输出中扣出对应子项。
+
+通过 SQLite、本地 xAI 协议服务、真实 HTTP 及独立 Artisan 验证普通响应和 SSE。上游分别报告输出 3 加推理 4、输出 7 含推理 4，均报告输入 10、缓存读取 2、总量 17。两笔账本均记录输出 7、推理 4，按样例费率各结算成本 0.000053 USD、应收 0.000065 USD。上游响应提供的 `cost_in_usd_ticks`、真实账单对账和 xAI 官方账户仍待验收。
+
 ## GW-04 逐请求供应商账单证据
 
 `ai:gateway:billing:import` 接收带来源、账单 ID、版本、UTC 窗口和操作者的逐请求账单。按具名连接、实际出站窗口和上游请求 ID 精确匹配。源账单与明细追加保存，同版本同内容幂等，不同内容冲突。部分账单、未匹配项、歧义和币种不符保留证据。每个来源采用最新完整版本的同一请求金额，彼此冲突的完整来源保留待核对状态。`usage:list --billing` 保留配置价格结算值，通过 `actual` 提供可确认的供应商成本。

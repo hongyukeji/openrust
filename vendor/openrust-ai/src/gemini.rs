@@ -366,6 +366,7 @@ impl TextProvider for GeminiTextProvider {
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
                 prompt.text.model.to_owned(),
+                false,
             ))
         })
     }

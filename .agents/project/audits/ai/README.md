@@ -696,6 +696,10 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 - [固定 Laravel XaiGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiGateway.php) · [xAI Responses](https://docs.x.ai/developers/rest-api-reference/inference/responses) · [xAI 推理续步](https://docs.x.ai/developers/model-capabilities/text/best-practices) · [xAI 模型目录](https://docs.x.ai/developers/rest-api-reference/inference/models)
 
+SDK 直连的普通、SSE、普通工具续步和流式工具续步使用同一用量规则。没有 `total_tokens` 时沿用固定 Laravel 的分开计数。上游给出总量时，只有输入、输出和推理之和与总量相符才加上推理，避免托管版 Grok 已合并时重复累加。缺失的输出计数保持未知。独立 HTTP 和 Artisan 使用本地协议上游验证两种口径和两轮累计，图像链路、21 项 SDK 回归、SDK 与网关严格 Clippy、三语站点同步复验。网关结算证据见 [GW-04 xAI 原生用量](gateway.md#gw-04-xai-原生用量)。
+
+- [固定 Laravel xAI 响应用量](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/Concerns/ParsesTextResponses.php) · [Google Cloud Grok Responses 用量样例](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/grok/responses)
+
 ### xAI 原生供应商工具
 
 `ProviderTool::options` 通过现有连接级 `with_provider_options` 提供网页搜索、代码执行和集合搜索，对应固定 Laravel 的 `WebSearch`、`CodeExecution` 和 `FileSearch`。网页搜索支持最多五个允许的域名，集合搜索使用已有 xAI 集合 ID 并可指定返回数量。xAI 适配器验证供应商工具定义，一次请求可另用 `with_tools` 加入本地函数。服务端工具条目随加密推理按原顺序回传，本地执行器只处理客户端函数调用。

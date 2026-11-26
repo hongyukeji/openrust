@@ -461,10 +461,13 @@ async fn xai_provider_tools_coexist_with_local_functions_and_replay() -> TestRes
     let (url, requests) = fixture(
         "responses",
         vec![
-            json!({"status":"completed","output":[reasoning,native,function]}),
+            json!({"status":"completed","output":[reasoning,native,function],
+                "usage":{"input_tokens":10,"output_tokens":3,"total_tokens":17,
+                    "output_tokens_details":{"reasoning_tokens":4}}}),
             json!({"status":"completed","output":[{"type":"message","content":[
                 {"type":"output_text","text":"four remaining"}
-            ]}]}),
+            ]}],"usage":{"input_tokens":10,"output_tokens":7,"total_tokens":17,
+                "output_tokens_details":{"reasoning_tokens":4}}}),
         ],
     )
     .await;
@@ -487,6 +490,10 @@ async fn xai_provider_tools_coexist_with_local_functions_and_replay() -> TestRes
                         .await
                         .unwrap();
                     assert_eq!(response.text, "four remaining");
+                    assert_eq!(response.usage.prompt_tokens, Some(20));
+                    assert_eq!(response.usage.completion_tokens, Some(14));
+                    assert_eq!(response.usage.reasoning_tokens, Some(8));
+                    assert_eq!(response.usage.total_tokens(), Some(34));
                     assert_eq!(tool.0.load(Ordering::Relaxed), 1);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;

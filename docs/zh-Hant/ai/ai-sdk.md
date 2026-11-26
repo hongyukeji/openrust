@@ -831,6 +831,8 @@ Cohere 讀取原生浮點向量和計費輸入 Token，Jina 使用 `retrieval.pa
 
 使用 xAI 文字模型時，設定 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆寫預設位址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 設定模型級別。連線使用原生 Responses，支援 SSE、結構化輸出、本機函式工具，以及受支援模型的影像輸入。上游傳回加密推理時，本機工具續步會將它隨請求送回。執行 `./artisan ai:models xai` 查看探索到的模型及已設定的模型。
 
+使用 xAI 原生連線時，SDK 用量和閘道帳本將推理 Token 計入輸出總量一次，並另外記錄推理子項。上游同時回報總量時，依總量判斷輸出欄位是否已經包含推理。閘道原生轉發保留上游回應中的用量欄位。
+
 在 xAI 使用供應商工具時，將 `ProviderTool::options` 的結果透過 `with_provider_options` 傳給對應連線。可選 `WebSearch`（最多指定五個允許的網域）、`CodeExecution`（供應商沙箱）和 `FileSearch`（搜尋既有 xAI 集合）。`vector_store_ids` 填寫 xAI 集合 ID。同一個 Agent 可透過 `with_tools` 加入本機函式。
 
 ```rust

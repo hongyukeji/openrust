@@ -240,6 +240,11 @@ pub trait TextProvider: Send + Sync {
         }
     }
 
+    /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
+    fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
+        None
+    }
+
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async {
             ModelCatalog::merge(Err(AiError::ModelsNotSupported), std::iter::empty())
@@ -757,6 +762,10 @@ impl TextProvider for OpenAiTextProvider {
         self.connection.text_model(tier)
     }
 
+    fn normalize_reported_usage(&self, usage: &Value) -> Option<Usage> {
+        matches!(self.protocol, OpenAiProtocol::Xai).then(|| Usage::from_xai_responses(usage))
+    }
+
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async { self.connection.catalog(self.list_models().await) })
     }
@@ -936,7 +945,8 @@ impl TextProvider for OpenAiTextProvider {
                 OpenAiProtocol::Groq => {
                     parse_native_chat(response, crate::tool_protocol::groq_step)?
                 }
-                OpenAiProtocol::Responses | OpenAiProtocol::Xai => parse_responses(response)?,
+                OpenAiProtocol::Responses => parse_responses(response, Usage::from)?,
+                OpenAiProtocol::Xai => parse_responses(response, OpenAiUsage::into_xai_responses)?,
             };
             Ok(AgentResponse {
                 text: result.text,
@@ -984,6 +994,7 @@ impl TextProvider for OpenAiTextProvider {
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
                 prompt.text.model.to_owned(),
+                matches!(self.protocol, OpenAiProtocol::Xai),
             ))
         })
     }
@@ -1456,7 +1467,10 @@ enum ResponsesContent {
     Other,
 }
 
-fn parse_responses(response: Response) -> AiResult<ParsedText> {
+fn parse_responses(
+    response: Response,
+    usage: impl FnOnce(OpenAiUsage) -> Usage,
+) -> AiResult<ParsedText> {
     let response: ResponsesResponse = response.json().map_err(|_| AiError::InvalidResponse)?;
     if response
         .status
@@ -1492,7 +1506,7 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
     Ok(ParsedText {
         text: text.ok_or(AiError::InvalidResponse)?,
         reasoning: reasoning.join("\n\n"),
-        usage: response.usage.map(Usage::from).unwrap_or_default(),
+        usage: response.usage.map(usage).unwrap_or_default(),
         model: response.model,
         citations,
         finish_reason: FinishReason::from_wire(response.status.as_deref()),

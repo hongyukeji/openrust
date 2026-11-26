@@ -295,6 +295,7 @@ impl TextProvider for AnthropicTextProvider {
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
                 prompt.text.model.to_owned(),
+                false,
             ))
         })
     }

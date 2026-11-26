@@ -257,7 +257,11 @@ pub(crate) fn responses_step(data: Value, xai: bool) -> AiResult<StepResponse> {
         } else {
             crate::FinishReason::ToolCalls
         },
-        usage: Usage::from_openai(&data["usage"]),
+        usage: if xai {
+            Usage::from_xai_responses(&data["usage"])
+        } else {
+            Usage::from_openai(&data["usage"])
+        },
         citations,
         tool_calls,
         provider_content: responses_replay(output, xai),
