@@ -303,6 +303,28 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 程序重新啟動後，可執行 `./artisan ai:gateway:budget:recover team` 釋放已逾時且未寫入對外送出標記的預留。預設等待 300 秒，可用 `--after=秒數` 和 `--limit=筆數` 調整掃描。復原會在同一交易中關閉嘗試及費用記錄並釋放預留。已寫入對外送出標記的嘗試會繼續保留供對帳。
 
+### 上游帳號每日成本預算 {#upstream-cost-budget}
+
+在 `accounts.<連線>.budget` 使用與分組預算相同的欄位，幣別須與上游費率一致。該帳號的預算涵蓋經過此連線的所有公開模型和群組。兩種預算同時適用時，閘道會在對外送出前用同一交易預留上游成本與下游應收。
+
+```json
+{
+  "accounts": {
+    "openai": {
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "100.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+帳號餘額不足時，閘道可選擇另一個有權限的上游。所有可用帳號的預算都不足時，回傳 HTTP 429 和 `upstream_budget_exceeded`。失敗嘗試的上游成本無法確認時，仍會保留成本預留。這次嘗試的下游應收可獨立記為零。
+
+執行 `./artisan ai:gateway:budget:show openai --account` 查詢帳號餘額，用 `./artisan ai:gateway:budget:recover openai --account` 依連線復原逾時且未對外送出的嘗試。一筆嘗試同時預留兩種預算時，復原會一併釋放。
+
 ### 群組輸出 Token 配額 {#gateway-output-quota}
 
 啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。

@@ -21,7 +21,7 @@ use subtle::ConstantTimeEq;
 use crate::{
     accounts::{Account, MAX_SECONDS},
     billing::{Amount, ChargePlan, PriceBook},
-    budget::{Budget, BudgetReservation},
+    budget::{Budget, BudgetReservation, BudgetReservations, BudgetScope},
     codex_catalog::CodexMetadata,
     invocation::CallIdentity,
     managed_keys::KeyStore,
@@ -78,6 +78,7 @@ struct TargetConfiguration {
 struct AccountConfiguration {
     cooldown_seconds: Option<i64>,
     max_concurrent_requests: Option<usize>,
+    budget: Option<Budget>,
 }
 
 #[derive(Deserialize)]
@@ -274,6 +275,7 @@ pub(crate) struct Gateway {
     pub(crate) unversioned_paths: bool,
     pub(crate) account_cache_store: Option<String>,
     pub(crate) account_session_ttl: Option<i64>,
+    accounts: BTreeMap<String, Arc<Account>>,
     groups: BTreeMap<String, Arc<Group>>,
     keys: Vec<Arc<Key>>,
     pub(crate) managed_keys: Option<KeyStore>,
@@ -315,12 +317,17 @@ impl Gateway {
         {
             return Err(invalid("account_session_ttl 必须介于 1 和 86400 秒"));
         }
+        let billing = config.billing.enabled(usage_store.is_some())?;
         let mut accounts = BTreeMap::new();
         for (name, policy) in config.accounts {
             if policy
                 .cooldown_seconds
                 .is_some_and(|seconds| !(1..=MAX_SECONDS).contains(&seconds))
                 || policy.max_concurrent_requests == Some(0)
+                || policy
+                    .budget
+                    .as_ref()
+                    .is_some_and(|budget| billing.is_none() || !budget.valid())
                 || ai.get_instance_config(&name).is_err()
             {
                 return Err(invalid(format!("上游账号 {name} 的连接或冷却配置无效")));
@@ -331,6 +338,7 @@ impl Gateway {
                     &name,
                     policy.cooldown_seconds,
                     policy.max_concurrent_requests,
+                    policy.budget,
                 )),
             );
         }
@@ -414,7 +422,6 @@ impl Gateway {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 
-        let billing = config.billing.enabled(usage_store.is_some())?;
         let mut groups = BTreeMap::new();
         for (name, group) in config.groups {
             if name.trim().is_empty()
@@ -514,6 +521,7 @@ impl Gateway {
             unversioned_paths: config.unversioned_paths,
             account_cache_store: config.account_cache_store,
             account_session_ttl: config.account_session_ttl,
+            accounts,
             keys,
             groups,
             managed_keys,
@@ -533,6 +541,10 @@ impl Gateway {
 
     pub(crate) fn group_budget(&self, name: &str) -> Option<&Budget> {
         self.groups.get(name)?.budget.as_ref()
+    }
+
+    pub(crate) fn account_budget(&self, name: &str) -> Option<&Budget> {
+        self.accounts.get(name)?.budget.as_ref()
     }
 
     pub(crate) async fn authorize(&self, bearer: &str) -> DatabaseResult<Option<Arc<Key>>> {
@@ -581,7 +593,7 @@ impl Gateway {
         admission: (
             Option<ConcurrencyLease>,
             Option<QuotaReservation>,
-            Option<BudgetReservation>,
+            BudgetReservations,
         ),
     ) -> Result<Call, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
@@ -611,7 +623,9 @@ impl Gateway {
         let attempt = match &self.usage_store {
             Some(store) => {
                 let retry_after = reservation.as_ref().map(QuotaReservation::retry_after);
-                let budget_retry = budget.as_ref().map(BudgetReservation::retry_after);
+                let budget_retry = budget.group.as_ref().map(BudgetReservation::retry_after);
+                let account_budget_retry =
+                    budget.account.as_ref().map(BudgetReservation::retry_after);
                 if let Some(reservation) = &reservation {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
@@ -622,6 +636,12 @@ impl Gateway {
                     .map_err(|error| match error {
                         DatabaseError::InvalidQuery(crate::budget::DENIED) => budget_retry
                             .map_or(UsageAdmission::Unavailable, UsageAdmission::BudgetLimited),
+                        DatabaseError::InvalidQuery(crate::budget::ACCOUNT_DENIED) => {
+                            account_budget_retry.map_or(
+                                UsageAdmission::Unavailable,
+                                UsageAdmission::AccountBudgetLimited,
+                            )
+                        }
                         _ => UsageAdmission::Unavailable,
                     })?
                     .ok_or_else(|| {
@@ -645,29 +665,53 @@ impl Gateway {
         })
     }
 
-    pub(crate) fn budget_reservation(
+    pub(crate) fn budget_reservations(
         &self,
         key: &Key,
         model: &str,
         target: &Target,
         endpoint: TextEndpoint,
         payload: &mut Value,
-    ) -> Result<Option<BudgetReservation>, &'static str> {
-        let Some((group, budget)) = key
-            .group
-            .as_ref()
-            .and_then(|group| group.budget.as_ref().map(|budget| (group, budget)))
-        else {
-            return Ok(None);
+    ) -> Result<BudgetReservations, &'static str> {
+        let group = key.group.as_ref().and_then(|group| {
+            group
+                .budget
+                .as_ref()
+                .map(|budget| (BudgetScope::Group(&group.name), budget))
+        });
+        let account = target.account.as_ref().and_then(|account| {
+            account
+                .budget
+                .as_ref()
+                .map(|budget| (BudgetScope::Account(&target.provider_name), budget))
+        });
+        if group.is_none() && account.is_none() {
+            return Ok(BudgetReservations::default());
+        }
+        let cap = key
+            .output_quota()
+            .map(|quota| quota.max_output_tokens)
+            .into_iter()
+            .chain(group.map(|(_, budget)| budget.max_output_tokens))
+            .chain(account.map(|(_, budget)| budget.max_output_tokens))
+            .min();
+        let charges = self.charge_plan(key, model, target, endpoint);
+        let native_openai = target.provider.supports_endpoint(TextEndpoint::Responses);
+        let mut prepare = |setting: Option<(BudgetScope<'_>, &Budget)>| match setting {
+            Some((scope, budget)) => budget.prepare(
+                scope,
+                endpoint,
+                native_openai,
+                payload,
+                charges.as_ref(),
+                cap,
+            ),
+            None => Ok(None),
         };
-        budget.prepare(
-            &group.name,
-            endpoint,
-            target.provider.supports_endpoint(TextEndpoint::Responses),
-            payload,
-            self.charge_plan(key, model, target, endpoint).as_ref(),
-            group.quota.map(|quota| quota.max_output_tokens),
-        )
+        Ok(BudgetReservations {
+            group: prepare(group)?,
+            account: prepare(account)?,
+        })
     }
 
     fn charge_plan(
@@ -699,6 +743,7 @@ impl Gateway {
 pub(crate) enum UsageAdmission {
     Limited(u64),
     BudgetLimited(u64),
+    AccountBudgetLimited(u64),
     Unavailable,
 }
 

@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     billing::{self, ChargePlan, ChargeRecord},
-    budget::{self, Budget, BudgetBalance, BudgetReservation},
+    budget::{self, Budget, BudgetBalance, BudgetReservations, BudgetScope},
     managed_keys::{integer, now, nullable, text},
     output_quota::{self, QuotaReservation},
     reconciliation,
@@ -138,7 +138,7 @@ pub(crate) struct UsageAttempt {
     pub(crate) id: String,
     quota: Option<QuotaReservation>,
     charges: Option<ChargePlan>,
-    budget: Option<BudgetReservation>,
+    budget: BudgetReservations,
 }
 
 #[derive(Clone)]
@@ -280,19 +280,23 @@ impl UsageStore {
 
     pub(crate) async fn budget_balance(
         &self,
-        group: &str,
+        scope: BudgetScope<'_>,
         budget: &Budget,
     ) -> DatabaseResult<BudgetBalance> {
-        budget.balance(&self.connection, group).await
+        budget.balance(&self.connection, scope).await
     }
 
     pub(crate) async fn recover_budget(
         &self,
-        group: &str,
+        scope: BudgetScope<'_>,
         age: i64,
         limit: u64,
     ) -> DatabaseResult<usize> {
         let cutoff = now().saturating_sub(age);
+        let (owner_column, owner, required_budget) = match scope {
+            BudgetScope::Group(group) => ("group_name", group, "budget_id"),
+            BudgetScope::Account(account) => ("provider", account, "account_budget_id"),
+        };
         let rows = self
             .connection
             .table(TABLE)
@@ -300,17 +304,20 @@ impl UsageStore {
             .select([
                 "id",
                 "group_name",
+                "provider",
                 "budget_id",
                 "reserved_receivable_atoms",
+                "account_budget_id",
+                "reserved_cost_atoms",
                 "output_quota_id",
                 "reserved_output_tokens",
             ])
-            .r#where("group_name", "=", group)
+            .r#where(owner_column, "=", owner)
             .r#where("started_at", "<=", cutoff)
             .r#where("usage_state", "=", "not_dispatched")
             .where_null("dispatch_started_at")
             .where_null("finished_at")
-            .where_not_null("budget_id")
+            .where_not_null(required_budget)
             .order_by("id", "asc")
             .limit(limit)
             .get()
@@ -318,7 +325,7 @@ impl UsageStore {
         let mut recovered = 0;
         for row in rows {
             // 数据库的默认排序规则可能把大小写不同的授权分组视为相等。
-            if text(&row, "group_name")? != group {
+            if text(&row, owner_column)? != owner {
                 continue;
             }
             let recovered_one = self
@@ -344,21 +351,7 @@ impl UsageStore {
                             {
                                 return Ok(false);
                             }
-                            if transaction
-                                .table(billing::TABLE)
-                                .r#where("attempt_id", "=", id.as_str())
-                                .r#where("state", "=", "pending")
-                                .update(Record::from([
-                                    ("state".into(), "not_billable".into()),
-                                    ("amount".into(), "0".into()),
-                                ]))
-                                .await?
-                                != 2
-                            {
-                                return Err(DatabaseError::InvalidQuery(
-                                    "AI 网关未出站的价格快照状态无效",
-                                ));
-                            }
+                            billing::close_undispatched(transaction, &id).await?;
                             if let Some(tokens) = integer(&row, "reserved_output_tokens")? {
                                 output_quota::release_reservation(
                                     transaction,
@@ -367,15 +360,20 @@ impl UsageStore {
                                 )
                                 .await?;
                             }
-                            let reserved = integer(&row, "reserved_receivable_atoms")?
-                                .ok_or(DatabaseError::InvalidScalar)?;
-                            budget::release_reservation(
-                                transaction,
-                                &text(&row, "budget_id")?,
-                                reserved,
-                                0,
-                            )
-                            .await?;
+                            for (reservation_id, atoms) in [
+                                ("budget_id", "reserved_receivable_atoms"),
+                                ("account_budget_id", "reserved_cost_atoms"),
+                            ] {
+                                if let Some(reserved) = integer(&row, atoms)? {
+                                    budget::release_reservation(
+                                        transaction,
+                                        &text(&row, reservation_id)?,
+                                        reserved,
+                                        0,
+                                    )
+                                    .await?;
+                                }
+                            }
                             Ok(true)
                         })
                     },
@@ -401,7 +399,7 @@ impl UsageStore {
         quota: Option<QuotaReservation>,
         owner: UsageOwner<'_>,
         charges: Option<ChargePlan>,
-        budget: Option<BudgetReservation>,
+        budget: BudgetReservations,
     ) -> DatabaseResult<Option<UsageAttempt>> {
         let id = Str::ulid().to_string();
         let field = |key: &str| {
@@ -450,11 +448,15 @@ impl UsageStore {
             record.insert("output_quota_id".into(), reservation.id.as_str().into());
             record.insert("reserved_output_tokens".into(), reservation.amount.into());
         }
-        if let Some(reservation) = &budget {
+        if let Some(reservation) = &budget.group {
             record.insert("budget_id".into(), reservation.id.as_str().into());
             record.insert("reserved_receivable_atoms".into(), reservation.atoms.into());
         }
-        if quota.is_some() || charges.is_some() || budget.is_some() {
+        if let Some(reservation) = &budget.account {
+            record.insert("account_budget_id".into(), reservation.id.as_str().into());
+            record.insert("reserved_cost_atoms".into(), reservation.atoms.into());
+        }
+        if quota.is_some() || charges.is_some() || !budget.is_empty() {
             let reservation = quota.clone();
             let plan = charges.clone();
             let budget_reservation = budget.clone();
@@ -474,7 +476,7 @@ impl UsageStore {
                             {
                                 return Ok(false);
                             }
-                            if let Some(budget) = budget {
+                            for budget in [budget.group, budget.account].into_iter().flatten() {
                                 budget.reserve(transaction).await?;
                             }
                             insert_usage(transaction.table(TABLE), record).await?;
@@ -726,7 +728,7 @@ impl UsageAttempt {
     }
 
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
-        let changed = if self.quota.is_some() || self.charges.is_some() || self.budget.is_some() {
+        let changed = if self.quota.is_some() || self.charges.is_some() || !self.budget.is_empty() {
             let reservation = self.quota.clone();
             let plan = self.charges.clone();
             let budget = self.budget.clone();
@@ -754,10 +756,15 @@ impl UsageAttempt {
                                         .settle(transaction, settlement.output_tokens)
                                         .await?;
                                 }
-                                if let (Some(budget), Some(plan)) = (budget, plan) {
-                                    budget
-                                        .settle(transaction, plan.receivable(&settlement))
-                                        .await?;
+                                if let Some(plan) = plan {
+                                    if let Some(group) = budget.group {
+                                        group
+                                            .settle(transaction, plan.receivable(&settlement))
+                                            .await?;
+                                    }
+                                    if let Some(account) = budget.account {
+                                        account.settle(transaction, plan.cost(&settlement)).await?;
+                                    }
                                 }
                             }
                             Ok(changed)

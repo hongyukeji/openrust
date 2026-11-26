@@ -174,6 +174,36 @@ fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
+pub(crate) async fn close_undispatched(
+    transaction: &mut Transaction,
+    attempt: &str,
+) -> DatabaseResult<()> {
+    let mut changed = 0;
+    for has_currency in [false, true] {
+        let query = transaction
+            .table(TABLE)
+            .r#where("attempt_id", "=", attempt)
+            .r#where("state", "=", "pending");
+        let (query, amount) = if has_currency {
+            (query.where_not_null("currency"), "0".into())
+        } else {
+            (query.where_null("currency"), Value::Null)
+        };
+        changed += query
+            .update(Record::from([
+                ("state".into(), "not_billable".into()),
+                ("amount".into(), amount),
+            ]))
+            .await?;
+    }
+    if changed != 2 {
+        return Err(DatabaseError::InvalidQuery(
+            "AI 网关未出站的价格快照状态无效",
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Clone)]
 pub(crate) struct ChargePlan {
     version: String,
@@ -184,11 +214,18 @@ pub(crate) struct ChargePlan {
 
 impl ChargePlan {
     pub(crate) fn receivable_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
+        self.ceiling(self.downstream.as_ref()?, currency, output)
+    }
+
+    pub(crate) fn cost_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
+        self.ceiling(self.upstream.as_ref()?, currency, output)
+    }
+
+    fn ceiling(&self, tariff: &Tariff, currency: &str, output: i64) -> Option<i64> {
         let cap = self.upstream.as_ref()?.input_token_limit?;
-        let tariff = self
-            .downstream
-            .as_ref()
-            .filter(|rate| rate.currency == currency)?;
+        if tariff.currency != currency {
+            return None;
+        }
         let input_rate = [Some(tariff.input), tariff.cache_read, tariff.cache_write]
             .into_iter()
             .flatten()
@@ -207,6 +244,10 @@ impl ChargePlan {
     pub(crate) fn receivable(&self, settlement: &Settlement) -> Option<Amount> {
         self.charge("receivable", self.downstream.as_ref(), settlement)
             .1
+    }
+
+    pub(crate) fn cost(&self, settlement: &Settlement) -> Option<Amount> {
+        self.charge("cost", self.upstream.as_ref(), settlement).1
     }
 
     fn tariffs(&self) -> [(&'static str, Option<&Tariff>); 2] {

@@ -642,6 +642,7 @@ async fn relay(
     let mut failure = None;
     let mut conversion_error = None;
     let mut budget_error = None;
+    let mut account_budget_retry = None::<u64>;
     let mut cooling = None::<u64>;
     let mut busy = false;
     let cache_store = gateway.account_cache_store.as_deref();
@@ -701,14 +702,19 @@ async fn relay(
             } else {
                 (Value::Object(payload), None)
             };
-        let budget =
-            match gateway.budget_reservation(key, &name, target, upstream_endpoint, &mut payload) {
-                Ok(reservation) => reservation,
-                Err(message) => {
-                    budget_error = Some(message);
-                    continue;
-                }
-            };
+        let budget = match gateway.budget_reservations(
+            key,
+            &name,
+            target,
+            upstream_endpoint,
+            &mut payload,
+        ) {
+            Ok(reservation) => reservation,
+            Err(message) => {
+                budget_error = Some(message);
+                continue;
+            }
+        };
         let reservation = match key.output_reservation(upstream_endpoint, target, &mut payload) {
             Ok(reservation) => reservation,
             Err(message) => {
@@ -785,6 +791,11 @@ async fn relay(
                         response.header(header::RETRY_AFTER, HeaderValue::from(retry_after))
                     });
             }
+            Err(UsageAdmission::AccountBudgetLimited(retry_after)) => {
+                account_budget_retry =
+                    Some(account_budget_retry.map_or(retry_after, |value| value.min(retry_after)));
+                continue;
+            }
             Err(UsageAdmission::Unavailable) => {
                 return protocol.error(
                     StatusCode::SERVICE_UNAVAILABLE,
@@ -846,6 +857,15 @@ async fn relay(
                 "上游连接正在冷却",
             )
             .map(|response| response.header(header::RETRY_AFTER, HeaderValue::from(seconds)));
+    }
+    if let Some(retry_after) = account_budget_retry {
+        return protocol
+            .error(
+                StatusCode::TOO_MANY_REQUESTS,
+                "upstream_budget_exceeded",
+                "上游连接成本预算不足",
+            )
+            .map(|response| response.header(header::RETRY_AFTER, HeaderValue::from(retry_after)));
     }
     if let Some(message) = budget_error {
         return protocol.error(StatusCode::BAD_REQUEST, "budget_unbounded", message);
@@ -1376,7 +1396,10 @@ fn downstream_headers(upstream: &HeaderMap) -> HeaderMap {
 fn error_body(code: &str, message: &str) -> Value {
     let kind = match code {
         "invalid_api_key" => "authentication_error",
-        "rate_limit_exceeded" | "output_quota_exceeded" | "budget_exceeded" => "rate_limit_error",
+        "rate_limit_exceeded"
+        | "output_quota_exceeded"
+        | "budget_exceeded"
+        | "upstream_budget_exceeded" => "rate_limit_error",
         "key_group_required" => "permission_error",
         "billing_disabled" => "not_found_error",
         "upstream_timeout"

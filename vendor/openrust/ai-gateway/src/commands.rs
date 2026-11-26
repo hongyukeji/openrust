@@ -12,6 +12,7 @@ use openrust::{
 use serde_json::{Value, json};
 
 use crate::{
+    budget::BudgetScope,
     gateway::Gateway,
     managed_keys::{KeyRecord, PREFIX, now},
 };
@@ -122,22 +123,23 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }),
     )?;
     Artisan::command_with(
-        "ai:gateway:budget:show {group : 授权分组}",
+        "ai:gateway:budget:show {group : 分组或连接名称} {--account : 按上游连接查询}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {
                 let gateway =
                     Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
-                let group =
-                    argument(input, "group").ok_or_else(|| ConsoleError::new("请指定授权分组"))?;
-                let budget = gateway
-                    .group_budget(group)
-                    .ok_or_else(|| ConsoleError::new("此分组未配置货币预算"))?;
+                let scope = budget_scope(input)?;
+                let budget = match scope {
+                    BudgetScope::Group(group) => gateway.group_budget(group),
+                    BudgetScope::Account(account) => gateway.account_budget(account),
+                }
+                .ok_or_else(|| ConsoleError::new("此分组或连接未配置货币预算"))?;
                 let store = gateway
                     .usage_store
                     .as_ref()
                     .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
                 let balance = store
-                    .budget_balance(group, budget)
+                    .budget_balance(scope, budget)
                     .await
                     .map_err(|_| ConsoleError::new("无法读取网关预算余额"))?;
                 write_json(output, json!(balance))?;
@@ -146,13 +148,12 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }),
     )?;
     Artisan::command_with(
-        "ai:gateway:budget:recover {group : 授权分组} {--after= : 最短等待秒数，默认 300} {--limit= : 最多处理条数，默认 50}",
+        "ai:gateway:budget:recover {group : 分组或连接名称} {--account : 按上游连接恢复} {--after= : 最短等待秒数，默认 300} {--limit= : 最多处理条数，默认 50}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {
                 let gateway =
                     Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
-                let group =
-                    argument(input, "group").ok_or_else(|| ConsoleError::new("请指定授权分组"))?;
+                let scope = budget_scope(input)?;
                 let store = gateway
                     .usage_store
                     .as_ref()
@@ -163,7 +164,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     return Err(ConsoleError::new("每次最多处理 100 条用量记录"));
                 }
                 let released = store
-                    .recover_budget(group, age, limit as u64)
+                    .recover_budget(scope, age, limit as u64)
                     .await
                     .map_err(|_| ConsoleError::new("无法恢复未出站的预算预占"))?;
                 write_json(output, json!({"released": released}))?;
@@ -172,6 +173,15 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }),
     )?;
     Ok(())
+}
+
+fn budget_scope(input: &Input) -> Result<BudgetScope<'_>, ConsoleError> {
+    let name = argument(input, "group").ok_or_else(|| ConsoleError::new("请指定分组或连接名称"))?;
+    Ok(if input.matches().get_flag("account") {
+        BudgetScope::Account(name)
+    } else {
+        BudgetScope::Group(name)
+    })
 }
 
 #[derive(Clone, Copy)]

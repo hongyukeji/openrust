@@ -8,11 +8,14 @@ use openrust::{
 };
 use sha2::{Digest, Sha256};
 
+use crate::budget::Budget;
+
 pub(crate) const MAX_SECONDS: i64 = 86_400;
 const MILLIS_PER_SECOND: i64 = 1_000;
 
 pub(crate) struct Account {
     pub(crate) cooldown: Option<AccountCooldown>,
+    pub(crate) budget: Option<Budget>,
     concurrency: Option<(String, usize)>,
 }
 
@@ -22,10 +25,16 @@ pub(crate) enum Admission {
 }
 
 impl Account {
-    pub(crate) fn new(name: &str, cooldown: Option<i64>, concurrency: Option<usize>) -> Self {
+    pub(crate) fn new(
+        name: &str,
+        cooldown: Option<i64>,
+        concurrency: Option<usize>,
+        budget: Option<Budget>,
+    ) -> Self {
         let digest = format!("{:x}", Sha256::digest(name));
         Self {
             cooldown: cooldown.map(|seconds| AccountCooldown::new(&digest, seconds)),
+            budget,
             concurrency: concurrency
                 .map(|maximum| (format!("ai-gateway:account:concurrency:{digest}:"), maximum)),
         }

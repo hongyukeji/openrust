@@ -303,6 +303,28 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 进程重启后，可运行 `./artisan ai:gateway:budget:recover team` 释放已超时且未写入出站标记的预占。默认等待 300 秒，可用 `--after=秒数` 和 `--limit=条数` 调整扫描。恢复会在同一事务中关闭尝试及费用记录并释放预占。已写入出站标记的尝试继续保留供对账。
 
+### 上游账号每日成本预算 {#upstream-cost-budget}
+
+在 `accounts.<连接>.budget` 使用与分组预算相同的字段，币种须与上游费率一致。该账号的预算覆盖经过此连接的所有公开模型和分组。两种预算同时适用时，网关在出站前用同一事务预占上游成本和下游应收。
+
+```json
+{
+  "accounts": {
+    "openai": {
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "100.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+账号余额不足时，网关可选择另一个有权限的上游。所有可用账号的预算都不足时，返回 HTTP 429 和 `upstream_budget_exceeded`。失败尝试的上游成本无法确认时，仍保留成本预占。该次尝试的下游应收可独立记为零。
+
+运行 `./artisan ai:gateway:budget:show openai --account` 查询账号余额，用 `./artisan ai:gateway:budget:recover openai --account` 按连接恢复超时未出站的尝试。一笔尝试同时预占两种预算时，恢复会一并释放。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。

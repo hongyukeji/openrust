@@ -303,6 +303,28 @@ Run `./artisan ai:gateway:budget:show team` to see the current UTC window's limi
 
 After a restart, run `./artisan ai:gateway:budget:recover team` to release stale reservations for attempts that never reached the dispatch marker. The default age is 300 seconds. Use `--after=SECONDS` and `--limit=COUNT` to control the scan. Recovery closes the attempt and its charge records together with the reservation release. Attempts that reached the dispatch marker stay available for reconciliation.
 
+### Daily upstream account cost budget {#upstream-cost-budget}
+
+Configure `accounts.<connection>.budget` with the same fields as a group budget. Use the currency of the upstream rate. An account budget applies to every public model and group routed through that connection. When both budgets apply, the gateway reserves the cost and receivable in one transaction before dispatch.
+
+```json
+{
+  "accounts": {
+    "openai": {
+      "budget": {
+        "currency": "USD",
+        "daily_limit": "100.00",
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+If the account budget has no room, the gateway can select another authorized upstream. The gateway returns HTTP 429 with `upstream_budget_exceeded` when all eligible accounts are out of budget. A failed upstream attempt with unknown cost keeps its cost reservation. The group receivable from that attempt can still be zero.
+
+Run `./artisan ai:gateway:budget:show openai --account` to inspect the account balance or `./artisan ai:gateway:budget:recover openai --account` to recover stale, never-dispatched attempts by connection. Recovery releases both reservations for an attempt that held both.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

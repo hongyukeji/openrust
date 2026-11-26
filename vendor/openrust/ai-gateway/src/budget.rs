@@ -17,6 +17,7 @@ use crate::{
 const TABLE: &str = "ai_gateway_budgets";
 const MAX_BUDGET_ATOMS: i64 = i64::MAX / 4;
 pub(crate) const DENIED: &str = "AI 网关分组货币预算不足";
+pub(crate) const ACCOUNT_DENIED: &str = "AI 网关上游连接成本预算不足";
 
 #[derive(Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -31,14 +32,17 @@ enum Unknown {
 pub(crate) struct Budget {
     currency: String,
     daily_limit: Amount,
-    max_output_tokens: i64,
+    pub(crate) max_output_tokens: i64,
     #[serde(default)]
     unknown: Unknown,
 }
 
 #[derive(Serialize)]
 pub(crate) struct BudgetBalance {
-    group: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account: Option<String>,
     currency: String,
     window_start: i64,
     window_end: i64,
@@ -49,19 +53,29 @@ pub(crate) struct BudgetBalance {
     overrun: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum BudgetScope<'a> {
+    Group(&'a str),
+    Account(&'a str),
+}
+
 impl Budget {
-    fn window(&self, group: &str) -> (i64, String) {
+    fn window(&self, scope: BudgetScope<'_>) -> (i64, String) {
         let window = now().div_euclid(DAY) * DAY;
-        let key = session_affinity::key(&["budget", group, &self.currency, &window.to_string()]);
+        let (kind, name) = match scope {
+            BudgetScope::Group(group) => ("budget", group),
+            BudgetScope::Account(account) => ("account_budget", account),
+        };
+        let key = session_affinity::key(&[kind, name, &self.currency, &window.to_string()]);
         (window, key)
     }
 
     pub(crate) async fn balance(
         &self,
         connection: &Connection,
-        group: &str,
+        scope: BudgetScope<'_>,
     ) -> DatabaseResult<BudgetBalance> {
-        let (window, key) = self.window(group);
+        let (window, key) = self.window(scope);
         let row = connection
             .table(TABLE)
             .use_write_pdo()
@@ -90,8 +104,13 @@ impl Budget {
             return Err(DatabaseError::InvalidScalar);
         }
         let limit = self.daily_limit.atoms().expect("已校验预算配置");
+        let (group, account) = match scope {
+            BudgetScope::Group(group) => (Some(group.into()), None),
+            BudgetScope::Account(account) => (None, Some(account.into())),
+        };
         Ok(BudgetBalance {
-            group: group.into(),
+            group,
+            account,
             currency: self.currency.clone(),
             window_start: window,
             window_end: window + DAY,
@@ -119,7 +138,7 @@ impl Budget {
 
     pub(crate) fn prepare(
         &self,
-        group: &str,
+        scope: BudgetScope<'_>,
         endpoint: TextEndpoint,
         native_openai: bool,
         payload: &mut Value,
@@ -136,12 +155,21 @@ impl Budget {
                 quota.min(self.max_output_tokens)
             });
             let output = limit_output(cap, endpoint, native_openai, &mut capped)?;
-            if let Some(atoms) = charges.receivable_ceiling(&self.currency, output) {
+            let atoms = match scope {
+                BudgetScope::Group(_) => charges.receivable_ceiling(&self.currency, output),
+                BudgetScope::Account(_) => charges.cost_ceiling(&self.currency, output),
+            };
+            if let Some(atoms) = atoms {
                 *payload = capped;
-                let (window, id) = self.window(group);
+                let (window, id) = self.window(scope);
+                let (group, account) = match scope {
+                    BudgetScope::Group(group) => (group.into(), None),
+                    BudgetScope::Account(account) => (String::new(), Some(account.into())),
+                };
                 return Ok(Some(BudgetReservation {
                     id,
-                    group: group.into(),
+                    group,
+                    account,
                     currency: self.currency.clone(),
                     window,
                     atoms,
@@ -192,9 +220,22 @@ pub(crate) struct BudgetReservation {
     pub(crate) id: String,
     pub(crate) atoms: i64,
     group: String,
+    account: Option<String>,
     currency: String,
     window: i64,
     limit: i64,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct BudgetReservations {
+    pub(crate) group: Option<BudgetReservation>,
+    pub(crate) account: Option<BudgetReservation>,
+}
+
+impl BudgetReservations {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.group.is_none() && self.account.is_none()
+    }
 }
 
 impl BudgetReservation {
@@ -203,7 +244,7 @@ impl BudgetReservation {
     }
 
     pub(crate) async fn reserve(&self, transaction: &mut Transaction) -> DatabaseResult<()> {
-        let record = Record::from([
+        let mut record = Record::from([
             ("id".into(), self.id.as_str().into()),
             ("group_name".into(), self.group.as_str().into()),
             ("currency".into(), self.currency.as_str().into()),
@@ -212,6 +253,14 @@ impl BudgetReservation {
             ("held_atoms".into(), 0.into()),
             ("overrun".into(), false.into()),
         ]);
+        if let Some(account) = &self.account {
+            record.insert("account_name".into(), account.as_str().into());
+        }
+        let denied = if self.account.is_some() {
+            ACCOUNT_DENIED
+        } else {
+            DENIED
+        };
         transaction.table(TABLE).insert_or_ignore(&[record]).await?;
         let allowed = transaction
             .table(TABLE)
@@ -220,7 +269,7 @@ impl BudgetReservation {
             .r#where("occupied_atoms", "<=", self.limit - self.atoms);
         if self.atoms == 0 {
             if !allowed.exists().await? {
-                return Err(DatabaseError::InvalidQuery(DENIED));
+                return Err(DatabaseError::InvalidQuery(denied));
             }
             return Ok(());
         }
@@ -229,7 +278,7 @@ impl BudgetReservation {
             .await?
             != 1
         {
-            return Err(DatabaseError::InvalidQuery(DENIED));
+            return Err(DatabaseError::InvalidQuery(denied));
         }
         if self
             .scope(transaction)
