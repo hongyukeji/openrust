@@ -22,3 +22,17 @@ RustFS 1.0.5 真实测试中的 `GetBucketOwnershipControls` 返回 `501 NotImpl
 复用 [Linux 与 Windows 双虚机](topology.md#separate-vm-guests) 的 PostgreSQL 18.7、独立目录和实际 Artisan／Worker，并在同一隔离容器网络启用固定 SeaweedFS 4.53。两端以不同地址连接同一个私有桶。Windows 通过私有网络向 Linux 发送经 HMAC 签名的二进制 multipart，Linux 验签、写私有对象并同库入队。Windows 独立 Worker 走实际 S3 协议重建 multipart 并核对整个原文和文件字节。数据库仅保留附件磁盘名、长度和摘要，匿名 GET 返回 403，双方队列和失败账本为空。
 
 将隔离桶改为 `BucketOwnerEnforced` 后发送另一份正确签名的附件。HTTP 返回 500，数据库没有新增收件和任务，桶中保持原有的一个对象。保留显式私有可见性校验。实验覆盖同一物理宿主的两个虚机和自托管 S3 兼容服务，托管对象存储的策略及权限仍待发布环境验收。证据保存在 `target/tmp/webhook-guest-storage/`，临时数据库、对象、应用目录、容器和网络已清理。
+
+## 对象 ACL 与桶访问策略 {#bucket-policy}
+
+以 `7a6da7d32` 干净源码和 Rust 1.94.0 重建 Linux ARM64 验收应用。复用 PostgreSQL 18.7、SeaweedFS 4.53 固定镜像及现有原子附件接收入口。实际运行 Artisan 迁移、配置和路由缓存，重启后提交经 HMAC 签名的 multipart，经独立 `queue:work --once` 比对存储原文。S3 只映射本机回环端口，桶内全部为合成内容。
+
+| 隔离桶状态 | HTTP、Worker 与 S3 检查 |
+| --- | --- |
+| `ObjectWriter`，无公开读取策略 | HTTP 200，队列 Worker 逐字节读回原始附件。对象 ACL 只有所有者权限，匿名 S3 GET 返回 403。 |
+| `ObjectWriter`，仅测试桶策略允许匿名读取附件前缀 | HTTP 200，Worker 读回原文，读回的对象 ACL 与上一组相同。无签名 GET 返回 200 并取得合成原文。移除该隔离策略后，对同一对象的匿名 GET 恢复 403。 |
+| `BucketOwnerEnforced`，无公开读取策略 | 省略 ACL 的对照对象可通过签名请求写入和读回，匿名 GET 返回 403。相同桶里的 Webhook 显式私有附件写入返回 HTTP 500，未新增对象、接收记录或队列任务。 |
+
+Laravel 的可见性选项仍委托底层适配器。内置路径继续使用显式私有 ACL。按 AWS 对象所有权契约，省略 ACL 可兼容 `BucketOwnerEnforced`，但桶和接入点的策略决定实际可访问范围。AWS 的 `GetBucketPolicyStatus` 也采用其定义的公开判定，某些固定 VPC 或端点条件仍可被判为非公开。因此，不能用省略 ACL、读取 ACL 或单一策略状态替代目标环境的私有性核验。禁用 ACL 的内置附件路径当前仍拒绝写入。 [固定 Laravel FilesystemAdapter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemAdapter.php) · [AWS 对象所有权](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html) · [AWS Block Public Access 判定](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html)
+
+三语指南补充桶策略、接入点和签名／无签名探测要求。静态站点构建、两种部署路径下的三语浏览器检查及冻结源码的工作区格式检查通过。正式验收需隔离桶、可核对所有权与访问策略的部署权限、仅限附件前缀的应用读写删除权限，以及从目标网络发起的无签名测试。托管 AWS 的 IAM、接入点、账号级控制和真实跨机仍待验收。测试桶、容器和网络均已回收，两项服务使用内存文件系统，Docker 数据卷清单一致。并行冷构建的主程序链接被终止，单任务构建通过并重新实测三组。运行及文档日志归档在 `target/tmp/webhook-s3-bucket-policy/`。
