@@ -715,6 +715,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 `ToolResult.denied` 表示审批拒绝，`ToolResult.failed` 表示执行失败。`successful()` 会同时检查两者，`error()` 返回未成功的结果文本。Vercel 流使用 `tool-output-denied` 表示拒绝，AG-UI 在工具结果的 `metadata.denied` 报告拒绝。手工构造结果时可使用 `ToolResult::new(id, name, result)`，再按需设置标志。
 
+`ToolResult.arguments` 保存调用使用的参数，包括审批通过的编辑。拒绝时保留原拟调用参数。旧记录缺少该字段时按空映射读取。
+
 审批暂停时，会话历史会立即显示本轮用户消息和状态为 `paused` 的助手消息。恢复后，工具结果写回同一条助手消息。再次暂停或完成仍沿用这条消息的 ID，完成或失败时更新状态。附件引用随原用户消息保留。
 
 审批恢复会在下一次模型请求前保存本步工具结果。应用可按同一参与者、Agent、会话和审批 ID 调用 `approval_results_for`，读取已保存且尚在处理中的结果。完成后从会话历史读取结果。如果恢复进程在续跑途中退出，已保存结果仍可查询，重复提交同一审批会被拒绝，以防工具重复执行。

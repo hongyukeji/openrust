@@ -617,6 +617,8 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测同一审批批次的一次工具�
 
 - [固定 Laravel ToolResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/ToolResult.php) · [固定 Laravel Vercel 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php#L243) · [固定 Laravel AG-UI 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php#L440)
 
+`ToolResult.arguments` 随结果保留实际执行参数，未执行的拒绝保留原拟参数。与工具请求共享同一参数来源，供 SDK、审批事件和存储直接读取。旧 JSON 缺省为空对象，构造器仍可直接使用。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的独立 HTTP／Artisan 使用四种模拟协议核对参数、暂停快照和完成历史。SQLite 另核对审批事件。原始协议块照常回放。SDK 17 项、严格 Clippy 和三语站点通过。供应商支持的独立 `result_id` 仍待核对。
+
 ## AI-03 流式工具审批事件
 
 具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照和暂停历史，再交付工具声明及 `tool_approval_request`。流在审批处结束。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 或 `resume_approval_stream` 提交决定。各入口验收见本节。

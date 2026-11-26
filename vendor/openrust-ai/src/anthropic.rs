@@ -72,7 +72,7 @@ impl AnthropicTextProvider {
             .map(|result| {
                 json!({
                     "type":"tool_result","tool_use_id":result.id,
-                    "content":result.result,"is_error":!result.successful(),
+                    "content":result.text(),"is_error":!result.successful(),
                 })
             })
             .collect()

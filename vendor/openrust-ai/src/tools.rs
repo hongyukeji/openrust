@@ -86,6 +86,8 @@ pub struct ToolCall {
 pub struct ToolResult {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub arguments: Map<String, Value>,
     pub result: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub denied: bool,
@@ -98,6 +100,7 @@ impl ToolResult {
         Self {
             id: id.into(),
             name: name.into(),
+            arguments: Map::new(),
             result: result.into(),
             denied: false,
             failed: false,
@@ -110,6 +113,10 @@ impl ToolResult {
 
     pub fn error(&self) -> Option<&str> {
         (!self.successful()).then_some(&self.result)
+    }
+
+    pub fn text(&self) -> &str {
+        &self.result
     }
 }
 
@@ -950,18 +957,24 @@ impl ExecutionPlan<'_> {
     pub(crate) async fn run(self) -> Vec<ToolResult> {
         let mut results = Vec::with_capacity(self.calls.len());
         for (call, action) in self.calls.iter().zip(self.actions) {
+            let call = match &action {
+                ToolAction::Run {
+                    edit: Some(arguments),
+                    ..
+                } => Cow::Owned(ToolCall {
+                    arguments: arguments.clone(),
+                    ..call.clone()
+                }),
+                _ => Cow::Borrowed(call),
+            };
             let (result, denied, failed) = match action {
                 ToolAction::Run {
                     tool,
                     invocation_id,
-                    edit,
+                    ..
                 } => {
-                    let edited = edit.map(|arguments| ToolCall {
-                        arguments,
-                        ..call.clone()
-                    });
                     let request = ToolRequest {
-                        call: edited.as_ref().unwrap_or(call),
+                        call: &call,
                         invocation_id: &invocation_id,
                     };
                     match crate::events::observe_tool(request, |request| tool.handle(request)).await
@@ -976,6 +989,10 @@ impl ExecutionPlan<'_> {
             results.push(ToolResult {
                 id: call.id.clone(),
                 name: call.name.clone(),
+                arguments: match call {
+                    Cow::Owned(call) => call.arguments,
+                    Cow::Borrowed(call) => call.arguments.clone(),
+                },
                 denied,
                 failed,
                 result,

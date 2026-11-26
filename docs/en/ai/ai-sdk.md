@@ -715,6 +715,8 @@ Rejecting with `Decision::reject(None)`, boolean `false`, or a blank result ends
 
 `ToolResult.denied` marks a rejected approval. `ToolResult.failed` marks an execution failure. `successful()` checks both flags and `error()` returns the result text for an unsuccessful call. Vercel streams emit `tool-output-denied` for a rejection. AG-UI reports it in `metadata.denied` on the tool result. To construct a tool result, use `ToolResult::new(id, name, result)` and set the applicable flag.
 
+`ToolResult.arguments` contains the arguments used for the call, including any approved edits. For rejected calls it contains the proposed arguments. Old records without this field deserialize with an empty map.
+
 When a turn pauses for approval, history immediately shows its user message and a `paused` assistant message. After approval, the SDK saves the tool results on that assistant message. The message keeps its ID through further pauses, completion, or failure. The original user message retains its attachment references.
 
 Resuming approval saves the step’s tool results before the next model request. Call `approval_results_for` with the same participant, agent, conversation, and approval ID to read the saved results while the turn is active. After completion, read them from conversation history. If the resuming process exits before it finishes, the saved results remain available and duplicate approval calls are rejected to prevent repeating tools.

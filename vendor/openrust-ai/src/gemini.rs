@@ -100,7 +100,7 @@ impl GeminiTextProvider {
         let payload = if let Some(error) = result.error() {
             json!({"error":error})
         } else {
-            json!({"output":result.result})
+            json!({"output":result.text()})
         };
         let mut response = json!({"name":result.name,"response":payload});
         if let Some(id) = id {

@@ -37,6 +37,7 @@ fn tool_result_preserves_denial_and_execution_failure_separately() -> TestResult
         "id": "old", "name": "lookup", "result": "tool failed", "failed": true
     }))?;
     assert!(legacy.failed && !legacy.denied);
+    assert!(legacy.arguments.is_empty());
     assert_eq!(legacy.error(), Some("tool failed"));
 
     let mut denied = ToolResult::new("new", "lookup", "not approved");
@@ -278,6 +279,10 @@ async fn check_tools(provider: &str) {
     assert_eq!(tool.0.load(Ordering::Relaxed), 1);
     assert_eq!(response.text, "four remaining");
     assert_eq!(response.tool_calls[0].id, response.tool_results[0].id);
+    assert_eq!(
+        response.tool_results[0].arguments,
+        response.tool_calls[0].arguments
+    );
     assert!(!response.tool_results[0].failed);
     assert_eq!(response.usage.prompt_tokens, Some(11));
     assert_eq!(response.usage.completion_tokens, Some(3));
