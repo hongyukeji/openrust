@@ -1131,6 +1131,14 @@ async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
                 ("uuid".into(), uuid::Uuid::now_v7().to_string().into()),
                 ("batch_id".into(), batch.to_string().into()),
                 ("type".into(), "log".into()),
+                (
+                    "family_hash".into(),
+                    if sequence <= 2 {
+                        "fixture-family".into()
+                    } else {
+                        openrust::database::Value::Null
+                    },
+                ),
                 ("content".into(), "{}".into()),
                 ("should_display_on_index".into(), visible.into()),
                 ("created_at".into(), "2026-11-26 16:00:00".into()),
@@ -1147,6 +1155,7 @@ async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
     let visible = &[4, 3, 1][..];
     let all = &[4, 3, 2, 1][..];
     let oldest = &[1][..];
+    let family = &[2, 1][..];
     let empty = &[][..];
     let invalid = Err("22P02");
     let standard = batch.to_string();
@@ -1172,6 +1181,13 @@ async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
         ("batch", &uppercase, [Ok(empty), Ok(all), Ok(all)]),
         ("batch", &simple, [Ok(empty), Ok(empty), Ok(all)]),
         ("batch", &braced, [Ok(empty), Ok(empty), Ok(all)]),
+        ("family", "fixture-family", [Ok(family); 3]),
+        (
+            "family",
+            "FIXTURE-FAMILY",
+            [Ok(empty), Ok(family), Ok(empty)],
+        ),
+        ("family", "missing", [Ok(empty); 3]),
     ];
     let index = match driver {
         "sqlite" => 0,
@@ -1180,10 +1196,11 @@ async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
         _ => panic!("unexpected test driver {driver}"),
     };
     for (field, input, expected) in cases {
-        let key = if field == "before" {
-            "before"
-        } else {
-            "batch_id"
+        let key = match field {
+            "before" => "before",
+            "batch" => "batch_id",
+            "family" => "family_hash",
+            _ => unreachable!(),
         };
         let command = app
             .artisan(["telescope:list", "--json", &format!("--{field}={input}")])

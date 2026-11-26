@@ -135,6 +135,8 @@ OpenRust 的 Artisan 和授权 HTTP 把批次与游标原文作为绑定参数�
 
 固定 Telescope 经 Laravel 13.40.0 的原生应用装配后，以真实 HTTP 验证 `uuids` 的数组和对象输入可进入列表，内置 SQL 仓储仍返回普通索引条目。非容器输入返回 500。参数 `take` 按 PHP 弱整数转换接受布尔值、数值文本、小数和科学计数，负数取消上限，默认中间件把空字符串转为空值并采用默认 50。返回分页错误的输入包括非数值、容器和文本整数溢出。OpenRust 的授权列表在三库按该行为处理，原生仓储 `get` 仍提供类型化 UUID 集合筛选。Rust 前态在回归中把列表的数组条件误用于 SQL 并返回空列表。修复后 Telescope Provider 34 项、Watchers 20 项、两包仓储 10 项、Pulse Provider 30 项、三库专项、快照格式与严格 Clippy 通过。证据为 `target/tmp/observability-parity/telescope-http-reference/request-matrix.log` 及 `target/tmp/observability-parity/telescope-http-options-{baseline,macos}.log`。 [固定 EntryController](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Http/Controllers/EntryController.php)
 
+固定 PHP Telescope 的族哈希条件使用数据库列的比较规则。真实迁移和 PDO 在 SQLite、PostgreSQL 18.7 的默认规则下区分大小写，MySQL 8.4.13 的验收排序规则会匹配大写输入。OpenRust 旧仓储强制逐字节比较，实际 MySQL Artisan 回归查不到这组记录。修复后 Artisan 和授权 HTTP 复用数据库比较，族筛选覆盖普通索引隐藏的记录。三库专项、Telescope Provider 35 项、Pulse Provider 32 项、两包仓储 10 项、快照格式和 Telescope 全目标严格 Clippy 通过。证据为 `target/tmp/observability-parity/telescope-list-family-collation-upstream-{sqlite,pgsql,mysql}.log` 及 `target/tmp/observability-parity/telescope-family-collation-{baseline,macos}.log`。
+
 ### 调度条目的默认时区
 
 PHP 8.5.12 使用固定 Laravel Kernel 及 Schedule 构造任务。任务显式时区优先，其余任务读 `app.schedule_timezone`，缺少配置时继承 `app.timezone`，显式为 `null` 时保留空值。Telescope 固定 `ScheduleWatcher` 读取任务的 `timezone` 字段。原生前态只记录任务显式时区。框架现将调度时确定的字段传给完成事件，并在手动与后台任务的执行入口取得对应配置。 [固定 Laravel Kernel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/Kernel.php#L294-L311) [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)

@@ -97,7 +97,7 @@ impl DatabaseEntriesRepository {
             .as_deref()
             .filter(|value| super::has_string_filter(value));
         if let Some(hash) = family {
-            query = query.where_exact_text("family_hash", hash);
+            query = query.r#where("family_hash", "=", hash);
         }
         query = match before {
             Some(before) if postgres => query.where_raw(
