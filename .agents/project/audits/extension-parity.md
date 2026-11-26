@@ -22,6 +22,8 @@ macOS 以 `8df774457` 及 `b4424267f` 的 Pulse 修复文件构建根应用。�
 
 macOS 从完整归档 `1d5388cdff898cf78974d12be9a3c88d648ff084` 验证锁定依赖和三个扩展组合。默认 142 项通过，独占 Redis 8.10.3 单独执行条件用例 25 项和 Pulse 具名缓存 1 项。Horizon 实际 Artisan 和 HTTP 进程矩阵通过，覆盖任务执行、进程替换、一分钟冷却、创建失败恢复、暂停继续、正常排空、元数据失联回收与授权脱敏。该提交的根应用也通过三个扩展启用和关闭的实际包发现、配置缓存及命令复验，启用时从 SQLite 和独占 Redis 读取三个扩展的结果。构建使用开发配置。证据为 `target/tmp/observability-parity/observability-exact-1d5388cdf-macos.log`。
 
+macOS ARM64 从完整归档 `af5a3b36a9852d42bff5c601ba57d26d2f287be2` 用 Rust 1.94.0 和默认 Release 配置构建三个扩展同时启用的根应用。实际 Mach-O ARM64 发布程序完成包发现、配置缓存及迁移，Pulse 心跳和 Telescope 命令写入并读回 SQLite，Horizon 状态命令连接隔离 Redis 8.10.3。首轮触及磁盘停线后安全退出，清理完成后以相同提交重新构建。证据为 `target/tmp/observability-parity/observability-exact-release-macos{,-retry}.log`。后续源码及目标部署组合仍按发布快照验收。
+
 ## 来源和取舍
 
 联网取得以下提交的完整 GitHub 源码归档（含包内文档、测试与许可证，以归档实际内容为准），保存于 `tmp/openrust-ecosystem-20261121/upstream`。搜索工具未返回可用内容，因此依据直接取得的 GitHub 主来源核对，不宣称已核实实时热门榜或 Star 排名。
