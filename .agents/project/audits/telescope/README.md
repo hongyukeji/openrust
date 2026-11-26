@@ -117,7 +117,9 @@ PHP 8.5.12 以固定 Telescope Artisan、EntryModel 和 SQLite 验证，空筛�
 
 固定 PHP 8.5.12 Telescope 使用其自身迁移和 PDO 实际查询三库。文本游标 `2garbage` 在 SQLite 返回可见条目、MySQL 按数值前缀筛选、PostgreSQL 返回 SQLSTATE `22P02`，超出有符号 64 位整数上限时 PostgreSQL 返回 `22003`。大写 UUID 在固定 MySQL 默认排序规则与 PostgreSQL 原生 UUID 中匹配，SQLite 按原文本比较。紧凑 UUID 和带花括号的格式仅在这三库的 PostgreSQL 中匹配。 [固定 EntryModel](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Storage/EntryModel.php)
 
-OpenRust 的 Artisan 和授权 HTTP 把批次与游标原文作为绑定参数交给仓储。PostgreSQL 使用数据库的 UUID 与整数转换，适配 OpenRust 已存在的规范文本 UUID 列。公开原生类型构建器沿用 UUID 与整数，替代仓储可自行实现原文筛选。旧命令对前后含空白的游标在查询前失败，新版本的三库专项覆盖该输入、小数、科学计数、无效文本、溢出及批次 UUID 表示，核对 PostgreSQL 的失败状态与驱动 SQLSTATE。Telescope Provider 34 项、Watcher 20 项、两包仓储 10 项、Pulse Provider 30 项、快照格式、相关严格 Clippy 和三语文档桌面及移动 6 组通过。证据为 `target/tmp/observability-parity/telescope-list-raw-options-{upstream-sqlite,upstream-mysql,upstream-pgsql,baseline,macos-final,docs-retry}.log`。HTTP 的 `uuids` 和 `take` 仍待逐类型对账。
+OpenRust 的 Artisan 和授权 HTTP 把批次与游标原文作为绑定参数交给仓储。PostgreSQL 使用数据库的 UUID 与整数转换，适配 OpenRust 已存在的规范文本 UUID 列。公开原生类型构建器沿用 UUID 与整数，替代仓储可自行实现原文筛选。旧命令对前后含空白的游标在查询前失败，新版本的三库专项覆盖该输入、小数、科学计数、无效文本、溢出及批次 UUID 表示，核对 PostgreSQL 的失败状态与驱动 SQLSTATE。Telescope Provider 34 项、Watcher 20 项、两包仓储 10 项、Pulse Provider 30 项、快照格式、相关严格 Clippy 和三语文档桌面及移动 6 组通过。证据为 `target/tmp/observability-parity/telescope-list-raw-options-{upstream-sqlite,upstream-mysql,upstream-pgsql,baseline,macos-final,docs-retry}.log`。
+
+固定 Telescope 经 Laravel 13.40.0 的原生应用装配后，以真实 HTTP 验证 `uuids` 的数组和对象输入可进入列表，内置 SQL 仓储仍返回普通索引条目。非容器输入返回 500。参数 `take` 按 PHP 弱整数转换接受布尔值、数值文本、小数和科学计数，负数取消上限，默认中间件把空字符串转为空值并采用默认 50。返回分页错误的输入包括非数值、容器和文本整数溢出。OpenRust 的授权列表在三库按该行为处理，原生仓储 `get` 仍提供类型化 UUID 集合筛选。Rust 前态在回归中把列表的数组条件误用于 SQL 并返回空列表。修复后 Telescope Provider 34 项、Watchers 20 项、两包仓储 10 项、Pulse Provider 30 项、三库专项、快照格式与严格 Clippy 通过。证据为 `target/tmp/observability-parity/telescope-http-reference/request-matrix.log` 及 `target/tmp/observability-parity/telescope-http-options-{baseline,macos}.log`。 [固定 EntryController](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Http/Controllers/EntryController.php)
 
 ### 调度条目的默认时区
 

@@ -547,7 +547,11 @@ impl crate::contracts::EntriesRepository for DatabaseEntriesRepository {
         before: Option<String>,
     ) -> crate::contracts::TelescopeFuture<'_, Result<Vec<EntryResult>>> {
         Box::pin(DatabaseEntriesRepository::get_with_filter_inputs(
-            self, kind, options, batch, before,
+            self,
+            kind,
+            options.uuids(None),
+            batch,
+            before,
         ))
     }
     fn store<'a>(

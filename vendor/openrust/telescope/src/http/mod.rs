@@ -6,6 +6,7 @@ use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     support::{
+        EnumBacking,
         facades::{Config, Facade, Route},
         php_float_string, php_value_truthy,
     },
@@ -262,9 +263,16 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         )
                         .await?;
                     }
-                    let (options, batch, before) = list_query_inputs(request).await?;
+                    let input = list_query_inputs(request).await?;
+                    // 保留有效 UUID 供替代仓储使用，内置列表沿用上游的过滤范围。
+                    let uuids = parse_uuid_filter(input.uuids.as_ref()).ok().flatten();
                     let entries = repository
-                        .get_with_filter_inputs(Some(*kind), options, batch, before)
+                        .get_with_filter_inputs(
+                            Some(*kind),
+                            input.options.uuids(uuids),
+                            input.batch,
+                            input.before,
+                        )
                         .await
                         .map_err(failure)?;
                     let mut result = json!({"entries":entries,"status":status(watcher).await?});
@@ -337,16 +345,23 @@ async fn status(watcher: &str) -> Result<&'static str, HttpError> {
 }
 impl EntryQueryOptions {
     pub async fn from_request(request: &mut Request) -> Result<Self, HttpError> {
-        let (options, batch, before) = list_query_inputs(request).await?;
-        options
-            .with_filter_inputs(batch, before)
+        let input = list_query_inputs(request).await?;
+        input
+            .options
+            .uuids(parse_uuid_filter(input.uuids.as_ref())?)
+            .with_filter_inputs(input.batch, input.before)
             .map_err(|_| HttpError::InvalidRequest)
     }
 }
 
-async fn list_query_inputs(
-    request: &mut Request,
-) -> Result<(EntryQueryOptions, Option<String>, Option<String>), HttpError> {
+struct ListQueryInputs {
+    options: EntryQueryOptions,
+    batch: Option<String>,
+    before: Option<String>,
+    uuids: Option<Value>,
+}
+
+async fn list_query_inputs(request: &mut Request) -> Result<ListQueryInputs, HttpError> {
     let values = request.input(None).await?.unwrap_or(json!({}));
     let string = |key| -> Result<Option<String>, HttpError> {
         match values.get(key) {
@@ -359,28 +374,14 @@ async fn list_query_inputs(
     let uuids = values
         .get("uuids")
         .filter(|v| !v.is_null())
-        .map(|values| {
-            values
-                .as_array()
-                .ok_or(HttpError::InvalidRequest)?
-                .iter()
-                .map(|value| {
-                    value
-                        .as_str()
-                        .ok_or(HttpError::InvalidRequest)
-                        .and_then(|value| {
-                            Uuid::parse_str(value).map_err(|_| HttpError::InvalidRequest)
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()
+        .map(|value| {
+            if value.is_array() || value.is_object() {
+                Ok(value.clone())
+            } else {
+                Err(failure(Error::InvalidEntry))
+            }
         })
         .transpose()?;
-    let number = |value: &Value| {
-        value
-            .as_i64()
-            .or_else(|| value.as_str()?.parse().ok())
-            .ok_or(HttpError::InvalidRequest)
-    };
     let before = values
         .get("before")
         .filter(|value| php_value_truthy(value))
@@ -398,13 +399,35 @@ async fn list_query_inputs(
     let take = values
         .get("take")
         .filter(|value| !value.is_null())
-        .map(number)
+        .map(|value| i64::from_input(value).map_err(|_| failure(Error::InvalidEntry)))
         .transpose()?
         .unwrap_or(50);
     let options = EntryQueryOptions::default()
         .tag(string("tag")?)
         .family_hash(string("family_hash")?)
-        .uuids(uuids)
         .limit(if take < 0 { u64::MAX } else { take as u64 });
-    Ok((options, batch, before))
+    Ok(ListQueryInputs {
+        options,
+        batch,
+        before,
+        uuids,
+    })
+}
+
+fn parse_uuid_filter(value: Option<&Value>) -> Result<Option<Vec<Uuid>>, HttpError> {
+    value
+        .map(|value| {
+            value
+                .as_array()
+                .ok_or(HttpError::InvalidRequest)?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .and_then(|value| value.parse().ok())
+                        .ok_or(HttpError::InvalidRequest)
+                })
+                .collect()
+        })
+        .transpose()
 }

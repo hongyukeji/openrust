@@ -1227,6 +1227,55 @@ async fn list_filter_inputs_keep_native_batch_and_cursor_comparisons() {
             );
         }
     }
+
+    for (key, input, expected) in [
+        ("uuids", json!(null), Some(visible)),
+        ("uuids", json!([]), Some(visible)),
+        ("uuids", json!(["malformed"]), Some(visible)),
+        (
+            "uuids",
+            json!(["defabc20-d1ac-4c00-ab01-013cd84a0001"]),
+            Some(visible),
+        ),
+        ("uuids", json!([1, {"key":true}]), Some(visible)),
+        ("uuids", json!({"first":"malformed"}), Some(visible)),
+        ("uuids", json!("malformed"), None),
+        ("uuids", json!(1), None),
+        ("take", json!(null), Some(visible)),
+        ("take", json!(""), Some(visible)),
+        ("take", json!(false), Some(empty)),
+        ("take", json!("0"), Some(empty)),
+        ("take", json!(true), Some(&[4])),
+        ("take", json!(" 2 "), Some(&[4, 3])),
+        ("take", json!("1.8"), Some(&[4])),
+        ("take", json!(1.8), Some(&[4])),
+        ("take", json!("1e0"), Some(&[4])),
+        ("take", json!("-1.5"), Some(visible)),
+        ("take", json!("9223372036854775807"), Some(visible)),
+        ("take", json!("9223372036854775808"), None),
+        ("take", json!("not-numeric"), None),
+        ("take", json!([]), None),
+        ("take", json!({}), None),
+    ] {
+        let response = api_call(
+            &mut app,
+            "POST",
+            "/telescope/telescope-api/logs",
+            json!({(key):input}),
+        )
+        .await;
+        if let Some(expected) = expected {
+            response.assert_ok();
+            let payload: serde_json::Value = response.json().unwrap();
+            assert_eq!(
+                sequences(&payload["entries"]),
+                expected,
+                "HTTP {key}={input}"
+            );
+        } else {
+            response.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
 }
 
 #[tokio::test]

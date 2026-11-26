@@ -21,7 +21,8 @@ pub trait EntriesRepository: ClearableRepository + PrunableRepository {
         kind: Option<EntryType>,
         options: EntryQueryOptions,
     ) -> TelescopeFuture<'_, Result<Vec<EntryResult>>>;
-    /// List consumers can supply the original batch and cursor strings to the storage driver.
+    /// 查询公开列表时，将原始批次和游标文本交给仓储。
+    /// 内置数据库列表沿用上游，只通过原生 `get` 启用 UUID 集合筛选。
     fn get_with_filter_inputs(
         &self,
         kind: Option<EntryType>,
