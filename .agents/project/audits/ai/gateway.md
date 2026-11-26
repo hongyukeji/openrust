@@ -30,7 +30,7 @@
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06／GW-03／04 待逐操作核对，音色资源要求所属校验。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
-| `GET /v1/usage`、`GET /v1/sub2api/billing` | 网关 Key，调用方用量或账单信息 | GW-04 已实测调用方自查 `/v1/usage` 的按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。另实测 `/v1/sub2api/billing` 的固定源第 1 版 Token 计费元数据、分组限定与 Key 生命周期。见本账本末节。 |
+| `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
 ## 兼容路径与账号类型
 
@@ -295,3 +295,7 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实际 HTTP 生成用量，Artisan 导
 账单文件可携带 `page.number` 和 `page.total`。各页独立保存原数据、操作者和导入时间，版本的来源、账期、完整性声明及总页数一致。通过同一份账单版本的事务锁协调并发。合并前的分批账单可查看已收到的页号，账目仍等到全部分页持久化和校验后统一发布。已完成版本支持同页及整份账单的幂等重送。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测乱序、缺页、进程重启、同页冲突、页数冲突、跨页重复、并发补最后一页和已组装的部分账单。真实 HTTP 生成三次上游尝试，导入账单后二次核对成本 0.23 与应收 0.25。两包测试、严格 Clippy 和三语文档通过。
+
+## GW-05 Sub2API 专用计费入口移除
+
+按更新后的 E07 计划移除旧专用计费路径、响应协议和对象标识。保留历史联调记录。实际 `route:list` 在启用网关和计费时确认旧路径已移除，真实 HTTP 验证持有有效或无效 Key 访问均为 404。`/v1/usage` 与 `/v1/models` 按原有 Key 鉴权和模型授权正常工作，其他外部协议路径继续注册。应用计量、费用、分组倍率、账单及预算能力沿用现有配置和 Artisan。

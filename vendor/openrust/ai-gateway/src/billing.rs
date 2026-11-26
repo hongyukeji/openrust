@@ -24,8 +24,6 @@ pub(crate) struct Amount(i128);
 
 impl Amount {
     pub(crate) const ZERO: Self = Self(0);
-    pub(crate) const ONE: Self = Self(SCALE);
-
     pub(crate) fn from_atoms(atoms: i64) -> Self {
         Self(i128::from(atoms))
     }

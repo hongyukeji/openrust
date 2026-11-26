@@ -276,8 +276,6 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 部分帳單使用 `complete: false`。更正時沿用來源、帳單 ID 和時間範圍並增加版本號。同版本同內容可重複匯入。用量清單的 `amount` 保留費率計算值，`actual` 顯示已有證據的供應商成本。幣別不符或報表衝突會保留供維運核對。
 
-啟用閘道計費後，使用已分組的 Key 請求 `GET /v1/sub2api/billing`。回應採用 Sub2API 第 1 版 Token 計費中繼資料格式。回應傳回該群組的費率倍率，預設為 `1`。附加 `?include=group` 可查詢目前 Key 的群組名稱。上游成本與其他群組的餘額由維運指令查詢。
-
 ### 供應商彙總帳單 {#provider-cost-totals}
 
 供應商依連線與幣別提供彙總時，透過同一匯入指令提交 `totals`。將供應商原始帳期換算為 UTC 時間戳記。Token 費用使用 `category: "tokens"`，其他費用分類保留原金額。

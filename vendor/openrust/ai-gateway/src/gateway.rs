@@ -117,10 +117,6 @@ pub(crate) struct Key {
 }
 
 impl Key {
-    pub(crate) fn group_name(&self) -> Option<&str> {
-        self.group.as_ref().map(|group| group.name.as_str())
-    }
-
     pub(crate) fn rate_multiplier(&self) -> Option<Amount> {
         self.group.as_ref().and_then(|group| group.rate_multiplier)
     }
@@ -533,10 +529,6 @@ impl Gateway {
 
     pub(crate) fn has_group(&self, name: &str) -> bool {
         self.groups.contains_key(name)
-    }
-
-    pub(crate) fn billing_enabled(&self) -> bool {
-        self.billing.is_some()
     }
 
     pub(crate) fn group_budget(&self, name: &str) -> Option<&Budget> {

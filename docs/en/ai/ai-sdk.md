@@ -276,8 +276,6 @@ Use `./artisan ai:gateway:billing:import invoice.json --actor=operator` for a pr
 
 Use `complete: false` for a partial statement. For a corrected statement, keep its source, statement ID and time window, then increase the revision. Reimporting the same revision and contents is idempotent. The usage list's original `amount` preserves the rate-based estimate, and `actual` shows the confirmed supplier cost when available. A currency mismatch or conflicting report is visible for operator review.
 
-When gateway billing is enabled, request `GET /v1/sub2api/billing` with a Key assigned to a group. The response uses the Sub2API version 1 token billing metadata format. The response reports the group’s configured rate multiplier, which defaults to `1`. Add `?include=group` to see the calling Key’s group name. Upstream costs and other groups’ balances are available through operator commands.
-
 ### Aggregate provider statements {#provider-cost-totals}
 
 For a statement grouped by upstream connection and currency, supply `totals` to the same import command. Convert the provider’s original statement window to UTC timestamps. Use `category: "tokens"` for token charges. Other categories are retained with their original amounts.

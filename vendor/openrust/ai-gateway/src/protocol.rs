@@ -26,7 +26,6 @@ use crate::{
 type HttpResult = Result<Response, HttpError>;
 
 mod image_upload;
-mod key_billing;
 mod resources;
 mod usage_summary;
 mod websocket;
@@ -36,7 +35,6 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         shared_routes(router)?;
         router.post("/messages", messages)?;
         router.get("/usage", usage_summary::show)?;
-        router.get("/sub2api/billing", key_billing::show)?;
         Ok(())
     })?;
     Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {
@@ -1400,8 +1398,6 @@ fn error_body(code: &str, message: &str) -> Value {
         | "output_quota_exceeded"
         | "budget_exceeded"
         | "upstream_budget_exceeded" => "rate_limit_error",
-        "key_group_required" => "permission_error",
-        "billing_disabled" => "not_found_error",
         "upstream_timeout"
         | "upstream_error"
         | "invalid_upstream_response"

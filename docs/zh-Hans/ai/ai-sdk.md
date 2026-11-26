@@ -276,8 +276,6 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 部分账单使用 `complete: false`。更正时沿用来源、账单 ID 和时间窗口并增加版本号。同版本同内容可重复导入。用量清单中的 `amount` 保留费率计算值，`actual` 展示有证据的供应商成本。币种不符或报告冲突会保留供运维核对。
 
-启用网关计费后，用已分组的 Key 请求 `GET /v1/sub2api/billing`。响应采用 Sub2API 第 1 版 Token 计费元数据格式。响应返回该分组的费率倍率，默认为 `1`。附加 `?include=group` 可查询当前 Key 的分组名称。上游成本与其他分组的余额由运维命令查询。
-
 ### 供应商汇总账单 {#provider-cost-totals}
 
 供应商按连接和币种给出汇总时，通过同一导入命令提交 `totals`。将供应商原始账期换算为 UTC 时间戳。Token 费用使用 `category: "tokens"`，其他费用分类保留原金额。
