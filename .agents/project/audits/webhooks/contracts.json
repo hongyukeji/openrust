@@ -270,16 +270,15 @@
         "addConfig",
         "getConfig"
       ],
-      "status": "foundation_verified",
+      "status": "native_configuration_repository_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "按名称后登记覆盖，未知名称返回 None，匹配区分大小写。框架 Provider 为应用和请求隔离配置仓库，声明值延迟解析；显式覆盖保留旧调用持有的 Arc 快照。通过固定配置顺序的重复名称及路由当前配置消费核对。类型化解析错误与配置数量上限为原生边界。",
       "rust_source": "vendor/openrust/webhook-client/src/webhook_config.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
-        "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -311,16 +310,15 @@
       "public_methods": [
         "shouldProcess"
       ],
-      "status": "foundation_verified",
+      "status": "native_profile_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "固定默认筛选返回允许，原生返回 Ok(true)。框架的默认具名 Profile 和手动 Processor 复用同一实现，默认接收路由写入原始记录并派发。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
-        "vendor/openrust/webhook-client/tests/provider.rs",
-        "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -331,16 +329,15 @@
       "public_methods": [
         "shouldProcess"
       ],
-      "status": "foundation_verified",
+      "status": "native_profile_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "外部实现可用公开 trait 注册具名 Profile。原生 trait 另外接收只读配置并可返回类型化错误。真实控制器消费自定义筛选结果，有效请求被筛除时不写接收记录或入队。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
-        "vendor/openrust/webhook-client/tests/provider.rs",
-        "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -351,16 +348,15 @@
       "public_methods": [
         "respondToValidWebhook"
       ],
-      "status": "foundation_verified",
+      "status": "native_response_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "默认成功响应为 HTTP 200 及 message=ok 的 JSON 对象。手动 Processor 和默认路由工厂共用实现，真实 HTTP 验收核对状态及反序列化后的正文。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
-        "vendor/openrust/webhook-client/tests/provider.rs",
-        "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {
@@ -371,16 +367,15 @@
       "public_methods": [
         "respondToValidWebhook"
       ],
-      "status": "foundation_verified",
+      "status": "native_response_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "外部实现接收请求及配置并返回原生 HTTP Response 或类型化错误。实际注册的具名 Response 经控制器返回自定义状态和正文，配置缓存后沿用同一工厂。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
-        "vendor/openrust/webhook-client/tests/provider.rs",
-        "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        ".agents/project/audits/webhooks/routes.md"
       ]
     },
     {

@@ -42,3 +42,11 @@
 首次方法工厂测试误将 &Path 传给 Application::configure，编译器拒绝后按原契约传 PathBuf；原生 App.wrap 需要编译型 Callback，修正为既有 App.call／Callback。大正文提早拒绝使完整发送的 Python 客户端出现 BrokenPipe，改为 Expect 预检并实际读取413，且另以完整 JSON 验证已缓存正文预算；没有把断连接当通过。构建曾触及32GB停线，守卫安全终止（75）、持锁清理约112GB编译产物后重跑，未删除源码／日志／数据卷，不把中断算通过。
 
 仍缺：完整新应用安装／迁移发布、配置字段／类继承最终裁决，解析 payload／附件、get_attachments／prunable，正式处理 Job／重试／连接／超时，持久验证分类／Hint／Deferred／去重冲突／领取代次／恢复与补偿。发送 Builder、安全连接、投递／运维、双拓扑及供应商／交付平台检查继续后续批次。组件字段以不可变配置元数据＋生命周期 Runtime 表达，不将其他类型同名当作该源类型全部字段已对齐。终轮日志为 accepted-contracts.log、accepted-app.log、accepted-sqlite.log、accepted-http-worker.log、accepted-docs.log；临时应用／隔离数据库和站点产物已清理，保留源码、日志及可复用 Cargo 缓存。WH-00至WH-07及总目标仍进行中；不推送、不发布、不操作正式环境。
+
+## 接收扩展入口逐类型复核
+
+- 固定上游配置仓库按名称覆盖，未知名称返回空值。Rust 仓库按相同名称区分大小写地覆盖，保留已取得的配置快照，并在应用及请求作用域内隔离。已有契约测试核对显式覆盖与未知名称，Provider 测试核对声明中重复名称取最后项及独立应用读取各自凭据。现行路由验收另核对当前匹配路由选择的具名配置。 [固定配置仓库](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/src/WebhookConfigRepository.php)
+- 固定上游默认 Profile 允许处理。Rust 公开 trait 接收请求及只读配置，可返回类型化错误。原生默认实现通过具名工厂和手动 Processor 使用。既有真实 HTTP 验收覆盖默认接收、有效请求被自定义 Profile 忽略，以及被忽略的请求未写库或入队。 [固定 Profile 接口与实现](https://github.com/spatie/laravel-webhook-client/tree/ff886d1bae33d35ad98b6c91403f280df158129d/src/WebhookProfile)
+- 固定上游 Response 接收请求和配置，默认返回 200 及 `{"message":"ok"}`。Rust 适配保留这两个输入与默认响应，工厂可返回原生 `Response` 或类型化错误。既有 HTTP 入口在缓存前后核对默认 200 和 JSON、自定义 202 和正文。 [固定 Response 接口与实现](https://github.com/spatie/laravel-webhook-client/tree/ff886d1bae33d35ad98b6c91403f280df158129d/src/WebhookResponse)
+
+本次复核的是五个直接声明类型及对应的既有消费者证据。修改仅涉及逐类型清单和验收记录。Job 进程退出后的领域结算、模型继承及外部拓扑继续按各自门禁验收。
