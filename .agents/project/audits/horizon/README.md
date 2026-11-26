@@ -58,7 +58,9 @@ macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor �
 
 Redis 已写入保留后，TCP 夹具扣住领取回复，写入继任令牌再释放回复。修复前的 Linux amd64 Release 在模拟运行中，普通 `horizon:work --once` 和确实经历过 `BLPOP` 的受管 Worker 均执行了任务。Rust 在发布领取事件和把任务交给 Worker 前复核所有权。未能通过时，脚本精确匹配未过期的保留项，将该任务放回队首、恢复原尝试次数并唤醒等待者。已过期或已迁移的保留项由正常租约恢复路径处理。
 
-macOS 与 Redis 8.10.3 真正复验普通领取、收到阻塞通知后领取及保留已过期三种情形。旧 Worker 均未启动任务，新 Worker 各执行一次，未过期的两例在新 Worker 开始前尝试次数为零。真实 `queue:work` 新增无等待和允许等待的回归。隔离快照格式、Horizon Redis 20 项、框架 Redis 队列 2 项、相关目标严格 Clippy、三语站点构建和六组桌面／移动浏览器检查通过。本批 Linux ARM64 默认优化及 Windows 复验另行跟踪。验收日志为 `target/tmp/observability-parity/horizon-in-flight-{transit-amd64-baseline-final,transit-macos,macos,docs}.log`。
+macOS 与 Redis 8.10.3 真正复验普通领取、收到阻塞通知后领取及保留已过期三种情形。旧 Worker 均未启动任务，新 Worker 各执行一次，未过期的两例在新 Worker 开始前尝试次数为零。真实 `queue:work` 新增无等待和允许等待的回归。隔离快照格式、Horizon Redis 20 项、框架 Redis 队列 2 项、相关目标严格 Clippy、三语站点构建和六组桌面／移动浏览器检查通过。验收日志为 `target/tmp/observability-parity/horizon-in-flight-{transit-amd64-baseline-final,transit-macos,macos,docs}.log`。
+
+Windows 11 ARM64 使用固定修复提交 `06d60f418` 的原生程序及 Redis 8.10.3 通过三条领取接管用例。宿主磁盘停线中断首轮完整进程矩阵，同一程序在空间恢复后通过矩阵，覆盖进程包装器、输出、停止等待、快速重启、父进程退出、真实处理器和队列。证据为 `target/tmp/observability-windows/horizon-in-flight-arm64{,-retry}.log`。本批 Linux ARM64 默认优化构建继续复验。
 
 Redis 元数据与队列连接可配置为不同实例。复核只覆盖交给 Worker 前的最后一次检查，已通过检查之后发生的切换仍按任务执行和队列租约规则处理。领取回复丢失或归还无法写入时，仍依赖保留过期和正常恢复。下节记录了主从切换的独立夹具及发布验证边界。
 
