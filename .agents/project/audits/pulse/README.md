@@ -122,6 +122,12 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 卡片筛选恢复默认后的链接
+
+PHP 8.5.12 与固定 Pulse 在实际 Livewire 3.8.12、4.4.10 页面更新慢查询排序、异常排序和用量类型。两版均用当前历史项替换 URL，保留无关参数。首次进入时缺少的筛选参数在恢复默认后被移除，初始显式参数仍保留。两版各通过 12 次真实 Livewire 更新。证据为 `target/tmp/observability-parity/pulse-livewire-filter-history-{3.8.12-final,4.4.10-ready}.log`。 [Livewire 3.8.12 URL 历史](https://github.com/livewire/livewire/blob/v3.8.12/js/plugins/history/index.js) [Livewire 4.4.10 URL 历史](https://github.com/livewire/livewire/blob/v4.4.10/js/plugins/history/index.js)
+
+原生前态在实际授权页面恢复默认慢查询顺序后仍保留 `slow-queries=slowest`。修复后每个周期历史项沿用进入时的筛选参数，卡片修改替换当前历史项，前进和后退恢复该历史项的参数和选择。macOS 390px 和 1440px 的真实原生面板验证三种卡片选择、返回默认、保留显式参数、周期前进后退和真实指标请求。包浏览器回归覆盖桌面和移动页面、鉴权、延迟加载、刷新、轮询、键盘和触控。三语文档构建与六组桌面／移动页面验证通过。证据为 `target/tmp/observability-parity/pulse-native-filter-{history-macos-baseline,history-macos-final,browser-regression-final,history-docs}.log`。
+
 ### 用量卡片的用户资料
 
 固定 `Users::find` 与 `LegacyUsers::find` 的 PHP 8.5.12 对照确认，未找到用户时返回 ID、空补充信息和 Gravatar 占位地址。原生认证资料的空邮箱和文本 `0` 使用占位地址，有效邮箱按 PHP 的 ASCII 小写和默认 `trim` 计算 SHA-256。显式头像包括空字符串，按原值返回。固定用量模板在用户名下显示补充信息，并按需加载头像。证据为 `target/tmp/observability-parity/pulse-user-display-upstream.log`。 [固定 Users](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Users.php) [固定用量卡片](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/components/user-card.blade.php)

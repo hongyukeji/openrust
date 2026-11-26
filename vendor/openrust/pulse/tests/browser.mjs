@@ -128,6 +128,23 @@ try{
   await page.locator('[data-card="requests"]').scrollIntoViewIfNeeded();
   await usage.getByText('ID: 99',{exact:true}).waitFor();
   await page.screenshot({path:process.env.PULSE_SCREENSHOT_DIR+`/dashboard-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  const order=page.getByLabel('Order slow requests',{exact:true});
+  await order.selectOption('slowest');
+  await slow.locator('tr').nth(1).filter({hasText:'window.compromised'}).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('slow-requests'),'slowest');
+  assert.equal((await page.goto(base+'/operations/pulse?trace=kept')).status(),200);
+  await page.locator('[data-card="slow_requests"]').scrollIntoViewIfNeeded();
+  await order.waitFor();
+  const historyLength=await page.evaluate(()=>history.length);
+  await order.selectOption('count');
+  await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('slow-requests'),'count');
+  await order.selectOption('slowest');
+  await slow.locator('tr').nth(1).filter({hasText:'window.compromised'}).waitFor();
+  const cardQuery=new URL(page.url()).searchParams;
+  assert.equal(cardQuery.get('slow-requests'),null);
+  assert.equal(cardQuery.get('trace'),'kept');
+  assert.equal(await page.evaluate(()=>history.length),historyLength);
   for (const [link,value] of [['1_hour','1h'],['6_hours','6h'],['24_hours','24h'],['7_days','7d']]) {
    assert.equal((await context.request.get(base+'/operations/pulse/api/metrics?period='+link)).status(),200);
    const query=page.waitForResponse(r=>r.url().includes('/api/metrics?') && new URL(r.url()).searchParams.get('period')===value);

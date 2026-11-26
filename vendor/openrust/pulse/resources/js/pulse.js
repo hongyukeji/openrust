@@ -12,6 +12,8 @@ const filters = {
 };
 const periodNames = {'1h': '1_hour', '6h': '6_hours', '24h': '24_hours', '7d': '7_days'};
 let pageOptions = new URLSearchParams(location.search);
+// 首次进入时显式存在的筛选参数在恢复默认值后仍保留。
+let initialCardParameters = new Set(pageOptions.keys());
 function selectLocationPeriod() {
     const value = pageOptions.get('period');
     const selected = Object.entries(periodNames).find(([short, name]) => value === short || value === name);
@@ -32,12 +34,12 @@ function addFilter(card, name) {
     const selected = pageOptions.get(parameter);
     if (options.some(([value]) => value === selected)) select.value = selected;
     if (parameter === 'usage') card.firstElementChild.textContent = 'Application usage';
-    select.addEventListener('change', () => updateOption(parameter, select.value));
+    select.addEventListener('change', () => updateOption(parameter, select.value, options[0][0]));
     card.append(select);
 }
-function updateOption(parameter, value) {
+function updateOption(parameter, value, defaultValue) {
     const changesPeriod = parameter === 'period';
-    if (changesPeriod && value === '1h') {
+    if (value === defaultValue && (changesPeriod || !initialCardParameters.has(parameter))) {
         pageOptions.delete(parameter);
     } else {
         pageOptions.set(parameter, changesPeriod ? periodNames[value] : value);
@@ -45,9 +47,10 @@ function updateOption(parameter, value) {
     const url = new URL(location.href);
     url.search = pageOptions.toString();
     if (changesPeriod) {
-        history.pushState(null, '', url);
+        initialCardParameters = new Set(pageOptions.keys());
+        history.pushState({ pulseInitialCardParameters: [...initialCardParameters] }, '', url);
     } else {
-        history.replaceState(null, '', url);
+        history.replaceState({ ...history.state, pulseInitialCardParameters: [...initialCardParameters] }, '', url);
     }
     refresh();
 }
@@ -534,9 +537,10 @@ for (const name of Object.keys(names)) {
     main.append(card);
     observer.observe(card);
 }
-period.addEventListener('change', () => updateOption('period', period.value));
-window.addEventListener('popstate', () => {
+period.addEventListener('change', () => updateOption('period', period.value, '1h'));
+window.addEventListener('popstate', event => {
     pageOptions = new URLSearchParams(location.search);
+    initialCardParameters = new Set(event.state?.pulseInitialCardParameters ?? pageOptions.keys());
     selectLocationPeriod();
     refresh();
 });

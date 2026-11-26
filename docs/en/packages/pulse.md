@@ -25,6 +25,8 @@ To separate collection from persistence, set `PULSE_INGEST_DRIVER=redis`, choose
 
 Visit `/pulse`. Customize the entry point with `PULSE_PATH` and `PULSE_DOMAIN`. Local environments allow access; other environments require the native `viewPulse` Gate. Configure the application's authentication and session middleware as appropriate. Share a dashboard link with `period=6_hours`, `24_hours` or `7_days`. A link without a period shows the last hour. Browser back and forward restore the selected period. The authorized JSON endpoint beneath the dashboard path at `/api/metrics` accepts these names and `1_hour`, plus the short forms `1h`, `6h`, `24h` and `7d`.
 
+Card sorting and usage choices update the current URL. Returning a card to its default removes its parameter if the page opened without it. An explicitly supplied parameter stays in the link.
+
 Cards load individually when they first enter the viewport. The dashboard refreshes opened cards together every five seconds. In background tabs, each card skips 95% of its scheduled polls independently. Offline browsers pause automatic updates until the connection returns. In the JSON endpoint, use `cards=servers,queues` to request selected cards.
 
 ```rust
