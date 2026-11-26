@@ -282,7 +282,7 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Reranking::fake` 可接收结果列表或完整响应，`fake_with` 接收闭包。默认使用框架 Collection 打乱输入索引并按限制返回，支持阻止意外调用及 Laravel 风格断言。Fake 使用应用内状态，在 SDK 的正常入口拦截并通过与供应商相同的索引和数量校验。包测试覆盖元数据、回调、随机结果、耗尽和无出站请求。
 
-`Reranks` 为框架 Collection 提供 `rerank` 与 `rerank_with`，应用用闭包选择条目中的文本，返回原始条目和上游排名顺序。独立 HTTP 通过 TCP 模拟 Voyage 验证条目关联，独立 Artisan 验证 Fake 拦截、记录和耗尽。固定 Laravel 的字段路径及多字段提取、Bedrock 和供应商专用选项继续保留为待核对项。
+`Reranks` 为框架 Collection 提供 `rerank` 与 `rerank_with`，应用用闭包选择条目中的文本，返回原始条目和上游排名顺序。独立 HTTP 通过 TCP 模拟 Voyage 验证条目关联，独立 Artisan 验证 Fake 拦截、记录和耗尽。固定 Laravel 的字段路径及多字段提取、`RankedDocument` 的文档与序列化契约、`RerankingUsage` 和供应商专用选项继续保留为待核对项。Bedrock 见下文。
 
 - [Laravel 固定 Collection 与 Reranking 注册逻辑](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php)
 
@@ -719,6 +719,12 @@ Bedrock 的 `EmbeddingProvider` 复用 AWS Runtime `InvokeModel` 客户端、凭
 本地 AWS 协议服务通过独立 HTTP 和 Artisan 实测 SigV4、Bearer、Titan 256 和 1024 维、顺序、用量汇总、Cohere 批量与缓存、缺用量、无效向量及 AWS 配额错误。同时复验 Converse 和 ConverseStream。21 项 SDK 回归、严格 Clippy 和三语站点通过。Bedrock 向量的正式 AWS 账户与网关入口仍待验收。
 
 - [固定 Laravel BedrockProvider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/BedrockProvider.php) · [固定 Laravel Bedrock 向量网关](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php#L554-L654) · [AWS 向量模型维数](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html)
+
+Bedrock `RerankingProvider` 复用同一 AWS Runtime `InvokeModel` 实现，按固定 Laravel 发送查询、文档、可选 `top_n`，为 Cohere 模型附加 `api_version: 2`。用量保持未知。模型通过调用或 `BEDROCK_RERANKING_MODEL` 显式选择，输出沿用 Rust SDK 的结果索引及相关性分数。
+
+本地 AWS 协议服务通过独立 Artisan 验证默认与显式模型、Bearer、入站字段、可选上限、结果顺序、重复或超量结果和 AWS 鉴权错误。独立 HTTP 通过 SigV4 验证 `Reranks` 根据索引返回原始 Collection 条目。复验向量、Converse 和 ConverseStream，23 项 SDK 回归、严格 Clippy 和三语站点通过。正式 AWS 账户仍待验收。
+
+- [固定 Laravel BedrockRerankingGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockRerankingGateway.php) · [Cohere Bedrock 接入文档](https://docs.cohere.com/docs/amazon-bedrock)
 
 ### xAI 原生 Responses
 

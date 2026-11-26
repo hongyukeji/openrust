@@ -854,6 +854,8 @@ Bedrock supports `with_schema` for ordinary and streamed calls. The SDK sends th
 
 For Bedrock text embeddings, set `AI_EMBEDDINGS_PROVIDER=bedrock` and `BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0`, then use `Embeddings::for` (`Embeddings::r#for` in Rust). Titan sends one input per request and defaults to 1024 dimensions. Use `.dimensions(256)` or `.dimensions(512)` with Titan V2 when your vector index requires that size. Cohere Embed models send the inputs in one request as `search_document` and use the model's native vector size.
 
+For Bedrock reranking, set `AI_RERANKING_PROVIDER=bedrock` and `BEDROCK_RERANKING_MODEL=cohere.rerank-v3-5:0`. Call `Reranking::of(documents)?.limit(3).rerank(query).await?`. Results contain the zero-based index and relevance score in the order returned by the provider. To return the original records in ranked order, use `Reranks` on a `Collection`.
+
 For xAI text, set `AI_PROVIDER=xai`, `XAI_API_KEY`, and `XAI_MODEL`. Override the default `https://api.x.ai/v1` with `XAI_URL`. Use `XAI_MODEL_CHEAPEST` and `XAI_MODEL_SMARTEST` for model tiers. The connection uses native Responses with SSE, structured output, local function calls, and image input on supported models. Local tool rounds carry encrypted reasoning in the request when the provider returns it. Run `./artisan ai:models xai` to see discovered and configured models.
 
 With the native xAI connection, SDK usage and the gateway ledger count reasoning tokens once in the output total and keep the reasoning count available separately. If xAI also reports a total, the accounting checks whether the output count already includes reasoning. Native gateway responses retain the upstream usage fields on the wire.

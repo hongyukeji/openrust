@@ -1,4 +1,6 @@
 mod embeddings;
+mod invoke;
+mod reranking;
 mod structured;
 mod tools;
 
@@ -206,6 +208,10 @@ impl TextProvider for BedrockProvider {
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn crate::EmbeddingProvider>> {
+        Some(Arc::new(self.clone()))
+    }
+
+    fn reranking_provider(&self) -> Option<Arc<dyn crate::RerankingProvider>> {
         Some(Arc::new(self.clone()))
     }
 

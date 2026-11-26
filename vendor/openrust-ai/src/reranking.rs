@@ -149,6 +149,29 @@ pub struct RerankingPrompt<'a> {
     pub timeout: Duration,
 }
 
+impl RerankingPrompt<'_> {
+    pub(crate) fn validate(&self) -> AiResult<()> {
+        if self.documents.is_empty()
+            || self.query.trim().is_empty()
+            || self
+                .documents
+                .iter()
+                .any(|document| document.trim().is_empty())
+        {
+            return Err(AiError::InvalidPrompt);
+        }
+        if self.model.trim().is_empty() {
+            return Err(AiError::MissingModel);
+        }
+        if self.limit == Some(0) || self.timeout.is_zero() {
+            return Err(AiError::InvalidConfiguration(
+                "reranking 返回数和超时必须大于零",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// 索引基于原始文档列表，顺序与上游返回一致。
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RankedDocument {
@@ -227,23 +250,7 @@ impl RerankingProvider for HttpRerankingProvider {
         prompt: RerankingPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<RerankingResponse>> {
         Box::pin(async move {
-            if prompt.documents.is_empty()
-                || prompt.query.trim().is_empty()
-                || prompt
-                    .documents
-                    .iter()
-                    .any(|document| document.trim().is_empty())
-            {
-                return Err(AiError::InvalidPrompt);
-            }
-            if prompt.model.trim().is_empty() {
-                return Err(AiError::MissingModel);
-            }
-            if prompt.limit == Some(0) || prompt.timeout.is_zero() {
-                return Err(AiError::InvalidConfiguration(
-                    "reranking 返回数和超时必须大于零",
-                ));
-            }
+            prompt.validate()?;
             let mut body =
                 json!({"model":prompt.model,"query":prompt.query,"documents":prompt.documents});
             let (limit_field, response_field) = match self.protocol {
