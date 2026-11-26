@@ -7,23 +7,31 @@ use openrust::{
 };
 
 use crate::{
-    AgentPrompt, AiError, AiResult, StepEvent, StreamEventData, StreamableAgentResponse,
-    TextProvider, Tool,
+    AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
+    StreamableAgentResponse, TextProvider, Tool,
     approval_turn::ApprovalSession,
     messages::OwnedPrompt,
     streaming::{TextMessages, event},
     tools,
 };
 
-pub(crate) async fn stream(
+pub(crate) struct PreparedToolStream {
+    provider: Arc<dyn TextProvider>,
+    prompt: OwnedPrompt,
+    definitions: Vec<crate::ToolDefinition>,
+    registered: tools::ToolHandlers,
+    run: tools::ToolRun,
+    max_steps: usize,
+    upstream: StepEventStream,
+}
+
+pub(crate) async fn prepare(
     provider: Arc<dyn TextProvider>,
     prompt: AgentPrompt<'_>,
     registered: Vec<Arc<dyn Tool>>,
     max_steps: Option<usize>,
-    approvals: Option<ApprovalSession>,
-) -> AiResult<StreamableAgentResponse> {
-    let application = App::get_instance().ok();
-    let locale = Lang::get_locale().ok();
+    probe: bool,
+) -> AiResult<PreparedToolStream> {
     let max_steps = tools::step_limit(registered.len(), max_steps);
     let (definitions, registered) = tools::prepare(registered)?;
     if let Some(choice) = prompt.tool_choice {
@@ -33,14 +41,43 @@ pub(crate) async fn stream(
         .step_text_gateway()
         .ok_or(AiError::ToolsNotSupported)?;
     let mut run = tools::ToolRun::new(max_steps);
+    if let Some(invocation_id) = crate::request_context::invocation_id() {
+        run.invocation_id = invocation_id;
+    }
+    let mut upstream = gateway.stream_text_step(&prompt, &definitions, &[]).await?;
+    if probe {
+        let first = upstream.next().await.transpose()?;
+        if let Some(first) = first {
+            upstream = Box::pin(futures_util::stream::iter([Ok(first)]).chain(upstream));
+        }
+    }
+    Ok(PreparedToolStream {
+        provider,
+        prompt: OwnedPrompt::from(prompt),
+        definitions,
+        registered,
+        run,
+        max_steps,
+        upstream,
+    })
+}
+
+pub(crate) fn response(
+    prepared: PreparedToolStream,
+    approvals: Option<ApprovalSession>,
+) -> StreamableAgentResponse {
+    let application = App::get_instance().ok();
+    let locale = Lang::get_locale().ok();
+    let PreparedToolStream {
+        provider,
+        prompt,
+        definitions,
+        registered,
+        mut run,
+        max_steps,
+        mut upstream,
+    } = prepared;
     let invocation_id = run.invocation_id.clone();
-    let mut upstream = crate::request_context::in_invocation(
-        &invocation_id,
-        0,
-        gateway.stream_text_step(&prompt, &definitions, &[]),
-    )
-    .await?;
-    let prompt = OwnedPrompt::from(prompt);
     let stream = async_stream::try_stream! {
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
@@ -144,7 +181,7 @@ pub(crate) async fn stream(
             ).await?;
         }
     };
-    Ok(StreamableAgentResponse::from_events(Box::pin(stream)))
+    StreamableAgentResponse::from_events(Box::pin(stream))
 }
 
 async fn in_tool_scope<T>(

@@ -65,7 +65,7 @@ Vercel 和 AG-UI 串流配接器使用目前的應用程式語言顯示產生失
 
 ### 供應商容錯移轉 {#provider-failover}
 
-一般文字、結構化輸出和無應用程式工具的文字串流可以依序嘗試多個具名連線。匿名 Agent 使用 `with_providers`，自訂 Agent 可實作 `Agent::providers`。每個連線可指定模型，省略時採用該連線的模型級別。
+一般文字、結構化輸出和文字串流可以依序嘗試多個具名連線。匿名 Agent 使用 `with_providers`，自訂 Agent 可實作 `Agent::providers`。每個連線可指定模型，省略時採用該連線的模型級別。
 
 ```rust
 use openrust_ai::{Agent, ProviderTarget, agent};
@@ -77,7 +77,7 @@ let responder = agent("Answer briefly.").with_providers([
 let answer = responder.prompt("What can I do next?").await?;
 ```
 
-連線失敗、請求逾時、流量限制、費用不足或指定的上游過載狀態可觸發切換。應用程式可監聽 `openrust_ai::events::AgentFailedOver`，用呼叫 ID 關聯已嘗試的連線。使用 `PromptOptions.provider` 明確指定連線時只會呼叫該連線。串流交付首個事件後固定使用目前連線。具有應用程式工具或一般提示詞中介軟體的呼叫目前只使用首選連線。
+連線失敗、請求逾時、流量限制、費用不足或指定的上游過載狀態可觸發切換。應用程式可監聽 `openrust_ai::events::AgentFailedOver`，用呼叫 ID 關聯已嘗試的連線。使用 `PromptOptions.provider` 明確指定連線時只會呼叫該連線。串流在交付首個事件後固定使用目前連線。具有工具的串流可在啟動時切換，工具結果與後續模型步驟留在選中的連線。具有應用程式工具或提示詞中介軟體的非串流呼叫目前只使用首選連線。
 
 ### 接入 Responses 閘道 {#responses-gateway}
 

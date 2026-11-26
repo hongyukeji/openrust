@@ -65,7 +65,7 @@ For a connection needed only during the current request or command, use `Ai::bui
 
 ### Provider failover {#provider-failover}
 
-Plain text, structured output, and text streams without application tools can try named connections in order. Use `with_providers` on an anonymous agent or implement `Agent::providers` on a custom agent. Each connection can select a model or use its configured model tier.
+Plain text, structured output, and text streams can try named connections in order. Use `with_providers` on an anonymous agent or implement `Agent::providers` on a custom agent. Each connection can select a model or use its configured model tier.
 
 ```rust
 use openrust_ai::{Agent, ProviderTarget, agent};
@@ -77,7 +77,7 @@ let responder = agent("Answer briefly.").with_providers([
 let answer = responder.prompt("What can I do next?").await?;
 ```
 
-Connection failures, timeouts, rate limits, insufficient credits, and certain upstream overload statuses can trigger failover. Listen for `openrust_ai::events::AgentFailedOver` to correlate attempts by invocation ID. Setting `PromptOptions.provider` explicitly selects a single connection. A stream stays with its current connection once it delivers its first event. Calls with application tools or buffered prompt middleware currently use the first connection only.
+Connection failures, timeouts, rate limits, insufficient credits, and certain upstream overload statuses can trigger failover. Listen for `openrust_ai::events::AgentFailedOver` to correlate attempts by invocation ID. Setting `PromptOptions.provider` explicitly selects a single connection. A stream stays with its current connection once it delivers its first event. Tool streams can switch at startup. Tool results and subsequent model turns stay with the selected connection. Buffered calls with application tools or prompt middleware currently use only the first connection.
 
 ### Connect to a Responses gateway {#responses-gateway}
 

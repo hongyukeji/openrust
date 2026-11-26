@@ -16,7 +16,10 @@ use openrust::{
     testing::TestApp,
     validation::RuleSet,
 };
-use openrust_ai::{Agent, AiResult, PromptOptions, Tool, ToolRequest, agent};
+use openrust_ai::{
+    Agent, AiError, AiResult, PromptOptions, ProviderTarget, StreamEventData, Tool, ToolRequest,
+    agent,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::{
@@ -88,11 +91,25 @@ async fn http_fixture(
     auth_value: &'static str,
     replies: Vec<(&'static str, String)>,
 ) -> (String, JoinHandle<Vec<Value>>) {
+    let replies = replies
+        .into_iter()
+        .map(|(content_type, payload)| (200, content_type, payload))
+        .collect();
+    http_fixture_with_status(version, path, auth_header, auth_value, replies).await
+}
+
+async fn http_fixture_with_status(
+    version: &'static str,
+    path: &'static str,
+    auth_header: &'static str,
+    auth_value: &'static str,
+    replies: Vec<(u16, &'static str, String)>,
+) -> (String, JoinHandle<Vec<Value>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/{}", listener.local_addr().unwrap(), version);
     let server = tokio::spawn(async move {
         let mut requests = Vec::new();
-        for (content_type, payload) in replies {
+        for (status, content_type, payload) in replies {
             let (socket, _) = timeout(Duration::from_secs(5), listener.accept())
                 .await
                 .unwrap()
@@ -122,7 +139,7 @@ async fn http_fixture(
             socket.read_exact(&mut body).await.unwrap();
             requests.push(serde_json::from_slice(&body).unwrap());
             let header = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 {status} Fixture\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 payload.len()
             );
             socket.get_mut().write_all(header.as_bytes()).await.unwrap();
@@ -685,6 +702,90 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
     assert_eq!(
         calls.await?[1]["contents"][2]["parts"][0]["functionResponse"]["id"],
         "call_fixture"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn sdk_tool_stream_fails_over_before_execution_and_never_replays_tools() -> TestResult {
+    use futures_util::StreamExt;
+
+    let unavailable = (503, "application/json", String::from("{}"));
+    let tool_frame = json!({
+        "choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_fixture","type":"function",
+            "function":{"name":"lookup","arguments":json!({"sku":"demo"}).to_string()}}]},
+            "finish_reason":"tool_calls"}]
+    });
+    let tool_stream = format!("data: {tool_frame}\n\ndata: [DONE]\n\n");
+    let (openai, openai_requests) = http_fixture_with_status(
+        "v1",
+        "responses",
+        "authorization",
+        "Bearer fixture-key",
+        vec![unavailable.clone()],
+    )
+    .await;
+    let (deepseek, deepseek_requests) = http_fixture_with_status(
+        "v1",
+        "chat/completions",
+        "authorization",
+        "Bearer fixture-key",
+        vec![(200, "text/event-stream", tool_stream), unavailable],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/tool-failover", || async {
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let mut events = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .with_providers([
+                            ProviderTarget::new("openai"),
+                            ProviderTarget::new("deepseek"),
+                            ProviderTarget::new("unconfigured"),
+                        ])
+                        .stream("Check demo.")
+                        .await
+                        .unwrap()
+                        .into_stream();
+                    let mut results = 0;
+                    let terminal_error = loop {
+                        match events.next().await.expect("工具续轮应返回失败") {
+                            Ok(event) => match event.data {
+                                StreamEventData::StreamStart { provider, .. } => {
+                                    assert_eq!(provider, "deepseek")
+                                }
+                                StreamEventData::ToolResult { .. } => results += 1,
+                                _ => {}
+                            },
+                            Err(error) => break error,
+                        }
+                    };
+                    assert_eq!(terminal_error, AiError::ProviderStatus(503));
+                    assert_eq!(results, 1);
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "OPENAI_URL={openai}\nOPENAI_MODEL=primary\nOPENAI_API_KEY=fixture-key\nDEEPSEEK_URL={deepseek}\nDEEPSEEK_MODEL=backup\nDEEPSEEK_API_KEY=fixture-key\n"
+        ),
+    )?;
+    assert_eq!(app.get("/tool-failover").await?.status(), StatusCode::OK);
+    assert_eq!(openai_requests.await?[0]["model"], "primary");
+    let backup = deepseek_requests.await?;
+    assert_eq!(backup[0]["model"], "backup");
+    let tool_output = backup[1]["messages"].as_array().unwrap().last().unwrap()["content"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(tool_output)?,
+        json!({"sku":"demo","quantity":4})
     );
     Ok(())
 }

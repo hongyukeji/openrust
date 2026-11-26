@@ -653,7 +653,9 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 隔离应用以真实 Artisan 和 HTTP 调用 Responses 与 Chat Completions 模拟服务。已核对 HTTP 402、429、502、503、504、520、522、524 触发顺序切换，401 和显式连接直接返回，全部候选失败返回末次错误。已核对按连接选择模型、结构化 Schema、首事件前传输中断转移、交付首事件后断开原流，以及监听器每次切换只收到一个与出站请求同 ID 的事件。文本、工具、UI 回归和三语站点通过。
 
-待补 `Retry-After` 同连接重试、供应商错误代码与正文分类、带工具或应用中间件的故障转移，以及剩余供应商和入口的逐项验收。
+带工具的流在首个模型步骤交付事件前可切换。模拟上游用实际 Artisan 与 HTTP 核对了初始 503 和首帧前传输中断。切换成功后工具执行一次，续轮向选中连接发送结果，全部步骤与切换事件关联同一调用 ID。已执行工具后的续轮返回 503 时保留原流的工具结果并终止，未尝试备用连接。仓库回归覆盖初次切换成功、执行一次工具和续轮失败。
+
+待补 `Retry-After` 同连接重试、供应商错误代码与正文分类、带工具或应用中间件的非流式故障转移，以及剩余供应商和入口的逐项验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [供应商与模型列表](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [故障分类和重试](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Concerns/HandlesFailoverErrors.php)
 

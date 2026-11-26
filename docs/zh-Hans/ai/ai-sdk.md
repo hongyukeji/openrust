@@ -65,7 +65,7 @@ Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示
 
 ### 供应商故障转移 {#provider-failover}
 
-普通文本、结构化输出和无应用工具的文本流可以按顺序尝试多个具名连接。匿名 Agent 用 `with_providers`，自定义 Agent 可实现 `Agent::providers`。每个连接可指定模型，省略时使用该连接的模型档位。
+普通文本、结构化输出和文本流可以按顺序尝试多个具名连接。匿名 Agent 用 `with_providers`，自定义 Agent 可实现 `Agent::providers`。每个连接可指定模型，省略时使用该连接的模型档位。
 
 ```rust
 use openrust_ai::{Agent, ProviderTarget, agent};
@@ -77,7 +77,7 @@ let responder = agent("Answer briefly.").with_providers([
 let answer = responder.prompt("What can I do next?").await?;
 ```
 
-连接失败、请求超时、限流、费用不足或指定的上游过载状态可触发切换。应用可监听 `openrust_ai::events::AgentFailedOver`，用调用 ID 关联已尝试的连接。使用 `PromptOptions.provider` 显式指定连接会仅调用该连接。流交付首个事件后固定使用当前连接。带应用工具或普通提示词中间件的调用当前仅使用首选连接。
+连接失败、请求超时、限流、费用不足或指定的上游过载状态可触发切换。应用可监听 `openrust_ai::events::AgentFailedOver`，用调用 ID 关联已尝试的连接。使用 `PromptOptions.provider` 显式指定连接会仅调用该连接。流在交付首个事件后固定使用当前连接。带工具的流可在启动时切换，工具结果和后续模型步骤留在选中的连接。带应用工具或提示词中间件的非流式调用当前仅使用首选连接。
 
 ### 接入 Responses 网关 {#responses-gateway}
 
