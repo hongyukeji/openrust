@@ -4,7 +4,7 @@ use openrust::{
     events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::Application,
     http::HttpFuture,
-    queue::events::JobProcessing,
+    queue::events::{JobFailed, JobProcessing, JobTimedOut},
     queue::{JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager, QueueResult},
     support::{ProviderResult, ServiceProvider},
     testing::TestApp,
@@ -24,6 +24,11 @@ impl JobHandler for Job {
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
+            if payload.data()["timeout"] == true
+                || (payload.data()["timeout_once"] == true && context.attempts() == 1)
+            {
+                return std::future::pending().await;
+            }
             Pulse::record("worker_custom", payload.uuid(), Some(1), None)
                 .await
                 .map_err(execution)?
@@ -75,16 +80,15 @@ impl Listener for JobPreflight {
     }
 }
 
-#[tokio::test]
-async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buffer() {
-    let values = Arc::new(Mutex::new(Vec::new()));
-    let observed = values.clone();
+async fn worker_application(
+    values: Arc<Mutex<Vec<Value>>>,
+) -> (TestApp, openrust::database::Connection) {
     let mut app = TestApp::create(move |builder| builder.with_config(|root, _| Ok([
         ("pulse".into(),json!({"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}},"recorders":{"Queues":{"sample_rate":1},"SlowJobs":{"threshold":0},"Exceptions":{},"Servers":false}})),
-        ("database".into(), json!({"default":"test","connections":{"test":{"driver":"sqlite","database":root.join("worker.sqlite"),"max_connections":1}}})),
+        ("database".into(), json!({"default":"test","connections":{"test":worker_database(root)}})),
         ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
         ("queue".into(), json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90}},"failed":{"driver":"null"}})),
-    ].into())).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values: observed })])).unwrap();
+    ].into())).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values })])).unwrap();
     std::fs::write(app.root().join("worker.sqlite"), []).unwrap();
     app.boot().await.unwrap();
     app.app()
@@ -116,6 +120,33 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
+    (app, connection)
+}
+
+fn worker_database(root: &std::path::Path) -> Value {
+    let driver = std::env::var("PULSE_TEST_DRIVER").unwrap_or_else(|_| "sqlite".into());
+    let (required, url) = match driver.as_str() {
+        "sqlite" => {
+            return json!({"driver":"sqlite","database":root.join("worker.sqlite"),"max_connections":1});
+        }
+        "pgsql" => ("OPENRUST_REQUIRE_POSTGRES", "OPENRUST_TEST_POSTGRES_URL"),
+        "mysql" => ("OPENRUST_REQUIRE_MYSQL", "OPENRUST_TEST_MYSQL_URL"),
+        driver => panic!("无对应的独占工作进程验收驱动：{driver}"),
+    };
+    assert_eq!(std::env::var(required).as_deref(), Ok("1"));
+    json!({
+        "driver":driver,
+        "url":std::env::var(url).unwrap(),
+        "prefix":format!("pulse_{:x}_", fastrand::u64(..)),
+        "prefix_indexes":driver == "pgsql",
+        "max_connections":1
+    })
+}
+
+#[tokio::test]
+async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buffer() {
+    let values = Arc::new(Mutex::new(Vec::new()));
+    let (mut app, connection) = worker_application(values.clone()).await;
     let queue = app.app().make::<QueueManager>().await.unwrap();
     for fail in [false, true, false, false] {
         queue
@@ -201,4 +232,120 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
     assert_eq!(counts["failed"], Some(1.0));
     assert_eq!(counts["processing"], Some(6.0));
     assert_eq!(counts["released"], Some(1.0));
+}
+
+#[derive(Default)]
+struct TimeoutProbe(Mutex<Option<JobTimedOut>>);
+
+impl Listener for TimeoutProbe {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            *self.0.lock().unwrap() = event.downcast_ref::<JobTimedOut>().cloned();
+            Ok(None)
+        })
+    }
+}
+
+#[tokio::test]
+async fn embedded_worker_timeout_clears_unsettled_slow_job_attempt() {
+    use openrust::contracts::foundation::Application as _;
+    let (mut app, connection) = worker_application(Arc::default()).await;
+    let probe = Arc::new(TimeoutProbe::default());
+    app.app()
+        .make::<Dispatcher>()
+        .await
+        .unwrap()
+        .listen(JobTimedOut::NAME, probe.clone(), Delivery::Sync)
+        .unwrap();
+    let queue = app.app().make::<QueueManager>().await.unwrap();
+    queue
+        .dispatch(
+            Payload::new("pulse-scope", json!({"timeout":true})).unwrap(),
+            Default::default(),
+            None,
+        )
+        .await
+        .unwrap();
+    app.artisan([
+        "queue:work",
+        "database",
+        "--timeout=1",
+        "--tries=3",
+        "--sleep=0",
+        "--memory=0",
+    ])
+    .await
+    .assert_exit_code(1);
+    let timed_out = probe
+        .0
+        .lock()
+        .unwrap()
+        .take()
+        .expect("真实 Worker 未派发超时事件");
+    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 1);
+    let pulse = app.app().make::<openrust_pulse::Pulse>().await.unwrap();
+    let slow = pulse
+        .recorders()
+        .into_iter()
+        .find(|recorder| recorder.name() == "SlowJobs")
+        .unwrap();
+    slow.record(
+        &JobFailed {
+            connection_name: timed_out.connection_name,
+            job: timed_out.job,
+            exception: "旧工作进程的延迟事件".into(),
+        },
+        &pulse,
+    )
+    .await
+    .unwrap();
+    pulse.ingest().await;
+    assert_eq!(
+        connection
+            .table("pulse_entries")
+            .r#where("type", "=", "slow_job")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+
+    app.app()
+        .config()
+        .unwrap()
+        .set("queue.kill_on_timeout", json!(false))
+        .unwrap();
+    queue
+        .dispatch(
+            Payload::new("pulse-scope", json!({"timeout_once":true})).unwrap(),
+            Default::default(),
+            None,
+        )
+        .await
+        .unwrap();
+    app.artisan([
+        "queue:work",
+        "database",
+        "--timeout=1",
+        "--tries=3",
+        "--sleep=0",
+        "--memory=0",
+        "--stop-when-empty",
+    ])
+    .await
+    .assert_successful();
+    assert_eq!(
+        connection
+            .table("pulse_entries")
+            .r#where("type", "=", "slow_job")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 1);
 }

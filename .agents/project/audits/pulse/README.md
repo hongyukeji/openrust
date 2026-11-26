@@ -164,4 +164,6 @@ PHP 相对时间语法的其余边界、Livewire 更新事件和缓存包装仍�
 
 macOS 上真实 Artisan SQLite Worker 经过 40 毫秒的处理前监听器，执行四次成功、一次终态失败和一次因异常释放。原实现入库的六条慢任务均未达到 40 毫秒，修复后的六条全部达到，并核对队列处理及释放计数。相同源码通过 Worker 和 Provider 共 18 项、涉及文件格式及 Pulse 库和两个测试目标的严格 Clippy。三语文档构建、渲染正文和 12 组三语桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-{baseline,restored,docs}.log`。
 
-独立 Worker 达到退出型超时后由进程退出释放记录状态，嵌入式应用在同一进程内反复启动和停止 Worker 的超时清理仍需验证。其他目标平台及队列驱动的本批 Worker 计时仍需复验。
+固定 PHP 在会退出的超时路径结束进程。Rust 的嵌入式 Artisan 可以只返回退出码，使应用及 Recorder 实例继续运行。前态保留了这类尚未结算尝试，测试向同一个 Recorder 重放超时事件所携带的尝试标识，错误地产生一条慢任务记录。
+
+Rust 将时间戳清理挂到所属 Worker 尝试已有的延迟回调集合。集合执行或丢弃时清理该代标记，保留首个正常终止事件的计时。相同标识的新尝试拥有独立标记。真实 SQLite、PostgreSQL 18.7、MySQL 8.4.13 上分别验证退出型超时保留队列任务并清除时间戳，以及可重试超时正确记录释放和后续成功两次。两个 Worker 回归、默认 Provider、隔离快照格式及所涉严格 Clippy 通过。证据为 `target/tmp/observability-parity/pulse-worker-timeout-{baseline,final}.log`。其他目标平台和非数据库队列驱动的专项继续验收。 [固定 Laravel Worker](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Worker.php#L326-L368)

@@ -1,9 +1,13 @@
 use super::{Pulse, Recorders};
 use jiff::Timestamp;
 use openrust::{contracts::events::Event, queue::events::*};
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    convert::Infallible,
+    sync::{Arc, Mutex, Weak},
+};
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 struct Attempt {
     connection: String,
     queue: String,
@@ -23,11 +27,31 @@ impl Attempt {
 }
 
 #[derive(Default)]
-pub(super) struct SlowJobStarts(Mutex<HashMap<Attempt, Timestamp>>);
+pub(super) struct SlowJobStarts(Mutex<HashMap<Attempt, Arc<Timestamp>>>);
+
+struct AttemptCleanup {
+    starts: Weak<SlowJobStarts>,
+    attempt: Attempt,
+    started_at: Arc<Timestamp>,
+}
+
+impl Drop for AttemptCleanup {
+    fn drop(&mut self) {
+        if let Some(starts) = self.starts.upgrade() {
+            let mut entries = starts.0.lock().unwrap();
+            if entries
+                .get(&self.attempt)
+                .is_some_and(|started_at| Arc::ptr_eq(started_at, &self.started_at))
+            {
+                entries.remove(&self.attempt);
+            }
+        }
+    }
+}
 
 impl SlowJobStarts {
     pub(super) async fn observe(
-        &self,
+        self: &Arc<Self>,
         event: &dyn Event,
         recorder: &Recorders,
         pulse: &Pulse,
@@ -35,10 +59,24 @@ impl SlowJobStarts {
     ) {
         if let Some(e) = event.downcast_ref::<JobProcessing>() {
             if e.connection_name != "sync" {
-                self.0
-                    .lock()
-                    .unwrap()
-                    .insert(Attempt::new(&e.connection_name, &e.job), timestamp);
+                let attempt = Attempt::new(&e.connection_name, &e.job);
+                let started_at = Arc::new(timestamp);
+                let cleanup = AttemptCleanup {
+                    starts: Arc::downgrade(self),
+                    attempt: attempt.clone(),
+                    started_at: started_at.clone(),
+                };
+                // Worker 即使在超时或取消时没有运行回调，也会释放本次尝试的回调集合。
+                // 无生命周期的手动事件仍由后续终止事件清理。
+                let _ = openrust::support::defer(
+                    async move {
+                        drop(cleanup);
+                        Ok::<(), Infallible>(())
+                    },
+                    None,
+                    true,
+                );
+                self.0.lock().unwrap().insert(attempt, started_at);
             }
             return;
         }
@@ -84,7 +122,7 @@ impl SlowJobStarts {
             .await;
     }
 
-    fn take(&self, connection: &str, job: &JobSnapshot) -> Option<Timestamp> {
+    fn take(&self, connection: &str, job: &JobSnapshot) -> Option<Arc<Timestamp>> {
         if connection == "sync" {
             return None;
         }
