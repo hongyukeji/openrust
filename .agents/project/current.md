@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- Artisan 第88簇模板自定义已验，目前 43／48 节通过；五个 REPL 条目等待扩展范围决定。见[验收契约](audits/artisan-tutorial/artisan-stub-controller-contracts.json)。
+
 - Artisan 第87簇命令事件已验，目前 42／48 节通过；继续模板和已登记的 REPL 边界。见[验收契约](audits/artisan-tutorial/artisan-events-lifecycle-contracts.json)。
 
 - Artisan 第86簇启动事件已验，仍为 41／48 节通过；继续命令事件其余边界和模板。见[验收契约](audits/artisan-tutorial/artisan-starting-contracts.json)。

@@ -1049,3 +1049,10 @@ SQLite 和 MySQL 8.4.13 各三组终端通过，覆盖 HTTP、日志、查询、
 固定 Laravel 与 Symfony 真实事件桥执行 11 条命令，逐行核对 CLI、异常、缺参、帮助、列表、版本与直接嵌套。在原生 Kernel 中复用同一注册表直接运行子命令，结束事件保留已退出或已失败的快照。CLI 与 HTTP 实际路径通过，修复了 Debug 嵌套栈溢出及自定义 Kernel 重复派发初始化事件。
 
 61 项框架和应用回归、255 个三语文档示例、12 组浏览器检查、格式和隔离快照严格 Clippy 通过。见 artisan-events-lifecycle-contracts.json。
+
+
+## 88. 模板发布与控制器生成
+
+固定源执行 4 次模板发布和 7 次控制器生成，验证应用覆盖、重复生成、强制覆盖、事件增删及公开形态。Rust 继续复用既有 Stub 发布器，对齐受支持的默认、单动作、资源、API 和单例模板。实际 Artisan 发布、修改、生成，编译受改模板产物后通过真实 HTTP 请求，返回预期 JSON。详见 artisan-stub-controller-contracts.json。
+
+80 项框架和应用回归、255 个三语文档示例、9 条直接源自三语文档的 CLI 命令、12 组浏览器检查、格式和隔离快照严格 Clippy 通过。按范围关闭 Stub Customization；控制器关联模型等选项按 Controllers 篇记录。

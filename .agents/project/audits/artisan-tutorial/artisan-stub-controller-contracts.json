@@ -1,0 +1,48 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "Artisan": [
+      "stub:publish",
+      "make:controller"
+    ],
+    "ControllerOptions": [
+      "force",
+      "type",
+      "invokable",
+      "resource",
+      "api",
+      "singleton",
+      "creatable"
+    ],
+    "PublishingStubs": [
+      "insert",
+      "add",
+      "remove"
+    ]
+  },
+  "runtime": {
+    "framework_and_application_parent_tests": 80,
+    "native_artisan_subprocesses": 30,
+    "native_http_requests": 1,
+    "upstream_publish_invocations": 4,
+    "upstream_controller_invocations": 7,
+    "formal_document_consumers": 255,
+    "formal_three_language_cli_examples": 9,
+    "browser_checks": 12
+  },
+  "source_oracle": [
+    "artisan-stub-publish-oracle.json",
+    "artisan-controller-make-oracle.json"
+  ],
+  "decisions": [
+    "固定源实际执行发布命令的默认、existing、force 与事件改写，比较文件内容及清单。",
+    "固定源真实生成默认、四种形态与重名处理，旧版复用 app/http/controllers 层级和对目录检查，现有生成器统一处理文件输出、PascalCase 和原子覆盖。",
+    "Rust 原生将各受支持控制器模板纳入现有 Stub 稳定列表，应用覆盖使用同一读取机制。源代码中的任意继承写法，由原生类型、方法与现有调度器承载。",
+    "实际生成自定义控制器后编译源码，HTTP 验证真实 ControllerDispatcher 读取已绑定类型。三语命令从正文提取并执行。"
+  ],
+  "remaining": [
+    "本节验证已由生成器消费的应用模板。控制器模型及嵌套路由、生成 FormRequest 的选项须按 Controllers 篇继续逐入口核对；不视为全部控制器生成 API 闭合。",
+    "原生类型按模块文件导出并显式声明接线。HTTP 动作模板提供类型正确的 Rust scaffold 供应用实现。"
+  ]
+}

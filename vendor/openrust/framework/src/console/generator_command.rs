@@ -104,6 +104,12 @@ pub(crate) enum Stub {
     StringEnum,
     Trait,
     Console,
+    PlainController,
+    InvokableController,
+    ResourceController,
+    ApiController,
+    SingletonController,
+    ApiSingletonController,
     Factory,
     Migration,
     MigrationCreate,
@@ -148,6 +154,12 @@ impl Stub {
         Self::StringEnum,
         Self::Trait,
         Self::Console,
+        Self::PlainController,
+        Self::InvokableController,
+        Self::ResourceController,
+        Self::ApiController,
+        Self::SingletonController,
+        Self::ApiSingletonController,
         Self::Factory,
         Self::Migration,
         Self::MigrationCreate,
@@ -196,6 +208,30 @@ impl Stub {
             Self::MarkdownNotification => (
                 "markdown-notification.rs.stub",
                 include_str!("../foundation/console/stubs/markdown-notification.rs.stub"),
+            ),
+            Self::PlainController => (
+                "controller.plain.rs.stub",
+                include_str!("../foundation/console/stubs/controller.plain.rs.stub"),
+            ),
+            Self::InvokableController => (
+                "controller.invokable.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ResourceController => (
+                "controller.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ApiController => (
+                "controller.api.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::SingletonController => (
+                "controller.singleton.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ApiSingletonController => (
+                "controller.singleton.api.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
             ),
             Self::Class => (
                 "class.rs.stub",

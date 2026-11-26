@@ -1,0 +1,78 @@
+{
+    "existing": {
+        "status": 0,
+        "files": [
+            "console.stub"
+        ],
+        "overwrites": true
+    },
+    "default": {
+        "status": 0,
+        "preserves": true,
+        "files": [
+            "cast.inbound.stub",
+            "cast.stub",
+            "class.invokable.stub",
+            "class.stub",
+            "console.stub",
+            "controller.api.stub",
+            "controller.invokable.stub",
+            "controller.model.api.stub",
+            "controller.model.stub",
+            "controller.nested.api.stub",
+            "controller.nested.singleton.api.stub",
+            "controller.nested.singleton.stub",
+            "controller.nested.stub",
+            "controller.plain.stub",
+            "controller.singleton.api.stub",
+            "controller.singleton.stub",
+            "controller.stub",
+            "enum.backed.stub",
+            "enum.stub",
+            "event.stub",
+            "factory.stub",
+            "job.queued.stub",
+            "job.stub",
+            "listener.queued.stub",
+            "listener.stub",
+            "listener.typed.queued.stub",
+            "listener.typed.stub",
+            "mail.stub",
+            "markdown-mail.stub",
+            "markdown-notification.stub",
+            "middleware.stub",
+            "migration.create.stub",
+            "migration.stub",
+            "migration.update.stub",
+            "model.pivot.stub",
+            "model.stub",
+            "notification.stub",
+            "observer.plain.stub",
+            "observer.stub",
+            "pest.stub",
+            "pest.unit.stub",
+            "policy.plain.stub",
+            "policy.stub",
+            "provider.stub",
+            "request.stub",
+            "resource-collection.stub",
+            "resource.stub",
+            "rule.stub",
+            "scope.stub",
+            "seeder.stub",
+            "test.stub",
+            "test.unit.stub",
+            "trait.stub",
+            "view-component.stub"
+        ]
+    },
+    "force": {
+        "status": 0,
+        "overwrites": true
+    },
+    "event": {
+        "status": 0,
+        "custom": "custom stub",
+        "removes": true
+    }
+}

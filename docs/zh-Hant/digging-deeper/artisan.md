@@ -606,6 +606,20 @@ fn listen_to_commands(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 同步的 `foundation.publishing_stubs` 監聽器可透過 `PublishingStubs` 事件加入來源檔案、插入編譯進產物的樣板或移除樣板。發佈目標使用應用程式樣板目錄內的檔名。
 
+### 控制器範本 {#controller-templates}
+
+`make:controller` 預設使用 `stubs/controller.plain.rs.stub`。發佈後可編輯該檔案再執行產生。類型名稱會取代 `{{class}}`。`Admin/ReportController` 對應 `app/http/controllers/admin/report_controller.rs`。
+
+```sh
+./artisan stub:publish
+./artisan make:controller Admin/ReportController
+./artisan make:controller Api/ReportController --api
+```
+
+可呼叫、資源、API 和單例選項各自選用已發佈的範本，使用 `{{actions}}` 產生方法。使用 `--type=report` 選擇應用程式自訂的 `controller.report.rs.stub`。重複產生時保留既有檔案，傳入 `--force` 才覆寫。
+
+在父 Rust 模組宣告新檔案，接著[繫結控制器並註冊路由](../the-basics/controllers.md)。
+
 ## 產生 Rust 型別 {#generating-rust-types}
 
 Artisan 可產生 Rust 結構體、trait 和列舉。使用產生的型別前請宣告對應模組。

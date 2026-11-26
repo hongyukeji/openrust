@@ -5,6 +5,7 @@ pub(crate) mod command_types;
 pub(super) mod config_cache_command;
 mod configuration_command;
 mod console_make_command;
+mod controller_make_command;
 pub(super) mod dev_command;
 mod dev_list_command;
 mod dev_terminal;
@@ -351,6 +352,7 @@ impl Kernel {
                     install_routes_command::register(&mut self.artisan)?;
                     init_command::register(&mut self.artisan)?;
                     console_make_command::register(&mut self.artisan)?;
+                    controller_make_command::register(&mut self.artisan)?;
                     test_make_command::register(&mut self.artisan)?;
                     type_make_command::register(&mut self.artisan)?;
                     test_command::register(&mut self.artisan)?;

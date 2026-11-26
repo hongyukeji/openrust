@@ -606,6 +606,20 @@ fn listen_to_commands(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 同步的 `foundation.publishing_stubs` 监听器可通过 `PublishingStubs` 事件添加源文件、插入编译进产物的模板或移除模板。发布目标使用应用模板目录内的文件名。
 
+### 控制器模板 {#controller-templates}
+
+`make:controller` 默认使用 `stubs/controller.plain.rs.stub`。发布后可编辑该文件再执行生成。类型名会替换 `{{class}}`。名称 `Admin/ReportController` 对应 `app/http/controllers/admin/report_controller.rs`。
+
+```sh
+./artisan stub:publish
+./artisan make:controller Admin/ReportController
+./artisan make:controller Api/ReportController --api
+```
+
+单动作、资源、API 和单例选项各自选用已发布的模板，使用 `{{actions}}` 生成方法。使用 `--type=report` 选择应用定义的 `controller.report.rs.stub`。重复生成时保留已有文件，传入 `--force` 才覆盖。
+
+在父 Rust 模块中声明新文件，然后[绑定控制器并注册路由](../the-basics/controllers.md)。
+
 ## 生成 Rust 类型 {#generating-rust-types}
 
 Artisan 可生成 Rust 结构体、trait 和枚举。使用生成的类型前请声明对应模块。

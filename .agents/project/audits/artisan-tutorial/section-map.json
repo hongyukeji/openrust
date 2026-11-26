@@ -596,8 +596,13 @@
     },
     {
       "anchor": "stub-customization",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-stub-controller-contracts.json",
+        "accepted-artisan-stub-controller.json",
+        "controller_generator",
+        "artisan-stub-controller-http.log"
+      ]
     },
     {
       "anchor": "events",
@@ -965,6 +970,14 @@
     "remaining": [
       "Rust 事件携带输入／输出快照。失败解析中只保留已识别参数；输出为对应命令本次已捕获的标准输出，监听者不持有可变输入输出对象。",
       "异步命令未来体被调用方取消时无命令退出码。运行时未发生完成或失败返回，不派发 CommandFinished。"
+    ]
+  },
+  "artisan_stub_customization": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-stub-controller-contracts.json",
+    "remaining": [
+      "本节验证已由生成器消费的应用模板。控制器模型及嵌套路由、生成 FormRequest 的选项须按 Controllers 篇继续逐入口核对；不视为全部控制器生成 API 闭合。",
+      "原生类型按模块文件导出并显式声明接线。HTTP 动作模板提供类型正确的 Rust scaffold 供应用实现。"
     ]
   }
 }

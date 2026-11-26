@@ -1,0 +1,6 @@
+    pub fn {{action}}<'a>(
+        &'a self,
+        _request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move { Ok(Response::empty(StatusCode::{{status}})) })
+    }

@@ -606,6 +606,20 @@ The default preserves existing templates and publishes missing ones. `--existing
 
 A synchronous `foundation.publishing_stubs` listener can use the `PublishingStubs` event to add a source file, insert a compiled template, or remove a template before publication. Destinations are filenames within the application’s stubs directory.
 
+### Controller Templates {#controller-templates}
+
+The default template for `make:controller` is `stubs/controller.plain.rs.stub`. After publication, edit that file and run the generator. The type name replaces `{{class}}`; a name like `Admin/ReportController` creates `app/http/controllers/admin/report_controller.rs`.
+
+```sh
+./artisan stub:publish
+./artisan make:controller Admin/ReportController
+./artisan make:controller Api/ReportController --api
+```
+
+The invokable, resource, API, and singleton options select their own published templates. They use `{{actions}}` for the generated methods. Use `--type=report` with your own `controller.report.rs.stub`. A repeat generation preserves the existing controller unless you pass `--force`.
+
+Declare the new file in its parent Rust module, then [bind the controller and register its routes](../the-basics/controllers.md).
+
 ## Generating Rust Types {#generating-rust-types}
 
 Artisan generates Rust structs, traits and enums. Declare the resulting modules before using the types.

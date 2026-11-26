@@ -1,0 +1,33 @@
+{
+    "default_status": 0,
+    "default_namespace": true,
+    "default_name": true,
+    "duplicate_status": 0,
+    "duplicate_preserves": true,
+    "force_status": 0,
+    "force_uses_app_stub": true,
+    "invokable": {
+        "status": 0,
+        "action": true,
+        "create": false,
+        "edit": false
+    },
+    "resource": {
+        "status": 0,
+        "action": true,
+        "create": true,
+        "edit": true
+    },
+    "api": {
+        "status": 0,
+        "action": true,
+        "create": false,
+        "edit": false
+    },
+    "singleton": {
+        "status": 0,
+        "action": true,
+        "create": true,
+        "edit": true
+    }
+}

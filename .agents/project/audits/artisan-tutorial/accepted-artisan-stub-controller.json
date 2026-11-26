@@ -1,0 +1,58 @@
+{
+  "base": "c16b31d12aee9ad1d15fd2c5987d348ae99508aa",
+  "contract": "artisan-stub-controller-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.41s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.61s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s",
+    "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.39s",
+    "test result: ok. 255 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.06s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s"
+  ],
+  "runtime": {
+    "framework_and_application_parent_tests": 80,
+    "native_artisan_subprocesses": 30,
+    "native_http_requests": 1,
+    "upstream_publish_invocations": 4,
+    "upstream_controller_invocations": 7,
+    "formal_document_consumers": 255,
+    "formal_three_language_cli_examples": 9,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-publish-source-native.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-controller-make-source-native.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-controller-build.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-controller-http-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-controller-http.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-controller-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-stub-controller-site.log"
+  ],
+  "unaccepted_attempts": [
+    "固定源目录夹具先补配置和显示适配，以固定实现的文件发布和生成路径核对；终端渲染另有既有验收。",
+    "根 HTTP 夹具首试使用未声明的 reqwest，改为已有 Tokio 和原生 TCP 实际消费者后通过。",
+    "首轮构建移除无用导入，最终严格门禁复验。"
+  ],
+  "remaining": [
+    "本节验证已由生成器消费的应用模板。控制器模型及嵌套路由、生成 FormRequest 的选项须按 Controllers 篇继续逐入口核对；不视为全部控制器生成 API 闭合。",
+    "原生类型按模块文件导出并显式声明接线。HTTP 动作模板提供类型正确的 Rust scaffold 供应用实现。"
+  ],
+  "pushed": false
+}

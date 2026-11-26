@@ -1,0 +1,8 @@
+//! 应用 HTTP 控制器。
+
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+pub struct {{class}};
+
+impl {{class}} {
+{{actions}}}
