@@ -72,7 +72,7 @@ pub(crate) fn anthropic(upstream: ResponseStream) -> StepEventStream {
                     };
                     message["content"] = contents.into();
                     let response = anthropic::parse_step(message)?;
-                    yield StepEvent::Finished { response, reason: reason.into() };
+                    yield StepEvent::Finished { response: Box::new(response), reason: reason.into() };
                     return;
                 }
                 _ => Err(AiError::InvalidResponse)?,
@@ -207,7 +207,7 @@ pub(crate) fn gemini(upstream: ResponseStream) -> StepEventStream {
         if !response.tool_calls.is_empty() {
             reason = "tool_calls".into();
         }
-        yield StepEvent::Finished {response,reason};
+        yield StepEvent::Finished {response: Box::new(response),reason};
     })
 }
 

@@ -107,7 +107,7 @@ pub struct StepResponse {
 pub enum StepEvent {
     TextDelta(String),
     Finished {
-        response: StepResponse,
+        response: Box<StepResponse>,
         reason: String,
     },
 }

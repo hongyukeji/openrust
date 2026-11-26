@@ -66,6 +66,8 @@ To use the `azure` preset, set `AZURE_OPENAI_URL` to your Azure resource URL and
 
 Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery.
 
+For text, `Usage` exposes the total prompt and completion tokens and any cache-read, cache-write, or reasoning counters reported by the provider. Cache tokens are included in the prompt total, and reasoning tokens in the completion total. `total_tokens()` and `uncached_input_tokens()` derive totals when the required counts are available. Stream formats carry the same reported counters.
+
 ## Model gateway {#model-gateway}
 
 Add `ai-gateway` to `[features].default` in your application’s `Cargo.toml` and set `AI_GATEWAY_ENABLED=true`. Run `./artisan vendor:publish --tag=ai-gateway-config`. Update `models` and `keys` in `config/ai_gateway.rs` with your public model mappings and client permissions, then rebuild the application.

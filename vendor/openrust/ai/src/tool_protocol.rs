@@ -86,10 +86,7 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text: message["content"].as_str().map(str::to_owned),
-        usage: Usage {
-            prompt_tokens: data["usage"]["prompt_tokens"].as_u64(),
-            completion_tokens: data["usage"]["completion_tokens"].as_u64(),
-        },
+        usage: Usage::from_openai(&data["usage"]),
         tool_calls,
         provider_content: None,
     })
@@ -124,10 +121,7 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text,
-        usage: Usage {
-            prompt_tokens: data["usage"]["input_tokens"].as_u64(),
-            completion_tokens: data["usage"]["output_tokens"].as_u64(),
-        },
+        usage: Usage::from_openai(&data["usage"]),
         tool_calls,
         provider_content: None,
     })

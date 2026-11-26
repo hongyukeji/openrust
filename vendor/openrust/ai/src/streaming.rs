@@ -203,8 +203,7 @@ impl StreamableAgentResponse {
                     yield event(&invocation, StreamEventData::TextEnd { message_id });
                 }
                 if let Some(update) = part.usage {
-                    usage.prompt_tokens = update.prompt_tokens.or(usage.prompt_tokens);
-                    usage.completion_tokens = update.completion_tokens.or(usage.completion_tokens);
+                    usage.update(update);
                 }
                 if let Some(update) = part.reason {
                     reason = Some(update);
@@ -217,6 +216,11 @@ impl StreamableAgentResponse {
             if let Some(message_id) = message {
                 yield event(&invocation, StreamEventData::TextEnd { message_id });
             }
+            let usage = match protocol {
+                TextEndpoint::Messages => usage.include_cached_input(),
+                TextEndpoint::GeminiStreamGenerateContent => usage.include_reasoning_output(),
+                _ => usage,
+            };
             yield event(&invocation, StreamEventData::StreamEnd { reason, usage });
         };
         Self {
@@ -282,10 +286,7 @@ impl TextEndpoint {
                     model: string(&value["model"]),
                     delta: string(&choice["delta"]["content"]),
                     reason: string(&choice["finish_reason"]),
-                    usage: usage.is_object().then(|| Usage {
-                        prompt_tokens: usage["prompt_tokens"].as_u64(),
-                        completion_tokens: usage["completion_tokens"].as_u64(),
-                    }),
+                    usage: usage.is_object().then(|| Usage::from_openai(usage)),
                     ..Default::default()
                 })
             }
@@ -314,10 +315,7 @@ impl TextEndpoint {
                                 .unwrap_or("stop")
                                 .into(),
                         ),
-                        usage: usage.is_object().then(|| Usage {
-                            prompt_tokens: usage["input_tokens"].as_u64(),
-                            completion_tokens: usage["output_tokens"].as_u64(),
-                        }),
+                        usage: usage.is_object().then(|| Usage::from_openai(usage)),
                         done: true,
                         ..Default::default()
                     }),
@@ -350,10 +348,7 @@ impl TextEndpoint {
                         Some(reason) => Some(reason.into()),
                         None => None,
                     },
-                    usage: usage.map(|usage| Usage {
-                        prompt_tokens: usage["input_tokens"].as_u64(),
-                        completion_tokens: usage["output_tokens"].as_u64(),
-                    }),
+                    usage: usage.map(Usage::from_anthropic),
                     end_message: value["type"] == "content_block_stop",
                     done: value["type"] == "message_stop",
                 })
@@ -366,9 +361,7 @@ impl TextEndpoint {
                     model: string(&value["modelVersion"]),
                     delta: (!delta.is_empty()).then_some(delta),
                     reason,
-                    usage: value
-                        .get("usageMetadata")
-                        .map(|_| crate::gemini::usage(&value)),
+                    usage: value.get("usageMetadata").map(Usage::from_gemini),
                     ..Default::default()
                 })
             }

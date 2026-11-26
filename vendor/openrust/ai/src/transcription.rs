@@ -292,6 +292,7 @@ impl TranscriptionProvider for OpenAiTranscriptionProvider {
                     tokens: Usage {
                         prompt_tokens: usage["input_tokens"].as_u64(),
                         completion_tokens: usage["output_tokens"].as_u64(),
+                        ..Usage::default()
                     },
                     audio_input_tokens: usage["input_token_details"]["audio_tokens"].as_u64(),
                     seconds,

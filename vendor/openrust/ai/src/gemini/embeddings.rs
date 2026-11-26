@@ -95,6 +95,7 @@ impl EmbeddingProvider for GeminiEmbeddingProvider {
                         .usage_metadata
                         .and_then(|usage| usage.prompt_token_count),
                     completion_tokens: None,
+                    ..Usage::default()
                 },
                 provider: self.name().into(),
                 model: model.into(),

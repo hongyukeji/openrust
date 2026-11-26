@@ -24,14 +24,14 @@ use openrust::{
         client::{self, Factory, Part, Response},
     },
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
     AgentPrompt, AiError, AiResult, Attachment, EmbeddingProvider, MessageRole, ModelCatalog,
     RerankingProvider, StepEventStream, StepResponse, StepTextGateway, StreamableAgentResponse,
     StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice, ToolDefinition, ToolResult,
-    ToolStep,
+    ToolStep, Usage,
     audio::{AudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
@@ -46,27 +46,8 @@ use crate::{
     reranking::{HttpRerankingProvider, RerankingProtocol},
     stores::StoreProvider,
     transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
+    usage::OpenAiUsage,
 };
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Usage {
-    pub prompt_tokens: Option<u64>,
-    pub completion_tokens: Option<u64>,
-}
-
-impl Usage {
-    pub(crate) fn combine(mut self, previous: &Self) -> Self {
-        self.prompt_tokens = previous
-            .prompt_tokens
-            .zip(self.prompt_tokens)
-            .map(|(previous, current)| previous.saturating_add(current));
-        self.completion_tokens = previous
-            .completion_tokens
-            .zip(self.completion_tokens)
-            .map(|(previous, current)| previous.saturating_add(current));
-        self
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentResponse {
@@ -847,7 +828,7 @@ struct ParsedText {
 struct ChatResponse {
     model: Option<String>,
     choices: Vec<ChatChoice>,
-    usage: Option<ChatUsage>,
+    usage: Option<OpenAiUsage>,
 }
 
 #[derive(Deserialize)]
@@ -859,12 +840,6 @@ struct ChatChoice {
 struct ChatMessage {
     content: Option<String>,
     refusal: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ChatUsage {
-    prompt_tokens: Option<u64>,
-    completion_tokens: Option<u64>,
 }
 
 fn parse_chat(response: Response) -> AiResult<ParsedText> {
@@ -880,13 +855,7 @@ fn parse_chat(response: Response) -> AiResult<ParsedText> {
     }
     Ok(ParsedText {
         text: message.content.ok_or(AiError::InvalidResponse)?,
-        usage: response
-            .usage
-            .map(|usage| Usage {
-                prompt_tokens: usage.prompt_tokens,
-                completion_tokens: usage.completion_tokens,
-            })
-            .unwrap_or_default(),
+        usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
     })
 }
@@ -896,7 +865,7 @@ struct ResponsesResponse {
     status: Option<String>,
     model: Option<String>,
     output: Vec<ResponsesItem>,
-    usage: Option<ResponsesUsage>,
+    usage: Option<OpenAiUsage>,
 }
 
 #[derive(Deserialize)]
@@ -918,12 +887,6 @@ enum ResponsesContent {
     Refusal,
     #[serde(other)]
     Other,
-}
-
-#[derive(Deserialize)]
-struct ResponsesUsage {
-    input_tokens: Option<u64>,
-    output_tokens: Option<u64>,
 }
 
 fn parse_responses(response: Response) -> AiResult<ParsedText> {
@@ -951,13 +914,7 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
     }
     Ok(ParsedText {
         text: text.ok_or(AiError::InvalidResponse)?,
-        usage: response
-            .usage
-            .map(|usage| Usage {
-                prompt_tokens: usage.input_tokens,
-                completion_tokens: usage.output_tokens,
-            })
-            .unwrap_or_default(),
+        usage: response.usage.map(Usage::from).unwrap_or_default(),
         model: response.model,
     })
 }

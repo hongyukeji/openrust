@@ -391,7 +391,9 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                         .await
                         .unwrap();
                     assert_eq!(response.text, "こんにちは");
-                    assert_eq!(response.usage.prompt_tokens, Some(6));
+                    assert_eq!(response.usage.prompt_tokens, Some(9));
+                    assert_eq!(response.usage.cache_read_input_tokens, Some(2));
+                    assert_eq!(response.usage.cache_write_input_tokens, Some(1));
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))
                 })?;
                 Route::get("/sdk-native-stream", || async {
@@ -429,7 +431,9 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     let sdk = app.get("/sdk-native-stream").await?;
     let sdk_events = std::str::from_utf8(sdk.streamed_content())?;
     assert!(sdk_events.contains("こんにちは"));
-    assert!(sdk_events.contains("\"prompt_tokens\":6"));
+    assert!(sdk_events.contains("\"prompt_tokens\":9"));
+    assert!(sdk_events.contains("\"cache_read_input_tokens\":2"));
+    assert!(sdk_events.contains("\"cache_write_input_tokens\":1"));
     assert!(sdk_events.contains("\"completion_tokens\":4"));
     assert_eq!(
         app.get("/sdk-native-structured").await?.json::<Value>()?,

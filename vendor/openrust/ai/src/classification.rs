@@ -265,6 +265,7 @@ impl ClassificationProvider for OpenAiClassificationProvider {
                     tokens: Usage {
                         prompt_tokens: usage["input_tokens"].as_u64(),
                         completion_tokens: usage["output_tokens"].as_u64(),
+                        ..Usage::default()
                     },
                     cached_input_tokens: usage["input_tokens_details"]["cached_tokens"].as_u64(),
                     cache_write_input_tokens: usage["input_tokens_details"]["cache_write_tokens"]

@@ -178,6 +178,7 @@ impl DecisionsProtocol {
             tokens: Usage {
                 prompt_tokens: usage[input].as_u64(),
                 completion_tokens: usage[output].as_u64(),
+                ..Usage::default()
             },
             cached_input_tokens: cached,
             cache_write_input_tokens: None,

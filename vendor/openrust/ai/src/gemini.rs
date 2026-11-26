@@ -367,11 +367,7 @@ pub(crate) fn text_parts(candidate: &Value) -> impl Iterator<Item = &str> {
 }
 
 pub(crate) fn usage(value: &Value) -> Usage {
-    let usage = &value["usageMetadata"];
-    Usage {
-        prompt_tokens: usage["promptTokenCount"].as_u64(),
-        completion_tokens: usage["candidatesTokenCount"].as_u64(),
-    }
+    Usage::from_gemini(&value["usageMetadata"]).include_reasoning_output()
 }
 
 impl StepTextGateway for GeminiTextProvider {

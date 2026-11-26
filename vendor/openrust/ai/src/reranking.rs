@@ -263,6 +263,7 @@ impl RerankingProvider for HttpRerankingProvider {
                 usage: Usage {
                     prompt_tokens,
                     completion_tokens: None,
+                    ..Usage::default()
                 },
                 provider: self.connection.name().into(),
                 model: data["model"].as_str().unwrap_or(prompt.model).into(),

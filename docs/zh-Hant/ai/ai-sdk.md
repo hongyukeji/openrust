@@ -66,6 +66,8 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。
 
+文字 `Usage` 提供提示與輸出 Token 總量，並保留上游回報的快取讀取、快取寫入和推理計數。提示總量包含快取計數，輸出總量包含推理計數。可用 `total_tokens()` 和 `uncached_input_tokens()` 根據已知計數取得總量與未快取輸入量，串流回應同樣帶上實際回報的計數。
+
 ## 模型閘道 {#model-gateway}
 
 在應用程式 `Cargo.toml` 的 `[features].default` 中加入 `ai-gateway`，並設定 `AI_GATEWAY_ENABLED=true`。執行 `./artisan vendor:publish --tag=ai-gateway-config`，在 `config/ai_gateway.rs` 的 `models` 和 `keys` 中填寫發佈關係及下游 Key 的權限，然後重新建置應用程式：

@@ -22,7 +22,7 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
             })?;
             if frame.data == "[DONE]" && matches!(protocol, OpenAiProtocol::ChatCompletions) {
                 let (response, reason) = chat.finish()?;
-                yield StepEvent::Finished { response, reason };
+                yield StepEvent::Finished { response: Box::new(response), reason };
                 return;
             }
             let mut data: Value = serde_json::from_str(&frame.data).map_err(|_| AiError::InvalidResponse)?;
@@ -45,7 +45,7 @@ pub(crate) fn openai(protocol: OpenAiProtocol, upstream: ResponseStream) -> Step
                     Some("response.completed") => {
                         let response = tool_protocol::responses_step(data["response"].take())?;
                         let reason = if response.tool_calls.is_empty() { "stop" } else { "tool_calls" };
-                        yield StepEvent::Finished { response, reason: reason.into() };
+                        yield StepEvent::Finished { response: Box::new(response), reason: reason.into() };
                         return;
                     }
                     Some("response.refusal.delta" | "response.refusal.done") => Err(AiError::Refused)?,
@@ -80,14 +80,8 @@ impl Chat {
         if let Some(model) = data["model"].as_str() {
             self.model = Some(model.into());
         }
-        if let Some(usage) = data["usage"].as_object() {
-            self.usage.prompt_tokens = usage
-                .get("prompt_tokens")
-                .and_then(Value::as_u64)
-                .or(self.usage.prompt_tokens);
-            self.usage.completion_tokens = usage["completion_tokens"]
-                .as_u64()
-                .or(self.usage.completion_tokens);
+        if let Some(usage) = data.get("usage") {
+            self.usage.update(Usage::from_openai(usage));
         }
         let Some(choice) = data["choices"].get(0) else {
             return Ok(None);
@@ -145,11 +139,12 @@ impl Chat {
                 })
             })
             .collect();
-        let response = tool_protocol::chat_step(json!({
-            "model":self.model,"usage":self.usage,"choices":[{
+        let mut response = tool_protocol::chat_step(json!({
+            "model":self.model,"choices":[{
                 "message":{"content":self.text,"tool_calls":calls}
             }],
         }))?;
+        response.usage = self.usage;
         Ok((response, reason))
     }
 }

@@ -326,6 +326,7 @@ fn parse_embeddings(
         usage: Usage {
             prompt_tokens: payload.usage.and_then(|usage| usage.prompt_tokens),
             completion_tokens: None,
+            ..Usage::default()
         },
         provider: provider.into(),
         model: payload.model.unwrap_or_else(|| prompt.model.into()),

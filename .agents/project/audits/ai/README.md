@@ -456,3 +456,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查审批项已保存。真实 HTTP 分别通过默认 SSE、Vercel 与 AG-UI 读取审批，在另一进程恢复一次，再验证旧审批无法重用。OpenAI Responses 上游使用本地 TCP 服务，相关包测试、严格 Clippy 和三语文档通过。
 
 - [固定 Laravel ToolApprovalRequest](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ToolApprovalRequest.php) · [Vercel 数据协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php) · [AG-UI 协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php)
+
+## AI-02 文本用量明细
+
+`Usage` 保留已报告的缓存读取、缓存写入与推理 Token。按固定 Laravel `TextUsage` 语义，提示总量包含缓存，输出总量包含推理。Anthropic 增加原始输入计数之外的两类缓存。Gemini 增加候选输出之外的推理量。OpenAI 两种协议保持上游总量并保留可用明细。流中的部分计数更新按同一步骤合并，跨工具步骤累计。生成或存储旧用量时缺少明细仍可读取，序列化会省略未报告的明细。
+
+独立 Artisan 通过四种本地 TCP 协议验证总量、缓存和推理字段。真实 HTTP 验证 Vercel 流及拆帧字段合并，Chat 与 Responses 还实际执行两步工具回合并核对累计用量。SDK 与网关包测试、严格 Clippy 和三语文档验收通过。
+
+- [固定 Laravel TextUsage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/TextUsage.php) · [固定 Laravel Anthropic 用量](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/Concerns/ParsesTextResponses.php)

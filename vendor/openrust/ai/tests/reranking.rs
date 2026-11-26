@@ -204,6 +204,7 @@ async fn reranking_fake_intercepts_the_sdk_and_preserves_collection_items() -> T
                         usage: Usage {
                             prompt_tokens: Some(6),
                             completion_tokens: None,
+                            ..Usage::default()
                         },
                         provider: "fixture".into(),
                         model: "selected-model".into(),

@@ -260,14 +260,13 @@ fn record_completion(completion: &mut Option<(String, Usage)>, reason: String, m
 }
 
 fn usage_data(usage: &Usage) -> Value {
-    let total = usage
-        .prompt_tokens
-        .zip(usage.completion_tokens)
-        .map(|(input, output)| input.saturating_add(output));
     let fields = [
         ("inputTokens", usage.prompt_tokens),
         ("outputTokens", usage.completion_tokens),
-        ("totalTokens", total),
+        ("totalTokens", usage.total_tokens()),
+        ("cachedInputTokens", usage.cache_read_input_tokens),
+        ("cacheWriteInputTokens", usage.cache_write_input_tokens),
+        ("reasoningTokens", usage.reasoning_tokens),
     ];
     Value::Object(
         fields

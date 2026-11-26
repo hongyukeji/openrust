@@ -446,6 +446,7 @@ impl ImageProvider for OpenAiImageProvider {
                     tokens: Usage {
                         prompt_tokens: usage["input_tokens"].as_u64(),
                         completion_tokens: usage["output_tokens"].as_u64(),
+                        ..Usage::default()
                     },
                     image_input_tokens: usage["input_tokens_details"]["image_tokens"].as_u64(),
                     image_output_tokens: usage["output_tokens_details"]["image_tokens"].as_u64(),

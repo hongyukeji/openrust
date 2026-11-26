@@ -53,7 +53,7 @@ pub(crate) async fn stream(
                         yield event(&invocation_id, StreamEventData::TextDelta { message_id: id, delta });
                     }
                     StepEvent::TextDelta(_) => {}
-                    StepEvent::Finished { response, reason } => break (response, reason),
+                    StepEvent::Finished { response, reason } => break (*response, reason),
                 }
             };
             drop(upstream);

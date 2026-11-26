@@ -61,6 +61,7 @@ mod tool_stream;
 mod tool_stream_protocol;
 mod tools;
 mod transcription;
+mod usage;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
@@ -123,12 +124,13 @@ pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,
 };
 pub use summarize::{SummarizeAgent, Summarizes, SummarizesText};
-pub use text::{AgentResponse, TextEndpoint, TextModelTier, TextPrompt, TextProvider, Usage};
+pub use text::{AgentResponse, TextEndpoint, TextModelTier, TextPrompt, TextProvider};
 pub use tool_choice::ToolChoice;
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,
     ToolRequest, ToolResult, ToolStep,
 };
+pub use usage::Usage;
 
 pub use transcription::{
     PendingTranscriptionGeneration, Transcription, TranscriptionAudio, TranscriptionPrompt,

@@ -218,10 +218,7 @@ impl TextProvider for AnthropicTextProvider {
             }
             Ok(AgentResponse {
                 text,
-                usage: Usage {
-                    prompt_tokens: response["usage"]["input_tokens"].as_u64(),
-                    completion_tokens: response["usage"]["output_tokens"].as_u64(),
-                },
+                usage: Usage::from_anthropic(&response["usage"]).include_cached_input(),
                 provider: self.name().into(),
                 model: response["model"]
                     .as_str()
@@ -412,10 +409,7 @@ pub(crate) fn parse_step(mut response: Value) -> AiResult<StepResponse> {
     Ok(StepResponse {
         model: response["model"].as_str().map(str::to_owned),
         text,
-        usage: Usage {
-            prompt_tokens: response["usage"]["input_tokens"].as_u64(),
-            completion_tokens: response["usage"]["output_tokens"].as_u64(),
-        },
+        usage: Usage::from_anthropic(&response["usage"]).include_cached_input(),
         tool_calls,
         provider_content: Some(content),
     })
