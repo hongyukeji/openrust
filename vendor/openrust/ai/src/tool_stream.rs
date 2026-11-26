@@ -74,10 +74,16 @@ pub(crate) async fn stream(
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
+            let execution = match &application {
+                Some(application) => application.scope(async {
+                    tools::prepare_execution(&completed.tool_calls, &registered, None, step == max_steps)
+                }).await?,
+                None => tools::prepare_execution(&completed.tool_calls, &registered, None, step == max_steps)?,
+            };
             for call in &completed.tool_calls {
                 yield event(&invocation_id, StreamEventData::ToolCall { call: call.clone() });
             }
-            let execution = tools::execute(&completed.tool_calls, &registered, None, step == max_steps);
+            let execution = execution.run();
             let results = match &application {
                 Some(application) => application.scope(execution).await,
                 None => execution.await,

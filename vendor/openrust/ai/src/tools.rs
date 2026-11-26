@@ -24,6 +24,10 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType;
+    fn should_request_approval(&self, _request: &ToolRequest<'_>) -> Option<crate::Approval> {
+        None
+    }
+
     fn handle<'a>(&'a self, request: ToolRequest<'a>) -> HttpFuture<'a, AiResult<String>>;
 }
 
@@ -173,12 +177,13 @@ pub(crate) async fn run(
             totals.completion_tokens = sum(previous.completion_tokens, totals.completion_tokens);
         }
         validate_calls(&response.tool_calls, &mut seen)?;
-        let results = execute(
+        let results = prepare_execution(
             &response.tool_calls,
             &tools,
             Some(&allowed),
             step == max_steps,
-        )
+        )?
+        .run()
         .await;
         let finished = response.tool_calls.is_empty() || step == max_steps;
         history.push(ToolStep {
@@ -253,33 +258,80 @@ pub(crate) fn validate_calls(calls: &[ToolCall], seen: &mut HashSet<String>) -> 
     Ok(())
 }
 
-pub(crate) async fn execute(
-    calls: &[ToolCall],
-    tools: &ToolHandlers,
+pub(crate) struct ExecutionPlan<'a> {
+    calls: &'a [ToolCall],
+    actions: Vec<ToolAction<'a>>,
+}
+
+enum ToolAction<'a> {
+    Run {
+        tool: &'a dyn Tool,
+        invocation_id: String,
+    },
+    Skip(&'static str),
+}
+
+pub(crate) fn prepare_execution<'a>(
+    calls: &'a [ToolCall],
+    tools: &'a ToolHandlers,
     allowed: Option<&BTreeSet<String>>,
     final_step: bool,
-) -> Vec<ToolResult> {
-    let mut results = Vec::with_capacity(calls.len());
+) -> AiResult<ExecutionPlan<'a>> {
+    let mut pending = Vec::new();
+    let mut actions = Vec::with_capacity(calls.len());
     for call in calls {
-        let output = match tools.get(&call.name) {
-            _ if final_step => Err("已达到 Agent 的最大步骤数"),
-            Some(tool) if allowed.is_none_or(|names| names.contains(&call.name)) => tool
-                .handle(ToolRequest {
+        let action = match tools.get(&call.name) {
+            _ if final_step => ToolAction::Skip("已达到 Agent 的最大步骤数"),
+            Some(tool) if allowed.is_none_or(|names| names.contains(&call.name)) => {
+                let invocation_id = Str::ulid().to_string();
+                let request = ToolRequest {
                     call,
-                    invocation_id: &Str::ulid().to_string(),
-                })
-                .await
-                .map_err(|_| "工具执行失败"),
-            _ => Err("该步骤未启用该工具"),
+                    invocation_id: &invocation_id,
+                };
+                if let Some(approval) = tool.should_request_approval(&request) {
+                    pending.push(crate::PendingApproval::for_call(call, approval));
+                }
+                ToolAction::Run {
+                    tool: tool.as_ref(),
+                    invocation_id,
+                }
+            }
+            _ => ToolAction::Skip("该步骤未启用该工具"),
         };
-        results.push(ToolResult {
-            id: call.id.clone(),
-            name: call.name.clone(),
-            failed: output.is_err(),
-            result: output.unwrap_or_else(str::to_owned),
-        });
+        actions.push(action);
     }
-    results
+    if !pending.is_empty() {
+        return Err(AiError::ApprovalNotResumable { pending });
+    }
+    Ok(ExecutionPlan { calls, actions })
+}
+
+impl ExecutionPlan<'_> {
+    pub(crate) async fn run(self) -> Vec<ToolResult> {
+        let mut results = Vec::with_capacity(self.calls.len());
+        for (call, action) in self.calls.iter().zip(self.actions) {
+            let output = match action {
+                ToolAction::Run {
+                    tool,
+                    invocation_id,
+                } => tool
+                    .handle(ToolRequest {
+                        call,
+                        invocation_id: &invocation_id,
+                    })
+                    .await
+                    .map_err(|_| "工具执行失败"),
+                ToolAction::Skip(message) => Err(message),
+            };
+            results.push(ToolResult {
+                id: call.id.clone(),
+                name: call.name.clone(),
+                failed: output.is_err(),
+                result: output.unwrap_or_else(str::to_owned),
+            });
+        }
+        results
+    }
 }
 
 fn sum(first: Option<u64>, second: Option<u64>) -> Option<u64> {

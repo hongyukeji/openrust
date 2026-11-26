@@ -369,6 +369,19 @@ let response = agent("Search the policy documents before answering.")
     .await?;
 ```
 
+### 工具审批策略 {#tool-approval}
+
+实现 `Tool::should_request_approval` 可根据工具参数要求审批。当前调用没有可恢复的审批上下文时，SDK 在执行该步骤的任何工具前返回 `AiError::ApprovalNotResumable`。普通响应的错误携带待审批的调用 ID、工具名、参数和原因。
+
+```rust
+use openrust_ai::{Approval, ToolRequest};
+
+fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval> {
+    let amount = request.get("amount")?.as_u64()?;
+    (amount > 100).then(|| Approval::new(Some("Confirm this amount.".into())))
+}
+```
+
 ## Agent 排队 {#queued-agents}
 
 给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。

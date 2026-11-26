@@ -369,6 +369,19 @@ let response = agent("Search the policy documents before answering.")
     .await?;
 ```
 
+### Tool approval policy {#tool-approval}
+
+Implement `Tool::should_request_approval` to request approval for selected arguments. When the invocation has no resumable approval context, the SDK returns `AiError::ApprovalNotResumable` before executing any tool in the step. The buffered error carries the pending call IDs, tool names, arguments, and reasons.
+
+```rust
+use openrust_ai::{Approval, ToolRequest};
+
+fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval> {
+    let amount = request.get("amount")?.as_u64()?;
+    (amount > 100).then(|| Approval::new(Some("Confirm this amount.".into())))
+}
+```
+
 ## Queued agents {#queued-agents}
 
 Implement `QueueableAgent` on a named Agent that derives `Serialize` and `Deserialize`. Give it a stable `QUEUE_JOB` name. Register it in the application service provider’s `boot` method with `TicketAgent::register_queue(queue.as_ref())`, where `queue` is the application’s `QueueManager`.

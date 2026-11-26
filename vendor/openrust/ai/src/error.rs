@@ -30,6 +30,10 @@ pub enum AiError {
     InvalidSchema,
     InvalidTools,
     InvalidToolChoice,
+    InvalidApprovalDecisions,
+    ApprovalNotResumable {
+        pending: Vec<crate::PendingApproval>,
+    },
     InvalidToolArguments,
     SimilaritySearchFailed,
     ToolsNotSupported,
@@ -109,6 +113,10 @@ impl fmt::Display for AiError {
             Self::InvalidSchema => formatter.write_str("AI 结构化输出模式无效"),
             Self::InvalidTools => formatter.write_str("AI 工具名称无效或重复"),
             Self::InvalidToolChoice => formatter.write_str("AI 工具选择与当前步骤的工具不匹配"),
+            Self::InvalidApprovalDecisions => formatter.write_str("AI 工具审批决定无效"),
+            Self::ApprovalNotResumable { .. } => {
+                formatter.write_str("该工具须经审批，当前调用没有审批恢复入口")
+            }
             Self::InvalidToolArguments => formatter.write_str("AI 工具参数无效"),
             Self::SimilaritySearchFailed => formatter.write_str("AI 相似度搜索查询失败"),
             Self::ToolsNotSupported => formatter.write_str("当前 AI 连接或调用方式未提供工具执行"),

@@ -413,3 +413,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 通过真实 Responses 工具循环检索 PostgreSQL 18.7 上的 pgvector 0.8.2。独立 HTTP 验证模型查询过滤、结果数量、SDK 缓存复用、Cohere 协议重排、注入自定义查询、空结果和无效参数。协议上游使用本地 TCP 服务。相关包测试与严格 Clippy 均通过。
 
 - [固定 Laravel SimilaritySearch](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/SimilaritySearch.php) · [固定 Laravel 工具名称解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/ToolNameResolver.php)
+
+## AI-03 工具审批声明与执行前门控
+
+工具通过 `Tool::should_request_approval` 针对当前参数声明审批要求。待审批项包含工具调用 ID、名称、参数与可选原因。`Decision` 和 `Decisions` 支持批准、拒绝、编辑参数及批准或拒绝剩余项，并检查空集合、重复调用 ID 与通配编辑。需要审批且没有恢复上下文时，普通请求返回 `ApprovalNotResumable`，流式入口交付错误。SDK 在执行当前批次的任一工具前检查整个批次，包括无须审批的并列工具。
+
+独立 Artisan 核对待审批项和决定集合。实际 HTTP 验证普通请求、Vercel 流式错误、并列工具无副作用，以及无须审批的普通调用。相关包测试、严格 Clippy 与三语文档验收通过。持久化审批、恢复执行和独立审批事件仍待实施。
+
+- [固定 Laravel Approvable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/Approvable.php) · [固定 Laravel 审批类型](https://github.com/laravel/ai/tree/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Approvals)

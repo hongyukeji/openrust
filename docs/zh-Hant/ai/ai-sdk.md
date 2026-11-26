@@ -369,6 +369,19 @@ let response = agent("Search the policy documents before answering.")
     .await?;
 ```
 
+### 工具審批策略 {#tool-approval}
+
+實作 `Tool::should_request_approval` 可依工具參數要求審批。目前呼叫沒有可恢復的審批上下文時，SDK 在執行該步驟的任何工具前回傳 `AiError::ApprovalNotResumable`。一般回應的錯誤包含待審批的呼叫 ID、工具名稱、參數及原因。
+
+```rust
+use openrust_ai::{Approval, ToolRequest};
+
+fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval> {
+    let amount = request.get("amount")?.as_u64()?;
+    (amount > 100).then(|| Approval::new(Some("Confirm this amount.".into())))
+}
+```
+
 ## Agent 排隊 {#queued-agents}
 
 讓具名 Agent 派生 `Serialize` 和 `Deserialize`，實作 `QueueableAgent` 並提供穩定的 `QUEUE_JOB` 名稱。在應用程式服務提供者的 `boot` 方法裡，從應用程式取得 `QueueManager`，呼叫 `TicketAgent::register_queue(queue.as_ref())` 註冊。
