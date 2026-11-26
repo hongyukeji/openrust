@@ -1,3 +1,4 @@
+mod embeddings;
 mod structured;
 mod tools;
 
@@ -202,6 +203,10 @@ impl TextProvider for BedrockProvider {
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async { self.connection.catalog(Err(AiError::ModelsNotSupported)) })
+    }
+
+    fn embedding_provider(&self) -> Option<Arc<dyn crate::EmbeddingProvider>> {
+        Some(Arc::new(self.clone()))
     }
 
     fn generate_text<'a>(

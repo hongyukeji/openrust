@@ -169,12 +169,15 @@ impl PendingEmbeddingsGeneration {
             Some(model) => model,
             None => provider.default_embeddings_model()?,
         };
+        let model = provider.normalize_embeddings_model(model)?;
         let prompt = EmbeddingsPrompt {
             inputs: &self.inputs,
-            model: provider.normalize_embeddings_model(model)?,
-            dimensions: self
-                .dimensions
-                .or_else(|| provider.default_embeddings_dimensions()),
+            model,
+            dimensions: provider.normalize_embeddings_dimensions(
+                model,
+                self.dimensions
+                    .or_else(|| provider.default_embeddings_dimensions()),
+            ),
             timeout: self.timeout,
         };
         if let Some(cache) = EmbeddingCache::resolve(
@@ -217,6 +220,14 @@ pub trait EmbeddingProvider: Send + Sync {
 
     fn normalize_embeddings_model<'a>(&self, model: &'a str) -> AiResult<&'a str> {
         Ok(model)
+    }
+
+    fn normalize_embeddings_dimensions(
+        &self,
+        _model: &str,
+        dimensions: Option<usize>,
+    ) -> Option<usize> {
+        dimensions
     }
 
     /// 由驱动提供连接隔离标识。返回 None 时仅调用上游。

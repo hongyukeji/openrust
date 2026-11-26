@@ -54,6 +54,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     )?;
     bedrock["region"] = bedrock_region.into();
     bedrock["url"] = env.get_utf8("BEDROCK_URL")?.into();
+    bedrock["models"]["embeddings"] = json!({"default": env.get_utf8("BEDROCK_EMBEDDING_MODEL")?});
     let mut groq = provider(
         "groq",
         "GROQ_URL",

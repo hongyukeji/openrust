@@ -714,6 +714,12 @@ Bedrock 普通与流式请求接入 `StepTextGateway`。本地函数映射为 AW
 
 - [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Bedrock 客户端工具](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html)
 
+Bedrock 的 `EmbeddingProvider` 复用 AWS Runtime `InvokeModel` 客户端、凭证装配与错误分类。Titan 按输入顺序逐条发送，默认 1024 维并汇总正文用量；Cohere 按固定基线发送整批文本，接受数组和 `float` 对象两种返回，使用模型原生维数并读取 AWS 用量头。缺失用量保持未知。模型按 E07 的显式选用规则，由调用或 `BEDROCK_EMBEDDING_MODEL` 提供。缓存沿用显式凭证的连接隔离，AWS 默认凭证链直接访问上游。
+
+本地 AWS 协议服务通过独立 HTTP 和 Artisan 实测 SigV4、Bearer、Titan 256 和 1024 维、顺序、用量汇总、Cohere 批量与缓存、缺用量、无效向量及 AWS 配额错误。同时复验 Converse 和 ConverseStream。21 项 SDK 回归、严格 Clippy 和三语站点通过。Bedrock 向量的正式 AWS 账户与网关入口仍待验收。
+
+- [固定 Laravel BedrockProvider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/BedrockProvider.php) · [固定 Laravel Bedrock 向量网关](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php#L554-L654) · [AWS 向量模型维数](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html)
+
 ### xAI 原生 Responses
 
 `xai` 连接复用 Responses 请求、SSE、模型目录与本地函数执行。支持显式模型和模型档位、原生 JSON Schema、图像内容、引用和上游 Token 明细。固定 Laravel 默认发送 `tool_choice: auto` 和封闭工具参数对象。按 xAI 官方无状态方案请求加密推理，在工具结果前回送同一连接返回的推理与调用条目。工具续步无需依赖 `previous_response_id`。加密推理沿用按连接和模型隔离的内部历史机制。

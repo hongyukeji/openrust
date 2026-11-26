@@ -852,6 +852,8 @@ Bedrock 的 Converse 和 ConverseStream 均可通过 `with_tools` 调用本地�
 
 Bedrock 的普通和流式调用均支持 `with_schema`。SDK 通过专用工具定义发送 Schema，并将该工具的参数作为最终 JSON 响应。与本地函数混用时，前面的回合可以调用本地函数，最后一轮选择结构化工具。对于固定 Laravel 基线中拒绝强制选工具的模型，SDK 把 Schema 加入系统指令，并检查最终文本能否解码为 JSON 对象。
 
+使用 Bedrock 文本向量时，设置 `AI_EMBEDDINGS_PROVIDER=bedrock` 和 `BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0`，然后调用 `Embeddings::r#for`。Titan 每次请求发送一条输入，默认 1024 维。向量索引需要其他维数时，Titan V2 支持 `.dimensions(256)` 和 `.dimensions(512)`。Cohere Embed 模型用 `search_document` 一次发送整批输入，维数由模型决定。
+
 使用 xAI 文本模型时，设置 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆盖默认地址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 配置模型档位。连接使用原生 Responses，支持 SSE、结构化输出、本地函数工具，以及受支持模型的图像输入。上游返回加密推理时，本地工具续步会把它随请求发回。运行 `./artisan ai:models xai` 查看发现的模型及已配置的模型。
 
 使用 xAI 原生连接时，SDK 用量和网关账本将推理 Token 计入输出总量一次，并单独记录推理子项。上游同时报告总量时，按总量判断输出字段是否已经包含推理。网关原生转发保留上游响应中的用量字段。
