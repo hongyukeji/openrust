@@ -419,10 +419,10 @@ fn relationship_load_callers(_: &mut Request) -> HttpFuture<'_, Result<Response,
 
 fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use openrust::database::{
-        Value,
+        DatabaseError, Value,
         eloquent::{
             Attributes, Model as _,
-            relations::{BelongsToMany, HasMany, HasOne, MorphMany},
+            relations::{BelongsToMany, HasMany, HasManyThrough, HasOne, MorphMany},
         },
         schema::Schema,
     };
@@ -431,7 +431,7 @@ fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response
     Box::pin(async {
         Schema::create("query_related_write_probe", |table| {
             table.id();
-            table.string("label", None);
+            table.string("label", None).unique();
             table.big_integer("owner_id").nullable();
             table.big_integer("subject_id").nullable();
             table.string("subject_type", None).nullable();
@@ -520,6 +520,61 @@ fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response
             .unwrap();
         assert!(peer.get_key().is_some());
 
+        let stranger_line = line!() + 1;
+        let stranger = Record::create(label("stranger")).await.unwrap();
+        let middle_line = line!() + 1;
+        let middle = children.create(&parent, label("middle")).await.unwrap();
+        let through =
+            HasManyThrough::<Record, Record, Record>::new("owner_id", "subject_id", "id", "id");
+        let through_values =
+            Attributes::from([("subject_id".into(), middle.get_key().unwrap().clone())]);
+        let mut through_seed = label("through");
+        through_seed.extend(through_values.clone());
+        let through_seed_line = line!() + 1;
+        let expected_through = Record::create(through_seed).await.unwrap();
+
+        let mut proposed = label("child");
+        proposed.insert("owner_id".into(), stranger.get_key().unwrap().clone());
+        proposed.insert("subject_type".into(), "upserted".into());
+        let upsert_line = line!() + 2;
+        let affected = children
+            .upsert(&parent, vec![proposed], &["label"], Some(&["subject_type"]))
+            .await
+            .unwrap();
+        assert!(affected > 0);
+        assert_eq!(
+            children
+                .upsert(&parent, vec![], &["label"], None)
+                .await
+                .unwrap(),
+            0
+        );
+
+        let direct_recovery_line = line!() + 2;
+        let direct = children
+            .create_or_first(&parent, label("child"), Attributes::new())
+            .await
+            .unwrap();
+        assert_eq!(numeric_key(&direct), numeric_key(&child));
+        assert_eq!(direct.get_attribute("owner_id"), parent.get_key());
+        assert_eq!(
+            direct.get_attribute("subject_type"),
+            Some(&Value::from("upserted"))
+        );
+        let through_recovery_line = line!() + 2;
+        let recovered = through
+            .create_or_first(&parent, label("through"), through_values.clone())
+            .await
+            .unwrap();
+        assert_eq!(numeric_key(&recovered), numeric_key(&expected_through));
+        assert_eq!(recovered.get_attribute("subject_id"), middle.get_key());
+        let outside_line = line!() + 2;
+        let outside = through
+            .create_or_first(&stranger, label("through"), through_values)
+            .await;
+        assert!(matches!(outside, Err(DatabaseError::Driver { source, .. })
+            if source.as_database_error().is_some_and(|error| error.is_unique_violation())));
+
         Response::json(
             http::StatusCode::OK,
             [
@@ -533,6 +588,13 @@ fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response
                 (morph_many, 1),
                 (morph_one, 1),
                 (pivot, 2),
+                (stranger_line, 1),
+                (middle_line, 1),
+                (through_seed_line, 1),
+                (upsert_line, 1),
+                (direct_recovery_line, 1),
+                (through_recovery_line, 1),
+                (outside_line, 1),
             ],
         )
     })

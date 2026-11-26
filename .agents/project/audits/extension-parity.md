@@ -433,7 +433,11 @@ Rust 在关联的公开创建、保存、读后写、upsert 及 touch 入口捕�
 
 macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过上述仓储验收。三包默认 90 项、框架关系默认 6 项及原生 MySQL 2 项、快照全仓格式和严格 Clippy 通过。Windows 11 ARM64 及 Linux 7.0.14 ARM64 以 Rust 1.94.0 编译同一快照并通过 HTTP 与 SQLite 专项，三语站点构建及 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-relationship-write-{final,final-linux,core-mysql,docs}.log` 和 `target/tmp/observability-windows/query-relationship-write-final-arm64.log`。
 
-尚待补充远程关系、反向 touch、upsert 和查找失败后恢复等变体的逐入口来源实测，以及 Release 与生产组合验收。
+补验固定 PHP 8.5.12 的真实 SQLite 与 QueryWatcher。直接 HasMany 的 `upsert` 记录一条写入，冲突后的 `createOrFirst` 仅记录恢复查询。HasManyThrough 的命中与关联范围外的未命中各记录一条恢复查询，未命中继续返回原唯一键冲突。四条均归到调用行。UUID 生成由 Laravel 自带的可替换工厂提供。证据为 `target/tmp/observability-parity/query-relationship-recovery-upstream.log`。
+
+Rust 在现有 HTTP 路由和 Telescope 仓储补验对应入口。三库均确认直接 upsert 的实际更新、按原关系归属恢复同一记录、通过中间表恢复、跨父记录时保留唯一键冲突、空批次无 SQL，以及各自文件与行号。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13 专项、Watcher 15 项、快照全仓格式和相关严格 Clippy 通过。证据为 `target/tmp/observability-parity/query-relationship-recovery-macos.log`。
+
+其余远程关系、反向 touch、其他写入变体及 Release 与生产组合继续验收。
 
 ### Telescope Query 模型与集合的关系加载来源
 
