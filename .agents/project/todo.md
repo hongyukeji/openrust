@@ -10,16 +10,16 @@
 
 | 顺序 | 开发机任务 | 可并行和前置条件 |
 | --- | --- | --- |
-| 1 | 接续 [Webhook 出站恢复事件](#webhook-recovery-handoff)，按交接状态核对候选、夹具和剩余开发范围。 | 现有候选优先收口。先核对已提交基线和文件范围。[调度诊断](#observability-handoff)实现已本地提交，进入验收。 |
-| 2 | 按 [Artisan 与 Controllers 交接](#artisan-controllers-handoff)恢复可选 Tinker，再接续 Controllers 的批量单例、URI 动词及剩余锚点。 | Tinker 与第 1 项可并行。Controllers 接续保留的上游对照与源码快照。 |
-| 3 | 按各自账本继续 Webhook、内容审核、观测扩展和全仓 Laravel 对齐。Webhook 可靠接收接缝是内容审核相关回调工作的前置。 | Pulse、Telescope 逐项核对剩余契约。可独立交付的组件分批推进，公共接口取决于上游裁决及共享模块的已固定提交。 |
+| 1 | 按 [Artisan 与 Controllers 交接](#artisan-controllers-handoff)恢复可选 Tinker，再接续 Controllers 的批量单例、URI 动词及剩余锚点。 | 先核对保留的源码快照、已提交基线和固定上游对照，按候选分别交接。 |
+| 2 | 按各自账本继续 Webhook、内容审核和观测扩展剩余契约。 | Webhook 可靠接收接缝是内容审核相关回调工作的前置。Pulse、Telescope 的独立工作可与第 1 项并行。 |
+| 3 | 接续[全仓 Laravel 对齐](#laravel-对齐后续边界)的 Validation、TestResponse、Query 和 ORM 裁决。 | 可独立交付的组件分批推进，公共接口依赖固定上游裁决和共享模块的已固定提交。 |
 
 ### 验收顺序
 
 | 顺序 | 验收机任务 | 输入和通过条件 |
 | --- | --- | --- |
-| 1 | 从已提交源码并行恢复平台与数据库专项。 | 依冻结 SHA 跑较新 Linux ARM64 生产制品和 Linux 调度用户矩阵；Telescope 调度诊断 `5f0b2a769` 补 PostgreSQL／MySQL。Docker／Lima 就绪后使用原交接命令，分别记录实际架构、服务版本和消费者结果。 |
-| 2 | 验收开发机交接的候选，到一批验一批。 | Webhook 核对恢复、旧租约和双 Scheduler 的已有结果，再补 PostgreSQL／MySQL 与 Redis。Tinker 跑真实 PTY、单次求值、默认关闭和部署烟测。Controllers 跑上游对照、真实 TCP、`route:list` 和三语。细项与命令见各自交接。 |
+| 1 | 从已提交源码并行恢复跨后端与平台专项。 | [Webhook 恢复事件](#webhook-recovery-handoff) `cb8151df1` 的 SQLite 已通过，补 PostgreSQL／MySQL、Redis 队列和双 Scheduler。[Telescope 调度诊断](#observability-handoff) `5f0b2a769` 补 PostgreSQL／MySQL。Docker／Lima 就绪后，依冻结 SHA 跑较新 Linux ARM64 生产制品及 Linux 调度用户矩阵。 |
+| 2 | 验收开发机交接的候选，到一批验一批。 | Tinker 跑真实 PTY、单次求值、默认关闭和部署烟测。Controllers 跑上游对照、真实 TCP、`route:list` 和三语。细项与命令见各自交接。 |
 | 3 | 选定最终交付快照后，执行 [REL-V01](#平台与发布条件)及完整平台矩阵。 | 固定源码、依赖、feature 与制品，运行组合回归、迁移、启动关停及许可核对。已验旧制品的结果只适用于对应快照。 |
 | 4 | [真实供应商与部署验收](#external-acceptance)。 | 授权账号、实际端点和平台齐备后按各条执行。BCP 47 实际迁移由目标环境部署者按备份和冲突审阅流程独立推进。发布须完成最终分发批准。 |
 
