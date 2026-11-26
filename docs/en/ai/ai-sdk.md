@@ -236,6 +236,8 @@ Set `billing.enabled` and `usage.enabled` to true. Publish and run the gateway m
 
 Each rate is a decimal string in the specified currency per million tokens. Set `cache_read`, `cache_write` or `reasoning` only when those tokens have distinct rates. Each charge uses its captured tariff. Missing usage evidence or prices can leave an amount pending. Use `./artisan ai:gateway:usage:list --billing` to inspect cost and receivable records, their price versions and their exact decimal amounts. Each page reads usage, charges and invoice evidence in one database statement.
 
+Set `groups.<group>.rate_multiplier` to a nonnegative decimal string such as `"0.5"` to adjust the published model’s downstream charge for that group. The gateway applies the multiplier before rounding the amount and before reserving group funds. The recorded price snapshot retains the multiplier in effect when the request started.
+
 Each upstream attempt has its own record. Retries share a `request_id`. The record includes the downstream Key or group, published model, connection, upstream model, response status, and the token counts the upstream actually reports. Missing counts are `null`. The ledger omits Key secrets, request bodies and response text.
 
 Set `"forward_usage_context": true` on the SDK connection to your gateway in `ai.providers`. The gateway records `consumer_invocation` and the zero-based `model_turn` for each actual text request. Use `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` to inspect the attempts, and add `--invocation-scope=<scope>` to limit results to the originating Key scope. Each model turn gets its own gateway request ID. Correlation IDs have no effect on charging or request deduplication.
@@ -274,7 +276,7 @@ Use `./artisan ai:gateway:billing:import invoice.json --actor=operator` for a pr
 
 Use `complete: false` for a partial statement. For a corrected statement, keep its source, statement ID and time window, then increase the revision. Reimporting the same revision and contents is idempotent. The usage list's original `amount` preserves the rate-based estimate, and `actual` shows the confirmed supplier cost when available. A currency mismatch or conflicting report is visible for operator review.
 
-When gateway billing is enabled, request `GET /v1/sub2api/billing` with a Key assigned to a group. The response uses the Sub2API version 1 token billing metadata format. OpenRust charges the configured published-model rates directly, so the response reports a multiplier of `1`. Add `?include=group` to see the calling Key’s group name. Upstream costs and other groups’ balances are available through operator commands.
+When gateway billing is enabled, request `GET /v1/sub2api/billing` with a Key assigned to a group. The response uses the Sub2API version 1 token billing metadata format. The response reports the group’s configured rate multiplier, which defaults to `1`. Add `?include=group` to see the calling Key’s group name. Upstream costs and other groups’ balances are available through operator commands.
 
 ### Daily group billing budget {#billing-budget}
 

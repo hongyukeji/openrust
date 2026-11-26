@@ -236,6 +236,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 费率用十进制字符串表示，单位为指定币种每百万 Token。分别定价时配置 `cache_read`、`cache_write` 或 `reasoning`。每笔费用使用请求时保存的费率。缺少价格或用量证据时，金额可保留待核对。运行 `./artisan ai:gateway:usage:list --billing` 可查看成本、应收、价格版本及精确小数金额。每页在同一条数据库查询中读取用量、费用和账单证据。
 
+在 `groups.<分组>.rate_multiplier` 设置非负十进制字符串，例如 `"0.5"`，可调整该分组的公开模型应收。倍率参与预占和结算，结算金额最后统一舍入。费率快照保留请求时使用的倍率。
+
 每次上游尝试各有一条记录。回退尝试共用 `request_id`。记录包含下游 Key 或分组、公开模型、连接、上游模型、响应状态和供应商实际返回的 Token 数。缺失用量保留为 `null`。账本省略 Key 密钥、请求正文和生成文本。
 
 在 `ai.providers` 中，为连接自有网关的 SDK 连接设置 `"forward_usage_context": true`。网关为每次实际文本请求保存 `consumer_invocation` 和从零开始的 `model_turn`。运行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相关尝试，并可用 `--invocation-scope=<scope>` 限定发起调用的 Key 范围。各模型回合有独立的网关请求 ID。关联标识不影响计费或请求去重。
@@ -274,7 +276,7 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 部分账单使用 `complete: false`。更正时沿用来源、账单 ID 和时间窗口并增加版本号。同版本同内容可重复导入。用量清单中的 `amount` 保留费率计算值，`actual` 展示有证据的供应商成本。币种不符或报告冲突会保留供运维核对。
 
-启用网关计费后，用已分组的 Key 请求 `GET /v1/sub2api/billing`。响应采用 Sub2API 第 1 版 Token 计费元数据格式。OpenRust 直接使用公开模型的配置费率，响应中的倍率为 `1`。附加 `?include=group` 可查询当前 Key 的分组名称。上游成本与其他分组的余额由运维命令查询。
+启用网关计费后，用已分组的 Key 请求 `GET /v1/sub2api/billing`。响应采用 Sub2API 第 1 版 Token 计费元数据格式。响应返回该分组的费率倍率，默认为 `1`。附加 `?include=group` 可查询当前 Key 的分组名称。上游成本与其他分组的余额由运维命令查询。
 
 ### 分组每日货币预算 {#billing-budget}
 

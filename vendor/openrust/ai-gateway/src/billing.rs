@@ -23,6 +23,8 @@ const PER_MILLION: i128 = 1_000_000;
 pub(crate) struct Amount(i128);
 
 impl Amount {
+    pub(crate) const ONE: Self = Self(SCALE);
+
     pub(crate) fn from_atoms(atoms: i64) -> Self {
         Self(i128::from(atoms))
     }
@@ -82,6 +84,12 @@ struct Tariff {
     reasoning: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     input_token_limit: Option<i64>,
+    #[serde(
+        skip_deserializing,
+        skip_serializing_if = "Option::is_none",
+        rename = "rate_multiplier"
+    )]
+    multiplier: Option<Amount>,
 }
 
 #[derive(Default, Deserialize)]
@@ -138,7 +146,17 @@ impl PriceBook {
         Ok(Some(self))
     }
 
-    pub(crate) fn select(&self, provider: &str, upstream_model: &str, model: &str) -> ChargePlan {
+    pub(crate) fn select(
+        &self,
+        provider: &str,
+        upstream_model: &str,
+        model: &str,
+        multiplier: Option<Amount>,
+    ) -> ChargePlan {
+        let mut downstream = self.downstream.get(model).cloned();
+        if let Some(tariff) = &mut downstream {
+            tariff.multiplier = multiplier;
+        }
         ChargePlan {
             version: self.version.clone(),
             upstream_model: upstream_model.to_owned(),
@@ -147,7 +165,7 @@ impl PriceBook {
                 .get(provider)
                 .and_then(|models| models.get(upstream_model))
                 .cloned(),
-            downstream: self.downstream.get(model).cloned(),
+            downstream,
         }
     }
 }
@@ -183,7 +201,7 @@ impl ChargePlan {
         let units = input_rate
             .checked_mul(i128::from(cap))?
             .checked_add(output_rate.checked_mul(i128::from(output))?)?;
-        Amount(units.checked_add(PER_MILLION - 1)? / PER_MILLION).atoms()
+        tariff.amount(units, Rounding::Ceiling)?.atoms()
     }
 
     pub(crate) fn receivable(&self, settlement: &Settlement) -> Option<Amount> {
@@ -316,12 +334,40 @@ impl Tariff {
             .checked_add(read)?
             .checked_add(write)?
             .checked_add(reasoning)?;
-        let quotient = numerator / PER_MILLION;
-        let remainder = numerator % PER_MILLION;
-        let round_up =
-            remainder > PER_MILLION / 2 || (remainder == PER_MILLION / 2 && quotient % 2 != 0);
-        Some(Amount(quotient + i128::from(round_up)))
+        self.amount(numerator, Rounding::HalfEven)
     }
+
+    fn amount(&self, numerator: i128, rounding: Rounding) -> Option<Amount> {
+        let (quotient, remainder, divisor) = if let Some(multiplier) = self.multiplier {
+            let divisor = PER_MILLION * SCALE;
+            // 分解两侧整除项，避免在最终金额可表示时中间乘积溢出。
+            let fraction = numerator % divisor;
+            let tail = fraction * (multiplier.0 % divisor);
+            let quotient = (numerator / divisor)
+                .checked_mul(multiplier.0)?
+                .checked_add(fraction * (multiplier.0 / divisor))?
+                .checked_add(tail / divisor)?;
+            (quotient, tail % divisor, divisor)
+        } else {
+            (
+                numerator / PER_MILLION,
+                numerator % PER_MILLION,
+                PER_MILLION,
+            )
+        };
+        let round_up = match rounding {
+            Rounding::Ceiling => remainder != 0,
+            Rounding::HalfEven => {
+                remainder > divisor / 2 || (remainder == divisor / 2 && quotient % 2 != 0)
+            }
+        };
+        quotient.checked_add(i128::from(round_up)).map(Amount)
+    }
+}
+
+enum Rounding {
+    Ceiling,
+    HalfEven,
 }
 
 fn rate_component(total: &mut i128, rate: Option<Amount>, count: Option<i64>) -> Option<i128> {

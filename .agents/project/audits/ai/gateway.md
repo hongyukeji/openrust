@@ -268,6 +268,12 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 在隔离库预置未出站记录，�
 
 ## GW-04 Sub2API Key 计费元数据
 
-`GET /v1/sub2api/billing` 沿用固定 [Sub2API Key 计费处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_key_billing.go) 的对象标识、版本、当前倍率字段、UTC 观察时间和无缓存响应。仅已启用计费且通过鉴权的分组 Key 可查询。OpenRust 使用公开模型的最终费率，倍率为 1，高峰倍率关闭。重复或逗号分隔的 `include` 可请求该 Key 的分组名称，分组说明为空。此入口的回传范围限于计费元数据。
+`GET /v1/sub2api/billing` 沿用固定 [Sub2API Key 计费处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_key_billing.go) 的对象标识、版本、当前倍率字段、UTC 观察时间和无缓存响应。仅已启用计费且通过鉴权的分组 Key 可查询。首批沿用公开模型费率及默认倍率 1，分组费率倍率见下节。高峰倍率关闭。重复或逗号分隔的 `include` 可请求该 Key 的分组名称，分组说明为空。此入口的回传范围限于计费元数据。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测静态 Key、Bearer 与 `x-api-key`、无凭证和无分组的拒绝、同一查询无法指定其他分组。实际 Artisan 签发、轮换和撤销托管 Key 后分别验证 HTTP 行为。停用计费时已认证请求返回 404，验证该端点未触发上游。两包测试、严格 Clippy 和三语文档通过。用户级和高峰倍率属于后续计费策略。
+
+## GW-04 分组费率倍率
+
+`groups.<group>.rate_multiplier` 按十进制解析，作用于下游应收及其预占上界。费用快照保存倍率，并在最终金额按半偶规则舍入。兼容计费元数据同步返回实际分组倍率，默认值为 1。
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测 0.5 倍率预占 0.075、结算 0.00625、上游成本保持 0.01。精度样例验证先乘倍率再舍入。重启后应用新倍率 0.25 与新版本费率，既有账目仍可读回原始金额和快照。独立 HTTP 和 Artisan、两包测试、严格 Clippy 与三语文档通过。

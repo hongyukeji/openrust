@@ -236,6 +236,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 費率以十進位字串表示，單位為指定幣別每百萬 Token。分項定價時設定 `cache_read`、`cache_write` 或 `reasoning`。每筆費用使用請求時儲存的費率。缺少價格或用量證據時，金額可保留待核對。執行 `./artisan ai:gateway:usage:list --billing` 可查看成本、應收、價格版本與精確小數金額。每頁在同一條資料庫查詢中讀取用量、費用和帳單證據。
 
+在 `groups.<群組>.rate_multiplier` 設定非負十進位字串，例如 `"0.5"`，可調整該群組的公開模型應收。倍率參與預留和結算，結算金額最後統一捨入。費率快照保留請求時使用的倍率。
+
 每次上游嘗試各有一筆記錄。備援嘗試共用 `request_id`。記錄包含下游 Key 或群組、公開模型、連線、上游模型、回應狀態和供應商實際回報的 Token 數。缺少的用量保留為 `null`。帳本省略 Key 金鑰、請求本文和產生的文字。
 
 在 `ai.providers` 中，為連線至自有閘道的 SDK 連線設定 `"forward_usage_context": true`。閘道為每次實際文字請求儲存 `consumer_invocation` 和從零開始的 `model_turn`。執行 `./artisan ai:gateway:usage:list --billing --invocation-id=<id>` 可查看相關嘗試，並用 `--invocation-scope=<scope>` 限定發起呼叫的 Key 範圍。各模型回合有獨立的閘道請求 ID。關聯識別碼不影響計費或請求去重。
@@ -274,7 +276,7 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 部分帳單使用 `complete: false`。更正時沿用來源、帳單 ID 和時間範圍並增加版本號。同版本同內容可重複匯入。用量清單的 `amount` 保留費率計算值，`actual` 顯示已有證據的供應商成本。幣別不符或報表衝突會保留供維運核對。
 
-啟用閘道計費後，使用已分組的 Key 請求 `GET /v1/sub2api/billing`。回應採用 Sub2API 第 1 版 Token 計費中繼資料格式。OpenRust 直接使用公開模型的設定費率，回應中的倍率為 `1`。附加 `?include=group` 可查詢目前 Key 的群組名稱。上游成本與其他群組的餘額由維運指令查詢。
+啟用閘道計費後，使用已分組的 Key 請求 `GET /v1/sub2api/billing`。回應採用 Sub2API 第 1 版 Token 計費中繼資料格式。回應傳回該群組的費率倍率，預設為 `1`。附加 `?include=group` 可查詢目前 Key 的群組名稱。上游成本與其他群組的餘額由維運指令查詢。
 
 ### 分組每日貨幣預算 {#billing-budget}
 

@@ -9,6 +9,7 @@ use super::{
     Gateway, HttpFuture, HttpResult, Protocol, Request, Response, StatusCode, authorize,
     catalog_protocol,
 };
+use crate::billing::Amount;
 
 pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
@@ -34,15 +35,18 @@ pub(super) fn show(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             .map_err(|source| openrust::http::HttpError::Internal {
                 source: Box::new(source),
             })?;
-        // OpenRust 的下游费率是发布模型的最终基础费率。
+        let multiplier: serde_json::Number =
+            String::from(key.rate_multiplier().unwrap_or(Amount::ONE))
+                .parse()
+                .expect("倍率是有效的 JSON 十进制数");
         let mut result = json!({
             "object": "sub2api.key_billing",
             "schema_version": 1,
             "billing_scope": "token",
-            "group_rate_multiplier": 1,
-            "resolved_rate_multiplier": 1,
+            "group_rate_multiplier": multiplier,
+            "resolved_rate_multiplier": multiplier,
             "peak_rate_enabled": false,
-            "effective_rate_multiplier": 1,
+            "effective_rate_multiplier": multiplier,
             "observed_at": observed,
         });
         if request.uri().query().is_some_and(includes_group) {

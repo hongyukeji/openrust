@@ -20,7 +20,7 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     accounts::{Account, MAX_SECONDS},
-    billing::{ChargePlan, PriceBook},
+    billing::{Amount, ChargePlan, PriceBook},
     budget::{Budget, BudgetReservation},
     codex_catalog::CodexMetadata,
     invocation::CallIdentity,
@@ -84,6 +84,7 @@ struct AccountConfiguration {
 struct GroupConfiguration {
     quota: Option<OutputQuota>,
     budget: Option<Budget>,
+    rate_multiplier: Option<Amount>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
@@ -92,6 +93,7 @@ struct Group {
     name: String,
     quota: Option<OutputQuota>,
     budget: Option<Budget>,
+    rate_multiplier: Option<Amount>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
@@ -116,6 +118,10 @@ pub(crate) struct Key {
 impl Key {
     pub(crate) fn group_name(&self) -> Option<&str> {
         self.group.as_ref().map(|group| group.name.as_str())
+    }
+
+    pub(crate) fn rate_multiplier(&self) -> Option<Amount> {
+        self.group.as_ref().and_then(|group| group.rate_multiplier)
     }
 
     pub(crate) fn limiter_key(&self) -> String {
@@ -446,6 +452,7 @@ impl Gateway {
                     name,
                     quota: group.quota,
                     budget: group.budget,
+                    rate_multiplier: group.rate_multiplier,
                     models: group.models,
                     providers: group.providers,
                 }),
@@ -608,7 +615,7 @@ impl Gateway {
                 if let Some(reservation) = &reservation {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
-                let charges = self.charge_plan(name, target, upstream_endpoint);
+                let charges = self.charge_plan(key, name, target, upstream_endpoint);
                 let attempt = store
                     .begin(&context, reservation, key.usage_owner(), charges, budget)
                     .await
@@ -658,13 +665,14 @@ impl Gateway {
             endpoint,
             target.provider.supports_endpoint(TextEndpoint::Responses),
             payload,
-            self.charge_plan(model, target, endpoint).as_ref(),
+            self.charge_plan(key, model, target, endpoint).as_ref(),
             group.quota.map(|quota| quota.max_output_tokens),
         )
     }
 
     fn charge_plan(
         &self,
+        key: &Key,
         name: &str,
         target: &Target,
         endpoint: TextEndpoint,
@@ -677,10 +685,14 @@ impl Gateway {
                 | TextEndpoint::GeminiGenerateContent
                 | TextEndpoint::GeminiStreamGenerateContent
         );
-        self.billing
-            .as_ref()
-            .filter(|_| billable)
-            .map(|prices| prices.select(&target.provider_name, &target.upstream_model, name))
+        self.billing.as_ref().filter(|_| billable).map(|prices| {
+            prices.select(
+                &target.provider_name,
+                &target.upstream_model,
+                name,
+                key.rate_multiplier(),
+            )
+        })
     }
 }
 
