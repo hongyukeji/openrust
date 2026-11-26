@@ -68,7 +68,12 @@ impl NativeWatcher {
         } else if let Some(event) =
             event.downcast_ref::<openrust::console::events::ScheduledTaskCompleted>()
         {
-            if self.enabled("ScheduleWatcher") {
+            let scheduler_command = context
+                .and_then(|context| context.arguments_for(event))
+                .and_then(|arguments| arguments.first())
+                .and_then(|argument| argument.downcast_ref::<&str>())
+                .copied();
+            if self.enabled("ScheduleWatcher") && scheduler_command != Some("schedule:test") {
                 let output = event
                     .output
                     .as_ref()

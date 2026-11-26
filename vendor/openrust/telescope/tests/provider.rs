@@ -686,6 +686,43 @@ async fn scheduled_entries_record_the_explicit_or_effective_schedule_timezone() 
     }
 }
 
+#[tokio::test]
+async fn schedule_test_keeps_its_command_entry_without_recording_a_scheduled_task() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    app.artisan(["schedule:test", "--name=observed callback"])
+        .await
+        .assert_successful();
+    assert!(
+        repository
+            .get(Some(EntryType::ScheduledTask), EntryQueryOptions::default())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let entries = repository
+        .get(Some(EntryType::Command), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.content["command"] == "schedule:test")
+    );
+    app.artisan(["schedule:run"]).await.assert_successful();
+    assert_eq!(
+        repository
+            .get(Some(EntryType::ScheduledTask), EntryQueryOptions::default())
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
 fn input_handler(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {

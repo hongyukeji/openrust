@@ -42,7 +42,7 @@ Blade 回應的請求記錄包含實際範本路徑和明確繫結資料，包�
 
 應用事件可實作 `Event::properties()` 提供 JSON 診斷快照；Rust 不會反射任意結構欄位。事件監聽器名稱來自實際的派送器註冊。模型載入計數使用原生 Eloquent 生命週期。郵件保留原始 mailable 與佇列旗標；預覽使用瀏覽器沙箱，下載提供擷取的 MIME 郵件。
 
-排程工作詳情優先顯示工作的明確時區，其次顯示 `app.schedule_timezone`，缺少該設定時顯示應用程式時區。明確設為 `null` 時，未指定時區的工作在診斷中保留空值。
+排程工作詳情優先顯示工作的明確時區，其次顯示 `app.schedule_timezone`，缺少該設定時顯示應用程式時區。明確設為 `null` 時，未指定時區的工作在診斷中保留空值。透過 `schedule:run` 或 `schedule:finish` 執行的工作會出現在排程記錄中。手動 `schedule:test` 由 CommandWatcher 記錄。
 
 使用 `openrust::support::dump(&value).await?` 記錄 Debug 傾印。蒐集需要啟用面板傾印監看或設定 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。此方法不攔截 `dbg!`、`println!` 或同步集合傾印方法。請求輸入記錄使用已解碼資料，不讀取尚未消費的本文串流。Redis 觀察涵蓋透過 `Connection::query_command` 成功執行的命令；管線與專用阻塞傳輸不在此觀察路徑內。
 

@@ -42,7 +42,7 @@ Blade 响应的请求记录包含实际模板路径和显式绑定数据，包�
 
 应用事件实现 `Event::properties()` 提供 JSON 诊断快照；Rust 不会反射任意结构体字段。监听器名称来自实际调度器注册。模型水合计数来自原生 Eloquent 生命周期。邮件保留原始 mailable 类型和排队标记；预览使用浏览器沙箱，下载包含捕获的 MIME 邮件。
 
-调度任务详情优先显示任务显式时区，其次显示 `app.schedule_timezone`，缺少该配置时显示应用时区。显式设为 `null` 时，未指定时区的任务在诊断中留空。
+调度任务详情优先显示任务显式时区，其次显示 `app.schedule_timezone`，缺少该配置时显示应用时区。显式设为 `null` 时，未指定时区的任务在诊断中留空。通过 `schedule:run` 或 `schedule:finish` 执行的任务出现在调度记录中。手动 `schedule:test` 由 CommandWatcher 记录。
 
 使用 `openrust::support::dump(&value).await?` 记录 Debug 内容；需要面板 Dump Watcher 活跃，或设置 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。该辅助方法不拦截 `dbg!`、`println!` 或同步集合 dump。请求载荷仅使用已解码数据，不读取尚未消费的请求体流。Redis 观察覆盖 `Connection::query_command` 成功执行的命令，不包含流水线和专用阻塞传输。
 

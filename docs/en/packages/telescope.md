@@ -42,7 +42,7 @@ Each of the 18 public types under `openrust_telescope::watchers` implements `Wat
 
 For application events, implement `Event::properties()` to expose a JSON diagnostic snapshot; Rust does not reflect arbitrary struct fields. Event listener names come from actual dispatcher registrations. Model hydration counts use the native Eloquent lifecycle. Mail records preserve the original mailable and queued flag. Mail previews use a browser sandbox, and downloads contain the captured MIME message.
 
-Scheduled task details record a task's explicit time zone, then the configured `app.schedule_timezone` or the application time zone when no schedule setting is present. An explicit null schedule setting leaves the default diagnostic value empty.
+Scheduled task details record a task's explicit time zone, then the configured `app.schedule_timezone` or the application time zone when no schedule setting is present. An explicit null schedule setting leaves the default diagnostic value empty. Tasks run by `schedule:run` or `schedule:finish` appear under scheduled tasks. A manual `schedule:test` is recorded by CommandWatcher.
 
 Use `openrust::support::dump(&value).await?` for an observed Debug dump. Collection requires an active dashboard dump watcher or `TELESCOPE_DUMP_WATCHER_ALWAYS=true`. This helper does not intercept `dbg!`, `println!` or synchronous collection dump methods. Request input recording uses already-decoded data and never consumes an unread body stream. Redis observation covers successful commands executed through `Connection::query_command`; pipelines and dedicated blocking transports are outside this observation path.
 

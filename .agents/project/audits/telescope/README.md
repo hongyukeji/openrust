@@ -109,6 +109,12 @@ PHP 8.5.12 使用固定 Laravel Kernel 及 Schedule 构造任务。任务显式�
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 用实际 `schedule:run` 和 `telescope:show --json` 验证上述字段。核心调度及测试时钟 22 项通过，Redis 8.10.3 实际复验进程协调、互斥和清理。Pulse Provider 27 项、Telescope Provider 31 项、隔离快照格式、相关严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-schedule-zone-{upstream,macos-baseline,macos,redis,docs}.log`。固定 Laravel 指定系统用户运行时的 `user` 仍是开放契约，原生记录保留空值。
 
+### 手动调度试跑的记录范围
+
+固定 PHP 8.5.12 调用实际 `ScheduleWatcher::recordCommand`。`schedule:run` 和 `schedule:finish` 各登记一个完成回调，`schedule:test` 不登记。原生前态的手动试跑生成调度条目。原生调度器沿用公开完成事件，通过派发上下文携带启动命令。Telescope 跳过 `schedule:test` 的调度条目，同时保留 CommandWatcher 的命令条目。 [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 的实际 Artisan 验证先手动试跑再正常调度，手动命令仍可查询，两条正常调度条目保留。核心调度与时钟 22 项、Pulse Provider 27 项、Telescope Provider 32 项、快照格式、相关严格 Clippy、三语文档和六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-schedule-test-{upstream,macos-baseline,macos-retry,docs}.log`。
+
 ### list 命令的终端颜色
 
 固定 PHP 8.5.12 使用 Telescope 样式方法和 Symfony Console 8.0.6 核对 34 个普通与装饰输出的单元格。原生 `list` 通过框架现有 ANSI 开关显示 HTTP 方法、状态码、慢查询、任务状态、缓存动作和日志级别。慢标记采用固定上游的 PHP 真值规则。诊断内容中的标签以文字呈现，原始控制字符在表格中清理。 [固定输出样式方法](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/Concerns/FormatsOutput.php#L97-L176)

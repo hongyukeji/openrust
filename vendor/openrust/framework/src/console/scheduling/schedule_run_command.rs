@@ -448,7 +448,7 @@ impl ScheduleRunCommand {
         let fallback = configured_recording_timezone(app);
         let recorded_timezone = task.zone.as_ref().or(fallback.as_ref());
         let result = self
-            .invoke_with_hooks(app, output, task, recorded_timezone)
+            .invoke_with_hooks(app, output, task, recorded_timezone, "schedule:test")
             .await;
         if let Some(mutex) = &mutex {
             mutex.forget(task).await.map_err(error)?;
@@ -682,7 +682,7 @@ impl ScheduleRunCommand {
                 self.launch_background(app, output, entry.index, event, overlap)
                     .await
             } else {
-                self.invoke_with_hooks(app, output, event, entry.recorded_timezone)
+                self.invoke_with_hooks(app, output, event, entry.recorded_timezone, "schedule:run")
                     .await
             };
             Ok::<_, ConsoleError>((result, start.elapsed()))
@@ -733,9 +733,10 @@ impl ScheduleRunCommand {
         output: &mut Output,
         event: &Event,
         recorded_timezone: Option<&TimeZone>,
+        scheduler_command: &'static str,
     ) -> Result<TaskOutcome, ConsoleError> {
         event.call_before_hooks(app, output).await?;
-        self.invoke_with_after_hooks(app, output, event, recorded_timezone)
+        self.invoke_with_after_hooks(app, output, event, recorded_timezone, scheduler_command)
             .await
     }
 
@@ -745,6 +746,7 @@ impl ScheduleRunCommand {
         output: &mut Output,
         event: &Event,
         recorded_timezone: Option<&TimeZone>,
+        scheduler_command: &'static str,
     ) -> Result<TaskOutcome, ConsoleError> {
         let (outcome, captured) = self.invoke(app, output, event).await?;
         if outcome.is_ok() || matches!(event.action, Action::Callback(..) | Action::Job(..)) {
@@ -755,6 +757,7 @@ impl ScheduleRunCommand {
                     matches!(outcome, Ok(TaskOutcome::Succeeded)),
                     &captured,
                     recorded_timezone,
+                    scheduler_command,
                 )
                 .await?;
         }
@@ -968,8 +971,14 @@ impl ScheduleRunCommand {
             Some(task) => {
                 let fallback = configured_recording_timezone(app);
                 let recorded_timezone = task.zone.as_ref().or(fallback.as_ref());
-                self.invoke_with_after_hooks(app, output, task, recorded_timezone)
-                    .await
+                self.invoke_with_after_hooks(
+                    app,
+                    output,
+                    task,
+                    recorded_timezone,
+                    "schedule:finish",
+                )
+                .await
             }
             None => Err(error("The scheduled background task could not be found.")),
         };

@@ -191,6 +191,7 @@ impl Event {
         succeeded: bool,
         captured: &[u8],
         recorded_timezone: Option<&TimeZone>,
+        scheduler_command: &'static str,
     ) -> Result<(), ConsoleError> {
         for (kind, hook) in &self.after_hooks {
             let applies = match kind {
@@ -224,8 +225,12 @@ impl Event {
                 }
             }
         }
-        use crate::{contracts::foundation::Application as _, support::facades::Event as Events};
-        Events::dispatch(crate::console::events::ScheduledTaskCompleted {
+        use crate::{
+            contracts::{events::Dispatcher as _, foundation::Application as _},
+            events::EventContext,
+            support::facades::Event as Events,
+        };
+        let completed = Arc::new(crate::console::events::ScheduledTaskCompleted {
             command: match self.action {
                 Action::Callback(..) => "Closure".into(),
                 _ => self.command_name(),
@@ -245,9 +250,14 @@ impl Event {
                 .destination
                 .as_ref()
                 .is_some_and(|destination| destination.append),
-        })
-        .await
-        .map_err(super::error)?;
+        });
+        let arguments: [&(dyn std::any::Any + Send + Sync); 1] = [&scheduler_command];
+        let mut context = EventContext::with_arguments(completed.as_ref(), &arguments);
+        Events::dispatcher()
+            .map_err(super::error)?
+            .dispatch(completed.clone(), &mut context)
+            .await
+            .map_err(super::error)?;
         Ok(())
     }
 
