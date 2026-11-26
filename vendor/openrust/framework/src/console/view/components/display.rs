@@ -35,7 +35,7 @@ fn mutate(text: &str, mutators: &[&dyn Mutator]) -> Result<String, ConsoleError>
         .iter()
         .try_fold(text.to_owned(), |value, mutator| mutator.apply(&value))
 }
-fn styling() -> &'static Regex {
+pub(super) fn styling() -> &'static Regex {
     static STYLING: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"<[A-Za-z0-9_=#/;,:.&,%?\-]+>|\x1b\[[0-9]+m").expect("合法的组件样式表达式")
     });

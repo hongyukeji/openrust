@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "verified_html_table_binding_to_existing_native_table_code_extensions_pending",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer -> table::prepare",
+  "bindings": {
+    "TableRenderer::__construct/toElement": "per-render decorated Output and existing Table then normal Prepared div wrapper",
+    "parseTable/Header/Foot/Body/Rows/Row": "native TableRow/TableCell/TableSeparator/set_headers/add_rows",
+    "parseCellStyle/parseTitleStyle": "existing Style::classes/format, colors-only cellFormat and TableCellStyle",
+    "cell markup": "existing serialized node content, br conversion, recursive default component layout and shared styling regex"
+  },
+  "source_oracle": {
+    "file": "component-html-table-oracle.json",
+    "cases": 648,
+    "errors": 88,
+    "mode": "Ansi4, widths20/80, ANSI on/off, Raw/Normal; real HandleExceptions excluding deprecation reports"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 174,
+    "browser_checks": 12,
+    "framework_parent_tests": 48,
+    "framework_targets": 11
+  },
+  "scope": [
+    "7既有命名表格样式与未知样式错误、thead/tbody/tfoot标题/类/行顺序、多个表头最后覆盖、分隔行、空表/空单元格。",
+    "colspan/rowspan及默认max1、align/非法align、单元格颜色/粗体/样式错误、多字节宽度、内嵌HTML/br/嵌套表格、父布局包装与ANSI缓冲。",
+    "Table HTML class不作通用组件类应用，thead class只在title使用时解析；保留源错误及未使用属性的时机。",
+    "实际消费者验证HTML临时标题样式不写回共享命名定义，失败反例复现后修复；直接Table SDK共享/别名/跨度/样式原回归保持。"
+  ],
+  "adaptations": [
+    "复用已验Table/TableCell/TableCellStyle/Separator/Style/Prepared/Output，无新布局或ANSI机制、依赖、PHP运行时或机器数据格式变化。",
+    "Rust长驻多请求下，HTML renderer先复制所选命名样式，临时标题格式只改本次对象。固定源PHP会经getStyle改共享静态定义，已复现原样直译污染；原生Table公开共享语义不改。此为明确状态生命周期适配，非未实现功能。",
+    "tr border分隔线限定0..1,000,000，避免负数源递减条件不终止及无界分隔；沿现有资源边界策略，不对源负数执行无限循环。",
+    "旧v0.x无对应控制台HTML表格适配可复用，提取当前已闭合Table SDK接线；通用HTML4恢复不宣称已齐。"
+  ],
+  "remaining": [
+    "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

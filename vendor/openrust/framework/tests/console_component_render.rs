@@ -145,7 +145,7 @@ fn unsupported_markup_fails_instead_of_silently_losing_layout_and_compile_errors
     for html in [
         "<div class='not-a-style'>X</div>",
         "<pre class='not-a-style'>X</pre>",
-        "<table><tr><td>X</td></tr></table>",
+        "<table style='unknown'><tr><td>X</td></tr></table>",
         "<span class='w-999999999'>X</span>",
     ] {
         assert!(component.render_view(html, json!({})).is_err(), "{html}");

@@ -2188,7 +2188,7 @@ fn register_component_lists() -> Result<(), ConsoleError> {
 
 `pre` preserves line content instead of collapsing whitespace. It removes at most one empty first and last line, pads every remaining line to the maximum UTF-8 byte length plus three spaces, then renders each line through the normal div styles. Multibyte text therefore does not use terminal-column width for this initial padding step. The example emits a leading line break and `One   ` / `Two   `.
 
-Inner tags remain literal markup rather than recursively registered components; output options still determine how the final formatter handles them. The preformatted result is opaque to parent styles, while layout can measure its rendered content. Empty and hidden results remain valid elements. Direct preformatted children are rejected by list child-type checks when they are not moved outside the list by HTML recovery. CRLF, comments, explicit empty attributes and minimized boolean attributes retain their established serialization distinctions. Table/code rendering and general malformed-HTML recovery remain separate unfinished capabilities.
+Inner tags remain literal markup rather than recursively registered components; output options still determine how the final formatter handles them. The preformatted result is opaque to parent styles, while layout can measure its rendered content. Empty and hidden results remain valid elements. Direct preformatted children are rejected by list child-type checks when they are not moved outside the list by HTML recovery. CRLF, comments, explicit empty attributes and minimized boolean attributes retain their established serialization distinctions. Code rendering and general malformed-HTML recovery remain separate unfinished capabilities.
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2210,6 +2210,39 @@ fn register_component_pre() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(PreCompiler)));
             component.render_view("pre", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### HTML table output {#component-html-tables}
+
+Use the built-in Table pipeline from component markup. `style` selects a named table style; `thead`, `tbody` and `tfoot` supply headers, rows, titles and footer separators. Cells support `align`, `rowspan`, `colspan` and the existing text/color classes. Header cells apply strong text, and `<br>` inside a cell becomes a line break. Invalid styles or alignment propagate errors.
+
+The table first renders through its own decorated buffer before entering the component layout. Its ANSI output can therefore remain present even when the outer output is undecorated. HTML title styles use a per-render copy of the selected named style, preventing temporary colors from modifying later requests in a long-running application. Direct Table API shared-style behavior is unchanged. Code highlighting, custom style/color repositories and general malformed-HTML recovery remain unfinished.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct TableCompiler;
+impl ComponentViewCompiler for TableCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "table" => Ok("<table style='box'><thead title='Report'><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>Alpha</td><td align='right'>12</td></tr></tbody></table>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_table() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:table", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(TableCompiler)));
+            component.render_view("table", json!({}))?;
             Ok(0)
         })
     }))?;

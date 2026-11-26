@@ -8,7 +8,8 @@
     "component-sizing-contracts.json",
     "component-style-methods-contracts.json",
     "component-list-elements-contracts.json",
-    "component-pre-elements-contracts.json"
+    "component-pre-elements-contracts.json",
+    "component-html-table-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1316,7 +1317,7 @@
     ]
   },
   "remaining": [
-    "终端SDK继续table/code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
     "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
   ],
   "dispatch_boundary": "All 71 declared method names inform class resolution; this is not an export of 71 public native methods. Generic markup setters/text transforms verified; list/border require specialized elements; object/array/signature and non-Styles-returning methods are not callable as scalar CSS classes.",

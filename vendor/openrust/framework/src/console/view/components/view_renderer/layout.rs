@@ -1,7 +1,7 @@
 // 第三方许可见 ../LICENSE.renderer。
 use super::{
     dom::{self, Node},
-    lists, pre, style,
+    lists, pre, style, table,
     tree::Prepared,
 };
 use crate::console::{ConsoleError, Terminal};
@@ -65,6 +65,9 @@ fn prepare(
     }
     if node.tag() == "pre" {
         return pre::prepare(nodes, id, first, depth);
+    }
+    if node.tag() == "table" {
+        return table::prepare(nodes, id, first, depth);
     }
     let mut children = vec![];
     let (first_meaningful, last_meaningful) = boundaries(nodes, &node.children);

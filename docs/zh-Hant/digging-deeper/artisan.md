@@ -2188,7 +2188,7 @@ fn register_component_lists() -> Result<(), ConsoleError> {
 
 `pre` 保留行內容，不折疊空白。最多移除首尾各一個空行，將其餘行按最大 UTF-8 位元組長度加三個空格補齊，再透過一般 div 樣式逐行渲染。因此初始填充對多位元組文字使用位元組長度，而不是終端欄寬。範例輸出首個換行以及 `One   `／`Two   `。
 
-內部標籤作為原樣標記保留，不遞迴註冊成元件；最終格式器如何處理它們仍取決於輸出選項。預格式結果不繼承父樣式，佈局可測量其已渲染內容。空結果和隱藏結果仍是有效元素。未被 HTML 恢復移到列表外的直接預格式子元素，會被列表子型別檢查拒絕。CRLF、註解、顯式空屬性和省略值的布林屬性保留既定序列化區別。表格／程式碼渲染與通用異常 HTML 恢復仍是獨立未完成能力。
+內部標籤作為原樣標記保留，不遞迴註冊成元件；最終格式器如何處理它們仍取決於輸出選項。預格式結果不繼承父樣式，佈局可測量其已渲染內容。空結果和隱藏結果仍是有效元素。未被 HTML 恢復移到列表外的直接預格式子元素，會被列表子型別檢查拒絕。CRLF、註解、顯式空屬性和省略值的布林屬性保留既定序列化區別。程式碼渲染與通用異常 HTML 恢復仍是獨立未完成能力。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError,
@@ -2210,6 +2210,39 @@ fn register_component_pre() -> Result<(), ConsoleError> {
             let mut component = Component::new(output);
             component.set_view_compiler(Some(Box::new(PreCompiler)));
             component.render_view("pre", json!({}))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+### HTML 表格輸出 {#component-html-tables}
+
+元件標記重用內建 Table 管線。`style` 選擇命名表格樣式；`thead`、`tbody` 和 `tfoot` 提供表頭、正文、標題與表尾分隔行。儲存格支援 `align`、`rowspan`、`colspan` 及既有文字／顏色類。表頭儲存格設定 strong，儲存格內 `<br>` 轉成換行。無效樣式或對齊沿原機制回傳錯誤。
+
+表格先經過獨立的彩色緩衝輸出，再進入元件佈局，所以外層關閉裝飾時，內部 ANSI 輸出仍可能保留。HTML 標題樣式使用所選命名樣式的本次副本，避免臨時顏色修改長駐應用的後續請求；直接 Table API 的共享樣式行為不變。程式碼高亮、自訂樣式／顏色倉庫及通用異常 HTML 恢復仍未完成。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct TableCompiler;
+impl ComponentViewCompiler for TableCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        match view {
+            "table" => Ok("<table style='box'><thead title='Report'><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>Alpha</td><td align='right'>12</td></tr></tbody></table>".into()),
+            _ => BuiltinComponentViewCompiler::new().compile(view, data, output),
+        }
+    }
+}
+fn register_component_table() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:table", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(TableCompiler)));
+            component.render_view("table", json!({}))?;
             Ok(0)
         })
     }))?;

@@ -1,0 +1,48 @@
+{
+  "base": "1d0556964e64521e70322e293c64c62912c73f57",
+  "contract": "component-html-table-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-html-table-gates.log",
+    "target/tmp/artisan-tutorial-20261125/component-html-table-site.log",
+    "target/tmp/artisan-tutorial-20261125/component-html-table-pty-results.json"
+  ],
+  "test_results": [
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.44s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.16s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.23s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+    "test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.25s",
+    "test result: ok. 174 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s"
+  ],
+  "source_oracle": {
+    "file": "component-html-table-oracle.json",
+    "cases": 648,
+    "errors": 88,
+    "mode": "Ansi4, widths20/80, ANSI on/off, Raw/Normal; real HandleExceptions excluding deprecation reports"
+  },
+  "runtime": {
+    "actual_artisan_processes": 5,
+    "actual_http_requests": 17,
+    "pty_cases": 5,
+    "formal_document_consumers": 174,
+    "browser_checks": 12,
+    "framework_parent_tests": 48,
+    "framework_targets": 11
+  },
+  "failed_attempts_not_counted": [
+    "component-html-table-first.log: private generator changed to_string_pretty name, corrected",
+    "component-html-table-title-counterexample.log: original translation leaks temporary title into shared style, fixed with owned copy",
+    "first private PTY path pointed to extra -elements suffix, corrected before final run"
+  ],
+  "remaining": [
+    "终端SDK继续code专用渲染、自定义样式/颜色仓库及通用HTML4/HTML5恢复差异；默认文本/列表/分隔线/pre/table已验不重开。独立Styles/Element/Style/Repository公开扩展对象仍待逐项映射。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "pushed": false
+}

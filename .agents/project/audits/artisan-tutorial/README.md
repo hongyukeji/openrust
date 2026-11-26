@@ -808,3 +808,16 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 失败过程原样保留：首轮空/hidden原始元素被滤除，次轮发现CRLF预处理差异，第三轮只余pre/ul隐式结束，均据固定来源修复；第四轮普通渲染旧测试仍断言pre必须失败，已改为无效pre样式报错，由新增来源和真实消费者覆盖正常pre，不降低错误标准。最初薄TokenSink未消费must_use结果，改为明确验证Continue，无allow。一个额外PHP属性探针遇Docker暂时不响应，仅终止本批探针及其父进程；后续docker version恢复、1480来源实际重跑完成，未重启应用或Docker服务，最终同镜像无运行容器。中断探针不计通过。
 
 先独立快照验收，通过后14路径逐项核根基线再回写，保留其他在途变更。沿现行缓存/TMPDIR，无本簇磁盘停线、数据库或持久服务；HTTP/PTY/浏览器已结束。既有样式/尺寸/颜色/渲染回归保持通过。继续table/code、自定义样式/颜色仓库、独立扩展对象、通用恢复与Factory/Helper/Time；已验pre及旧8项不重开。命令/SHA见accepted-component-pre-elements.json，仅本地提交、不推送。
+
+
+## 57. HTML 表格与原生 Table 管线复用（2026-11-26）
+
+56已本地提交1d0556964e64521e70322e293c64c62912c73f57，未推送。固定TableRenderer构造/toElement及parseTable/Header/Foot/Body/Rows/Row/CellStyle/TitleStyle全部追踪到现有原生Table、TableCell、TableCellStyle和TableSeparator。没有第二套表格布局/ANSI，也没有新依赖。单元格先经既有节点序列化、br转LF、通用布局，复用Styling表达式判定font-normal；标题/单元格格式仍用既有Style。表格独立decorated buffer输出后去末尾一个LF，回普通div继续父布局，保留Source在外层无装饰/Raw时仍可见内层ANSI的行为。
+
+648真实Source场景（88错误）核对7命名样式/未知、标题表头表尾/分隔、最后表头覆盖、Footer先于Body、空、行列跨度及默认限制、对齐/非法、class解析时机、颜色/粗体、多字节、嵌入br/strong/嵌套table。20/80列、Raw/Normal、ANSI开关均验，来源色彩固定Ansi4，不冒称本簇重新执行8/24色PHP；既有单元格样式回归另跑。Source错误使用真实HandleExceptions，不以警告宽松执行造成功。
+
+必要Rust状态适配已实修并告知用户：按源直接getStyle()->setTitleFormat会把临时HTML标题色写回共享命名定义。真实App/Table定义读取反例已复现，默认格式被改成fg=#ef4444。HTML renderer现在先复制所选样式，临时标题只改本次对象；渲染输出仍与源648一致。直接Table API的共享定义/别名行为不改，原定义、单元格样式和跨度三目标回归通过。tr border限制0..1,000,000，源负数for($i=$border;$i--;$i>0)不终止，不实际执行无限循环；这是延续资源边界的明确差异。
+
+11框架目标48父消费者、5实际Artisan/17HTTP含错误后恢复与12并发/5PTY真实20列，174正式三语直接提取消费者、三语站点12手机/桌面浏览器、workspace/all-targets严格Clippy和格式全部通过。辅助ignore由父调用，不额外计独立通过。首轮私有测试生成误改to_string_pretty名字，修后重跑；私有PTY文件路径多出-elements，修正后实跑通过。旧泛型回归原先断言合法table必须失败，现改为未知表格样式报错，新增Source和消费者覆盖正常输出，不降低验证标准。反例/失败日志保留，不计通过。
+
+先独立快照验收，再逐一核根13路径基线后回写，保护其他在途。沿现行缓存/TMPDIR，本簇未触及停线，无数据库/持久服务，Source容器--rm，HTTP/CLI/PTY/浏览器均结束。同步live账本中53“完整样式分发待完成”旧标签为已验尺寸状态，历史accepted/source原记录不改。旧v0.x没有HTML Table桥接，复用当前已验Table。继续code渲染、样式/颜色仓库、独立扩展类型、通用恢复及Factory/Helper/Time；整章仍开放。见accepted-component-html-table.json，核定范围本地提交，不推送。

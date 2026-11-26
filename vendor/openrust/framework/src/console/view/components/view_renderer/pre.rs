@@ -5,7 +5,7 @@ use crate::{
     support::decode_html_entities,
 };
 /// XML 保存后实体解码的节点内容；文本与属性的转义在这两个步骤中抵消。
-fn inner(nodes: &[Node], id: usize, depth: usize) -> Result<String, ConsoleError> {
+pub(super) fn inner(nodes: &[Node], id: usize, depth: usize) -> Result<String, ConsoleError> {
     if depth > 256 {
         return Err(ConsoleError::new("控制台组件嵌套超过安全深度"));
     }

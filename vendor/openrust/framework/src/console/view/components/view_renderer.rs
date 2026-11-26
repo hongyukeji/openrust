@@ -8,6 +8,7 @@ mod pre;
 mod style;
 mod style_methods;
 mod style_tokens;
+mod table;
 mod tree;
 use super::ComponentContext;
 use crate::console::{AsOutput, ConsoleError, OutputOptions};
