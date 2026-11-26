@@ -232,6 +232,12 @@ Windows 11 ARM64 的实际 Service Control Manager 使用 WinSW 2.14.0 ARM64 管
 
 使用隔离 Redis 8.10.3 和真实 Worker 时，`Stop-Service` 等待同一正在执行的任务完成，再核对旧 Worker 已退出、Redis 的 Master 状态已清除。重新启动后，强制结束已核对归属的空闲 Master，SCM 依据恢复策略启动新的 Master、Supervisor 和 Worker。最后停止并卸载本批临时服务。证据为 `target/tmp/observability-windows/winsw-reference/acceptance-verified.log`。正式服务账户、物理 Windows x64、最新发布快照和目标 Redis 拓扑继续验收。
 
+### Linux ARM64 的 Supervisor 排空与重启
+
+在 Linux 7.0.14 ARM64 容器中，使用 Supervisor 4.2.5 和隔离 Redis 8.10.3，复用 `42e89b6f7b0219f81ce7686dd2c100618a1c4136` 默认 Release 构建的 Horizon ELF。该制品 SHA-256 为 `659c191a165257f709a24017031aa30c119445e17e897c1aba3bc4ffaa480efd`。设置 `autorestart=true`、`stopsignal=TERM` 和 `stopwaitsecs=30`。Supervisor 的控制 socket 使用容器内本地 tmpfs，宿主共享挂载曾在初始化 socket 时返回 `EINVAL`。 [Laravel Horizon 部署文档](https://laravel.com/framework/docs/13.x/horizon#deploying-horizon) [Supervisor 配置](https://supervisord.org/configuration.html#program-x-section-settings)
+
+通过 `supervisorctl pid` 核对 Master PID，实际执行 `horizon:terminate --wait`，确认正在运行的任务成功完成、旧 Master 退出、Supervisor 启动新 Master。再执行 `supervisorctl stop`，确认第二个任务成功完成、进程退出码为 0、Redis 心跳清除。最后使用 `supervisorctl start` 恢复完整进程树并正常关闭夹具。证据为 `target/tmp/observability-parity/linux-supervisor-reference/acceptance-prebuilt-tmpfs.log`。验收覆盖该固定 Linux 制品与已测试的服务配置，当前集群改动和正式部署制品分别跟踪。
+
 ## 任务耗时计时契约
 
 固定 Horizon 在 `JobReserved` 的保留状态监听器之后启动 `Stopwatch`，成功删除时读取耗时，异常或失败时清理计时器。PHP 8.5.12 用受控时钟执行固定 `Stopwatch`，确认毫秒保留两位小数，半值进位，重复启动覆盖，未知及清理后的计时返回空值。证据为 `target/tmp/observability-parity/horizon-stopwatch-upstream.log`。 [固定 Stopwatch](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Stopwatch.php) [固定事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
