@@ -40,7 +40,7 @@ function updateOption(parameter, value) {
 }
 function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof text==='object'&&text!==null?(text.name??JSON.stringify(text)):String(text??'—');return e}
 function meter(card,label,used,total){const item=document.createElement('div');item.className='reading';item.append(cell('p',label));const bar=document.createElement('progress');bar.max=100;bar.value=total>0?Math.min(100,used/total*100):0;bar.setAttribute('aria-label',label);item.append(bar);card.append(item)}
-const selectedServerReadings = new Map();
+const selectedTrendReadings = new Map();
 function serverTrend(card, key, label, readings, limit, unit) {
     const buckets = Object.entries(readings ?? {});
     if (!(limit > 0)) return;
@@ -51,7 +51,6 @@ function serverTrend(card, key, label, readings, limit, unit) {
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', label);
-    svg.setAttribute('tabindex', '0');
     svg.dataset.serverTrend = key;
     const commands = [];
     const samples = [];
@@ -59,7 +58,7 @@ function serverTrend(card, key, label, readings, limit, unit) {
         if (!Number.isFinite(value)) return;
         const x = 2 + index / Math.max(1, buckets.length - 1) * 596;
         const y = 37 - Math.min(1, Math.max(0, value / limit)) * 34;
-        samples.push({timestamp, value, x});
+        samples.push({timestamp, x, label: `${formatBucketTime(timestamp)} · ${value.toLocaleString()}${unit}`});
         const previous = Number.isFinite(buckets[index - 1]?.[1]);
         commands.push(`${previous ? 'L' : 'M'} ${x} ${y}`);
         if (!previous && !Number.isFinite(buckets[index + 1]?.[1])) {
@@ -75,22 +74,34 @@ function serverTrend(card, key, label, readings, limit, unit) {
     line.setAttribute('stroke-linecap', 'round');
     line.setAttribute('vector-effect', 'non-scaling-stroke');
     svg.append(line);
+    attachTrendReadings(card, svg, key, samples, 40);
+}
+function formatBucketTime(timestamp) {
+    return new Date(timestamp.replace(' ', 'T') + 'Z')
+        .toLocaleString(undefined, {timeZoneName: 'short'});
+}
+function attachTrendReadings(card, svg, key, samples, height) {
+    if (samples.length === 0) {
+        card.append(svg);
+        return;
+    }
+    svg.setAttribute('tabindex', '0');
+    svg.dataset.trendKey = key;
     const detail = document.createElement('output');
-    detail.className = 'server-reading';
+    detail.className = svg.classList.contains('server-trend') ? 'server-reading' : 'queue-reading';
     detail.hidden = true;
     let active = -1;
-    const targets = samples.map(({timestamp, value, x}, index) => {
+    const targets = samples.map(({label, x}, index) => {
         const left = index === 0 ? 0 : (samples[index - 1].x + x) / 2;
         const right = index === samples.length - 1 ? 600 : (x + samples[index + 1].x) / 2;
-        const target = document.createElementNS(namespace, 'rect');
+        const target = document.createElementNS(svg.namespaceURI, 'rect');
         target.setAttribute('x', left);
         target.setAttribute('y', '0');
         target.setAttribute('width', right - left);
-        target.setAttribute('height', '40');
+        target.setAttribute('height', height);
         target.setAttribute('fill', 'transparent');
-        const title = document.createElementNS(namespace, 'title');
-        const date = new Date(timestamp.replace(' ', 'T') + 'Z');
-        title.textContent = `${date.toLocaleString(undefined, {timeZoneName: 'short'})} · ${value.toLocaleString()}${unit}`;
+        const title = document.createElementNS(svg.namespaceURI, 'title');
+        title.textContent = label;
         target.append(title);
         svg.append(target);
         target.addEventListener('pointerup', event => {
@@ -104,13 +115,13 @@ function serverTrend(card, key, label, readings, limit, unit) {
         detail.hidden = index < 0;
         detail.textContent = targets[index]?.text ?? '';
         if (index < 0) {
-            selectedServerReadings.delete(key);
+            selectedTrendReadings.delete(key);
         } else {
-            selectedServerReadings.set(key, samples[index].timestamp);
+            selectedTrendReadings.set(key, samples[index].timestamp);
             targets[index].target.setAttribute('data-selected', '');
         }
     }
-    selectReading(samples.findIndex(sample => sample.timestamp === selectedServerReadings.get(key)));
+    selectReading(samples.findIndex(sample => sample.timestamp === selectedTrendReadings.get(key)));
     svg.addEventListener('focus', () => {
         if (active < 0) selectReading(samples.length - 1);
     });
@@ -179,6 +190,7 @@ function queues(card, values, rate) {
     const sampled = Number.isFinite(rate) && rate > 0 && rate < 1;
     const format = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0});
     const count = raw => sampled ? '~' + format.format(raw / rate) : format.format(raw);
+    const readingCount = raw => sampled ? '~' + (raw / rate).toLocaleString() : raw.toLocaleString();
     for (const [key, types] of entries) {
         const label = showConnection ? key : key.slice(key.indexOf(':') + 1);
         const series = queueSeries.map(([type, name, color]) => {
@@ -192,6 +204,7 @@ function queues(card, values, rate) {
         card.append(cell('h3', label), peak);
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('queue-trend');
         svg.setAttribute('viewBox', '0 0 600 100');
         svg.setAttribute('role', 'img');
         svg.setAttribute('aria-label', label + ' queue activity');
@@ -225,7 +238,17 @@ function queues(card, values, rate) {
             legendLabel.style.borderColor = color;
             legend.append(legendLabel);
         }
-        card.append(svg, legend);
+        const buckets = Object.keys(types.queued ?? {});
+        const samples = buckets.map((timestamp, index) => {
+            const x = index / Math.max(1, buckets.length - 1) * 600;
+            const readings = queueSeries.map(([type, name]) => {
+                const raw = Number(types[type]?.[timestamp] ?? 0);
+                return `${name}: ${readingCount(raw)}`;
+            });
+            return {timestamp, x, label: `${formatBucketTime(timestamp)} · ${readings.join(', ')}`};
+        });
+        attachTrendReadings(card, svg, 'queue:' + key, samples, 100);
+        card.append(legend);
     }
 }
 function renderRows(card, values, headings = {}) {
@@ -298,7 +321,7 @@ function queryTimingTitle(timing, label = '') {
 }
 
 function render(data) {
-    const focusedTrend = document.activeElement?.dataset.serverTrend;
+    const focusedTrend = document.activeElement?.dataset.trendKey;
     const timings = data.query_timing ?? {};
     main.replaceChildren();
     for (const [name, title] of Object.entries(names)) {
@@ -337,10 +360,10 @@ function render(data) {
         }
         main.append(card);
     }
-    const trends = new Map(Array.from(main.querySelectorAll('[data-server-trend]'),
-        trend => [trend.dataset.serverTrend, trend]));
-    for (const key of selectedServerReadings.keys()) {
-        if (!trends.has(key)) selectedServerReadings.delete(key);
+    const trends = new Map(Array.from(main.querySelectorAll('[data-trend-key]'),
+        trend => [trend.dataset.trendKey, trend]));
+    for (const key of selectedTrendReadings.keys()) {
+        if (!trends.has(key)) selectedTrendReadings.delete(key);
     }
     trends.get(focusedTrend)?.focus({preventScroll: true});
 }

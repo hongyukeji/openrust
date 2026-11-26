@@ -13,5 +13,5 @@ th{white-space:nowrap}td:not([data-column="key"]){white-space:nowrap}td[data-col
 .cache-summary dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
 
 .server-trend{height:40px;color:#38bdf8;background:#182238;border-radius:4px}
-.server-trend [data-selected]{fill:#38bdf82e}
-.server-reading{font-size:13px;margin-top:4px;color:#cbd5e1}
+.server-trend [data-selected],.queue-trend [data-selected]{fill:#38bdf82e}
+.server-reading,.queue-reading{font-size:13px;margin-top:4px;color:#cbd5e1}

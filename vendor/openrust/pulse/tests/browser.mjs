@@ -45,6 +45,15 @@ try{
   const peak = page.locator('.queue-peak');
   assert.equal(await peak.textContent(), 'Peak: ~8');
   assert.equal(await peak.getAttribute('title'), 'Sample rate: 0.4, Raw value: 3');
+  const queueReading=page.locator('.queue-reading');
+  const sampledBucket=queue.locator('rect').filter({hasText:/Queued: ~7\.5/});
+  assert.equal(await sampledBucket.count(),1);
+  await queue.focus();
+  await queue.press('Home');
+  assert.match(await queueReading.textContent(),/Queued: ~/);
+  await queue.press('Escape');
+  assert(await queueReading.isHidden());
+
   assert((await page.locator('#cards').innerText()).includes('ID: 42'));
   assert((await page.locator('#cards').innerText()).includes('<img src=x onerror=window.compromised=true>'));
   assert.equal(await page.locator('#cards img').count(),0);
@@ -123,6 +132,10 @@ try{
  assert.match(await touchReading.textContent(), /13%$/);
  await touchGraph.locator('rect').last().tap();
  assert.match(await touchReading.textContent(), /25%$/);
+ const touchQueue=phone.getByRole('img',{name:'default queue activity',exact:true});
+ const queueReading=phone.locator('.queue-reading');
+ await touchQueue.locator('rect').filter({hasText:/Queued: ~7\.5/}).tap();
+ assert.match(await queueReading.textContent(),/Queued: ~7\.5/);
  console.log('native Pulse dashboard: taps read individual samples PASS');
  await touch.close();
 }finally{await browser.close()}

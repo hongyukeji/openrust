@@ -42,7 +42,7 @@ Slow activity cards default to the slowest operation and can sort by count. Exce
 
 Slow activity, exception, usage, cache and queue cards cache query results for five seconds in `pulse.cache`. Each period and applicable sort or usage type selects a separate result. Cache totals and per-key rows use separate entries. Server heartbeats and graphs share a cache entry for each period and server configuration. Hover over a card heading to see its query duration and execution time. The cache card shows separate timings for totals and key details.
 
-The Queues card shows the peak count for each queue in the selected period. At sample rates between zero and one, it marks the estimated peak with `~` and shows the raw count in a tooltip. Queue names include their connection when the card shows more than one connection. A zero sample rate displays existing raw counts.
+The Queues card shows the peak count for each queue in the selected period. At sample rates between zero and one, it marks the estimated peak with `~` and shows the raw count in a tooltip. Queue names include their connection when the card shows more than one connection. A zero sample rate displays existing raw counts. Hover over a time bucket, tap it, or focus the chart and use the arrow keys to read its counts. Automatic refresh retains the selected time while it remains visible.
 
 Cache shows hits, misses and hit rate across the selected period, including keys outside the 100-row table. When sampling is enabled, displayed counts are estimated and marked with `~`. The JSON endpoint returns raw totals and the sample rate in `cache_totals`.
 

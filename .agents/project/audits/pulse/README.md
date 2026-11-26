@@ -140,6 +140,12 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 的授权 HTTP 通过�
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 及具名 Redis 8.10.3 通过真实 HTTP，验证缓存曲线和查询时间保持一致时可应用新的采样率。真实 Pulse 应用的 Chrome 桌面与手机版面验证峰值、标签和图形；受控指标响应另测单双连接切换及零采样率。Pulse 缓存 6 项、Provider 24 项、Telescope Provider 27 项通过，独占 Telescope Redis 用例沿用测试条件。全目标 Pulse 严格 Clippy、隔离快照格式、三语文档及六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-queue-card-{upstream,macos-retry,browser-baseline,browser,docs}.log`。
 
+### 队列采样点读数与刷新
+
+固定队列图的提示回调显示选中时点的采样计数。按固定 Blade 中的回调核对，采样率 0.4 时原始计数 3 和 1 分别显示为 `~7.5` 和 `~2.5`。原生图显示本地时间及该时间点各队列事件的读数，支持鼠标、触摸和键盘，五秒刷新后保留仍在图中的时间点及键盘焦点。 [固定队列面板](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire/queues.blade.php)
+
+Chrome 在受控指标数据上验证估算值、键盘、触摸与定时刷新，在真实 SQLite 应用上回归指标请求、服务器图及队列图交互。三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-queue-trend-{upstream,macos,docs,docs-retry}.log`。
+
 ### 服务器卡片的心跳与历史缓存
 
 固定 Servers 在同一次五秒缓存查询中读取系统当前值、指标曲线并判断最近上报。Rust 将心跳状态和 CPU／内存历史保存在同一缓存项，按周期及已加载的服务器配置分区，使配置改动可立即选择新结果。忽略期限的输入校验在读缓存前完成。 [固定 Servers::render](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Servers.php)
