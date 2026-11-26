@@ -27,24 +27,69 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.post("/messages", messages)?;
         router.post("/messages/count_tokens", count_message_tokens)?;
         Ok(())
+    })?;
+    Route::group(RouteGroup::new().prefix("/v1beta"), |router| {
+        router.get("/models", gemini_models)?;
+        router.get("/models/{model}", gemini_model)?;
+        router.post("/models/{model}", gemini_operation)?;
+        Ok(())
+    })
+}
+
+fn gemini_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(async move { catalog(request, None, Protocol::Gemini) })
+}
+
+fn gemini_model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(async move { catalog(request, request.route("model"), Protocol::Gemini) })
+}
+
+fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(async move {
+        let name_and_action = request
+            .route("model")
+            .and_then(|value| value.rsplit_once(':'));
+        let Some((model, action)) = name_and_action else {
+            return Protocol::Gemini.error(
+                StatusCode::NOT_FOUND,
+                "unsupported_endpoint",
+                "未知模型操作",
+            );
+        };
+        let endpoint = match action {
+            "generateContent" => TextEndpoint::GeminiGenerateContent,
+            "streamGenerateContent" => TextEndpoint::GeminiStreamGenerateContent,
+            "countTokens" => TextEndpoint::GeminiCountTokens,
+            _ => {
+                return Protocol::Gemini.error(
+                    StatusCode::NOT_FOUND,
+                    "unsupported_endpoint",
+                    "未知模型操作",
+                );
+            }
+        };
+        relay(request, endpoint, Some(model.to_owned())).await
     })
 }
 
 fn models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, None) })
+    Box::pin(async move { catalog(request, None, catalog_protocol(request)) })
 }
 
 fn model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(request, request.route("model")) })
+    Box::pin(async move { catalog(request, request.route("model"), catalog_protocol(request)) })
 }
 
-fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
-    let gateway = Gateway::get_facade_root()?;
-    let protocol = if request.has_header("x-api-key") {
+fn catalog_protocol(request: &Request) -> Protocol {
+    if request.has_header("x-api-key") {
         Protocol::Anthropic
     } else {
         Protocol::OpenAi
-    };
+    }
+}
+
+fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResult {
+    let gateway = Gateway::get_facade_root()?;
     let Some(key) = protocol
         .token(request)
         .and_then(|token| gateway.authorize(token))
@@ -58,6 +103,9 @@ fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
                     .into_iter()
                     .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
                 Protocol::Anthropic => model.provider.supports_endpoint(TextEndpoint::Messages),
+                Protocol::Gemini => model
+                    .provider
+                    .supports_endpoint(TextEndpoint::GeminiGenerateContent),
             }
     });
     let describe = |name: &str| match protocol {
@@ -67,6 +115,10 @@ fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
         Protocol::Anthropic => {
             json!({"id": name, "type": "model", "display_name": name, "created_at": "1970-01-01T00:00:00Z"})
         }
+        Protocol::Gemini => json!({
+            "name": format!("models/{name}"), "displayName": name,
+            "supportedGenerationMethods": ["generateContent", "streamGenerateContent", "countTokens"],
+        }),
     };
     let data = if let Some(id) = id {
         if !accessible.any(|(name, _)| name == id) {
@@ -77,6 +129,7 @@ fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
         let data: Vec<Value> = accessible.map(|(name, _)| describe(name)).collect();
         match protocol {
             Protocol::OpenAi => json!({"object": "list", "data": data}),
+            Protocol::Gemini => json!({"models":data}),
             Protocol::Anthropic => json!({
                 "first_id": data.first().and_then(|item| item.get("id")),
                 "last_id": data.last().and_then(|item| item.get("id")),
@@ -91,31 +144,35 @@ fn catalog(request: &Request, id: Option<&str>) -> HttpResult {
 }
 
 fn chat_completions(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(relay(request, TextEndpoint::ChatCompletions))
+    Box::pin(relay(request, TextEndpoint::ChatCompletions, None))
 }
 
 fn responses(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(relay(request, TextEndpoint::Responses))
+    Box::pin(relay(request, TextEndpoint::Responses, None))
 }
 
 fn messages(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(relay(request, TextEndpoint::Messages))
+    Box::pin(relay(request, TextEndpoint::Messages, None))
 }
 
 fn count_message_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(relay(request, TextEndpoint::CountMessageTokens))
+    Box::pin(relay(request, TextEndpoint::CountMessageTokens, None))
 }
 
 #[derive(Clone, Copy)]
 enum Protocol {
     OpenAi,
     Anthropic,
+    Gemini,
 }
 
 impl Protocol {
     fn token(self, request: &Request) -> Option<&str> {
         match self {
             Self::OpenAi => bearer(request),
+            Self::Gemini => {
+                single_header(request, "x-goog-api-key").filter(|token| valid_token(token))
+            }
             Self::Anthropic if request.has_header("x-api-key") => {
                 if request.has_header("authorization") {
                     return None;
@@ -144,6 +201,20 @@ impl Protocol {
     fn error(self, status: StatusCode, code: &str, message: &str) -> HttpResult {
         let data = match self {
             Self::OpenAi => error_body(code, message),
+            Self::Gemini => {
+                let kind = match status {
+                    StatusCode::UNAUTHORIZED => "UNAUTHENTICATED",
+                    StatusCode::FORBIDDEN => "PERMISSION_DENIED",
+                    StatusCode::NOT_FOUND => "NOT_FOUND",
+                    StatusCode::TOO_MANY_REQUESTS | StatusCode::PAYLOAD_TOO_LARGE => {
+                        "RESOURCE_EXHAUSTED"
+                    }
+                    StatusCode::GATEWAY_TIMEOUT => "DEADLINE_EXCEEDED",
+                    _ if status.is_server_error() => "UNAVAILABLE",
+                    _ => "INVALID_ARGUMENT",
+                };
+                json!({"error":{"code":status.as_u16(),"status":kind,"message":message}})
+            }
             Self::Anthropic => {
                 let kind = match status {
                     StatusCode::UNAUTHORIZED => "authentication_error",
@@ -164,6 +235,9 @@ impl Protocol {
     fn stream_error(self) -> String {
         let error = match self {
             Self::OpenAi => error_body("upstream_error", "上游流未能完成"),
+            Self::Gemini => {
+                json!({"error":{"code":502,"status":"UNAVAILABLE","message":"上游流未能完成"}})
+            }
             Self::Anthropic => {
                 json!({"type":"error","error":{"type":"api_error","message":"上游流未能完成"}})
             }
@@ -172,10 +246,17 @@ impl Protocol {
     }
 }
 
-async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
+async fn relay(
+    request: &mut Request,
+    endpoint: TextEndpoint,
+    path_model: Option<String>,
+) -> HttpResult {
     let gateway = Gateway::get_facade_root()?;
     let protocol = match endpoint {
         TextEndpoint::Messages | TextEndpoint::CountMessageTokens => Protocol::Anthropic,
+        TextEndpoint::GeminiGenerateContent
+        | TextEndpoint::GeminiStreamGenerateContent
+        | TextEndpoint::GeminiCountTokens => Protocol::Gemini,
         _ => Protocol::OpenAi,
     };
     let Some(key) = protocol
@@ -205,12 +286,12 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             "请求正文必须是 JSON 对象",
         );
     };
-    let Some(name) = data
-        .get("model")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .map(str::to_owned)
-    else {
+    let Some(name) = path_model.or_else(|| {
+        data.get("model")
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+    }) else {
         return protocol.error(StatusCode::BAD_REQUEST, "missing_model", "必须指定模型");
     };
     let Some(model) = gateway
@@ -227,15 +308,19 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             "该模型不支持此端点",
         );
     };
-    let streaming = match data.get("stream") {
-        None | Some(Value::Bool(false) | Value::Null) => false,
-        Some(Value::Bool(true)) if endpoint != TextEndpoint::CountMessageTokens => true,
-        _ => {
-            return protocol.error(
-                StatusCode::BAD_REQUEST,
-                "invalid_stream",
-                "stream 必须为布尔值",
-            );
+    let streaming = if matches!(protocol, Protocol::Gemini) {
+        endpoint == TextEndpoint::GeminiStreamGenerateContent
+    } else {
+        match data.get("stream") {
+            None | Some(Value::Bool(false) | Value::Null) => false,
+            Some(Value::Bool(true)) if endpoint != TextEndpoint::CountMessageTokens => true,
+            _ => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_stream",
+                    "stream 必须为布尔值",
+                );
+            }
         }
     };
     if endpoint == TextEndpoint::Responses {
@@ -278,6 +363,23 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
             StatusCode::BAD_REQUEST,
             "unsupported_state",
             "此端点仅支持无状态请求",
+        );
+    }
+    if matches!(protocol, Protocol::Gemini)
+        && [
+            "model",
+            "cachedContent",
+            "cached_content",
+            "generateContentRequest",
+            "generate_content_request",
+        ]
+        .iter()
+        .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "Gemini 模型由路径选择，暂不支持嵌套请求或上游缓存资源",
         );
     }
     data.insert("model".into(), json!(model.upstream_model));
@@ -374,7 +476,10 @@ async fn relay(request: &mut Request, endpoint: TextEndpoint) -> HttpResult {
         };
         data = response;
     }
-    if endpoint != TextEndpoint::CountMessageTokens {
+    if !matches!(
+        endpoint,
+        TextEndpoint::CountMessageTokens | TextEndpoint::GeminiCountTokens
+    ) {
         call.observe_usage(&data);
     }
     call.outcome("completed");
@@ -446,6 +551,10 @@ fn stream(
                 return;
             }
             terminal |= matches!(data["type"].as_str(), Some("response.completed" | "response.incomplete" | "message_stop"));
+            if matches!(protocol, Protocol::Gemini) {
+                terminal |= data["candidates"][0]["finishReason"].as_str().is_some_and(|reason| reason != "FINISH_REASON_UNSPECIFIED")
+                    || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");
+            }
             if terminal {
                 call.outcome("completed");
             }
@@ -517,8 +626,10 @@ fn bridged_stream(
 }
 
 fn rename_model(data: &mut Value, name: &str) {
-    if let Some(model) = data.get_mut("model").filter(|model| model.is_string()) {
-        *model = Value::String(name.into());
+    for field in ["model", "modelVersion"] {
+        if let Some(model) = data.get_mut(field).filter(|model| model.is_string()) {
+            *model = Value::String(name.into());
+        }
     }
 }
 

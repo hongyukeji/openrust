@@ -49,3 +49,9 @@ SDK 参考固定 Laravel AI 的 `Anthropic/Concerns/CreatesAnthropicClient.php`�
 按固定 [Sub2API Responses handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go) 的跨协议入口实施。公开模型映射使用 Anthropic 原生连接时，网关接受 OpenAI Bearer 请求，检查同一 Key 的公开模型授权，再用该连接的原生认证访问 `/messages`。支持纯文本、首部系统指令、历史文本消息、基本采样和输出限制。未知转换字段、结构化输出、工具、附件及上游持久状态返回明确错误。后续补反方向和更多协议能力。
 
 正常 HTTP Kernel 与独立应用进程加外部 HTTP 客户端，分别验证 JSON 与 SSE、上游模型映射、凭证隔离、首段在上游结束前到达、序列及用量、`max_tokens` 转为 `incomplete`。Artisan 验证对应入口存在。用量日志同时记录入站和上游协议，计数来自上游。上游为协议模拟。
+
+## GW-03 Gemini 原生协议
+
+SDK 的 `gemini` 连接支持 `Agent::prompt`、`stream` 与 `Ai::models`，使用 `x-goog-api-key` 和 Google 版本化相对路径。目录按 `nextPageToken` 分页，以同一个模型 ID 合并手填项和发现项。调用接受裸 ID 和 `models/` 资源名。网关通过 `/v1beta/models`、`/v1beta/models/{model}` 和三个原生动作向外部客户端提供授权模型。当前流格式为 SSE。上游路径只用已配置且通过验证的模型 ID；下游 Key 与上游应用凭证分离。
+
+真实 HTTP Kernel 加本地协议服务覆盖 SDK 普通文本、SSE、目录分页、鉴权与网关 JSON、SSE、Token 估算和公开模型名。独立 Artisan 通过 `route:list`、`ai:models`、`ai:prompt` 验收。缓存资源、其他原生动作和托管服务商实机待后续验收。

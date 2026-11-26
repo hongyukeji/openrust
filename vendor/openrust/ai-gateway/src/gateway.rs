@@ -101,6 +101,7 @@ impl Gateway {
                     TextEndpoint::ChatCompletions,
                     TextEndpoint::Responses,
                     TextEndpoint::Messages,
+                    TextEndpoint::GeminiGenerateContent,
                 ]
                 .into_iter()
                 .any(|endpoint| provider.supports_endpoint(endpoint))
@@ -206,18 +207,16 @@ impl Call {
     }
 
     pub(crate) fn observe_usage(&mut self, payload: &Value) {
-        let Some(usage) = payload.get("usage").and_then(Value::as_object) else {
-            return;
-        };
-        for (metric, fallback) in [
-            ("input_tokens", "prompt_tokens"),
-            ("output_tokens", "completion_tokens"),
+        for (metric, fallback, google) in [
+            ("input_tokens", "prompt_tokens", "promptTokenCount"),
+            ("output_tokens", "completion_tokens", "candidatesTokenCount"),
         ] {
-            if let Some(count) = usage
+            let count = payload["usage"]
                 .get(metric)
-                .or_else(|| usage.get(fallback))
-                .and_then(Value::as_u64)
-            {
+                .or_else(|| payload["usage"].get(fallback))
+                .or_else(|| payload["usageMetadata"].get(google))
+                .and_then(Value::as_u64);
+            if let Some(count) = count {
                 self.context.insert(metric.into(), json!(count));
             }
         }

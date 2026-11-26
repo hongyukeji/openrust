@@ -83,6 +83,9 @@ pub enum TextEndpoint {
     Responses,
     Messages,
     CountMessageTokens,
+    GeminiGenerateContent,
+    GeminiStreamGenerateContent,
+    GeminiCountTokens,
 }
 
 impl TextEndpoint {
@@ -92,6 +95,9 @@ impl TextEndpoint {
             Self::Responses => "responses",
             Self::Messages => "messages",
             Self::CountMessageTokens => "messages/count_tokens",
+            Self::GeminiGenerateContent => "generateContent",
+            Self::GeminiStreamGenerateContent => "streamGenerateContent",
+            Self::GeminiCountTokens => "countTokens",
         }
     }
 }

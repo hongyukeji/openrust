@@ -33,7 +33,7 @@ In an HTTP route, return the default SDK SSE events with `agent(instructions).st
 
 ## Scope {#scope}
 
-Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic connections also support text, SSE, and paginated model discovery. Native Gemini support is pending. Vercel, AG-UI, SDK tools, conversations, and embeddings are pending.
+Responses provide text, the connection, the model, and input and output token counts when reported by the upstream service. Native Anthropic and Gemini connections also support text, SSE, and paginated model discovery. Vercel, AG-UI, SDK tools, conversations, and embeddings are pending.
 
 ## Model gateway {#model-gateway}
 
@@ -53,3 +53,5 @@ Set a separate randomly generated secret for `AI_GATEWAY_SUPPORT_KEY` in the app
 For an Anthropic client, set the base URL to your application domain and send the client Key in `x-api-key`. The gateway accepts `/v1/messages` and `/v1/messages/count_tokens` for models mapped to native Anthropic connections. `/v1/models` and `/v1/models/{model}` use the Anthropic format with `x-api-key` and the OpenAI format with Bearer authentication.
 
 The same published Anthropic model can serve Messages and Responses clients. The conversion supports text, system instructions, SSE, and basic sampling options. For structured output, tools, or attachments, choose a native endpoint supported by the model and client.
+
+Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent?alt=sse`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.

@@ -11,6 +11,7 @@ use crate::{
     Agent, AgentResponse, AiError, AiResult, FakeTextGateway, PromptOptions,
     StreamableAgentResponse, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
+    gemini::GeminiTextProvider,
     text::{OpenAiProtocol, OpenAiTextProvider},
 };
 
@@ -52,8 +53,19 @@ impl AiManager {
                 )?))
             });
         }
-        manager.extend("anthropic", move |config| {
-            Ok(Arc::new(AnthropicTextProvider::new(
+        {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend("anthropic", move |config| {
+                Ok(Arc::new(AnthropicTextProvider::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                )?))
+            });
+        }
+        manager.extend("gemini", move |config| {
+            Ok(Arc::new(GeminiTextProvider::new(
                 config,
                 environment.clone(),
                 http.clone(),

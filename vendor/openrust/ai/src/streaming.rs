@@ -290,7 +290,23 @@ impl TextEndpoint {
                     done: value["type"] == "message_stop",
                 })
             }
-            Self::CountMessageTokens => Err(AiError::StreamingNotSupported),
+            Self::GeminiStreamGenerateContent => {
+                let candidate = &value["candidates"][0];
+                let reason = crate::gemini::finish_reason(&value, candidate)?;
+                let delta: String = crate::gemini::text_parts(candidate).collect();
+                Ok(Part {
+                    model: string(&value["modelVersion"]),
+                    delta: (!delta.is_empty()).then_some(delta),
+                    reason,
+                    usage: value
+                        .get("usageMetadata")
+                        .map(|_| crate::gemini::usage(&value)),
+                    ..Default::default()
+                })
+            }
+            Self::CountMessageTokens | Self::GeminiCountTokens | Self::GeminiGenerateContent => {
+                Err(AiError::StreamingNotSupported)
+            }
         }
     }
 }

@@ -19,6 +19,7 @@ mod console;
 mod error;
 mod facade;
 mod fake;
+mod gemini;
 mod manager;
 mod models;
 mod streaming;

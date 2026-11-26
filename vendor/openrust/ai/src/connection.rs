@@ -50,6 +50,7 @@ fn anthropic_version() -> String {
 pub(crate) enum Authorization {
     Bearer,
     Anthropic,
+    Gemini,
 }
 
 pub(crate) struct Connection {
@@ -113,8 +114,14 @@ impl Connection {
                 .ok_or(AiError::MissingCredential)?;
             request = match self.authorization {
                 Authorization::Bearer => request.with_token(token),
-                Authorization::Anthropic => request.with_header(
-                    "x-api-key".parse().expect("valid header name"),
+                Authorization::Anthropic | Authorization::Gemini => request.with_header(
+                    (if matches!(self.authorization, Authorization::Anthropic) {
+                        "x-api-key"
+                    } else {
+                        "x-goog-api-key"
+                    })
+                    .parse()
+                    .expect("valid header name"),
                     token
                         .parse()
                         .map_err(|_| AiError::InvalidConfiguration("providers.<name>.key_env"))?,
@@ -142,12 +149,17 @@ impl Connection {
         self.config.store
     }
 
-    pub(crate) fn catalog(&self, discovered: AiResult<Vec<ListedModel>>) -> ModelCatalog {
+    pub(crate) fn configured_text_models(&self) -> impl Iterator<Item = &str> {
         let configured = &self.config.models.text;
-        ModelCatalog::merge(
-            discovered,
-            configured.default.iter().chain(&configured.ids).cloned(),
-        )
+        configured
+            .default
+            .iter()
+            .chain(&configured.ids)
+            .map(String::as_str)
+    }
+
+    pub(crate) fn catalog(&self, discovered: AiResult<Vec<ListedModel>>) -> ModelCatalog {
+        ModelCatalog::merge(discovered, self.configured_text_models().map(str::to_owned))
     }
 
     pub(crate) async fn send(

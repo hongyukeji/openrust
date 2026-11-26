@@ -23,11 +23,11 @@ pub struct ModelCatalog {
 
 #[derive(Deserialize)]
 pub(crate) struct ListedModel {
-    id: String,
+    pub(crate) id: String,
     #[serde(alias = "display_name")]
-    name: Option<String>,
-    input_modalities: Option<Vec<String>>,
-    output_modalities: Option<Vec<String>>,
+    pub(crate) name: Option<String>,
+    pub(crate) input_modalities: Option<Vec<String>>,
+    pub(crate) output_modalities: Option<Vec<String>>,
 }
 
 impl ModelCatalog {

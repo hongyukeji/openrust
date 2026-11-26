@@ -33,7 +33,7 @@ let answer = response.text;
 
 ## 範圍 {#scope}
 
-目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 原生連線也支援一般文字、SSE 與分頁模型目錄。Gemini 原生連線仍待實作。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
+目前回應提供文字、來源連線、模型，以及上游實際回報的輸入與輸出 Token 數。Anthropic 與 Gemini 原生連線也支援一般文字、SSE 和分頁模型目錄。Vercel／AG-UI、SDK 工具、會話和 Embeddings 仍待實作。
 
 ## 模型閘道 {#model-gateway}
 
@@ -53,3 +53,5 @@ let answer = response.text;
 使用 Anthropic 用戶端時，基礎 URL 指向應用程式網域，下游 Key 透過 `x-api-key` 提交。閘道支援 `/v1/messages` 和 `/v1/messages/count_tokens`，模型須對應到 Anthropic 原生連線。附帶 `x-api-key` 的 `/v1/models` 和 `/v1/models/{model}` 使用 Anthropic 格式，Bearer 模型目錄使用 OpenAI 格式。
 
 同一個 Anthropic 發佈模型可以由 Messages 和 Responses 用戶端呼叫。轉換支援文字、系統指示、SSE 和基本取樣參數。需要結構化輸出、工具或附件時，依用戶端與模型支援情況選擇原生端點。
+
+Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key。閘道列出已授權的 Gemini 模型，並支援 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中選擇 `gemini` 連線，模型 ID 可以帶 `models/` 前綴。
