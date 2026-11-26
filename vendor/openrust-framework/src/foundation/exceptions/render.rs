@@ -4,7 +4,7 @@ use ::http::{HeaderValue, header::CONTENT_TYPE};
 
 use crate::{
     contracts::debug::Exception,
-    http::{Body, HttpError, Request, Response, StatusCode},
+    http::{ApiResult, Body, HttpError, Request, Response, StatusCode},
     view::Factory,
 };
 
@@ -45,17 +45,24 @@ pub(super) fn default_response(
     let sources =
         (status.is_server_error() && !matches!(error, Some(HttpError::Aborted { .. })) && debug)
             .then(|| debug_sources(exception));
-    let (content_type, body) = if json {
-        let message = if let Some(HttpError::Aborted { message, .. }) = error {
-            message
-        } else if status.is_server_error() {
-            sources
-                .as_ref()
-                .and_then(|sources| sources.first())
-                .map_or("Server Error", String::as_str)
-        } else {
-            message
+    if request.api_route || request.is_api_path() {
+        let message = json_message(error, status, message, sources.as_deref());
+        let mut result = ApiResult::failure(api_error_code(error, status), message);
+        if let Some(HttpError::Validation(exception)) = error {
+            result =
+                result.with_errors(exception.errors().messages().clone().into_iter().collect());
+        }
+        if let Some(sources) = sources {
+            result = result.with_field("sources", serde_json::json!(sources));
+        }
+        let response = Response::json(status, result).unwrap_or_else(|_| Response::empty(status));
+        return match error {
+            Some(error) => error.with_response_headers(response),
+            None => response,
         };
+    }
+    let (content_type, body) = if json {
+        let message = json_message(error, status, message, sources.as_deref());
         let mut payload = serde_json::json!({"message": message});
         if let Some(HttpError::Validation(exception)) = error {
             payload["errors"] = serde_json::json!(exception.errors().messages());
@@ -95,6 +102,41 @@ pub(super) fn default_response(
     match error {
         Some(error) => error.with_response_headers(response),
         None => response,
+    }
+}
+
+fn json_message<'a>(
+    error: Option<&HttpError>,
+    status: StatusCode,
+    message: &'a str,
+    sources: Option<&'a [String]>,
+) -> &'a str {
+    if status.is_server_error() && !matches!(error, Some(HttpError::Aborted { .. })) {
+        sources
+            .and_then(|sources| sources.first())
+            .map_or("Server Error", String::as_str)
+    } else {
+        message
+    }
+}
+
+fn api_error_code(error: Option<&HttpError>, status: StatusCode) -> &'static str {
+    if matches!(error, Some(HttpError::InvalidSignature)) {
+        return "invalid_signature";
+    }
+    match status.as_u16() {
+        400 => "bad_request",
+        401 => "unauthenticated",
+        403 => "forbidden",
+        404 => "not_found",
+        405 => "method_not_allowed",
+        409 => "conflict",
+        419 => "csrf_token_mismatch",
+        422 => "validation_failed",
+        429 => "rate_limited",
+        500 => "internal_error",
+        503 => "service_unavailable",
+        _ => "http_error",
     }
 }
 

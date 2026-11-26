@@ -21,7 +21,7 @@ use openrust::{
     database::{DatabaseManager, Value},
     filesystem::{FilesystemManager, Visibility, WriteOptions},
     foundation::Application,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode, UploadedFile, Uri},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode, UploadedFile, Uri},
     image::{Error as ImageError, Limits},
     queue::QueueManager,
     routing::{RouteGroup, RoutingError},
@@ -466,20 +466,18 @@ fn change<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         } else {
             StatusCode::OK
         };
-        let mut response = ApiResponse::success(resource)
-            .with_status(status)
-            .with_message_key(
-                if remove {
-                    "user.photo_removed"
-                } else {
-                    "user.photo_updated"
-                },
-                Default::default(),
-            );
+        let mut result = ApiResult::success(resource).with_message_key(
+            if remove {
+                "user.photo_removed"
+            } else {
+                "user.photo_updated"
+            },
+            Default::default(),
+        );
         if let Some(ticket) = ticket {
-            response = response.with_field("meta.cleanup", ticket_data(ticket)?);
+            result = result.with_field("meta.cleanup", ticket_data(ticket)?);
         }
-        Ok(client::no_store(response.into_response()?).header(
+        Ok(client::no_store(Response::json(status, result)?).header(
             "referrer-policy".parse().expect("静态头名称"),
             "no-referrer".parse().expect("静态头值"),
         ))

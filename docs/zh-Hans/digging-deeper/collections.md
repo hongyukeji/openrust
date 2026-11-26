@@ -60,7 +60,7 @@ assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
 
 ## JSON 序列化
 
-当键在迭代顺序中是从零开始的连续整数时，集合序列化为 JSON 数组。其他键生成 JSON 对象。`to_json()` 返回 JSON 字符串或序列化错误，非有限浮点数也会报错。集合可以直接传给 `ApiResponse::success`。直接反序列化到 `Collection<T>` 可保留 JSON 对象成员顺序。`from_value` 使用传入的 `serde_json::Value` 的顺序。
+当键在迭代顺序中是从零开始的连续整数时，集合序列化为 JSON 数组。其他键生成 JSON 对象。`to_json()` 返回 JSON 字符串或序列化错误，非有限浮点数也会报错。集合可以直接传给 `ApiResult::success`。直接反序列化到 `Collection<T>` 可保留 JSON 对象成员顺序。`from_value` 使用传入的 `serde_json::Value` 的顺序。
 
 ## 惰性集合
 

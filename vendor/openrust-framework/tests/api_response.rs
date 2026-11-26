@@ -16,7 +16,7 @@ use openrust::{
         eloquent::{Attributes, Model, ModelMetadata, ModelState},
     },
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{ApiResponse, HttpFuture, PageMeta, Request, StatusCode},
+    http::{ApiResult, HttpFuture, PageMeta, Request, Response, StatusCode},
     support::{Collection, facades::Route},
 };
 use serde::{Serialize, Serializer};
@@ -193,34 +193,51 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
         })
         .with_routing(Routing::default().health("/up").web(|| {
             Route::get("/created", || {
-                ApiResponse::success(json!({"id": 1})).with_status(StatusCode::CREATED)
+                Response::json(StatusCode::CREATED, ApiResult::success(json!({"id": 1})))
             })?;
             Route::get("/items", || {
-                ApiResponse::success([1, 2]).with_meta(PageMeta {
-                    page: 2,
-                    per_page: 2,
-                    total: 4,
-                    total_pages: 2,
-                })
+                Response::json(
+                    StatusCode::OK,
+                    ApiResult::success([1, 2]).with_meta(PageMeta {
+                        page: 2,
+                        per_page: 2,
+                        total: 4,
+                        total_pages: 2,
+                    }),
+                )
             })?;
             Route::get("/invalid", || {
-                ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "invalid", "Invalid input")
-                    .with_errors(BTreeMap::from([("name".into(), vec!["Required".into()])]))
+                Response::json(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    ApiResult::failure("invalid", "Invalid input")
+                        .with_errors(BTreeMap::from([("name".into(), vec!["Required".into()])])),
+                )
             })?;
-            Route::get("/empty", ApiResponse::empty)?;
-            Route::get("/no-content", || {
-                ApiResponse::empty().with_status(StatusCode::NO_CONTENT)
+            Route::get("/empty", || {
+                Response::json(StatusCode::OK, ApiResult::empty())
             })?;
+            Route::get("/no-content", Response::no_content)?;
             Route::get("/collection/keyed", || {
-                ApiResponse::success(Collection::from_entries([(2, 10), (4, 20)]))
+                Response::json(
+                    StatusCode::OK,
+                    ApiResult::success(Collection::from_entries([(2, 10), (4, 20)])),
+                )
             })?;
             Route::get("/collection/values", || {
-                ApiResponse::success(Collection::from_entries([(2, 10), (4, 20)]).values())
+                Response::json(
+                    StatusCode::OK,
+                    ApiResult::success(Collection::from_entries([(2, 10), (4, 20)]).values()),
+                )
             })?;
             Route::get("/collection/nonfinite", || {
-                ApiResponse::success(Collection::make([f64::INFINITY]))
+                Response::json(
+                    StatusCode::OK,
+                    ApiResult::success(Collection::make([f64::INFINITY])),
+                )
             })?;
-            Route::get("/unserializable", || ApiResponse::success(Unserializable))?;
+            Route::get("/unserializable", || {
+                Response::json(StatusCode::OK, ApiResult::success(Unserializable))
+            })?;
             Ok(())
         }))
         .create()

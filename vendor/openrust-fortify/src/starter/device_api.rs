@@ -11,7 +11,7 @@ use crate::{
 use openrust::{
     contracts::session::Session as _,
     database::DatabaseManager,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::{HasApiTokens, Sanctum},
     session::SessionManager,
     support::facades::{App, Auth, Facade as _},
@@ -35,9 +35,10 @@ pub(super) fn index<M: HasApiTokens + Clone>(
         };
         let manager = App::make::<SessionManager>().await?;
         let devices = policy.list(&user, &manager, current.as_deref()).await?;
-        Ok(client::no_store(
-            ApiResponse::success(devices).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(devices),
+        )?))
     })
 }
 

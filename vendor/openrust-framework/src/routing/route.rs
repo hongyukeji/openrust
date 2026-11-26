@@ -147,6 +147,12 @@ impl Route {
         (!self.name.is_empty()).then_some(&self.name)
     }
 
+    pub(super) fn is_api(&self) -> bool {
+        self.middleware
+            .iter()
+            .any(|entry| matches!(entry, MiddlewareEntry::Named(name) if name == "api"))
+    }
+
     pub(super) fn middleware_entries(&self) -> impl Iterator<Item = &MiddlewareEntry> {
         self.middleware
             .iter()

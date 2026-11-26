@@ -1,6 +1,6 @@
 # API Resources
 
-For explicit business responses, see [`ApiResponse`](../the-basics/responses.md#business-responses).
+For explicit business responses, see [`ApiResult`](../the-basics/responses.md#business-responses).
 
 ## Generating Resources {#generating-resources}
 

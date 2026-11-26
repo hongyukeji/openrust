@@ -1,6 +1,6 @@
 # API 資源
 
-明確回傳統一業務格式的用法見 [`ApiResponse`](../the-basics/responses.md#business-responses)。
+明確回傳統一業務格式的用法見 [`ApiResult`](../the-basics/responses.md#business-responses)。
 
 ## 產生資源 {#generating-resources}
 

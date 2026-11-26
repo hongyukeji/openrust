@@ -14,7 +14,7 @@ fn user(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     use openrust::{
-        http::{HttpError, Response, StatusCode},
+        http::{ApiResult, HttpError, Response, StatusCode},
         support::facades::Auth,
     };
 
@@ -25,6 +25,6 @@ fn user(
             .await?
             .ok_or(HttpError::Unauthenticated)?;
         let attributes = auth.user_attributes(user.as_ref())?;
-        Response::json(StatusCode::OK, attributes)
+        Response::json(StatusCode::OK, ApiResult::success(attributes))
     })
 }

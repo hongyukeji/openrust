@@ -10,7 +10,7 @@ use crate::{
 use openrust::{
     auth::{AuthIdentifier, AuthResult, Credentials},
     contracts::{session::Session as _, validation::Validator as _},
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::{AccessToken, HasApiTokens},
     support::{
         Timebox,
@@ -228,11 +228,10 @@ pub(super) async fn complete<M: HasApiTokens + TwoFactorAuthenticatable + Clone>
         } else {
             super::web::remember(request, user, fortify)?;
         }
-        return Ok(client::no_store(
-            ApiResponse::empty()
-                .with_status(StatusCode::CREATED)
-                .into_response()?,
-        ));
+        return Ok(client::no_store(Response::json(
+            StatusCode::CREATED,
+            ApiResult::empty(),
+        )?));
     }
     let challenge = ChallengeStore::new(user.get_connection()?)
         .create(
@@ -248,7 +247,12 @@ pub(super) async fn complete<M: HasApiTokens + TwoFactorAuthenticatable + Clone>
             lifetime(fortify)?,
         )
         .await?;
-    Ok(client::no_store(ApiResponse::success(json!({"proof":challenge.key.as_str(),"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?})).with_status(StatusCode::CREATED).into_response()?))
+    Ok(client::no_store(Response::json(
+        StatusCode::CREATED,
+        ApiResult::success(
+            json!({"proof":challenge.key.as_str(),"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?}),
+        ),
+    )?))
 }
 
 #[derive(Clone)]
@@ -324,10 +328,11 @@ where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
     if request.query(Some("proof"))?.is_some() {
-        let response =
-            ApiResponse::failure(openrust::http::StatusCode::BAD_REQUEST, "bad_request", "")
-                .with_message_key("user.proof_in_url", Default::default())
-                .into_response()?;
+        let response = Response::json(
+            openrust::http::StatusCode::BAD_REQUEST,
+            ApiResult::failure("bad_request", "")
+                .with_message_key("user.proof_in_url", Default::default()),
+        )?;
         return Err(openrust::http::abort_response(client::no_store(response)));
     }
     if matches!(
@@ -424,10 +429,11 @@ pub(super) async fn claim_session<M: TwoFactorAuthenticatable>(
         {
             return Err(openrust::http::abort_response(client::no_store(response)));
         }
-        let response =
-            ApiResponse::failure(StatusCode::LOCKED, "password_confirmation_required", "")
-                .with_message_key("user.confirmation_required", Default::default())
-                .into_response()?;
+        let response = Response::json(
+            StatusCode::LOCKED,
+            ApiResult::failure("password_confirmation_required", "")
+                .with_message_key("user.confirmation_required", Default::default()),
+        )?;
         return Err(openrust::http::abort_response(client::no_store(response)));
     }
     Ok(Proof {

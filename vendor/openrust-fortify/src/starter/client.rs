@@ -16,7 +16,7 @@ use openrust::{
         validation::Validator as _,
     },
     database::{DatabaseManager, Value},
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::{HasApiTokens, Sanctum},
     support::{
         Timebox,
@@ -358,8 +358,8 @@ pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable 
             &[user],
         )
         .await?;
-        let response=ApiResponse::success(json!({"challenge":challenge.key.as_str(),"methods":["totp","recovery_code"],"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?}))
-                .with_field("code","auth_challenge_required").with_message_key("user.challenge_required",Default::default()).into_response()?;
+        let response=Response::json(StatusCode::OK, ApiResult::success(json!({"challenge":challenge.key.as_str(),"methods":["totp","recovery_code"],"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?}))
+                .with_field("code","auth_challenge_required").with_message_key("user.challenge_required",Default::default()))?;
         return Ok(no_store(response));
     }
     issue(
@@ -445,8 +445,12 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         },
     )
     .await?;
-    let response=ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource}))
-        .with_status(StatusCode::CREATED).into_response()?;
+    let response = Response::json(
+        StatusCode::CREATED,
+        ApiResult::success(
+            json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource}),
+        ),
+    )?;
     Ok(no_store(response))
 }
 

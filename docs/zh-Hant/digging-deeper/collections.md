@@ -60,7 +60,7 @@ assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
 
 ## JSON 序列化
 
-當鍵依迭代順序是從零開始的連續整數時，集合序列化為 JSON 陣列。其他鍵產生 JSON 物件。`to_json()` 傳回 JSON 字串或序列化錯誤，非有限浮點數也會回報錯誤。集合可直接傳給 `ApiResponse::success`。直接反序列化為 `Collection<T>` 可保留 JSON 物件成員順序。`from_value` 使用傳入的 `serde_json::Value` 的順序。
+當鍵依迭代順序是從零開始的連續整數時，集合序列化為 JSON 陣列。其他鍵產生 JSON 物件。`to_json()` 傳回 JSON 字串或序列化錯誤，非有限浮點數也會回報錯誤。集合可直接傳給 `ApiResult::success`。直接反序列化為 `Collection<T>` 可保留 JSON 物件成員順序。`from_value` 使用傳入的 `serde_json::Value` 的順序。
 
 ## 惰性集合
 

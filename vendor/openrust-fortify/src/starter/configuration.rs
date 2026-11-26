@@ -159,13 +159,17 @@ pub async fn configure(app: &Application) -> ProviderResult {
                                 return Ok(Some(super::client::no_store(response)));
                             }
                             Ok(Some(super::client::no_store(
-                                openrust::http::ApiResponse::failure(
+                                openrust::http::Response::json(
                                     openrust::http::StatusCode::LOCKED,
-                                    "password_confirmation_required",
-                                    "",
-                                )
-                                .with_message_key("user.confirmation_required", Default::default())
-                                .into_response()?,
+                                    openrust::http::ApiResult::failure(
+                                        "password_confirmation_required",
+                                        "",
+                                    )
+                                    .with_message_key(
+                                        "user.confirmation_required",
+                                        Default::default(),
+                                    ),
+                                )?,
                             )))
                         })
                     },

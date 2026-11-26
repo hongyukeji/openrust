@@ -367,6 +367,7 @@ impl http::Kernel for Kernel {
                     .extensions
                     .remove::<crate::http::middleware::PrivateLocaleResponse>();
                 request.matched_route = false;
+                request.api_route = false;
                 request
                     .parts_mut()
                     .extensions

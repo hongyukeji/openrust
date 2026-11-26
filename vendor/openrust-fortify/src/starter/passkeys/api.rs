@@ -16,7 +16,7 @@ use openrust::{
     auth::{AuthError, AuthIdentifier, AuthResult},
     contracts::validation::Validator as _,
     database::Transaction,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::HasApiTokens,
     support::facades::{Date, Facade as _, Validator},
     validation::{Data, RuleSet},
@@ -81,7 +81,12 @@ async fn stage<M: HasApiTokens>(
     let created = ChallengeStore::new(connection)
         .create(&pending, (expires - now + 999) / 1000)
         .await?;
-    Ok(client::no_store(ApiResponse::success(json!({"options":options,"challenge":created.key.as_str(),"expires_at":jiff::Timestamp::from_millisecond(expires).map_err(internal)?})).into_response()?))
+    Ok(client::no_store(Response::json(
+        StatusCode::OK,
+        ApiResult::success(
+            json!({"options":options,"challenge":created.key.as_str(),"expires_at":jiff::Timestamp::from_millisecond(expires).map_err(internal)?}),
+        ),
+    )?))
 }
 fn pending<M: HasApiTokens + TwoFactorAuthenticatable>(
     user: &M,
@@ -318,11 +323,10 @@ pub(super) fn enroll<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             })
         })
         .await?;
-        Ok(client::no_store(
-            ApiResponse::success(summary(&record).await?)
-                .with_status(StatusCode::CREATED)
-                .into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::CREATED,
+            ApiResult::success(summary(&record).await?),
+        )?))
     })
 }
 async fn summary(record: &passkeys::PasskeyRecord) -> Result<Value, HttpError> {
@@ -344,9 +348,10 @@ pub(super) fn index<M: HasApiTokens + Clone>(
         for record in service.for_user(&user).await? {
             list.push(summary(&record).await?);
         }
-        Ok(client::no_store(
-            ApiResponse::success(json!(list)).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!(list)),
+        )?))
     })
 }
 pub(super) fn delete<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(

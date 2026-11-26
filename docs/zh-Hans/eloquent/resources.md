@@ -1,6 +1,6 @@
 # API 资源
 
-显式返回统一业务格式的用法见 [`ApiResponse`](../the-basics/responses.md#business-responses)。
+显式返回统一业务格式的用法见 [`ApiResult`](../the-basics/responses.md#business-responses)。
 
 ## 生成资源 {#generating-resources}
 

@@ -60,7 +60,7 @@ assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
 
 ## JSON Serialization
 
-A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `to_json()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResponse::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `from_value` uses the order of the supplied `serde_json::Value`.
+A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `to_json()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResult::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `from_value` uses the order of the supplied `serde_json::Value`.
 
 ## Lazy Collections
 

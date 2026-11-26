@@ -698,7 +698,7 @@ fn show_status(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
         use openrust::{
-            http::{ApiResponse, HttpError},
+            http::{ApiResult, HttpError, Response, StatusCode},
             support::facades::App,
         };
         if request.query(Some("receipt"))?.is_some() {
@@ -714,10 +714,11 @@ fn show_status(
             .await?
             .ok_or(HttpError::NotFound)?;
         Ok(
-            super::client::no_store(ApiResponse::success(status).into_response()?).header(
-                "referrer-policy".parse().expect("静态头名称"),
-                "no-referrer".parse().expect("静态头值"),
-            ),
+            super::client::no_store(Response::json(StatusCode::OK, ApiResult::success(status))?)
+                .header(
+                    "referrer-policy".parse().expect("静态头名称"),
+                    "no-referrer".parse().expect("静态头值"),
+                ),
         )
     })
 }

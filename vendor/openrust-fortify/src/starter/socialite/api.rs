@@ -13,7 +13,7 @@ use crate::{
 };
 use openrust::{
     contracts::validation::Validator as _,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::HasApiTokens,
     support::facades::{Facade as _, Redirect, Url, Validator},
     validation::{Data, RuleSet},
@@ -147,10 +147,10 @@ fn begin_flow<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             ],
             true,
         )?;
-        Ok(client::no_store(
-            ApiResponse::success(json!({"url":handoff,"expires_at":ticket.expires_at}))
-                .into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!({"url":handoff,"expires_at":ticket.expires_at})),
+        )?))
     })
 }
 pub(super) fn handoff<M: HasApiTokens>(
@@ -279,7 +279,12 @@ pub(super) fn preview<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         let code = flow::store::<M>()?
             .create(&pending, flow::lifetime(deadline)?)
             .await?;
-        Ok(client::no_store(ApiResponse::success(json!({"challenge":code.key.as_str(),"provider":profile.provider,"name":profile.name,"email":profile.verified_email,"expires_at":code.expires_at})).into_response()?))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(
+                json!({"challenge":code.key.as_str(),"provider":profile.provider,"name":profile.name,"email":profile.verified_email,"expires_at":code.expires_at}),
+            ),
+        )?))
     })
 }
 pub(super) fn confirm<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -332,10 +337,10 @@ pub(super) fn confirm<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             })
             .await?;
         }
-        Ok(client::no_store(
-            ApiResponse::success(json!({"confirmed":request.boolean("confirm").await?}))
-                .into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!({"confirmed":request.boolean("confirm").await?})),
+        )?))
     })
 }
 pub(super) fn index<M: HasApiTokens + Clone>(
@@ -347,9 +352,10 @@ pub(super) fn index<M: HasApiTokens + Clone>(
         account::actor(request, &user, Some("account:read"))?;
         let linked = identity::for_user(&user).await?;
         let items=super::providers(&fortify)?.iter().map(|provider|json!({"provider":provider,"linked":linked.iter().any(|i|&i.provider==provider)})).collect::<Vec<_>>();
-        Ok(client::no_store(
-            ApiResponse::success(items).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(items),
+        )?))
     })
 }
 pub(super) fn destroy<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(

@@ -105,13 +105,13 @@ Both `Response` and `RedirectResponse` support `with_cookie(&cookie, request)` a
 
 ## JSON business responses {#business-responses}
 
-`ApiResponse` provides a business JSON envelope with `success`, `code` and `message`, plus optional `data`, `meta` and `errors`. It is a business response extension; HTTP status codes still describe the request outcome.
+`ApiResult` provides a business JSON envelope with `success`, `code` and `message`, plus optional `data`, `meta` and `errors`. It is a business response extension; HTTP status codes still describe the request outcome.
 
 ### Return a business response explicitly {#business-response-configuration}
 
-Return an `ApiResponse` from a handler when the endpoint calls for a business response. The former `API_RESPONSE_ENVELOPE` setting has been removed. Existing values can be removed from the environment.
+Pass an `ApiResult` to `Response::json(status, result)` to return the business format. `ApiResult` carries the JSON data and `Response::json` takes the HTTP status.
 
-Default JSON exceptions contain `message` and include `errors` for validation failures. Ordinary resources apply their configured wrapper and preserve resource metadata such as `links` and `meta`. JSON:API resources use their own protocol format.
+The framework renders exceptions on API routes and under the configured API prefix as failed `ApiResult` bodies. Validation errors include `errors`. Ordinarily returned resources keep their configured wrapper and metadata such as `links` and `meta`. JSON:API resources keep their protocol format.
 
 See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
 
@@ -122,29 +122,37 @@ When registered in `routes/api.rs`, these routes also receive the configured API
 Unless a different locale or literal message is shown, the following default-message examples use the current request locale `en`; `zh-Hans` and `zh-Hant` return `成功` instead of `Success`. The functions can be returned directly from route handlers, for example `Route::get("/example-user", user_response)?;` after importing `Route`.
 
 ```rust
-use std::collections::BTreeMap;
 use openrust::{
-    http::{ApiResponse, PageMeta, StatusCode},
+    http::{ApiResult, PageMeta, Response, StatusCode},
     routing::RoutingError,
     support::facades::Route,
 };
 use serde_json::json;
+use std::collections::BTreeMap;
 
 pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
-        ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
+        let body = ApiResult::success(json!([{"id": 1, "name": "Notebook"}]))
             .with_message("Loaded.")
-            .with_meta(PageMeta { page: 1, per_page: 10, total: 1, total_pages: 1 })
+            .with_meta(PageMeta {
+                page: 1,
+                per_page: 10,
+                total: 1,
+                total_pages: 1,
+            });
+        Response::json(StatusCode::OK, body)
     })?;
     Route::post("/items", || {
-        ApiResponse::success(json!({"id": 2}))
-            .with_message("Created.")
-            .with_status(StatusCode::CREATED)
+        let body = ApiResult::success(json!({"id": 2})).with_message("Created.");
+        Response::json(StatusCode::CREATED, body)
     })?;
     Route::get("/example-validation", || {
-        ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Invalid input.")
-            .with_errors(BTreeMap::from([("email".into(), vec!["Email is required.".into()])]))
-    })
+        let body = ApiResult::failure("validation_failed", "Invalid input.").with_errors(
+            BTreeMap::from([("email".into(), vec!["Email is required.".into()])]),
+        );
+        Response::json(StatusCode::UNPROCESSABLE_ENTITY, body)
+    })?;
+    Ok(())
 }
 ```
 
@@ -187,20 +195,23 @@ GET `/api/example-validation` returns HTTP 422:
 }
 ```
 
-`success` defaults to HTTP 200; use a non-success status for `failure`. `with_status` changes the HTTP status only. For ordinary responses with a body, `into_response` rejects a mismatch between the success flag and HTTP status.
+Use a successful HTTP status with `ApiResult::success` and an error status with `ApiResult::failure`. Both statuses are passed to `Response::json`.
 
-`ApiResponse::empty()`, `success(())` and `success(Value::Null)` omit `data`; empty objects, arrays, `0`, `false` and empty strings remain present. HTTP 204, 205, 304 and informational responses have no body. Serialization failures use [error handling](./errors.md).
+`ApiResult::empty()`, `success(())` and `success(Value::Null)` omit `data`; empty objects, arrays, `0`, `false` and empty strings remain present. HTTP 204, 205, 304 and informational responses have no body. Serialization failures use [error handling](./errors.md).
 
 #### A basic success response {#business-response-success}
 
 The smallest success response returns HTTP **200**:
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn user_response() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({"id": 1, "name": "Ada"}))
+fn user_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({"id": 1, "name": "Ada"})),
+    )
 }
 ```
 
@@ -221,19 +232,19 @@ fn user_response() -> ApiResponse<serde_json::Value> {
 These three functions return HTTP **200**, but only the first omits `data`:
 
 ```rust
-use openrust::http::ApiResponse;
-use serde_json::{Value, json};
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
+use serde_json::json;
 
-fn empty_response() -> ApiResponse<()> {
-    ApiResponse::empty()
+fn empty_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::empty())
 }
 
-fn empty_object_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({}))
+fn empty_object_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::success(json!({})))
 }
 
-fn empty_array_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!([]))
+fn empty_array_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::success(json!([])))
 }
 ```
 
@@ -268,12 +279,10 @@ The complete JSON bodies for `empty_response`, `empty_object_response` and `empt
 For HTTP **204**, return no body at all, rather than an empty envelope:
 
 ```rust
-use openrust::http::{ApiResponse, HttpError, Response, StatusCode};
+use openrust::http::Response;
 
-fn no_content_response() -> Result<Response, HttpError> {
-    ApiResponse::empty()
-        .with_status(StatusCode::NO_CONTENT)
-        .into_response()
+fn no_content_response() -> Response {
+    Response::no_content()
 }
 ```
 
@@ -281,7 +290,7 @@ The response has status `204 No Content` and **zero body bytes**. Do not try to 
 
 ### Localized messages {#business-response-localization}
 
-The default success message uses `response.ok`; framework exceptions use the corresponding `response.*` keys, resolved using the current request locale and existing fallback rules. Override these entries in `response.json` in the application's language directory. See [localization](../digging-deeper/localization.md) for locale configuration and selection; response handlers need not parse language headers themselves.
+The default success message uses `response.ok`, resolved using the current request locale and existing fallback rules. Override these entries in `response.json` in the application's language directory. See [localization](../digging-deeper/localization.md) for locale configuration and selection; response handlers need not parse language headers themselves.
 
 Messages passed to `with_message` or `failure` are literal. Use `with_message_key` to translate at final serialization. For example, define this entry in `lang/zh-Hans/messages.json` under the default application language directory and return the response while the current locale is `zh-Hans`:
 
@@ -292,13 +301,16 @@ Messages passed to `with_message` or `failure` are literal. Use `with_message_ke
 ```
 
 ```rust
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use std::collections::BTreeMap;
-use openrust::http::ApiResponse;
 
-fn localized_response() -> ApiResponse<u64> {
-    ApiResponse::success(1).with_message_key(
-        "messages.created",
-        BTreeMap::from([("name".into(), "Notebook".into())]),
+fn localized_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(1).with_message_key(
+            "messages.created",
+            BTreeMap::from([("name".into(), "Notebook".into())]),
+        ),
     )
 }
 ```
@@ -333,7 +345,7 @@ The localized example above returns HTTP **200**. With the current request local
 
 ### Custom fields {#business-response-fields}
 
-`with_field` sets a dot path from the response root; `without_field` removes one. Both support nested objects and array indexes. `additional` shallow-merges literal top-level keys and accepts a JSON map or key/value pairs. Operations execute in call order; later operations win. Editing the response body does not change the HTTP status set by `with_status`.
+`with_field` sets a dot path from the response root; `without_field` removes one. Both support nested objects and array indexes. `additional` shallow-merges literal top-level keys and accepts a JSON map or key/value pairs. Operations execute in call order; later operations win. Updating JSON fields leaves the HTTP status chosen by `Response::json` intact.
 
 Missing paths are created, including null placeholders. Traversing an existing non-null scalar returns a serialization error instead of replacing its parent. Removing a missing path is harmless. Paths use the existing `Arr` rules: `*` is literal, contiguous array indexes remain an array, and a gap or deletion from the middle preserves keys as a JSON object. Indexes are not silently renumbered. To access a literal key containing a dot, pass segments such as `["data", "user", "first.name"]`. For string removal paths, an existing complete top-level literal key takes precedence, as with `Arr::forget`.
 
@@ -342,15 +354,23 @@ Edits run after default null omission and message translation, so an explicit ed
 This response returns HTTP 200:
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn custom_response() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({"id": 1}))
-        .with_message("Saved.")
-        .additional(json!({"trace_id": "first", "code": "saved"}).as_object().unwrap().clone())
-        .without_field("trace_id")
-        .with_field("trace_id", "request-123")
+fn custom_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({"id": 1}))
+            .with_message("Saved.")
+            .additional(
+                json!({"trace_id": "first", "code": "saved"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            )
+            .without_field("trace_id")
+            .with_field("trace_id", "request-123"),
+    )
 }
 ```
 
@@ -369,25 +389,25 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
 The following complete response returns HTTP **200** and demonstrates top-level additions/removal, nested additions/replacement/removal, an array update/append, and a literal dotted key:
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn customized() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({
-        "user": {"name": "Before", "password": "private"},
-        "items": [{"id": 1}]
-    }))
-    .additional([
-        ("request_id", json!("req-123")),
-        ("temporary", json!(true)),
-    ])
-    .with_field("data.user.name", "Ada")
-    .with_field("data.user.profile.city", "Shanghai")
-    .with_field("data.items.0.selected", true)
-    .with_field("data.items.1", json!({"id": 2}))
-    .without_field("data.user.password")
-    .without_field("temporary")
-    .with_field(["data", "user", "first.name"], "Ada")
+fn customized() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "user": {"name": "Before", "password": "private"},
+            "items": [{"id": 1}]
+        }))
+        .additional([("request_id", json!("req-123")), ("temporary", json!(true))])
+        .with_field("data.user.name", "Ada")
+        .with_field("data.user.profile.city", "Shanghai")
+        .with_field("data.items.0.selected", true)
+        .with_field("data.items.1", json!({"id": 2}))
+        .without_field("data.user.password")
+        .without_field("temporary")
+        .with_field(["data", "user", "first.name"], "Ada"),
+    )
 }
 ```
 
@@ -423,21 +443,27 @@ fn customized() -> ApiResponse<serde_json::Value> {
 Both functions below return HTTP **200**. Deleting index `1` or inserting index `2` while index `1` is absent preserves numeric keys. In both cases the complete response is:
 
 ```rust
-use openrust::http::ApiResponse;
-use serde_json::{Value, json};
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
+use serde_json::json;
 
-fn removed_item_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({
-        "items": [{"id": 1}, {"id": 2}, {"id": 3}]
-    }))
-        .without_field("data.items.1")
+fn removed_item_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "items": [{"id": 1}, {"id": 2}, {"id": 3}]
+        }))
+        .without_field("data.items.1"),
+    )
 }
 
-fn sparse_item_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({
-        "items": [{"id": 1}]
-    }))
-        .with_field("data.items.2", json!({"id": 3}))
+fn sparse_item_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "items": [{"id": 1}]
+        }))
+        .with_field("data.items.2", json!({"id": 3})),
+    )
 }
 ```
 
@@ -463,9 +489,9 @@ Use contiguous indexes when the public contract requires a JSON array. Removing 
 
 ### Application information {#api-application-info}
 
-The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. This endpoint passes an `ApiResponse` to `Response::json`, with `name` and `version` in `data`.
+The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. This endpoint passes an `ApiResult` to `Response::json`, with `name` and `version` in `data`.
 
-The default `ApiResponse` message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
+The default `ApiResult` message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
 
 ## Redirect responses
 

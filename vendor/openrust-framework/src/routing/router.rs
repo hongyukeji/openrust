@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::{
     contracts::routing::{Handler, Registrar, UrlRoutable},
-    http::{ApiResponse, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
 };
 
 use super::{
@@ -49,35 +49,6 @@ pub trait IntoRouteHandler<Arguments> {
 impl<H: Handler + 'static> IntoRouteHandler<(Request,)> for H {
     fn into_route_handler(self) -> Arc<dyn Handler> {
         Arc::new(self)
-    }
-}
-
-impl<F, T> IntoRouteHandler<(ApiResponse<T>,)> for F
-where
-    F: Fn() -> ApiResponse<T> + Send + Sync + 'static,
-    T: Serialize,
-{
-    fn into_route_handler(self) -> Arc<dyn Handler> {
-        Arc::new(ApiResponseHandler(self))
-    }
-}
-
-struct ApiResponseHandler<F>(F);
-
-impl<F, T> Handler for ApiResponseHandler<F>
-where
-    F: Fn() -> ApiResponse<T> + Send + Sync,
-    T: Serialize,
-{
-    fn handle<'a>(
-        &'a self,
-        request: &'a mut Request,
-    ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async {
-            request
-                .with_container(async { (self.0)().into_response() })
-                .await
-        })
     }
 }
 
@@ -598,6 +569,7 @@ impl Router {
         request.route_terminators.clear();
         request.extensions_mut().remove::<super::RouteMetadata>();
         request.matched_route = false;
+        request.api_route = false;
         request.route_name = None;
         request
             .extensions_mut()
@@ -740,6 +712,7 @@ impl Router {
             middleware: Vec::new(),
         });
         request.matched_route = true;
+        request.api_route = route.is_api();
         request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
         if let Some(domain) = &route.domain {
             request
@@ -810,10 +783,16 @@ impl Router {
             .host()
             .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
             .unwrap_or_default();
+        let mut api_route = false;
         let allowed: Vec<_> = VERBS
             .iter()
             .map(|verb| Method::from_bytes(verb.as_bytes()).expect("valid HTTP method"))
-            .filter(|method| self.matched(method, host, path).is_some())
+            .filter(|method| {
+                self.matched(method, host, path).is_some_and(|route| {
+                    api_route |= route.is_api();
+                    true
+                })
+            })
             .collect();
         if allowed.is_empty() {
             if let Some(response) = self
@@ -832,6 +811,7 @@ impl Router {
         if request.method() == Method::OPTIONS {
             return Ok(Response::empty(StatusCode::OK).with_allow(&allowed, ","));
         }
+        request.api_route = api_route;
         Err(HttpError::MethodNotAllowed { allowed })
     }
 }

@@ -9,7 +9,7 @@ use openrust::{
     },
     foundation::{Application, http::Kernel},
     hashing::HashOptions,
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::{
         ProviderResult, ServiceProvider,
         facades::{App, Facade as _, Route},
@@ -164,7 +164,7 @@ impl<const K: u8> ServiceProvider for Kit<K> {
 fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let value = openrust_fortify::starter::UserResource::current(request).await?;
-        openrust::http::ApiResponse::success(value).into_response()
+        Response::json(StatusCode::OK, openrust::http::ApiResult::success(value))
     })
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {

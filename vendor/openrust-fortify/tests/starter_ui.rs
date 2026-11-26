@@ -1261,9 +1261,10 @@ fn native_token(
             &["account:read"],
         )
         .await?;
-        openrust::http::ApiResponse::success(token.to_array()?)
-            .with_status(openrust::http::StatusCode::CREATED)
-            .into_response()
+        openrust::http::Response::json(
+            openrust::http::StatusCode::CREATED,
+            openrust::http::ApiResult::success(token.to_array()?),
+        )
     })
 }
 #[cfg(feature = "sanctum")]
@@ -1279,8 +1280,10 @@ fn token_user(
             token,
             Some(openrust::sanctum::AccessToken::Personal(_))
         ));
-        openrust::http::ApiResponse::success(json!({"id":user.get_auth_identifier()}))
-            .into_response()
+        openrust::http::Response::json(
+            openrust::http::StatusCode::OK,
+            openrust::http::ApiResult::success(json!({"id":user.get_auth_identifier()})),
+        )
     })
 }
 #[cfg(feature = "sanctum")]

@@ -183,8 +183,8 @@ fn plain(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn precognitive_view() -> openrust::view::View {
     panic!("Precognition must not invoke the View callback")
 }
-fn precognitive_api() -> openrust::http::ApiResponse<Value> {
-    panic!("Precognition must not invoke the ApiResponse callback")
+fn precognitive_api() -> Result<Response, HttpError> {
+    panic!("Precognition must not invoke the ApiResult callback")
 }
 async fn injected(form: ValidatedFormRequest<Form>) -> Result<Response, HttpError> {
     Response::json(StatusCode::OK, form.validated().all())

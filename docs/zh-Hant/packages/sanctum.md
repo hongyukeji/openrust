@@ -2,7 +2,7 @@
 
 ## 安裝 API 路由 {#installation}
 
-預設 API 路由與設定不依賴 Sanctum。執行 `./artisan install:api`，將 Sanctum 加入應用程式的 Cargo 預設功能，並向未修改的空骨架加入受保護的 `/user`。檔案已有業務路由時，安裝器保留檔案，需手動加入受保護路由。互動終端會詢問是否執行待處理的遷移，確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。 安裝器無法修改自訂啟動檔時，會保留產生的路由並提示手動註冊。產生的路由會回傳已註冊驗證模型的可見屬性。選用的遷移失敗時，安裝器會顯示錯誤並保留鷹架。自動化需要遷移結束代碼時，請單獨執行 `./artisan migrate`。
+預設 API 路由與設定不依賴 Sanctum。執行 `./artisan install:api`，將 Sanctum 加入應用程式的 Cargo 預設功能，並向未修改的空骨架加入受保護的 `/user`。檔案已有業務路由時，安裝器保留檔案，需手動加入受保護路由。互動終端會詢問是否執行待處理的遷移，確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。 安裝器無法修改自訂啟動檔時，會保留產生的路由並提示手動註冊。產生的路由會在 `ApiResult.data` 中回傳已註冊驗證模型的可見屬性。選用的遷移失敗時，安裝器會顯示錯誤並保留鷹架。自動化需要遷移結束代碼時，請單獨執行 `./artisan migrate`。
 
 預設應用程式骨架不預置 Sanctum 專屬設定或使用者模型註冊。啟用 Cargo 功能後，由套件提供預設設定。新應用程式執行 `install:api` 會發布權杖資料表遷移，並接入發布的設定和預設使用者模型。自訂使用者模型須實作 `HasApiTokens`，並在 `config/auth.rs` 中以 `openrust::auth::model!(YourUser, sanctum)` 參照；明確的執行階段擴充也可使用 `AuthManager::register_sanctum_model`。安裝器更新模型能力與設定中的類別參照，保留 `AppServiceProvider` 原樣。手動啟用功能時，可用 `vendor:publish --tag=sanctum-migrations` 發布遷移，以 `vendor:publish --tag=sanctum-config` 發布可編輯設定。手動發布後，在 `config/mod.rs` 宣告模組並將載入結果註冊至 `sanctum` 設定群組。
 
@@ -59,13 +59,23 @@ SQLite、MySQL 與 PostgreSQL 均支援與遷移、模型中繼資料相符的�
 在受保護的路由加上 `auth:sanctum`，以 `Authorization: Bearer <token>` 傳送憑證。憑證無效、到期或已撤銷時回傳 HTTP 401。`abilities:reports:read,reports:write` 要求具備兩項能力，`ability:reports:read,reports:write` 要求具備任一項。權杖已通過驗證但缺少能力時回傳 HTTP 403。
 
 ```rust
-use openrust::{http::ApiResponse, routing::RoutingError, support::facades::Route};
+use openrust::{
+    http::{ApiResult, Response, StatusCode},
+    routing::RoutingError,
+    support::facades::Route,
+};
 
 fn register() -> Result<(), RoutingError> {
-    Route::get_with("/reports", || ApiResponse::success(["quarterly"]), |route| {
-        route.middleware_name("auth:sanctum").middleware_name("abilities:reports:read");
-        Ok(())
-    })
+    Route::get_with(
+        "/reports",
+        || Response::json(StatusCode::OK, ApiResult::success(["quarterly"])),
+        |route| {
+            route
+                .middleware_name("auth:sanctum")
+                .middleware_name("abilities:reports:read");
+            Ok(())
+        },
+    )
 }
 ```
 

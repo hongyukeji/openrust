@@ -49,7 +49,7 @@ async fn send(address: std::net::SocketAddr, path: &str, accept: &str) -> (Strin
 }
 
 #[tokio::test]
-async fn exact_api_prefix_and_children_render_native_json() {
+async fn exact_api_prefix_and_children_render_api_results() {
     for prefix in ["api", "api/admin"] {
         for enabled in [false, true] {
             let root = std::env::temp_dir().join(format!(
@@ -92,13 +92,16 @@ async fn exact_api_prefix_and_children_render_native_json() {
                     "{headers}"
                 );
                 let value: Value = serde_json::from_str(&body).unwrap();
-                assert_eq!(value, json!({"message":"Unauthenticated."}));
+                assert_eq!(
+                    value,
+                    json!({"success":false,"code":"unauthenticated","message":"Unauthenticated."})
+                );
             }
             for path in [format!("/{prefix}/missing"), format!("/{prefix}?query=1")] {
                 let (headers, body) = send(address, &path, "text/html").await;
                 assert!(headers.contains("content-type: application/json"));
                 let value: Value = serde_json::from_str(&body).unwrap();
-                assert!(value.get("success").is_none());
+                assert_eq!(value["success"], false);
             }
             for path in [format!("/{prefix}x"), format!("/other/{prefix}")] {
                 let (headers, _) = send(address, &path, "text/html").await;
@@ -132,6 +135,10 @@ async fn empty_api_prefix_does_not_classify_all_paths_as_api() {
                 request.is_api_path() || request.expects_json()
             });
         })
+        .with_routing(Routing::default().api(|| {
+            Route::get("/child", unauthenticated)?;
+            Ok(())
+        }))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
@@ -144,6 +151,12 @@ async fn empty_api_prefix_does_not_classify_all_paths_as_api() {
         let (headers, _) = send(address, path, "text/html").await;
         assert!(headers.contains("content-type: text/html"));
     }
+    let (headers, body) = send(address, "/child", "text/html").await;
+    assert!(headers.starts_with("HTTP/1.1 401"));
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap(),
+        json!({"success":false,"code":"unauthenticated","message":"Unauthenticated."})
+    );
     server.abort();
     let _ = server.await;
     std::fs::remove_dir_all(root).unwrap();

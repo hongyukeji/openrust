@@ -32,7 +32,7 @@ Cookie 客户端须先获取 CSRF Cookie，并发送最新的 `X-XSRF-TOKEN`，�
 Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 ```
 
-HTML 保留原生重定向和闪存。JSON 登录、注册与双因素登录完成后，通过 `ApiResponse` 返回当前用户，注册使用201。更新省略空数据；退出和邮箱验证保留204空正文。消息跟随应用语言，认证成功响应使用 `Cache-Control: no-store`。
+HTML 保留原生重定向和闪存。JSON 登录、注册与双因素登录完成后，通过 `ApiResult` 返回当前用户，注册使用201。更新省略空数据；退出和邮箱验证保留204空正文。消息跟随应用语言，认证成功响应使用 `Cache-Control: no-store`。
 
 `UserResource` 只读取 `id`、`name`、`email`、`email_verified_at` 及可空的 `avatar_url`，保留字符串主键，不枚举属性或读取凭据。自定义资源可替换原有 Fortify 响应绑定。单独使用响应适配不会签发令牌或改变 Guard。
 
@@ -356,7 +356,7 @@ curl -X POST http://localhost:8000/api/user/two-factor-authentication \
 
 当前Cookie确认绑定确认时的用户、邮箱、凭据及双因素状态和Session时间。其他设备变更邮箱／因素后，旧时间标记不足以继续授权；重新确认后方可操作。密码变更保留当前浏览器，旧会话及PAT失效。更新会轮换Session和CSRF，JSON／SPA客户端须刷新CSRF后继续；普通浏览器跟随重定向读取新表单。独立Fortify应用未装配用户套件时保持原生行为。
 
-网页保留原生闪存状态码，通过 `lang/<locale>/user.json` 翻译显示，例如 `password-updated`；覆盖对应条目即可定制。JSON成功消息仍使用ApiResponse本地化。升级前没有套件快照的既有浏览器确认需要重新确认。
+网页保留原生闪存状态码，通过 `lang/<locale>/user.json` 翻译显示，例如 `password-updated`；覆盖对应条目即可定制。JSON成功消息仍使用ApiResult本地化。升级前没有套件快照的既有浏览器确认需要重新确认。
 
 ## 认证邮件队列与开发预览 {#auth-mail-queue}
 
@@ -549,7 +549,7 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 
 API-only 应用安装 `./artisan init --starter-kit=api --extensions=api,fortify,passkeys`，也可以选择完整预设。设置 `USER_PASSKEYS=true`、有效的公开 `APP_URL` 和依赖方配置后执行迁移。启用通行密钥时保留非空 API 前缀，原生会话路由已占用 `/user/passkeys`；可通过 `API_PREFIX` 使用 `/api/admin`。两种预设都会发布客户端和 NOTICE，也可执行 `vendor:publish --tag=user-kit-passkeys-client`；重复安装保留定制文件，显式 `--force` 覆盖所选资源。
 
-以下路径跟随 API 前缀，使用常规 ApiResponse 封装。注册和删除要求 `account:update` 及近期 `factors` 证明，列表要求 `account:read`。确认结果绑定当前认证凭据与指定用途。获取选项和提交结果通过不透明、限时、单次使用的 `challenge` 关联，完整服务器状态保留在既有挑战仓储中；凭据 ID、公钥和 JSON 证明元数据均不是认证器私钥。凭据和挑战不能放入 URL。
+以下路径跟随 API 前缀，使用常规 ApiResult 封装。注册和删除要求 `account:update` 及近期 `factors` 证明，列表要求 `account:read`。确认结果绑定当前认证凭据与指定用途。获取选项和提交结果通过不透明、限时、单次使用的 `challenge` 关联，完整服务器状态保留在既有挑战仓储中；凭据 ID、公钥和 JSON 证明元数据均不是认证器私钥。凭据和挑战不能放入 URL。
 
 | Method | Path | Success |
 |---|---|---|

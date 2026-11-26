@@ -13,7 +13,7 @@ use openrust::{
     contracts::session::Session as _,
     contracts::validation::Validator as _,
     database::{DatabaseManager, Transaction},
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     sanctum::{AccessToken, HasApiTokens, Sanctum},
     support::facades::{App, Auth, Facade as _, Validator},
     validation::{Data, RuleSet},
@@ -136,9 +136,10 @@ pub fn tokens<M: HasApiTokens + Clone>(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Ok(client::no_store(
-            ApiResponse::success(token_summaries::<M>(request, false).await?).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(token_summaries::<M>(request, false).await?),
+        )?))
     })
 }
 pub(super) async fn token_summaries<M: HasApiTokens + Clone>(
@@ -162,11 +163,10 @@ pub fn create_token<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Ok(client::no_store(
-            ApiResponse::success(issue_token::<M>(request, false).await?)
-                .with_status(StatusCode::CREATED)
-                .into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::CREATED,
+            ApiResult::success(issue_token::<M>(request, false).await?),
+        )?))
     })
 }
 /// 网页与API使用同一签发事务；浏览器身份仅由原生受保护路由传入。

@@ -32,7 +32,7 @@ Cookie 用戶端須先取得 CSRF Cookie，並傳送最新的 `X-XSRF-TOKEN`，�
 Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 ```
 
-HTML 保留原生重新導向與快閃訊息。JSON 登入、註冊與雙因素登入完成後，透過 `ApiResponse` 回傳目前使用者，註冊使用201。更新省略空資料；登出與信箱驗證保留204空本文。訊息依應用語言顯示，認證成功回應使用 `Cache-Control: no-store`。
+HTML 保留原生重新導向與快閃訊息。JSON 登入、註冊與雙因素登入完成後，透過 `ApiResult` 回傳目前使用者，註冊使用201。更新省略空資料；登出與信箱驗證保留204空本文。訊息依應用語言顯示，認證成功回應使用 `Cache-Control: no-store`。
 
 `UserResource` 只讀取 `id`、`name`、`email`、`email_verified_at` 及可為空的 `avatar_url`，保留字串主鍵，不列舉屬性或讀取憑證。自訂資源可替換原有 Fortify 回應綁定。單獨使用回應配接不會簽發權杖或變更 Guard。
 
@@ -356,7 +356,7 @@ curl -X POST http://localhost:8000/api/user/two-factor-authentication \
 
 Cookie確認綁定確認時的使用者、信箱、憑證、雙因素狀態及Session時間。其他裝置變更信箱／因素後，舊時間標記不足以繼續授權；重新確認後才可操作。密碼變更保留目前瀏覽器，舊會話及PAT失效。更新會輪換Session與CSRF，JSON／SPA客戶端須重新讀取CSRF；一般瀏覽器跟隨重新導向讀取新表單。未裝配使用者套件的獨立Fortify應用維持原生行為。
 
-網頁保留原生快閃狀態碼，透過 `lang/<locale>/user.json` 翻譯顯示，例如 `password-updated`；覆寫對應項目即可自訂。JSON成功訊息仍使用ApiResponse本地化。升級前沒有套件快照的既有瀏覽器確認需要重新確認。
+網頁保留原生快閃狀態碼，透過 `lang/<locale>/user.json` 翻譯顯示，例如 `password-updated`；覆寫對應項目即可自訂。JSON成功訊息仍使用ApiResult本地化。升級前沒有套件快照的既有瀏覽器確認需要重新確認。
 
 ## 認證郵件佇列與開發預覽 {#auth-mail-queue}
 
@@ -549,7 +549,7 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 
 API-only 應用程式安裝 `./artisan init --starter-kit=api --extensions=api,fortify,passkeys`，也可以選擇完整預設。設定 `USER_PASSKEYS=true`、有效的公開 `APP_URL` 與依賴方設定後執行遷移。啟用通行金鑰時保留非空 API 前綴，原生工作階段路由已佔用 `/user/passkeys`；可透過 `API_PREFIX` 使用 `/api/admin`。兩種預設都會發布用戶端及 NOTICE，也可執行 `vendor:publish --tag=user-kit-passkeys-client`；重複安裝保留自訂檔案，明確指定 `--force` 覆寫所選資源。
 
-以下路徑跟隨 API 前綴，使用一般 ApiResponse 封裝。註冊與刪除要求 `account:update` 及近期 `factors` 證明，清單要求 `account:read`。確認結果綁定目前認證憑證與指定用途。取得選項及提交結果透過不透明、限時、單次使用的 `challenge` 關聯，完整伺服器狀態保留在既有挑戰儲存中；憑證 ID、公鑰與 JSON 證明中繼資料都不是認證器私鑰。憑證與挑戰不能放入 URL。
+以下路徑跟隨 API 前綴，使用一般 ApiResult 封裝。註冊與刪除要求 `account:update` 及近期 `factors` 證明，清單要求 `account:read`。確認結果綁定目前認證憑證與指定用途。取得選項及提交結果透過不透明、限時、單次使用的 `challenge` 關聯，完整伺服器狀態保留在既有挑戰儲存中；憑證 ID、公鑰與 JSON 證明中繼資料都不是認證器私鑰。憑證與挑戰不能放入 URL。
 
 | Method | Path | Success |
 |---|---|---|

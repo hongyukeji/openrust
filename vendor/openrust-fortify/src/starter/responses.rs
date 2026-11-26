@@ -1,5 +1,5 @@
 use crate::{contracts, http::responses as native};
-use openrust::http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode};
+use openrust::http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode};
 
 fn private(response: Response) -> Response {
     response
@@ -27,11 +27,7 @@ macro_rules! account_response {
                         return contracts::Response::to_response(&native::$name, request).await;
                     }
                     let user = super::UserResource::current(request).await?;
-                    Ok(private(
-                        ApiResponse::success(user)
-                            .with_status($status)
-                            .into_response()?,
-                    ))
+                    Ok(private(Response::json($status, ApiResult::success(user))?))
                 })
             }
         }
@@ -52,7 +48,7 @@ macro_rules! empty_response {
                     if !request.wants_json() {
                         return contracts::Response::to_response(&native::$name, request).await;
                     }
-                    Ok(private(ApiResponse::empty().with_status($status).into_response()?))
+                    Ok(private(Response::json($status, ApiResult::empty())?))
                 })
             }
         }
@@ -83,7 +79,10 @@ macro_rules! password_response {
                     }
                     let message = openrust::support::facades::Lang::get(status.as_str(), &Default::default(), None)
                         .map_err(crate::resolver::internal)?;
-                    Ok(private(ApiResponse::empty().with_message(message).into_response()?))
+                    Ok(private(Response::json(
+                        StatusCode::OK,
+                        ApiResult::empty().with_message(message),
+                    )?))
                 })
             }
         }

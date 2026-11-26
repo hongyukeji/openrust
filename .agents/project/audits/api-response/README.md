@@ -72,3 +72,11 @@ node target/tmp/api-response/browser.mjs
 - 默认 `GET /api` 由控制器将 `ApiResponse::success` 传给 `Response::json`，统一格式包含 `success`、`code`、`message` 和 `data`。Fortify 等应用中显式构造的业务响应仍按各自契约输出。
 
 本次在隔离源码中使用 Rust 1.95.0 验证。旧环境变量分别为 `true` 和 `false` 时，真实 TCP 请求覆盖默认 `/api`、401／404／405／422／429／500、资源分页和 JSON:API。安装模板也验证了旧设置为非法值时仍可只读取 API 前缀。相关测试通过 34 项。启动套件另有一项现有失败，断言启动错误省略底层消息，而 `BootstrapError::ProviderBootFailed` 的现有 Display 实现会附加底层错误。本批验收复跑跳过该项。
+
+## ApiResult 与 HTTP 响应分离
+
+OpenSpring 的 `CmsContentApiController` 将 `Result.success(data)` 交给 `ResponseEntity`。OpenRust 沿用这个职责划分，将已有业务 JSON 对象改为 `ApiResult<T>`，由 `Response::json` 指定状态并生成响应，取消路由专用转换。保留成功标记、业务码、消息翻译、空数据省略和字段编辑规则。调用方显式使用 `Response::no_content()` 或 `Response::empty(status)` 返回无正文响应。
+
+默认应用和生成的认证 API 显式构造 `ApiResult`。默认异常处理器对 API 路由及 API 前缀下的请求产生失败的 `ApiResult`，包括验证字段错误，保留原有 HTTP 状态及 `Allow`、`Retry-After` 等响应头。空前缀时根据实际匹配的 API 路由识别异常。显式自定义响应、HTML、普通 Resource 包装和 JSON:API 继续由各自入口决定格式。
+
+验收使用 Rust 1.95.0。全工作区测试目标检查通过，并用 `openrust-fortify/socialite` 复核可选入口。独立应用 HTTP 验证默认及自定义前缀的 200／404／405，核对 HEAD 空正文、`Allow` 和前缀之外的 HTML 响应。根应用与框架 26 项相关测试通过，包含独立 MySQL 8.4 的 Precognition 验证。另有两项 Fortify 真实 HTTP 测试通过，覆盖密码令牌签发、状态码和最近确认。Precognition 的浏览器辅助脚本用例按原测试配置忽略。

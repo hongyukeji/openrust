@@ -19,7 +19,7 @@ use openrust::{
     },
     database::{DatabaseError, DatabaseManager, Transaction, eloquent::Model},
     foundation::Application,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, ResponseOutput, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, ResponseOutput, StatusCode},
     queue::QueueManager,
     routing::{RouteGroup, RoutingError},
     sanctum::{HasApiTokens, Sanctum},
@@ -307,12 +307,10 @@ fn remove<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                         )
                     });
             }
-            return Ok(client::no_store(
-                ApiResponse::empty()
-                    .with_status(StatusCode::ACCEPTED)
-                    .with_field("meta.cleanup", data)
-                    .into_response()?,
-            ));
+            return Ok(client::no_store(Response::json(
+                StatusCode::ACCEPTED,
+                ApiResult::empty().with_field("meta.cleanup", data),
+            )?));
         }
         if web && !request.expects_json() {
             return Ok(client::no_store(

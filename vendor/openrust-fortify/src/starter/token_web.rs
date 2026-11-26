@@ -50,11 +50,10 @@ fn store<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     Box::pin(async move {
         let issued = account::issue_token::<M>(request, true).await?;
         if request.expects_json() {
-            return Ok(client::no_store(
-                openrust::http::ApiResponse::success(issued)
-                    .with_status(StatusCode::CREATED)
-                    .into_response()?,
-            ));
+            return Ok(client::no_store(Response::json(
+                StatusCode::CREATED,
+                openrust::http::ApiResult::success(issued),
+            )?));
         }
         render::<M>(
             request,

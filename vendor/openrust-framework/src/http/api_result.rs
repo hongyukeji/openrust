@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 
-use ::http::{HeaderValue, header::CONTENT_TYPE};
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value, json};
 
-use super::{Body, HttpError, Response, StatusCode};
 use crate::support::facades::Lang;
 
 /// 分页元数据；原生 Resource 分页继续使用自己的 links/meta。
@@ -50,11 +48,11 @@ impl Message {
 
 /// 字符串使用点路径；片段数组可明确访问名称含点号的字面键。
 #[derive(Debug, Clone)]
-pub struct ApiResponsePath {
+pub struct ApiResultPath {
     parts: Vec<String>,
     dotted: Option<String>,
 }
-impl From<&str> for ApiResponsePath {
+impl From<&str> for ApiResultPath {
     fn from(path: &str) -> Self {
         Self {
             parts: path.split('.').map(str::to_owned).collect(),
@@ -62,12 +60,12 @@ impl From<&str> for ApiResponsePath {
         }
     }
 }
-impl From<String> for ApiResponsePath {
+impl From<String> for ApiResultPath {
     fn from(path: String) -> Self {
         Self::from(path.as_str())
     }
 }
-impl<const N: usize> From<[&str; N]> for ApiResponsePath {
+impl<const N: usize> From<[&str; N]> for ApiResultPath {
     fn from(parts: [&str; N]) -> Self {
         Self {
             parts: parts.into_iter().map(str::to_owned).collect(),
@@ -75,7 +73,7 @@ impl<const N: usize> From<[&str; N]> for ApiResponsePath {
         }
     }
 }
-impl From<Vec<String>> for ApiResponsePath {
+impl From<Vec<String>> for ApiResultPath {
     fn from(parts: Vec<String>) -> Self {
         Self {
             parts,
@@ -83,7 +81,7 @@ impl From<Vec<String>> for ApiResponsePath {
         }
     }
 }
-impl ApiResponsePath {
+impl ApiResultPath {
     fn apply(&self, target: &mut Value, value: &Option<Value>) -> Result<(), serde_json::Error> {
         use crate::support::{
             Arr, DATA_MAX_DEPTH, data_check_depth, data_forget_parts, data_write,
@@ -152,19 +150,18 @@ impl ApiResponsePath {
     }
 }
 
-/// 可选的业务 JSON 封装；字段调整按链式调用顺序应用，不改变 HTTP 状态。
+/// 可序列化的业务 JSON 数据；字段调整按链式调用顺序应用。
 #[derive(Debug, Clone)]
-pub struct ApiResponse<T> {
+pub struct ApiResult<T> {
     success: bool,
     code: String,
     message: Message,
     data: Option<T>,
     meta: Option<PageMeta>,
     errors: Option<BTreeMap<String, Vec<String>>>,
-    status: StatusCode,
-    fields: Vec<(ApiResponsePath, Option<Value>)>,
+    fields: Vec<(ApiResultPath, Option<Value>)>,
 }
-impl<T> ApiResponse<T> {
+impl<T> ApiResult<T> {
     pub fn success(data: T) -> Self {
         Self {
             success: true,
@@ -177,18 +174,12 @@ impl<T> ApiResponse<T> {
             data: Some(data),
             meta: None,
             errors: None,
-            status: StatusCode::OK,
             fields: Vec::new(),
         }
     }
     #[must_use]
     pub fn with_meta(mut self, meta: PageMeta) -> Self {
         self.meta = Some(meta);
-        self
-    }
-    #[must_use]
-    pub fn with_status(mut self, status: StatusCode) -> Self {
-        self.status = status;
         self
     }
     /// 指定已经可安全展示的文字；需要本地化时使用 with_message_key。
@@ -221,32 +212,28 @@ impl<T> ApiResponse<T> {
         self.fields.extend(
             fields
                 .into_iter()
-                .map(|(key, value)| (ApiResponsePath::from(vec![key.into()]), Some(value))),
+                .map(|(key, value)| (ApiResultPath::from(vec![key.into()]), Some(value))),
         );
         self
     }
     #[must_use]
-    pub fn with_field(mut self, name: impl Into<ApiResponsePath>, value: impl Into<Value>) -> Self {
+    pub fn with_field(mut self, name: impl Into<ApiResultPath>, value: impl Into<Value>) -> Self {
         self.fields.push((name.into(), Some(value.into())));
         self
     }
     #[must_use]
-    pub fn without_field(mut self, name: impl Into<ApiResponsePath>) -> Self {
+    pub fn without_field(mut self, name: impl Into<ApiResultPath>) -> Self {
         self.fields.push((name.into(), None));
         self
     }
 }
-impl ApiResponse<()> {
+impl ApiResult<()> {
     pub fn empty() -> Self {
         let mut response = Self::success(());
         response.data = None;
         response
     }
-    pub fn failure(
-        status: StatusCode,
-        code: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn failure(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             success: false,
             code: code.into(),
@@ -254,7 +241,6 @@ impl ApiResponse<()> {
             data: None,
             meta: None,
             errors: None,
-            status,
             fields: Vec::new(),
         }
     }
@@ -264,7 +250,7 @@ impl ApiResponse<()> {
         self
     }
 }
-impl<T: Serialize> ApiResponse<T> {
+impl<T: Serialize> ApiResult<T> {
     fn payload(&self) -> Result<Map<String, Value>, serde_json::Error> {
         let mut fields = Map::from_iter([
             ("success".into(), json!(self.success)),
@@ -301,30 +287,8 @@ impl<T: Serialize> ApiResponse<T> {
             )),
         }
     }
-    pub fn into_response(self) -> Result<Response, HttpError> {
-        if self.status.is_informational()
-            || matches!(
-                self.status,
-                StatusCode::NO_CONTENT | StatusCode::RESET_CONTENT | StatusCode::NOT_MODIFIED
-            )
-        {
-            return Ok(Response::empty(self.status));
-        }
-        if self.success != self.status.is_success() {
-            return Err(HttpError::Internal {
-                source: std::io::Error::other("业务响应状态与HTTP状态不一致").into(),
-            });
-        }
-        let body = serde_json::to_vec(&self)?;
-        let mut response = Response::new(self.status, Body::from(body));
-        response
-            .parts_mut()
-            .headers
-            .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        Ok(response)
-    }
 }
-impl<T: Serialize> Serialize for ApiResponse<T> {
+impl<T: Serialize> Serialize for ApiResult<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.payload()
             .map_err(serde::ser::Error::custom)?

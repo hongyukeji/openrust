@@ -2,7 +2,7 @@ use axum::handler::Handler as _;
 use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::{App, Route},
 };
 use serde_json::{Value, json};
@@ -141,9 +141,9 @@ fn broken(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn switched(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let response = ApiResponse::empty();
+        let response = ApiResult::empty();
         App::set_locale("zh-Hant").await?;
-        response.into_response()
+        Response::json(StatusCode::OK, response)
     })
 }
 struct MissingResource;
@@ -156,39 +156,55 @@ impl openrust::http::resources::json::JsonResource for MissingResource {
     }
 }
 fn extra_routes() -> Result<(), openrust::routing::RoutingError> {
-    Route::get("/empty", ApiResponse::empty)?;
-    Route::get("/null", || ApiResponse::success(Value::Null))?;
+    Route::get("/empty", || {
+        Response::json(StatusCode::OK, ApiResult::empty())
+    })?;
+    Route::get("/null", || {
+        Response::json(StatusCode::OK, ApiResult::success(Value::Null))
+    })?;
     Route::get("/values", || {
-        ApiResponse::success(json!({"zero":0,"flag":false,"items":[],"object":{},"text":""}))
+        Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!({"zero":0,"flag":false,"items":[],"object":{},"text":""})),
+        )
     })?;
     Route::get("/fields", || {
-        ApiResponse::success(json!({"old":true}))
-            .additional(
-                json!({"trace":"first","temporary":true})
-                    .as_object()
-                    .unwrap()
-                    .clone(),
-            )
-            .without_field("temporary")
-            .without_field("message")
-            .with_field("trace", "last")
-            .without_field("data")
-            .with_field(
-                "data",
-                json!({"new":true,"user":{"password":"secret"},"items":[{"id":1}]}),
-            )
-            .with_field("data.user.name", "张三")
-            .without_field("data.user.password")
-            .with_field("data.items.0.selected", true)
+        Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!({"old":true}))
+                .additional(
+                    json!({"trace":"first","temporary":true})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                )
+                .without_field("temporary")
+                .without_field("message")
+                .with_field("trace", "last")
+                .without_field("data")
+                .with_field(
+                    "data",
+                    json!({"new":true,"user":{"password":"secret"},"items":[{"id":1}]}),
+                )
+                .with_field("data.user.name", "张三")
+                .without_field("data.user.password")
+                .with_field("data.items.0.selected", true),
+        )
     })?;
     Route::get("/custom", || {
-        ApiResponse::empty().with_message_key(
-            "custom.greeting",
-            BTreeMap::from([("name".into(), "Ada".into())]),
+        Response::json(
+            StatusCode::OK,
+            ApiResult::empty().with_message_key(
+                "custom.greeting",
+                BTreeMap::from([("name".into(), "Ada".into())]),
+            ),
         )
     })?;
     Route::get("/literal", || {
-        ApiResponse::empty().with_message("Literal message")
+        Response::json(
+            StatusCode::OK,
+            ApiResult::empty().with_message("Literal message"),
+        )
     })?;
     Route::get("/switch", switched)?;
     Route::get("/unauthenticated", error)?;
@@ -293,15 +309,33 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
         body,
         json!({"success":true,"code":"ok","message":"成功","data":{"name":"测试应用","version":"1.2.3-test"}})
     );
-    for (method, path, status, message) in [
-        ("POST", "/api/admin", 405, "Method Not Allowed"),
-        ("GET", "/api/admin/missing", 404, "Not Found"),
-        ("GET", "/api/admin/unauthenticated", 401, "Unauthenticated."),
-        ("GET", "/api/admin/broken", 500, "Server Error"),
+    for (method, path, status, code, message) in [
+        (
+            "POST",
+            "/api/admin",
+            405,
+            "method_not_allowed",
+            "Method Not Allowed",
+        ),
+        ("GET", "/api/admin/missing", 404, "not_found", "Not Found"),
+        (
+            "GET",
+            "/api/admin/unauthenticated",
+            401,
+            "unauthenticated",
+            "Unauthenticated.",
+        ),
+        (
+            "GET",
+            "/api/admin/broken",
+            500,
+            "internal_error",
+            "Server Error",
+        ),
     ] {
         let (actual, headers, body) = server.send(method, path, "zh-Hans").await;
         assert_eq!(actual, status);
-        assert_eq!(body, json!({"message":message}));
+        assert_eq!(body, json!({"success":false,"code":code,"message":message}));
         if status == 405 {
             assert!(headers.contains("allow:"));
         }
@@ -317,7 +351,10 @@ async fn api_errors_use_semantic_status_and_do_not_leak_sources() {
     );
     let (status, _, body) = native.send("GET", "/api/missing", "en").await;
     assert_eq!(status, 404);
-    assert_eq!(body, json!({"message":"Not Found"}));
+    assert_eq!(
+        body,
+        json!({"success":false,"code":"not_found","message":"Not Found"})
+    );
     native.close().await;
 }
 #[tokio::test]
@@ -389,11 +426,14 @@ async fn resource_pagination_errors_and_protocol_boundaries_share_real_http() {
         assert_eq!(status, 422);
         assert_eq!(
             body,
-            json!({"message":"email 不能为空。","errors":{"email":["email 不能为空。"]}})
+            json!({"success":false,"code":"validation_failed","message":"email 不能为空。","errors":{"email":["email 不能为空。"]}})
         );
         let (status, headers, body) = server.send("GET", "/api/throttled", "en").await;
         assert_eq!(status, 429);
-        assert_eq!(body, json!({"message":"Too Many Attempts."}));
+        assert_eq!(
+            body,
+            json!({"success":false,"code":"rate_limited","message":"Too Many Attempts."})
+        );
         assert!(headers.contains("retry-after: 7"));
         let (status, headers, body) = server.send("GET", "/api/json-api", "en").await;
         assert_eq!(status, 200);
@@ -415,6 +455,9 @@ async fn invalid_translation_source_becomes_a_safe_http_error() {
     .unwrap();
     let (status, _, body) = server.send("GET", "/api/empty", "en").await;
     assert_eq!(status, 500);
-    assert_eq!(body, json!({"message":"Server Error"}));
+    assert_eq!(
+        body,
+        json!({"success":false,"code":"internal_error","message":"Server Error"})
+    );
     server.close().await;
 }

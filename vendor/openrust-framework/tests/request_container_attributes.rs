@@ -22,7 +22,7 @@ use openrust::{
         http::{Kernel as _, Middleware},
     },
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{ApiResponse, HttpError, HttpFuture, Next, Request, Response},
+    http::{ApiResult, HttpError, HttpFuture, Next, Request, Response, StatusCode},
     routing::{ControllerDispatcher, Router, RoutingError, middleware::SubstituteBindings},
 };
 use serde_json::{Value, json};
@@ -106,7 +106,10 @@ impl AuthProbe {
             {
                 assert!(Arc::ptr_eq(default, api));
             }
-            ApiResponse::success(json!([self.0.name(), id(&self.1), id(&self.2)])).into_response()
+            Response::json(
+                StatusCode::OK,
+                ApiResult::success(json!([self.0.name(), id(&self.1), id(&self.2)])),
+            )
         })
     }
 }
@@ -258,12 +261,14 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         assert!(route_value(&Container::default(), "id").is_null());
         assert!(route_value(&current, "absent").is_null());
         assert!(injected.3);
-        ApiResponse::success(json!([
-            injected.0.0,
-            injected.1.as_str(),
-            injected.2.as_str()
-        ]))
-        .into_response()
+        Response::json(
+            StatusCode::OK,
+            ApiResult::success(json!([
+                injected.0.0,
+                injected.1.as_str(),
+                injected.2.as_str()
+            ])),
+        )
     })
 }
 

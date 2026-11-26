@@ -46,11 +46,10 @@ pub fn register(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         let snapshot: Arc<dyn openrust::contracts::auth::Authenticatable> =
             user.clone_user().into();
         crate::actions::emit(Registered { user: snapshot }, &[]).await?;
-        Ok(client::no_store(
-            openrust::http::ApiResponse::success(resource)
-                .with_status(StatusCode::CREATED)
-                .into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::CREATED,
+            openrust::http::ApiResult::success(resource),
+        )?))
     })
 }
 

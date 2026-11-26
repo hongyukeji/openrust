@@ -2,7 +2,7 @@
 
 use std::{future::Future, pin::Pin};
 
-mod api_response;
+mod api_result;
 mod binary_file_response;
 mod body;
 pub mod client;
@@ -32,7 +32,7 @@ pub use ::http::{
     Extensions, HeaderMap, Method, StatusCode, Uri, request::Parts as RequestParts,
     response::Parts as ResponseParts,
 };
-pub use api_response::{ApiResponse, ApiResponsePath, PageMeta};
+pub use api_result::{ApiResult, ApiResultPath, PageMeta};
 pub use body::Body;
 pub(crate) use download::filename_header;
 pub use error::{HttpError, abort, abort_responsable, abort_response};

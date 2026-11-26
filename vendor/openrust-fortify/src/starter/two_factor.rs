@@ -22,7 +22,7 @@ use openrust::{
     },
     database::DatabaseManager,
     foundation::Application,
-    http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     sanctum::{HasApiTokens, Sanctum},
     support::{
@@ -352,9 +352,10 @@ fn web_read<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     kind: Read,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Ok(client::no_store(
-            ApiResponse::success(read::<M>(request, kind, true).await?).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(read::<M>(request, kind, true).await?),
+        )?))
     })
 }
 pub(super) fn api_enable<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -363,9 +364,10 @@ pub(super) fn api_enable<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     Box::pin(async move {
         let force = request.boolean("force").await?;
         let (_, _, payload) = change::<M>(request, Operation::Enable(force), false).await?;
-        Ok(client::no_store(
-            ApiResponse::success(payload).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(payload),
+        )?))
     })
 }
 pub(super) fn api_confirm<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -378,9 +380,10 @@ pub(super) fn api_confirm<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();
         let (user, fortify, _) = change::<M>(request, Operation::Confirm(code), false).await?;
-        Ok(client::no_store(
-            ApiResponse::success(overview(&user, &fortify)?).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(overview(&user, &fortify)?),
+        )?))
     })
 }
 pub(super) fn api_disable<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -388,7 +391,10 @@ pub(super) fn api_disable<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         change::<M>(request, Operation::Disable, false).await?;
-        Ok(client::no_store(ApiResponse::empty().into_response()?))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::empty(),
+        )?))
     })
 }
 pub(super) fn api_generate<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -396,9 +402,10 @@ pub(super) fn api_generate<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let (_, _, payload) = change::<M>(request, Operation::Generate, false).await?;
-        Ok(client::no_store(
-            ApiResponse::success(payload).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(payload),
+        )?))
     })
 }
 macro_rules! reader {
@@ -408,8 +415,10 @@ macro_rules! reader {
         ) -> HttpFuture<'_, Result<Response, HttpError>> {
             Box::pin(async move {
                 Ok(client::no_store(
-                    ApiResponse::success(read::<M>(request, Read::$kind, false).await?)
-                        .into_response()?,
+                    Response::json(
+                        StatusCode::OK,
+                        ApiResult::success(read::<M>(request, Read::$kind, false).await?),
+                    )?,
                 ))
             })
         }
@@ -427,9 +436,10 @@ pub(super) fn api_state<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         enabled(&fortify)?;
         let user = account::user::<M>(request).await?;
         account::actor(request, &user, Some("account:read"))?;
-        Ok(client::no_store(
-            ApiResponse::success(overview(&user, &fortify)?).into_response()?,
-        ))
+        Ok(client::no_store(Response::json(
+            StatusCode::OK,
+            ApiResult::success(overview(&user, &fortify)?),
+        )?))
     })
 }
 

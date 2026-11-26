@@ -59,13 +59,23 @@ For a chainable Eloquent query, use `user.tokens_query::<DefaultPersonalAccessTo
 Attach `auth:sanctum` to protected routes. Send the credential in `Authorization: Bearer <token>`. Invalid, expired and revoked credentials receive HTTP 401. Use `abilities:reports:read,reports:write` to require both abilities or `ability:reports:read,reports:write` to require either. An authenticated token that lacks a required ability receives HTTP 403.
 
 ```rust
-use openrust::{http::ApiResponse, routing::RoutingError, support::facades::Route};
+use openrust::{
+    http::{ApiResult, Response, StatusCode},
+    routing::RoutingError,
+    support::facades::Route,
+};
 
 fn register() -> Result<(), RoutingError> {
-    Route::get_with("/reports", || ApiResponse::success(["quarterly"]), |route| {
-        route.middleware_name("auth:sanctum").middleware_name("abilities:reports:read");
-        Ok(())
-    })
+    Route::get_with(
+        "/reports",
+        || Response::json(StatusCode::OK, ApiResult::success(["quarterly"])),
+        |route| {
+            route
+                .middleware_name("auth:sanctum")
+                .middleware_name("abilities:reports:read");
+            Ok(())
+        },
+    )
 }
 ```
 

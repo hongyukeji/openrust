@@ -32,7 +32,7 @@ The generated application provider installs `openrust_fortify::starter::StarterK
 Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 ```
 
-HTML requests retain native redirects and flash messages. JSON login, registration and completed two-factor login return the current user through `ApiResponse`; registration uses 201. Updates omit empty data; logout and verification retain empty 204 bodies. Messages follow the application locale. Successful authentication responses use `Cache-Control: no-store`.
+HTML requests retain native redirects and flash messages. JSON login, registration and completed two-factor login return the current user through `ApiResult`; registration uses 201. Updates omit empty data; logout and verification retain empty 204 bodies. Messages follow the application locale. Successful authentication responses use `Cache-Control: no-store`.
 
 `UserResource` reads only `id`, `name`, `email`, `email_verified_at` and nullable `avatar_url`, preserving string identifiers without enumerating attributes or credentials. Replace the existing Fortify response binding for a custom resource. The response adapter alone does not issue tokens or alter guards.
 
@@ -356,7 +356,7 @@ The account page provides profile and password forms with a confirmation link. N
 
 Cookie confirmation binds the user, email, credentials and two-factor state at confirmation time together with the Session timestamp. An old timestamp cannot authorize changes after another device changes the email or factors. Confirm again before continuing. A password change preserves the current browser and invalidates old sessions and PATs. Updates rotate the Session and CSRF token: JSON/SPA clients must refresh CSRF, while ordinary browsers follow the redirect to a new form. Standalone Fortify applications without the user suite retain native behavior.
 
-Browser feedback retains the native flash status codes and translates their display through `lang/<locale>/user.json`, such as `password-updated`; override the corresponding entry to customize it. JSON success messages continue to use ApiResponse localization. Existing browser confirmations without the suite snapshot require confirmation again after upgrading.
+Browser feedback retains the native flash status codes and translates their display through `lang/<locale>/user.json`, such as `password-updated`; override the corresponding entry to customize it. JSON success messages continue to use ApiResult localization. Existing browser confirmations without the suite snapshot require confirmation again after upgrading.
 
 ## Authentication mail queues and development preview {#auth-mail-queue}
 
@@ -549,7 +549,7 @@ The bundled client uses the native `/user/passkeys/options`, `/user/passkeys`, `
 
 Install `./artisan init --starter-kit=api --extensions=api,fortify,passkeys` for an API-only application, or use the full preset. Set `USER_PASSKEYS=true`, a valid public `APP_URL` and relying party settings, then migrate. Keep a non-empty API prefix when enabling passkeys, because the native session routes reserve `/user/passkeys`. `/api/admin` is supported through `API_PREFIX`. The client and its NOTICE are published for both presets; `vendor:publish --tag=user-kit-passkeys-client` is also available. Repeat installation keeps edits; explicit `--force` replaces selected resources.
 
-The routes below follow the API prefix and return the regular ApiResponse envelope. Enrollment and deletion require `account:update` and a recent `factors` proof; listing requires `account:read`. Confirmation binds its result to the current credential and requested purpose. Options and submissions use an opaque, expiring, single-use `challenge` handle; full server state stays in the existing challenge store. The credential ID, public key and JSON proof metadata never become private authenticator keys. Do not put credentials or challenges in URLs.
+The routes below follow the API prefix and return the regular ApiResult envelope. Enrollment and deletion require `account:update` and a recent `factors` proof; listing requires `account:read`. Confirmation binds its result to the current credential and requested purpose. Options and submissions use an opaque, expiring, single-use `challenge` handle; full server state stays in the existing challenge store. The credential ID, public key and JSON proof metadata never become private authenticator keys. Do not put credentials or challenges in URLs.
 
 | Method | Path | Success |
 |---|---|---|

@@ -105,13 +105,13 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 ## JSON 業務回應 {#business-responses}
 
-`ApiResponse` 提供統一業務 JSON 格式，包含 `success`、`code`、`message`，按需附帶 `data`、`meta` 和 `errors`。它是業務回應擴充；HTTP 狀態碼仍表示請求結果。
+`ApiResult` 提供統一業務 JSON 格式，包含 `success`、`code`、`message`，按需附帶 `data`、`meta` 和 `errors`。它是業務回應擴充；HTTP 狀態碼仍表示請求結果。
 
 ### 明確回傳業務回應 {#business-response-configuration}
 
-需要統一業務格式時，由處理器明確回傳 `ApiResponse`。舊的 `API_RESPONSE_ENVELOPE` 設定已移除，可從環境變數中刪除。
+用 `Response::json(status, result)` 將 `ApiResult` 作為統一業務 JSON 回傳。`ApiResult` 保存本文資料，HTTP 狀態由 `Response::json` 接收。
 
-框架預設的 JSON 例外包含 `message`，驗證例外也包含欄位 `errors`。一般資源依資源設定包裝資料，保留 `links` 和 `meta` 等中繼資料。JSON:API 資源遵循自己的協定格式。
+框架將 API 路由及設定的 API 前綴下的例外呈現為失敗的 `ApiResult`。驗證例外也包含欄位 `errors`。直接回傳的一般資源沿用各自的資料包裝及 `links`、`meta` 等中繼資料。JSON:API 資源遵循自己的協定格式。
 
 相關機制見 [API 資源](../eloquent/resources.md)及[例外處理](./errors.md)。
 
@@ -122,29 +122,37 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 除另有語言或原文訊息說明外，下方預設訊息範例的目前請求語言為 `en`；切換為 `zh-Hans` 或 `zh-Hant` 時，`Success` 對應 `成功`。函式可以直接用於路由，例如匯入 `Route` 後呼叫 `Route::get("/example-user", user_response)?;`。
 
 ```rust
-use std::collections::BTreeMap;
 use openrust::{
-    http::{ApiResponse, PageMeta, StatusCode},
+    http::{ApiResult, PageMeta, Response, StatusCode},
     routing::RoutingError,
     support::facades::Route,
 };
 use serde_json::json;
+use std::collections::BTreeMap;
 
 pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
-        ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
+        let body = ApiResult::success(json!([{"id": 1, "name": "Notebook"}]))
             .with_message("Loaded.")
-            .with_meta(PageMeta { page: 1, per_page: 10, total: 1, total_pages: 1 })
+            .with_meta(PageMeta {
+                page: 1,
+                per_page: 10,
+                total: 1,
+                total_pages: 1,
+            });
+        Response::json(StatusCode::OK, body)
     })?;
     Route::post("/items", || {
-        ApiResponse::success(json!({"id": 2}))
-            .with_message("Created.")
-            .with_status(StatusCode::CREATED)
+        let body = ApiResult::success(json!({"id": 2})).with_message("Created.");
+        Response::json(StatusCode::CREATED, body)
     })?;
     Route::get("/example-validation", || {
-        ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Invalid input.")
-            .with_errors(BTreeMap::from([("email".into(), vec!["Email is required.".into()])]))
-    })
+        let body = ApiResult::failure("validation_failed", "Invalid input.").with_errors(
+            BTreeMap::from([("email".into(), vec!["Email is required.".into()])]),
+        );
+        Response::json(StatusCode::UNPROCESSABLE_ENTITY, body)
+    })?;
+    Ok(())
 }
 ```
 
@@ -187,20 +195,23 @@ GET `/api/example-validation` 回傳 HTTP 422：
 }
 ```
 
-`success` 預設 HTTP 200；`failure` 應搭配非成功狀態碼。`with_status` 只修改 HTTP 狀態，不修改業務欄位；成功／失敗旗標與一般有本文狀態碼不一致時，`into_response` 回傳錯誤。
+`ApiResult::success` 搭配成功狀態，`ApiResult::failure` 搭配錯誤狀態。HTTP 狀態都傳給 `Response::json`。
 
-`ApiResponse::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空物件、空陣列、`0`、`false` 和空字串仍保留。HTTP 204、205、304 及資訊狀態碼傳送空本文。序列化錯誤交給[例外處理](./errors.md)。
+`ApiResult::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空物件、空陣列、`0`、`false` 和空字串仍保留。HTTP 204、205、304 及資訊狀態碼傳送空本文。序列化錯誤交給[例外處理](./errors.md)。
 
 #### 最簡單的成功回應 {#business-response-success}
 
 最簡單的成功呼叫回傳 HTTP **200**：
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn user_response() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({"id": 1, "name": "Ada"}))
+fn user_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({"id": 1, "name": "Ada"})),
+    )
 }
 ```
 
@@ -221,19 +232,19 @@ fn user_response() -> ApiResponse<serde_json::Value> {
 下列三個函式都回傳 HTTP **200**，但只有第一個省略 `data`：
 
 ```rust
-use openrust::http::ApiResponse;
-use serde_json::{Value, json};
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
+use serde_json::json;
 
-fn empty_response() -> ApiResponse<()> {
-    ApiResponse::empty()
+fn empty_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::empty())
 }
 
-fn empty_object_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({}))
+fn empty_object_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::success(json!({})))
 }
 
-fn empty_array_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!([]))
+fn empty_array_response() -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, ApiResult::success(json!([])))
 }
 ```
 
@@ -268,12 +279,10 @@ fn empty_array_response() -> ApiResponse<Value> {
 需要 HTTP **204** 時，整個本文為空，而不是回傳空的業務封裝：
 
 ```rust
-use openrust::http::{ApiResponse, HttpError, Response, StatusCode};
+use openrust::http::Response;
 
-fn no_content_response() -> Result<Response, HttpError> {
-    ApiResponse::empty()
-        .with_status(StatusCode::NO_CONTENT)
-        .into_response()
+fn no_content_response() -> Response {
+    Response::no_content()
 }
 ```
 
@@ -281,7 +290,7 @@ fn no_content_response() -> Result<Response, HttpError> {
 
 ### 國際化訊息 {#business-response-localization}
 
-預設成功訊息讀取 `response.ok`，框架例外讀取對應的 `response.*` 鍵，使用目前請求語言和既有回退機制。應用程式可在目前語言目錄的 `response.json` 覆寫這些詞條。請求語言的設定與選擇見[本地化](../digging-deeper/localization.md)；無需在每個回應中解析請求標頭。
+預設成功訊息讀取 `response.ok`，使用目前的請求語言和既有回退機制。應用程式可在目前語言目錄的 `response.json` 覆寫這些詞條。請求語言的設定與選擇見[本地化](../digging-deeper/localization.md)；無需在每個回應中解析請求標頭。
 
 `with_message` 和 `failure` 的訊息是原文，不自動翻譯。需要翻譯時使用 `with_message_key`，在最終序列化時解析。下例在應用程式預設語言目錄的 `lang/zh-Hans/messages.json` 定義詞條，並在目前語言為 `zh-Hans` 時回傳：
 
@@ -292,13 +301,16 @@ fn no_content_response() -> Result<Response, HttpError> {
 ```
 
 ```rust
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use std::collections::BTreeMap;
-use openrust::http::ApiResponse;
 
-fn localized_response() -> ApiResponse<u64> {
-    ApiResponse::success(1).with_message_key(
-        "messages.created",
-        BTreeMap::from([("name".into(), "Notebook".into())]),
+fn localized_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(1).with_message_key(
+            "messages.created",
+            BTreeMap::from([("name".into(), "Notebook".into())]),
+        ),
     )
 }
 ```
@@ -333,7 +345,7 @@ fn localized_response() -> ApiResponse<u64> {
 
 ### 自訂欄位 {#business-response-fields}
 
-`with_field` 從回應根開始設定點路徑，`without_field` 刪除對應欄位；支援巢狀物件及陣列索引。`additional` 淺合併字面的頂級鍵，可傳 JSON Map 或鍵值對陣列。操作按呼叫順序生效，後者覆蓋前者；JSON 欄位修改不會改變 `with_status` 設定的 HTTP 狀態。
+`with_field` 從回應根開始設定點路徑，`without_field` 刪除對應欄位；支援巢狀物件及陣列索引。`additional` 淺合併字面的頂級鍵，可傳 JSON Map 或鍵值對陣列。操作按呼叫順序生效，後者覆蓋前者。修改 JSON 欄位時，HTTP 狀態仍由 `Response::json` 指定。
 
 缺失路徑會自動建立，既有 null 可作為空佔位；經過非 null 純量時回傳序列化錯誤，不靜默覆蓋父資料。刪除缺失路徑不報錯。沿用既有 `Arr` 規則：`*` 是字面鍵，連續數字索引保持陣列，跨索引新增或刪除中間元素會保留鍵並呈現為 JSON 物件，不自動重排。含點號的字面鍵使用片段陣列，例如 `["data", "user", "first.name"]`。字串刪除路徑優先刪除完整的頂級字面鍵，與 `Arr::forget` 相同。
 
@@ -342,15 +354,23 @@ fn localized_response() -> ApiResponse<u64> {
 下列回應回傳 HTTP 200：
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn custom_response() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({"id": 1}))
-        .with_message("Saved.")
-        .additional(json!({"trace_id": "first", "code": "saved"}).as_object().unwrap().clone())
-        .without_field("trace_id")
-        .with_field("trace_id", "request-123")
+fn custom_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({"id": 1}))
+            .with_message("Saved.")
+            .additional(
+                json!({"trace_id": "first", "code": "saved"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            )
+            .without_field("trace_id")
+            .with_field("trace_id", "request-123"),
+    )
 }
 ```
 
@@ -369,25 +389,25 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
 以下完整範例回傳 HTTP **200**，同時展示頂級欄位新增與刪除、巢狀欄位新增／修改／刪除、陣列元素修改與附加，以及含點號的字面鍵：
 
 ```rust
-use openrust::http::ApiResponse;
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
 use serde_json::json;
 
-fn customized() -> ApiResponse<serde_json::Value> {
-    ApiResponse::success(json!({
-        "user": {"name": "Before", "password": "private"},
-        "items": [{"id": 1}]
-    }))
-    .additional([
-        ("request_id", json!("req-123")),
-        ("temporary", json!(true)),
-    ])
-    .with_field("data.user.name", "Ada")
-    .with_field("data.user.profile.city", "Shanghai")
-    .with_field("data.items.0.selected", true)
-    .with_field("data.items.1", json!({"id": 2}))
-    .without_field("data.user.password")
-    .without_field("temporary")
-    .with_field(["data", "user", "first.name"], "Ada")
+fn customized() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "user": {"name": "Before", "password": "private"},
+            "items": [{"id": 1}]
+        }))
+        .additional([("request_id", json!("req-123")), ("temporary", json!(true))])
+        .with_field("data.user.name", "Ada")
+        .with_field("data.user.profile.city", "Shanghai")
+        .with_field("data.items.0.selected", true)
+        .with_field("data.items.1", json!({"id": 2}))
+        .without_field("data.user.password")
+        .without_field("temporary")
+        .with_field(["data", "user", "first.name"], "Ada"),
+    )
 }
 ```
 
@@ -423,21 +443,27 @@ fn customized() -> ApiResponse<serde_json::Value> {
 下列兩個函式均回傳 HTTP **200**。刪除索引 `1`，或在缺少索引 `1` 時直接新增索引 `2`，都會保留原來的數字鍵。兩者的完整回應相同：
 
 ```rust
-use openrust::http::ApiResponse;
-use serde_json::{Value, json};
+use openrust::http::{ApiResult, HttpError, Response, StatusCode};
+use serde_json::json;
 
-fn removed_item_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({
-        "items": [{"id": 1}, {"id": 2}, {"id": 3}]
-    }))
-        .without_field("data.items.1")
+fn removed_item_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "items": [{"id": 1}, {"id": 2}, {"id": 3}]
+        }))
+        .without_field("data.items.1"),
+    )
 }
 
-fn sparse_item_response() -> ApiResponse<Value> {
-    ApiResponse::success(json!({
-        "items": [{"id": 1}]
-    }))
-        .with_field("data.items.2", json!({"id": 3}))
+fn sparse_item_response() -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        ApiResult::success(json!({
+            "items": [{"id": 1}]
+        }))
+        .with_field("data.items.2", json!({"id": 3})),
+    )
 }
 ```
 
@@ -463,9 +489,9 @@ fn sparse_item_response() -> ApiResponse<Value> {
 
 ### 應用資訊介面 {#api-application-info}
 
-根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。此端點將 `ApiResponse` 傳給 `Response::json`，`name` 和 `version` 位於 `data` 中。
+根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。此端點將 `ApiResult` 傳給 `Response::json`，`name` 和 `version` 位於 `data` 中。
 
-`ApiResponse` 的預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
+`ApiResult` 的預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
 
 ## 重新導向回應
 
