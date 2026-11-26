@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use crate::{
     accounts::Admission,
     compatibility::{Bridge, Translation},
-    gateway::{Call, Gateway, Key, Target},
+    gateway::{Call, Gateway, Key, Target, UsageAdmission},
     session_affinity::SessionAffinity,
 };
 
@@ -527,16 +527,24 @@ async fn relay(
             std::mem::take(&mut data)
         };
         payload.insert("model".into(), json!(target.upstream_model));
-        let (payload, bridge) = if let Some(bridge) = Bridge::between(endpoint, upstream_endpoint) {
-            match bridge.request(payload) {
-                Ok((payload, translation)) => (payload, Some(translation)),
-                Err(message) => {
-                    conversion_error = Some(message);
-                    continue;
+        let (mut payload, bridge) =
+            if let Some(bridge) = Bridge::between(endpoint, upstream_endpoint) {
+                match bridge.request(payload) {
+                    Ok((payload, translation)) => (payload, Some(translation)),
+                    Err(message) => {
+                        conversion_error = Some(message);
+                        continue;
+                    }
                 }
+            } else {
+                (Value::Object(payload), None)
+            };
+        let reservation = match key.output_reservation(upstream_endpoint, target, &mut payload) {
+            Ok(reservation) => reservation,
+            Err(message) => {
+                conversion_error = Some(message);
+                continue;
             }
-        } else {
-            (Value::Object(payload), None)
         };
         if let Some(cooldown) = target
             .account
@@ -577,12 +585,23 @@ async fn relay(
                 target,
                 (endpoint, upstream_endpoint),
                 &request_id,
-                lease,
+                (lease, reservation),
             )
             .await
         {
             Ok(call) => call,
-            Err(_) => {
+            Err(UsageAdmission::Limited(retry_after)) => {
+                return protocol
+                    .error(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "output_quota_exceeded",
+                        "分组输出 Token 配额不足",
+                    )
+                    .map(|response| {
+                        response.header(header::RETRY_AFTER, HeaderValue::from(retry_after))
+                    });
+            }
+            Err(UsageAdmission::Unavailable) => {
                 return protocol.error(
                     StatusCode::SERVICE_UNAVAILABLE,
                     "usage_unavailable",
@@ -1086,7 +1105,7 @@ fn downstream_headers(upstream: &HeaderMap) -> HeaderMap {
 fn error_body(code: &str, message: &str) -> Value {
     let kind = match code {
         "invalid_api_key" => "authentication_error",
-        "rate_limit_exceeded" => "rate_limit_error",
+        "rate_limit_exceeded" | "output_quota_exceeded" => "rate_limit_error",
         "upstream_timeout"
         | "upstream_error"
         | "invalid_upstream_response"

@@ -117,6 +117,28 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 閘道先登記嘗試，再向上游送出請求。正常結束、出錯和取消都會結算。處理程序在結算前結束時，帳本可能留下 `pending` 記錄供核對。
 
+### 群組輸出 Token 配額 {#gateway-output-quota}
+
+啟用用量帳本並執行遷移後，可在群組設定輸出 Token 配額。同群組所有 Key 在各閘道執行個體共用每日額度，於 UTC 午夜重設。
+
+```json
+{
+  "groups": {
+    "support-team": {
+      "models": ["support-chat"],
+      "quota": {
+        "output_tokens_per_day": 100000,
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+閘道依 `max_output_tokens` 限制每次嘗試，送出請求前先預留額度。請求指定較小的輸出上限時，會減少預留。成功回應依供應商回報的輸出 Token 結算。失敗、取消或缺少最終用量時保留預留直到時段重設。每次備援都需要個別預留。
+
+額度不足時傳回 HTTP 429 和 `Retry-After`。若供應商回報的輸出超過預留，該群組停止接收新的生成請求，直到下一個時段。配額支援 Chat Completions、Responses 和 Anthropic Messages 生成。Token 計數和 Embeddings 沿用請求次數限制。
+
 ## 持久對話 {#conversations}
 
 讓 Agent 實作 `RemembersConversations` 即可把對話存到應用程式資料庫。先發佈遷移，重新編譯應用程式，再執行遷移。

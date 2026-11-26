@@ -17,6 +17,7 @@ use subtle::ConstantTimeEq;
 use crate::{
     accounts::{Account, MAX_SECONDS},
     managed_keys::KeyStore,
+    output_quota::{OutputQuota, QuotaReservation},
     session_affinity::{self, SessionAffinity},
     usage::{Settlement, UsageAttempt, UsageStore},
 };
@@ -62,12 +63,14 @@ struct AccountConfiguration {
 
 #[derive(Deserialize)]
 struct GroupConfiguration {
+    quota: Option<OutputQuota>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
 
 struct Group {
     name: String,
+    quota: Option<OutputQuota>,
     models: HashSet<String>,
     providers: Option<HashSet<String>>,
 }
@@ -95,6 +98,28 @@ impl Key {
             Some(id) => format!("ai-gateway:managed-key:{id}"),
             None => format!("ai-gateway:{}", self.name),
         }
+    }
+
+    pub(crate) fn output_reservation(
+        &self,
+        endpoint: TextEndpoint,
+        target: &Target,
+        payload: &mut Value,
+    ) -> Result<Option<QuotaReservation>, &'static str> {
+        let Some((group, quota)) = self
+            .group
+            .as_ref()
+            .and_then(|group| group.quota.map(|quota| (group, quota)))
+        else {
+            return Ok(None);
+        };
+        Ok(quota
+            .prepare(
+                endpoint,
+                target.provider.supports_endpoint(TextEndpoint::Responses),
+                payload,
+            )?
+            .map(|amount| QuotaReservation::new(&group.name, quota, amount)))
     }
 
     pub(crate) fn allows_model(&self, name: &str) -> bool {
@@ -316,10 +341,19 @@ impl Gateway {
             {
                 return Err(invalid(format!("网关分组 {name} 的模型或连接配置无效")));
             }
+            if group
+                .quota
+                .is_some_and(|quota| !quota.valid() || usage_store.is_none())
+            {
+                return Err(invalid(format!(
+                    "网关分组 {name} 的输出配额无效或用量账本未启用"
+                )));
+            }
             groups.insert(
                 name.clone(),
                 Arc::new(Group {
                     name,
+                    quota: group.quota,
                     models: group.models,
                     providers: group.providers,
                 }),
@@ -436,9 +470,10 @@ impl Gateway {
         target: &Target,
         endpoints: (TextEndpoint, TextEndpoint),
         request_id: &str,
-        lease: Option<ConcurrencyLease>,
-    ) -> DatabaseResult<Call> {
+        admission: (Option<ConcurrencyLease>, Option<QuotaReservation>),
+    ) -> Result<Call, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
+        let (lease, reservation) = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
             ("key_id".into(), json!(key.managed_id)),
@@ -459,7 +494,19 @@ impl Gateway {
         .collect();
         let attempt = match &self.usage_store {
             Some(store) => {
-                let attempt = store.begin(&context).await?;
+                let retry_after = reservation.as_ref().map(QuotaReservation::retry_after);
+                if let Some(reservation) = &reservation {
+                    context.insert("reserved_output_tokens".into(), json!(reservation.amount));
+                }
+                let attempt = store
+                    .begin(&context, reservation)
+                    .await
+                    .map_err(|_| UsageAdmission::Unavailable)?
+                    .ok_or_else(|| {
+                        retry_after
+                            .map(UsageAdmission::Limited)
+                            .unwrap_or(UsageAdmission::Unavailable)
+                    })?;
                 context.insert("attempt_id".into(), json!(attempt.id));
                 Some(attempt)
             }
@@ -474,6 +521,11 @@ impl Gateway {
             lease,
         })
     }
+}
+
+pub(crate) enum UsageAdmission {
+    Limited(u64),
+    Unavailable,
 }
 
 pub(crate) struct Call {

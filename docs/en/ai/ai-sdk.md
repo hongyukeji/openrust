@@ -117,6 +117,28 @@ Each upstream attempt has its own record. Retries share a `request_id`. The reco
 
 A request cannot be sent upstream until its attempt is recorded. The gateway settles complete responses, errors and cancellations. A process that stops before settlement can leave a `pending` record for reconciliation.
 
+### Group output-token quotas {#gateway-output-quota}
+
+Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.
+
+```json
+{
+  "groups": {
+    "support-team": {
+      "models": ["support-chat"],
+      "quota": {
+        "output_tokens_per_day": 100000,
+        "max_output_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+The gateway caps each attempt at `max_output_tokens` and reserves that amount before calling upstream. Explicit lower limits reduce the reservation. Successful responses settle against reported output tokens. Failed or cancelled attempts without a final count keep their reservation until the window resets. Each fallback needs its own reservation.
+
+Exhaustion returns HTTP 429 with `Retry-After`. A provider that reports more output than reserved blocks further generation for the group until the next window. Apply the quota to Chat Completions, Responses and Anthropic Messages generation. Token-count and embedding requests use their existing request limits.
+
 ## Remembered conversations {#conversations}
 
 Implement `RemembersConversations` on an Agent to store its conversation in the application's database. Publish the migration, rebuild the application, then migrate.

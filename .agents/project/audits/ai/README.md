@@ -265,3 +265,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 开启 `ai_gateway.usage.enabled` 后，每个上游尝试在出站前写入数据库。静态或托管 Key、分组、公开模型、实际连接与模型、入站和上游端点一并记录，回退用同一请求 ID 关联。用量只取上游报告值，另保留缓存读写和推理 Token，各协议计数含义按原字段。账本省略请求数据和密钥。可用 `ai:gateway:usage:list` 按请求或托管 Key 分页检查。登记失败返回 503。正常响应和失败在请求内结算，取消后尝试异步收尾，进程退出留下的 `pending` 可以查明。
 
 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均经独立 HTTP、协议服务及 Artisan 验收。核对迁移发布、登记不可用时零出站、503 后回退的两条记录、正常 JSON、缺失用量、SSE 正常终止、截断和下游取消。验证无凭证及请求正文、缓存和推理用量、按请求或托管 Key 分页。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器及全站导航渲染通过。Token 或金额硬限额及对未结算记录的核对继续单列。
+
+## GW-04 分组输出 Token 配额
+
+分组 `quota` 可配置 UTC 日窗口和单次生成上限，静态与托管 Key 共享分组额度。Chat Completions、Responses 和 Messages 在完成协议转换后按最终上游请求确定上限。数据库事务原子预留并登记用量，成功结算按确实报告的输出 Token 返还差额。缺失最终用量、失败和取消保留剩余窗口内的预留。回退需要新预留，超过额度返回 429 与 `Retry-After`。上游超报保留实际用量并关闭当日该分组的生成准入。计数和 Embeddings 不消耗生成配额。
+
+SQLite、MySQL 8.4.13、PostgreSQL 18.7 均实测两个独立 HTTP 实例竞争。五个请求争用两个额度时只有两个到达上游。验证静态与数据库 Key 共享、取消、超报、回退、协议字段、计数及独立 Artisan 查询。SQLite 注入结算表暂时不可用，响应保留实际流结果，结算记录保留 `pending`，新尝试无出站；恢复数据库后保留原预留。三库迁移回退及重装、包测试、严格 Clippy、三语构建和浏览器通过。原生 Gemini 生成的 Token 算法、金额账本和未结算记录的手工核对仍待后续。
+
+- [OpenAI Responses 上限](https://developers.openai.com/api/docs/guides/reasoning) · [OpenAI Chat 上限](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) · [Anthropic Thinking 上限](https://platform.claude.com/docs/en/about-claude/models/extended-thinking-models)

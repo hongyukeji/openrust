@@ -22,6 +22,9 @@ mod gateway;
 #[path = "../database/migrations/2026_11_26_000001_create_ai_gateway_keys_table.rs"]
 mod key_migration;
 mod managed_keys;
+mod output_quota;
+#[path = "../database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs"]
+mod output_quota_migration;
 mod protocol;
 mod session_affinity;
 mod usage;
@@ -42,10 +45,18 @@ static KEY_MIGRATIONS: &[MigrationEntry] = &[MigrationEntry::new(
 
 const USAGE_MIGRATION: &str =
     "database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs";
-static USAGE_MIGRATIONS: &[MigrationEntry] = &[MigrationEntry::new(
-    "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
-    &usage_migration::MIGRATION,
-)];
+const OUTPUT_QUOTA_MIGRATION: &str =
+    "database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs";
+static USAGE_MIGRATIONS: &[MigrationEntry] = &[
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs",
+        &usage_migration::MIGRATION,
+    ),
+    MigrationEntry::new(
+        "vendor/openrust/ai-gateway/database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs",
+        &output_quota_migration::MIGRATION,
+    ),
+];
 
 #[derive(Default, Deserialize)]
 struct DatabaseSettings {
@@ -84,6 +95,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         USAGE_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs"),
+                    ),
+                    (
+                        OUTPUT_QUOTA_MIGRATION,
+                        include_bytes!("../database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

@@ -1,11 +1,17 @@
 use openrust::{
-    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
+    database::{
+        Connection, DatabaseError, DatabaseResult, Row, Value,
+        query::{Builder, Record},
+    },
     log::LogContext,
     support::Str,
 };
 use serde::Serialize;
 
-use crate::managed_keys::{now, nullable};
+use crate::{
+    managed_keys::{now, nullable},
+    output_quota::QuotaReservation,
+};
 
 const TABLE: &str = "ai_gateway_usage";
 const COLUMNS: [&str; 19] = [
@@ -38,8 +44,10 @@ pub(crate) struct UsageStore {
 pub(crate) struct UsageAttempt {
     store: UsageStore,
     pub(crate) id: String,
+    quota: Option<QuotaReservation>,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Settlement {
     outcome: &'static str,
     status: Option<i64>,
@@ -95,7 +103,11 @@ impl UsageStore {
         Self { connection }
     }
 
-    pub(crate) async fn begin(&self, context: &LogContext) -> DatabaseResult<UsageAttempt> {
+    pub(crate) async fn begin(
+        &self,
+        context: &LogContext,
+        quota: Option<QuotaReservation>,
+    ) -> DatabaseResult<Option<UsageAttempt>> {
         let id = Str::ulid().to_string();
         let field = |key: &str| {
             context
@@ -103,31 +115,52 @@ impl UsageStore {
                 .and_then(serde_json::Value::as_str)
                 .map_or(Value::Null, Into::into)
         };
-        if !self
-            .connection
-            .table(TABLE)
-            .insert(&[Record::from([
-                ("id".into(), id.as_str().into()),
-                ("request_id".into(), field("request_id")),
-                ("key_id".into(), field("key_id")),
-                ("key_name".into(), field("key")),
-                ("group_name".into(), field("group")),
-                ("model".into(), field("model")),
-                ("provider".into(), field("provider")),
-                ("upstream_model".into(), field("upstream_model")),
-                ("endpoint".into(), field("endpoint")),
-                ("upstream_endpoint".into(), field("upstream_endpoint")),
-                ("outcome".into(), "pending".into()),
-                ("started_at".into(), now().into()),
-            ])])
-            .await?
-        {
-            return Err(DatabaseError::InvalidQuery("AI 网关用量登记失败"));
+        let mut record = Record::from([
+            ("id".into(), id.as_str().into()),
+            ("request_id".into(), field("request_id")),
+            ("key_id".into(), field("key_id")),
+            ("key_name".into(), field("key")),
+            ("group_name".into(), field("group")),
+            ("model".into(), field("model")),
+            ("provider".into(), field("provider")),
+            ("upstream_model".into(), field("upstream_model")),
+            ("endpoint".into(), field("endpoint")),
+            ("upstream_endpoint".into(), field("upstream_endpoint")),
+            ("outcome".into(), "pending".into()),
+            ("started_at".into(), now().into()),
+        ]);
+        if let Some(reservation) = &quota {
+            record.insert("output_quota_id".into(), reservation.id.as_str().into());
+            record.insert("reserved_output_tokens".into(), reservation.amount.into());
+            let reservation = reservation.clone();
+            let reserved = self
+                .connection
+                .transaction(
+                    move |transaction| {
+                        let reservation = reservation.clone();
+                        let record = record.clone();
+                        Box::pin(async move {
+                            if !reservation.reserve(transaction).await? {
+                                return Ok(false);
+                            }
+                            insert_usage(transaction.table(TABLE), record).await?;
+                            Ok(true)
+                        })
+                    },
+                    3,
+                )
+                .await?;
+            if !reserved {
+                return Ok(None);
+            }
+        } else {
+            insert_usage(self.connection.table(TABLE), record).await?;
         }
-        Ok(UsageAttempt {
+        Ok(Some(UsageAttempt {
             store: self.clone(),
             id,
-        })
+            quota,
+        }))
     }
 
     pub(crate) async fn list(
@@ -159,32 +192,32 @@ impl UsageStore {
 
 impl UsageAttempt {
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
-        let changed = self
-            .store
-            .connection
-            .table(TABLE)
-            .r#where("id", "=", self.id.as_str())
-            .where_null("finished_at")
-            .update(Record::from([
-                ("outcome".into(), settlement.outcome.into()),
-                ("status".into(), nullable(settlement.status)),
-                ("input_tokens".into(), nullable(settlement.input_tokens)),
-                ("output_tokens".into(), nullable(settlement.output_tokens)),
-                (
-                    "cached_input_tokens".into(),
-                    nullable(settlement.cached_input_tokens),
-                ),
-                (
-                    "cache_write_input_tokens".into(),
-                    nullable(settlement.cache_write_input_tokens),
-                ),
-                (
-                    "reasoning_tokens".into(),
-                    nullable(settlement.reasoning_tokens),
-                ),
-                ("finished_at".into(), settlement.finished_at.into()),
-            ]))
-            .await?;
+        let changed = if let Some(reservation) = &self.quota {
+            let reservation = reservation.clone();
+            let id = self.id.clone();
+            self.store
+                .connection
+                .transaction(
+                    move |transaction| {
+                        let reservation = reservation.clone();
+                        let id = id.clone();
+                        Box::pin(async move {
+                            let changed =
+                                finish_usage(transaction.table(TABLE), &id, settlement).await?;
+                            if changed == 1 && settlement.outcome == "completed" {
+                                reservation
+                                    .settle(transaction, settlement.output_tokens)
+                                    .await?;
+                            }
+                            Ok(changed)
+                        })
+                    },
+                    3,
+                )
+                .await?
+        } else {
+            finish_usage(self.store.connection.table(TABLE), &self.id, settlement).await?
+        };
         if changed == 0 {
             let query = self
                 .store
@@ -203,6 +236,39 @@ impl UsageAttempt {
         }
         Ok(())
     }
+}
+
+async fn insert_usage(query: Builder<'_>, record: Record) -> DatabaseResult<()> {
+    if !query.insert(&[record]).await? {
+        return Err(DatabaseError::InvalidQuery("AI 网关用量登记失败"));
+    }
+    Ok(())
+}
+
+async fn finish_usage(query: Builder<'_>, id: &str, settlement: Settlement) -> DatabaseResult<u64> {
+    query
+        .r#where("id", "=", id)
+        .where_null("finished_at")
+        .update(Record::from([
+            ("outcome".into(), settlement.outcome.into()),
+            ("status".into(), nullable(settlement.status)),
+            ("input_tokens".into(), nullable(settlement.input_tokens)),
+            ("output_tokens".into(), nullable(settlement.output_tokens)),
+            (
+                "cached_input_tokens".into(),
+                nullable(settlement.cached_input_tokens),
+            ),
+            (
+                "cache_write_input_tokens".into(),
+                nullable(settlement.cache_write_input_tokens),
+            ),
+            (
+                "reasoning_tokens".into(),
+                nullable(settlement.reasoning_tokens),
+            ),
+            ("finished_at".into(), settlement.finished_at.into()),
+        ]))
+        .await
 }
 
 fn decode(row: Row) -> DatabaseResult<UsageRecord> {
