@@ -345,12 +345,23 @@ fn record_hook(kind: &str, attempt: &WebhookJobAttempt<'_>) -> std::io::Result<(
             .body()
             .is_ok_and(|body| body.as_ref() == b"fixture-remote-response")
     });
+    let options = attempt.options();
+    let settings = json!({
+        "http_verb": options.http_verb, "proxy": options.proxy,
+        "maximum_tries": options.maximum_tries, "retryable": options.retryable_status_codes,
+        "respect_retry_after": options.respect_retry_after, "retry_with_jitter": options.retry_with_jitter,
+        "timeout": options.timeout_in_seconds, "backoff": options.backoff_strategy, "signer": options.signer,
+        "signature_header": options.signature_header_name, "timestamp_header": options.timestamp_header_name,
+        "verify_ssl": options.verify_ssl, "throws": options.throw_exception_on_failure,
+        "queue": options.queue, "connection": options.connection,
+        "headers": attempt.header_names().collect::<Vec<_>>(),
+    });
     let entry = json!({"kind": kind, "id": attempt.delivery_id, "number": attempt.number,
         "scope": attempt.scope, "outcome": attempt.outcome, "message": attempt.message_id(),
         "url": attempt.get_webhook_url(), "meta": attempt.meta(), "tags": attempt.tags(),
         "status": attempt.get_response().map(|value| value.status().as_u16()),
         "transport_failure": attempt.transport_failure().map(|failure| format!("{failure:?}")),
-        "request_matches": body_matches, "response_matches": matches_peer });
+        "request_matches": body_matches, "response_matches": matches_peer, "options": settings });
     let mut log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -538,6 +549,12 @@ pub(super) fn submit(
         }
         if mode == "exclude-503" {
             call = call.retry_on(Some(vec![StatusCode::TOO_MANY_REQUESTS]));
+        }
+        if key == "custom-stop-worker" {
+            call = call
+                .retry_on(Some(vec![StatusCode::SERVICE_UNAVAILABLE]))
+                .with_jitter(true)
+                .timeout_in_seconds(5);
         }
         if mode == "store-unbound-job" {
             call = call.use_job("fixture-worker-only");

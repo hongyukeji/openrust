@@ -2030,6 +2030,18 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert hook["scope"] == SCOPE and hook["number"] == 1 and hook["id"]
         assert hook["meta"] == {"trace": "fixture"} and hook["tags"] == ["audit"]
         assert hook["url"] == env["FIXTURE_SEND_TARGET"] and hook["request_matches"]
+        settings = hook["options"]
+        protected = hook["message"] == "custom-stop-worker"
+        assert settings == {
+            "http_verb": "POST", "proxy": None, "maximum_tries": 2,
+            "retryable": [503] if protected else None, "respect_retry_after": True,
+            "retry_with_jitter": protected, "timeout": 5 if protected else 4,
+            "backoff": "fixture-rapid", "signer": "default", "signature_header": "Signature",
+            "timestamp_header": "timestamp", "verify_ssl": True,
+            "throws": hook["message"] == "custom-stop-sync",
+            "queue": "webhook-outgoing", "connection": "database", "headers": settings["headers"],
+        }, settings
+        assert set(settings["headers"]) == {"content-type", "webhook-id"}
         if hook["message"] == "transport-disconnected":
             assert hook["outcome"] == "unknown" and hook["transport_failure"] == "Connection"
             assert hook["status"] is None and not hook["response_matches"]

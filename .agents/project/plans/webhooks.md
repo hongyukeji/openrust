@@ -99,7 +99,7 @@
 | WS-06 签名 | useSecret、signUsing、doNotSign | 内置与外部Signer，显式不签名入口保留；秘钥不入普通payload／日志，凭据安全适配及原值语义登记 |
 | WS-07 重试 | maximumTries、retryOn、respectRetryAfter、withJitter、useBackoffStrategy、timeoutInSeconds | 有限尝试／时间预算，HTTP响应与连接失败分别裁决，秒／日期形式Retry-After与异常值测试 |
 | WS-08 TLS／网络 | mutualTls、verifySsl、doNotVerifySsl、useProxy | 默认证书校验，mTLS／证书路径及代理实际接线；显式不校验入口需清楚标注危险适用范围，不自动关闭或降级TLS。具名协议映射、主机排除与 IPv6 字面目标见[验收](../audits/webhooks/proxy-map.md)。明确批准的 HTTP 端点见[固定地址 CONNECT](../audits/webhooks/connect-http-origin.md) |
-| WS-09 元信息／Job | meta、withTags、useJob | 任务元数据与线上请求体区分，标签有界脱敏；自定义Job不绕开可靠记录／安全策略 |
+| WS-09 元信息／Job | meta、withTags、useJob | 任务元数据与线上请求体区分，标签有界脱敏；自定义Job不绕开可靠记录／安全策略，[已保存设置可在应用钩子读取](../audits/webhooks/job-options.md) |
 | WS-10 异常策略 | throwExceptionOnFailure | 同步返回错误与后台最终失败分别验证，不能只改状态文字 |
 | WS-11 异步／条件派发 | dispatch、dispatchIf、dispatchUnless | 条件为假不创建实际投递／请求，闭包语义按Rust表达；创建记录与事务边界明确 |
 | WS-12 同步／条件派发 | dispatchSync、dispatchSyncIf、dispatchSyncUnless | 同步走同一序列化／签名／网络／状态逻辑，按WD-04统一领取，不跳过安全／尝试记录或与扫描旁路竞发 |

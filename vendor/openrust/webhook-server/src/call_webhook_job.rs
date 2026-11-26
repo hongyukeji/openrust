@@ -14,6 +14,26 @@ pub struct WebhookJobAttempt<'a> {
     pub(crate) transport_failure: Option<WebhookTransportFailure>,
 }
 
+/// 应用钩子可以读取该次投递已保存的请求与重试设置。
+#[non_exhaustive]
+pub struct WebhookJobOptions<'a> {
+    pub http_verb: &'a str,
+    pub proxy: Option<&'a str>,
+    pub maximum_tries: u32,
+    pub retryable_status_codes: Option<&'a [u16]>,
+    pub respect_retry_after: bool,
+    pub retry_with_jitter: bool,
+    pub timeout_in_seconds: u32,
+    pub backoff_strategy: &'a str,
+    pub signer: &'a str,
+    pub signature_header_name: &'a str,
+    pub timestamp_header_name: Option<&'a str>,
+    pub verify_ssl: bool,
+    pub throw_exception_on_failure: bool,
+    pub queue: Option<&'a str>,
+    pub connection: Option<&'a str>,
+}
+
 impl WebhookJobAttempt<'_> {
     pub fn message_id(&self) -> &str {
         &self.snapshot.uuid
@@ -35,6 +55,33 @@ impl WebhookJobAttempt<'_> {
     }
     pub fn meta(&self) -> &Value {
         &self.snapshot.meta
+    }
+
+    /// 返回准备时选中的设置，不读取当前凭据或重新解析配置。
+    pub fn options(&self) -> WebhookJobOptions<'_> {
+        let snapshot = self.snapshot;
+        WebhookJobOptions {
+            http_verb: &snapshot.method,
+            proxy: snapshot.proxy.as_deref(),
+            maximum_tries: snapshot.tries,
+            retryable_status_codes: snapshot.retryable.as_deref(),
+            respect_retry_after: snapshot.respect_retry_after,
+            retry_with_jitter: snapshot.jitter,
+            timeout_in_seconds: snapshot.timeout,
+            backoff_strategy: &snapshot.backoff,
+            signer: &snapshot.signer,
+            signature_header_name: &snapshot.signature_header,
+            timestamp_header_name: snapshot.timestamp_header.as_deref(),
+            verify_ssl: !snapshot.unverified_tls,
+            throw_exception_on_failure: snapshot.throws_on_failure,
+            queue: snapshot.queue.as_deref(),
+            connection: snapshot.connection.as_deref(),
+        }
+    }
+
+    /// 准备阶段的请求头名称。签名等发送时计算的头不包含在内。
+    pub fn header_names(&self) -> impl Iterator<Item = &str> {
+        self.snapshot.headers.iter().map(|(name, _)| name.as_str())
     }
 }
 

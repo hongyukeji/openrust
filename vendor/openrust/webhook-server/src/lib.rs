@@ -69,7 +69,7 @@ mod webhook_call;
 mod worker;
 
 pub use backoff_strategy::{BackoffStrategy, ExponentialBackoffStrategy};
-pub use call_webhook_job::{CallWebhookJob, WebhookJobAttempt};
+pub use call_webhook_job::{CallWebhookJob, WebhookJobAttempt, WebhookJobOptions};
 pub use delivery::{
     DeliveryContext, DeliveryPermission, DeliveryPolicy, DeliveryService, register_delivery_policy,
 };

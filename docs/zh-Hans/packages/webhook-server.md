@@ -302,6 +302,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 实现 `CallWebhookJob`，在生产者、Scheduler 和 Worker 用 `register_call_webhook_job` 与 `DeliveryService::register_worker` 注册同一名称，再用 `.use_job("stop-on-gone")` 选用。`should_be_removed_from_queue` 可停止原投递预算允许的重试。`failed` 在一次尝试提交最终失败并派发结果事件后运行。两个钩子都应快速同步返回。
 
+在两个钩子内调用 `attempt.options()` 可读取已保存的方法、选定的代理名称、超时、重试策略、签名和退避名称、签名头配置、TLS 校验及队列路由。 `attempt.header_names()` 返回准备阶段的请求头名称。Worker 发送时从当前应用策略解析签名与传输凭据。
+
 钩子可以读取原始正文、URL、标签、元数据及有大小上限的原生响应。传输、凭据解析、尝试记录及持久状态由包统一管理。已保存的自定义投递在运行时要求存在同名钩子，缺失时撤销领取且不扣减尝试额度。同步发送和队列发送在保存使用非默认 Job 的新投递前，都要求先注册对应的 `CallWebhookJob`。队列 Worker 路由和 Job 钩子需要分别注册。
 
 ### 人工重放投递 {#replay}

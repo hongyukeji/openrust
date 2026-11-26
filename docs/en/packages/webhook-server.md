@@ -302,6 +302,8 @@ Add `--backlog` to the preview for a JSON report. `candidates` is capped by `--l
 
 Implement `CallWebhookJob` and register the same name with `register_call_webhook_job` and `DeliveryService::register_worker` on the producer, Scheduler and Workers. Select it with `.use_job("stop-on-gone")`. The hook `should_be_removed_from_queue` can stop a retry eligible under the original delivery budget. `failed` observes committed terminal failures from an attempt after the result events. Keep both hooks short and synchronous.
 
+Within either hook, `attempt.options()` reads the saved method, selected proxy name, timeout, retry policy, signing and backoff names, header configuration, TLS verification, and queue route. `attempt.header_names()` lists the names prepared for the request. Workers resolve signing and transport credentials from the current application policy.
+
 The hook can inspect the original body, URL, tags, metadata and the bounded native response. Transport, credential resolution, attempts and persistence remain managed by the package. Saved custom selections require the named hook at runtime. A missing hook aborts the claim without consuming an attempt. A new delivery with a non-default Job requires the typed registration before it can be saved, including synchronous sends. A queue worker registration alone does not provide that hook.
 
 ### Replay a delivery {#replay}

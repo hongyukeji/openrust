@@ -464,10 +464,11 @@
         "uuid",
         "outputType"
       ],
-      "notes": "HTTP 尝试、状态码、重试时序、原生 Worker、结果事件与定时补派已验。具名 trait 提供停止重试、终态失败钩子、正文及有界响应，断连分类与结果事件一致。PHP 继承不移植，底层请求选项、崩溃记录回补事件和外部多主机拓扑仍开放。",
+      "notes": "HTTP 尝试、状态码、重试时序、原生 Worker、结果事件与定时补派已验。具名 trait 提供停止重试、终态失败钩子、正文及有界响应，断连分类与结果事件一致。Job 钩子可读取既有快照的请求、签名、退避、队列及 TLS 验证设置。原生 HTTP 传输和凭据归当前策略，崩溃记录回补事件和外部多主机拓扑仍开放。",
       "evidence": [
         "tests/webhooks_send_acceptance.py",
-        ".agents/project/audits/webhooks/custom-job.md"
+        ".agents/project/audits/webhooks/custom-job.md",
+        ".agents/project/audits/webhooks/job-options.md"
       ],
       "rust_source": "vendor/openrust/webhook-server/src/worker.rs"
     },
