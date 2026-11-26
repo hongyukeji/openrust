@@ -122,6 +122,12 @@ macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite �
 
 固定 PHP 8.5.12 与 SQLite 执行五张卡片及 Usage 的实际 `render` 方法和数据库查询，验证排序与三种用量的前十名。夹具提供 Livewire 基类、即时查询和视图数据捕获，完整 Livewire 请求生命周期继续验收。macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均经真实授权端点通过相同排序及人数断言，非法用量参数返回 400。Pulse Provider 默认 18 项通过。生产 Gate 的真实桌面与移动浏览器验证排序、用量选项及重新加载，保留授权、图表和转义检查。隔离快照格式、相关严格 Clippy、三语构建与六组正文检查通过。其他平台 Release 继续验收。证据为 `target/tmp/observability-parity/pulse-dashboard-order-{upstream-final,macos-final,docs}.log`。
 
+### 周期链接和浏览器历史
+
+固定 PHP 8.5.12 的 `HasPeriod` 以 `1_hour`、`6_hours`、`24_hours`、`7_days` 选择四个周期。实际 Blade 中选择最近一小时会清除 URL 的 `period`，其他周期写入固定名称，并保留其余查询参数。原生前态打开 `?period=6_hours` 仍请求最近一小时。修复后面板接受固定链接及已有短写，切换周期保留浏览器前进和后退记录；JSON 指标接口把两种写法归到同一查询周期和缓存项。 [固定周期选择器](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire/period-selector.blade.php) [固定周期区间](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Concerns/HasPeriod.php)
+
+受控 Chrome 桌面和移动视口核对有效及无效链接、旧链接、默认值、其他参数及连续前进后退。SQLite、PostgreSQL 18.7、MySQL 8.4.13 和具名 Redis 8.10.3 配置分别经授权 HTTP 验证不同写法共用已缓存的曲线。真实 SQLite 应用的桌面与手机浏览器验证四种链接及指标请求，并通过原有授权、排序和定时刷新回归。Pulse Provider 25 项、Telescope Provider 30 项、隔离快照格式、Pulse 全目标严格 Clippy、三语文档与六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-period-route-{upstream,browser-baseline,browser,macos,docs}.log`。
+
 ### 慢操作与异常卡片的五秒缓存
 
 固定 Pulse 的 `RemembersQueries::remember` 在配置的缓存仓储中按组件类、查询键和周期保存结果。PHP 8.5.12 使用实际 ArrayStore 核对，四秒时保留原查询结果、耗时和执行时间，第五秒重新查询。变更排序、周期或组件类会选取独立缓存项。证据为 `target/tmp/observability-parity/pulse-card-query-cache-upstream.log`。 [固定 RemembersQueries](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Concerns/RemembersQueries.php)

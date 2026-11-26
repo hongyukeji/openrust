@@ -10,10 +10,14 @@ const filters = {
     exceptions: ['exceptions', 'Order exceptions', [['count', 'Count'], ['latest', 'Latest']]],
     requests: ['usage', 'Usage type', [['requests', 'Requests'], ['slow_requests', 'Slow requests'], ['jobs', 'Jobs']]],
 };
-const pageOptions = new URLSearchParams(location.search);
-if ([...period.options].some(option => option.value === pageOptions.get('period'))) {
-    period.value = pageOptions.get('period');
+const periodNames = {'1h': '1_hour', '6h': '6_hours', '24h': '24_hours', '7d': '7_days'};
+let pageOptions = new URLSearchParams(location.search);
+function selectLocationPeriod() {
+    const value = pageOptions.get('period');
+    const selected = Object.entries(periodNames).find(([short, name]) => value === short || value === name);
+    period.value = selected?.[0] ?? '1h';
 }
+selectLocationPeriod();
 function addFilter(card, name) {
     const filter = filters[name];
     if (!filter) return;
@@ -32,10 +36,19 @@ function addFilter(card, name) {
     card.append(select);
 }
 function updateOption(parameter, value) {
-    pageOptions.set(parameter, value);
+    const changesPeriod = parameter === 'period';
+    if (changesPeriod && value === '1h') {
+        pageOptions.delete(parameter);
+    } else {
+        pageOptions.set(parameter, changesPeriod ? periodNames[value] : value);
+    }
     const url = new URL(location.href);
     url.search = pageOptions.toString();
-    history.replaceState(null, '', url);
+    if (changesPeriod) {
+        history.pushState(null, '', url);
+    } else {
+        history.replaceState(null, '', url);
+    }
     refresh();
 }
 function cell(tag,text){const e=document.createElement(tag);e.textContent=typeof text==='object'&&text!==null?(text.name??JSON.stringify(text)):String(text??'—');return e}
@@ -398,6 +411,11 @@ async function refresh() {
     }
 }
 period.addEventListener('change', () => updateOption('period', period.value));
+window.addEventListener('popstate', () => {
+    pageOptions = new URLSearchParams(location.search);
+    selectLocationPeriod();
+    refresh();
+});
 document.querySelector('#refresh').addEventListener('click', refresh);
 refresh();
 setInterval(() => { if (!activeRefresh) refresh(); }, 5000);

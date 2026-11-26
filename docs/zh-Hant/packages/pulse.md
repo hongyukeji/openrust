@@ -23,7 +23,7 @@ Pulse 收集應用程式效能指標，提供慢請求、慢 SQL、慢工作、�
 
 ## 面板與授權 {#dashboard}
 
-預設存取 `/pulse`。`PULSE_PATH` 與 `PULSE_DOMAIN` 自訂入口。本機環境允許存取，其他環境需要原生 `viewPulse` Gate 授權；同時設定應用程式認證與工作階段中介層。JSON 指標入口為面板路徑下的 `/api/metrics`，接受 `period=1h`、`6h`、`24h` 或 `7d`，使用相同授權。
+預設存取 `/pulse`。`PULSE_PATH` 與 `PULSE_DOMAIN` 自訂入口。本機環境允許存取，其他環境需要原生 `viewPulse` Gate 授權；同時設定應用程式認證與工作階段中介層。分享面板連結時可用 `period=6_hours`、`24_hours` 或 `7_days`。省略週期時顯示最近一小時。瀏覽器上一頁和下一頁會恢復對應週期。面板路徑下的 JSON 指標入口 `/api/metrics` 使用相同授權，接受這些週期、`1_hour` 及簡寫 `1h`、`6h`、`24h`、`7d`。
 
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;

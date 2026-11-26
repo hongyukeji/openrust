@@ -995,7 +995,7 @@ async fn dashboard_usage_cache_and_queue_cards_share_five_second_query_results()
         .set("pulse.recorders.Queues.sample_rate", json!(0.8))
         .unwrap();
 
-    let replay = app.get(target).await.unwrap();
+    let replay = app.get("/pulse/api/metrics?period=1_hour").await.unwrap();
     replay.assert_ok();
     let replay = replay.json::<serde_json::Value>().unwrap();
     assert_eq!(replay["queue_sample_rate"], 0.8);

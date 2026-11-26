@@ -64,10 +64,17 @@ try{
   assert.equal(await cache.locator('td[data-column="hits"]').first().getAttribute('title'), 'Sample rate: 0.5, raw count: 1');
   assert.equal(await cache.locator('td[data-column="hit_rate"]').first().textContent(), '33.33%');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  for(const period of ['6h','24h','7d','1h']){
+  for(const [period,link] of [['6h','6_hours'],['24h','24_hours'],['7d','7_days'],['1h',null]]){
    const response=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period='+period));
    await page.selectOption('#period',period);assert.equal((await response).status(),200);
+   assert.equal(new URL(page.url()).searchParams.get('period'),link);
   }
+  const back=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period=7d'));
+  await page.goBack();assert.equal((await back).status(),200);
+  assert.equal(await page.locator('#period').inputValue(),'7d');
+  const forward=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period=1h'));
+  await page.goForward();assert.equal((await forward).status(),200);
+  assert.equal(await page.locator('#period').inputValue(),'1h');
   const response=page.waitForResponse(r=>r.url().includes('/api/metrics?period=1h'));
   await page.click('#refresh');assert.equal((await response).status(),200);
   const slow = page.locator('.card').filter({has: page.getByRole('heading',{name:'Slow requests',exact:true})});
@@ -83,6 +90,13 @@ try{
   await slow.locator('tr').nth(1).filter({hasText:'/frequent'}).waitFor();
   await usage.getByText('ID: 99',{exact:true}).waitFor();
   await page.screenshot({path:process.env.PULSE_SCREENSHOT_DIR+`/dashboard-${mobile?'mobile':'desktop'}.png`,fullPage:true});
+  for (const [link,value] of [['1_hour','1h'],['6_hours','6h'],['24_hours','24h'],['7_days','7d']]) {
+   assert.equal((await context.request.get(base+'/operations/pulse/api/metrics?period='+link)).status(),200);
+   const query=page.waitForResponse(r=>r.url().endsWith('/api/metrics?period='+value));
+   assert.equal((await page.goto(base+'/operations/pulse?period='+link)).status(),200);
+   assert.equal((await query).status(),200);
+   assert.equal(await page.locator('#period').inputValue(),value);
+  }
   assert.deepEqual(errors,[]);
   console.log(`native Pulse ${mobile?'mobile':'desktop'}: authorization, live metrics, 4 periods, SVG, meters, text escaping and refresh PASS`);
   await page.close();

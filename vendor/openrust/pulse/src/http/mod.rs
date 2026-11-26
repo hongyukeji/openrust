@@ -85,15 +85,12 @@ fn page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let period = request
-            .query(Some("period"))?
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or("1h".into());
-        let interval = match period.as_str() {
-            "1h" => 3600,
-            "6h" => 21600,
-            "24h" => 86400,
-            "7d" => 604800,
+        let period = request.query(Some("period"))?;
+        let (period, interval) = match period.as_ref().and_then(Value::as_str) {
+            None | Some("1h" | "1_hour") => ("1h", 3600),
+            Some("6h" | "6_hours") => ("6h", 21600),
+            Some("24h" | "24_hours") => ("24h", 86400),
+            Some("7d" | "7_days") => ("7d", 604800),
             _ => return Err(HttpError::InvalidRequest),
         };
         let usage = request.query(Some("usage"))?;

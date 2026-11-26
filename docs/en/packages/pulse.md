@@ -23,7 +23,7 @@ To separate collection from persistence, set `PULSE_INGEST_DRIVER=redis`, choose
 
 ## Dashboard and Authorization {#dashboard}
 
-Visit `/pulse`. Customize the entry point with `PULSE_PATH` and `PULSE_DOMAIN`. Local environments allow access; other environments require the native `viewPulse` Gate. Configure the application's authentication and session middleware as appropriate. The JSON endpoint at `/api/metrics` beneath the dashboard path shares this authorization and accepts `period=1h`, `6h`, `24h` or `7d`.
+Visit `/pulse`. Customize the entry point with `PULSE_PATH` and `PULSE_DOMAIN`. Local environments allow access; other environments require the native `viewPulse` Gate. Configure the application's authentication and session middleware as appropriate. Share a dashboard link with `period=6_hours`, `24_hours` or `7_days`. A link without a period shows the last hour. Browser back and forward restore the selected period. The authorized JSON endpoint beneath the dashboard path at `/api/metrics` accepts these names and `1_hour`, plus the short forms `1h`, `6h`, `24h` and `7d`.
 
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
