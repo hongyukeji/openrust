@@ -2,7 +2,7 @@ use crate::{Entry, Item, Result};
 use indexmap::IndexMap;
 use openrust::database::{
     Connection, Value as Sql,
-    query::{Expression, Record, UpsertUpdate},
+    query::{Builder, Expression, Record, UpsertUpdate},
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -71,6 +71,12 @@ impl DatabaseStorage {
         match entry.non_utf8_key() {
             Some(key) => Sql::Bytes(key.to_vec()),
             None => Sql::Text(entry.key.clone()),
+        }
+    }
+    fn value_key(key: &[u8]) -> Sql {
+        match std::str::from_utf8(key) {
+            Ok(key) => Sql::Text(key.to_owned()),
+            Err(_) => Sql::Bytes(key.to_vec()),
         }
     }
 
@@ -239,20 +245,31 @@ impl DatabaseStorage {
         let mut values = IndexMap::new();
         // PHP reverse()->unique() retains the last supplied value, irrespective of timestamp.
         for item in items.iter().rev() {
-            if let Item::Value(value) = item {
-                values
-                    .entry((value.r#type.clone(), value.key.clone()))
-                    .or_insert_with(|| {
-                        let mut row = Record::from([
-                            ("timestamp".into(), value.timestamp.into()),
-                            ("type".into(), value.r#type.clone().into()),
-                            ("key".into(), value.key.clone().into()),
-                            ("value".into(), value.value.clone().into()),
-                        ]);
-                        self.key_hash(value.key.as_bytes(), &mut row);
-                        row
-                    });
-            }
+            let (kind, key, value, timestamp) = match item {
+                Item::Value(value) => (
+                    value.r#type.as_str(),
+                    value.key.as_bytes(),
+                    value.value.as_str(),
+                    value.timestamp,
+                ),
+                Item::ByteValue(value) => (
+                    value.r#type.as_str(),
+                    value.key.as_slice(),
+                    value.value.as_str(),
+                    value.timestamp,
+                ),
+                Item::Entry(_) => continue,
+            };
+            values.entry((kind, key)).or_insert_with(|| {
+                let mut row = Record::from([
+                    ("timestamp".into(), timestamp.into()),
+                    ("type".into(), kind.into()),
+                    ("key".into(), Self::value_key(key)),
+                    ("value".into(), value.into()),
+                ]);
+                self.key_hash(key, &mut row);
+                row
+            });
         }
         let values: Vec<_> = values.into_values().collect();
         let aggregates = self.preaggregate(items);
@@ -297,6 +314,7 @@ impl DatabaseStorage {
                         for rows in values.chunks(chunk) {
                             transaction
                                 .table("pulse_values")
+                                .with_binary_text_column("key")
                                 .upsert(rows, &["type", "key_hash"], Some(&["timestamp", "value"]))
                                 .await?;
                         }
@@ -350,20 +368,50 @@ impl DatabaseStorage {
         }
         Ok(())
     }
+    fn values_query(&self, r#type: &str) -> Builder<'static> {
+        self.connection
+            .table("pulse_values")
+            .select(["timestamp", "key", "value"])
+            .r#where("type", "=", r#type)
+    }
     pub async fn values(
         &self,
         r#type: &str,
         keys: Option<&[String]>,
     ) -> Result<Vec<openrust::database::Row>> {
-        let mut q = self
-            .connection
-            .table("pulse_values")
-            .select(["timestamp", "key", "value"])
-            .r#where("type", "=", r#type);
+        let mut q = self.values_query(r#type);
         if let Some(keys) = keys.filter(|k| !k.is_empty()) {
             q = q.where_in("key", keys.iter().cloned().map(Sql::Text).collect());
         }
         Ok(q.get().await?)
+    }
+    pub async fn values_bytes(
+        &self,
+        r#type: &str,
+        keys: Option<&[Vec<u8>]>,
+    ) -> Result<Vec<openrust::database::Row>> {
+        let mut query = self.values_query(r#type);
+        if let Some(keys) = keys.filter(|keys| !keys.is_empty()) {
+            let bindings: Vec<_> = keys.iter().map(|key| Self::value_key(key)).collect();
+            let binary_placeholder = match self.connection.get_driver_name() {
+                "sqlite" => "cast(? as text)",
+                "pgsql" => "convert_from(?, 'UTF8')",
+                _ => "?",
+            };
+            let placeholders = bindings
+                .iter()
+                .map(|key| match key {
+                    Sql::Bytes(_) => binary_placeholder,
+                    _ => "?",
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            query = query.where_raw(
+                &format!("{} in ({placeholders})", self.wrap("key")),
+                bindings,
+            );
+        }
+        Ok(query.get().await?)
     }
 }
 impl super::Storage for DatabaseStorage {
@@ -373,6 +421,13 @@ impl super::Storage for DatabaseStorage {
         keys: Option<&'a [String]>,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
         Box::pin(self.values(r#type, keys))
+    }
+    fn values_bytes<'a>(
+        &'a self,
+        r#type: &'a str,
+        keys: Option<&'a [Vec<u8>]>,
+    ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
+        Box::pin(self.values_bytes(r#type, keys))
     }
     fn graph<'a>(
         &'a self,

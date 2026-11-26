@@ -56,6 +56,16 @@ impl Pulse {
     ) -> crate::Result<crate::Value> {
         Ok(Self::manager()?.set(r#type, key, value, timestamp).await)
     }
+    pub async fn set_bytes(
+        r#type: impl Into<String>,
+        key: Vec<u8>,
+        value: impl Into<String>,
+        timestamp: Option<i64>,
+    ) -> crate::Result<crate::ByteValue> {
+        Ok(Self::manager()?
+            .set_bytes(r#type, key, value, timestamp)
+            .await)
+    }
     pub fn filter(
         callback: impl Fn(&crate::Item) -> crate::Result<bool> + Send + Sync + 'static,
     ) -> crate::Result<()> {
@@ -136,6 +146,12 @@ impl Pulse {
         keys: Option<&[String]>,
     ) -> crate::Result<Vec<openrust::database::Row>> {
         Self::manager()?.values(r#type, keys).await
+    }
+    pub async fn values_bytes(
+        r#type: &str,
+        keys: Option<&[Vec<u8>]>,
+    ) -> crate::Result<Vec<openrust::database::Row>> {
+        Self::manager()?.values_bytes(r#type, keys).await
     }
     pub async fn graph(
         types: &[String],

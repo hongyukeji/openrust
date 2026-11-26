@@ -660,3 +660,169 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
         other => panic!("{other}"),
     }
 }
+
+#[tokio::test]
+async fn value_keys_round_trip_through_the_pulse_facade_and_storage() {
+    use openrust::database::Value;
+    use openrust_pulse::{ByteValue, Pulse, facades::Pulse as PulseFacade};
+
+    const RAW: &[u8] = b"X\xc3X\xa9X";
+    const OTHER: &[u8] = b"X\xc3X\xaaX";
+
+    fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        let operation = request.uri().path().rsplit('/').next().unwrap().to_owned();
+        Box::pin(async move {
+            let now = jiff::Timestamp::now().as_second();
+            match operation.as_str() {
+                "write" => {
+                    PulseFacade::set_bytes("probe", RAW.to_vec(), "first", Some(now)).await?;
+                    let last = PulseFacade::set_bytes("probe", RAW.to_vec(), "last", Some(now - 1))
+                        .await?;
+                    assert_eq!(last.key, RAW);
+                    assert_eq!(last.timestamp, now - 1);
+                }
+                "distinct" => {
+                    PulseFacade::set_bytes("probe", OTHER.to_vec(), "other", Some(now)).await?;
+                    PulseFacade::set("probe", "X�X�X", "display", Some(now)).await?;
+                }
+                "text" => {
+                    PulseFacade::set("probe", "text", "first", Some(now)).await?;
+                    PulseFacade::set_bytes("probe", b"text".to_vec(), "text-last", Some(now - 1))
+                        .await?;
+                }
+                "read" => {
+                    let keys = [RAW.to_vec(), b"text".to_vec()];
+                    let rows = PulseFacade::values_bytes("probe", Some(&keys)).await?;
+                    assert_eq!(rows.len(), 2);
+                    let raw = rows
+                        .iter()
+                        .find(|row| row.get("key") == Some(&Value::Bytes(RAW.to_vec())));
+                    assert_eq!(raw.unwrap().get("value"), Some(&Value::from("last")));
+                    return Ok(Response::from("read"));
+                }
+                _ => unreachable!(),
+            }
+            Ok(Response::from("written"))
+        })
+    }
+
+    let redis_ingest = std::env::var_os("PULSE_TEST_INGEST_REDIS").is_some();
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                values.get_mut("database").unwrap()["connections"]["test"]["max_connections"] =
+                    json!(1);
+                if std::env::var_os("PULSE_TEST_INGEST_REDIS").is_some() {
+                    values.get_mut("database").unwrap()["redis"] = json!({
+                        "client":"redis",
+                        "options":{"prefix":format!("pulse-values-{:032x}:", fastrand::u128(..))},
+                        "default":{"url":std::env::var("OPENRUST_TEST_REDIS_URL").unwrap()},
+                    });
+                    let ingest = &mut values.get_mut("pulse").unwrap()["ingest"];
+                    ingest["driver"] = "redis".into();
+                    ingest["redis"] = json!({"chunk":10});
+                }
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                for operation in ["write", "distinct", "text", "read"] {
+                    Route::get(&format!("/value-keys/{operation}"), probe)?;
+                }
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let db = storage.connection();
+    let driver = db.get_driver_name();
+    let non_strict = driver == "mysql" && std::env::var_os("PULSE_TEST_MYSQL_NON_STRICT").is_some();
+    if driver == "mysql" {
+        let sql = if non_strict {
+            "set session sql_mode=''"
+        } else {
+            "set session sql_mode='STRICT_TRANS_TABLES'"
+        };
+        db.statement(sql, &[]).await.unwrap();
+    }
+
+    app.get("/api/value-keys/text").await.unwrap().assert_ok();
+    let pulse = app.app().make::<Pulse>().await.unwrap();
+    if redis_ingest {
+        assert_eq!(pulse.digest().await.unwrap(), 2);
+    }
+    let text = storage
+        .values("probe", Some(&["text".into()]))
+        .await
+        .unwrap();
+    assert_eq!(text.len(), 1);
+    assert_eq!(text[0].get("value"), Some(&Value::from("text-last")));
+    assert_eq!(
+        storage
+            .values_bytes("probe", Some(&[b"text".to_vec()]))
+            .await
+            .unwrap(),
+        text
+    );
+    if driver == "sqlite" || non_strict {
+        app.get("/api/value-keys/write").await.unwrap().assert_ok();
+        if driver == "sqlite" {
+            app.get("/api/value-keys/distinct")
+                .await
+                .unwrap()
+                .assert_ok();
+        }
+        if redis_ingest {
+            assert_eq!(pulse.digest().await.unwrap(), 4);
+            assert_eq!(pulse.digest().await.unwrap(), 0);
+        }
+        let expected_key = if driver == "sqlite" {
+            Value::Bytes(RAW.to_vec())
+        } else {
+            Value::from("X")
+        };
+        let key = if driver == "sqlite" { RAW } else { b"X" };
+        let rows = storage
+            .values_bytes("probe", Some(&[key.to_vec()]))
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get("key"), Some(&expected_key));
+        assert_eq!(rows[0].get("value"), Some(&Value::from("last")));
+        if driver == "sqlite" {
+            app.get("/api/value-keys/read").await.unwrap().assert_ok();
+            assert_eq!(storage.values_bytes("probe", None).await.unwrap().len(), 4);
+            let kind = db
+                .scalar(
+                    "select typeof(key) as kind from pulse_values where value = 'last'",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(kind, Value::from("text"));
+        }
+    } else {
+        let storage = DatabaseStorage::new(db.clone()).with_chunk(1).unwrap();
+        let now = jiff::Timestamp::now().as_second();
+        let batch = [
+            ByteValue::from_key_bytes(now, "probe", RAW.to_vec(), "failed").into(),
+            ByteValue::from_key_bytes(now, "probe", b"rollback".to_vec(), "failed").into(),
+        ];
+        let error = storage.store(&batch).await.unwrap_err();
+        let openrust_pulse::Error::Database(openrust::database::DatabaseError::Driver {
+            source,
+            ..
+        }) = error
+        else {
+            panic!("预期数据库驱动拒绝无效 UTF-8 键：{error}");
+        };
+        let code = source.as_database_error().unwrap().code().unwrap();
+        assert_eq!(code, if driver == "pgsql" { "22021" } else { "HY000" });
+        assert_eq!(storage.values_bytes("probe", None).await.unwrap(), text);
+    }
+}

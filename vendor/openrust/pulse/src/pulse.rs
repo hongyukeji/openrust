@@ -1,4 +1,6 @@
-use crate::{Entry, Error, Item, PulseFuture, Result, Value, ingests::Ingest, storage::Storage};
+use crate::{
+    ByteValue, Entry, Error, Item, PulseFuture, Result, Value, ingests::Ingest, storage::Storage,
+};
 use std::{
     future::Future,
     sync::{
@@ -327,7 +329,33 @@ impl Pulse {
         value: impl Into<String>,
         timestamp: Option<i64>,
     ) -> Value {
-        let value = Value::new(timestamp.unwrap_or_else(Self::now), r#type, key, value);
+        self.buffer_value(Value::new(
+            timestamp.unwrap_or_else(Self::now),
+            r#type,
+            key,
+            value,
+        ))
+        .await
+    }
+    pub async fn set_bytes(
+        &self,
+        r#type: impl Into<String>,
+        key: Vec<u8>,
+        value: impl Into<String>,
+        timestamp: Option<i64>,
+    ) -> ByteValue {
+        self.buffer_value(ByteValue::from_key_bytes(
+            timestamp.unwrap_or_else(Self::now),
+            r#type,
+            key,
+            value,
+        ))
+        .await
+    }
+    async fn buffer_value<K: Clone + Send>(&self, value: Value<K>) -> Value<K>
+    where
+        Item: From<Value<K>>,
+    {
         if self.is_recording() {
             self.entries
                 .lock()
@@ -544,6 +572,13 @@ impl Pulse {
         keys: Option<&[String]>,
     ) -> Result<Vec<openrust::database::Row>> {
         self.ignore(self.storage.values(r#type, keys)).await
+    }
+    pub async fn values_bytes(
+        &self,
+        r#type: &str,
+        keys: Option<&[Vec<u8>]>,
+    ) -> Result<Vec<openrust::database::Row>> {
+        self.ignore(self.storage.values_bytes(r#type, keys)).await
     }
     pub async fn graph(
         &self,

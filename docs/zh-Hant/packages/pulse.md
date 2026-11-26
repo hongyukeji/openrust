@@ -56,6 +56,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 用 `Pulse::graph_bytes` 按原始位元組讀取圖表序列，即使顯示標籤相同也能分辨不同序列。文字版 `Pulse::graph` 要求鍵為有效 UTF-8。
 
+用 `Pulse::set_bytes` 寫入帶原始位元組鍵的儀表值，用 `Pulse::values_bytes` 按原始位元組篩選。SQLite 保留無效 UTF-8 鍵並以資料庫 `Value::Bytes` 傳回。PostgreSQL 和 MySQL 依照欄位編碼與 SQL 模式處理。透過 Redis 傳送帶位元組鍵的儀表值前，請先更新所有 `pulse:work` 消費者。窮舉比對 `Item` 的自訂篩選器與儲存需要處理 `Item::ByteValue`。
+
 慢查詢 `location` 使用資料庫事件擷取的呼叫位置，Release 建置也可記錄。沒有可用位置時寫入空字串，關閉 `location` 時寫入空值。`Exceptions` 採集框架例外處理器回報的例外（含回報的工作失敗），也採集直接向 Pulse 回報的例外。呼叫 `Pulse::report_exception(error).await?` 可向 Pulse 提交 Rust 錯誤。在錯誤發生處使用 `SharedException::located(error)` 可擷取原始碼檔案與行號。監聽器可訂閱 `NativeExceptionReported::NAME` 讀取原始錯誤。已有型別名稱與位置時，可呼叫 `Pulse::report(class, location)`。僅將錯誤附加到應用程式日誌不會向 Pulse 回報。
 
 `Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；載入設定時預設讀取作業系統主機名稱，建立設定快取時會儲存該值。`PULSE_SERVER_NAME` 可覆寫主機名稱，`PULSE_SERVER_DIRECTORIES` 設定以冒號分隔的目錄。`Servers::detect_cpu_using`、`detect_memory_using` 可替換偵測器。

@@ -1,5 +1,5 @@
 use openrust_pulse::{
-    Entry, Item, PulseFuture,
+    ByteValue, Entry, Item, PulseFuture,
     ingests::{Ingest, RedisIngest, Retention},
     storage::{Graph, Storage},
 };
@@ -94,12 +94,17 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
     let raw = Entry::from_key_bytes(now, "redis", original.clone(), Some(4))
         .count()
         .only_buckets();
+    let raw_value = ByteValue::from_key_bytes(now, "redis", original.clone(), "payload");
+    items[3] = raw_value.into();
     items[4] = raw.clone().into();
     let text = serde_json::to_value(&items[0]).unwrap();
     assert_eq!(text["data"]["key"], "0");
     let encoded = serde_json::to_value(&items[4]).unwrap();
     assert_eq!(encoded["data"]["key"], json!(original));
     assert!(serde_json::from_value::<String>(encoded["data"]["key"].clone()).is_err());
+    let encoded_value = serde_json::to_value(&items[3]).unwrap();
+    assert_eq!(encoded_value["class"], "ByteValue");
+    assert_eq!(encoded_value["data"]["key"], json!(original));
     let mut edited = raw;
     edited.key = "edited".into();
     assert_eq!(edited.key_bytes(), b"edited");
@@ -122,6 +127,14 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
         let stored = sink.items.lock().unwrap();
         assert_eq!(stored.len(), 5);
         for (index, item) in stored.iter().enumerate() {
+            if index == 3 {
+                let Item::ByteValue(value) = item else {
+                    panic!()
+                };
+                assert_eq!(value.key, original);
+                assert_eq!(value.value, "payload");
+                continue;
+            }
             let Item::Entry(e) = item else { panic!() };
             if index == 4 {
                 assert_eq!(e.key_bytes(), original);
@@ -151,8 +164,13 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
         openrust::redis::Value::Int(0)
     );
     let trim = RedisIngest::new(connection.clone()).with_keep(Retention::Seconds(0));
-    trim.ingest(&items).await.unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    // 消费者和 Redis 可以处于时钟不同步的主机，显式写入已过期的消息。
+    connection.command("DEL", &[key.as_bytes()]).await.unwrap();
+    let encoded_value = serde_json::to_vec(&items[3]).unwrap();
+    connection
+        .command("XADD", &[key.as_bytes(), b"1-0", b"data", &encoded_value])
+        .await
+        .unwrap();
     trim.trim().await.unwrap();
     assert_eq!(
         connection.command("XLEN", &[key.as_bytes()]).await.unwrap(),

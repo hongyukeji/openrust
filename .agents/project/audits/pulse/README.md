@@ -104,7 +104,13 @@ Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redi
 
 #### 含字节键的通用 Graph 与 Value
 
-固定 PHP 8.5.12、Redis 8.10.3 与 SQLite 通过实际 Ingest 和 DatabaseStorage 核对。Graph 把两个原始字节键各保留为独立序列，均包含 60 个桶和一次计数。直接序列化 Graph 到 JSON 报 `JSON_ERROR_UTF8`。Value 的同键覆盖按提交顺序保留最后一项，即使其时间戳更小，按原始字节键查询也能命中。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-values-upstream.log`。Rust 的文本 Graph API 维持 UTF-8 键契约。新增公开 `Pulse::graph_bytes`、Facade 和存储入口，复用原有按键排序、补齐及聚合查询，按原始字节独立返回各序列。自定义文本 Storage 的默认实现可转为字节；内置 DatabaseStorage 直接读取 SQLite 的原始字节。macOS 真实缓存 HTTP 后从另一个路由调用 Facade，确认两个原始键和合法文本对照在各自序列内都有 60 桶及一次计数，并按字节顺序返回。缓存、存储、快照格式、相关严格 Clippy 与三语文档构建和桌面／移动验证通过。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-{macos,docs}.log`。Value 的字节键读写及本次 Graph 平台矩阵继续验收。
+固定 PHP 8.5.12、Redis 8.10.3 与 SQLite 通过实际 Ingest 和 DatabaseStorage 核对。Graph 把两个原始字节键各保留为独立序列，均包含 60 个桶和一次计数。直接序列化 Graph 到 JSON 报 `JSON_ERROR_UTF8`。Value 的同键覆盖按提交顺序保留最后一项，即使其时间戳更小，按原始字节键查询也能命中。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-values-upstream.log`。Rust 的文本 Graph API 维持 UTF-8 键契约。新增公开 `Pulse::graph_bytes`、Facade 和存储入口，复用原有按键排序、补齐及聚合查询，按原始字节独立返回各序列。自定义文本 Storage 的默认实现可转为字节；内置 DatabaseStorage 直接读取 SQLite 的原始字节。macOS 真实缓存 HTTP 后从另一个路由调用 Facade，确认两个原始键和合法文本对照在各自序列内都有 60 桶及一次计数，并按字节顺序返回。缓存、存储、快照格式、相关严格 Clippy 与三语文档构建和桌面／移动验证通过。证据为 `target/tmp/observability-parity/pulse-byte-key-graph-{macos,docs}.log`。
+
+字节键仪表值已接通 `ByteValue`、`Pulse::set_bytes`、`Pulse::values_bytes`、Facade 与内置数据库存储。SQLite 保留原始字节与 TEXT 类型，原始键各自可查，即使显示相同。有效 UTF-8 字节键和同内容的文本键在批次内合并，同键保留最后提交的值。PostgreSQL 18.7 与严格 MySQL 8.4.13 拒绝非法 UTF-8，并回滚已经写入的前一批。非严格 MySQL 8.4.13 按库端规则截断。原文本 `Value` 保持既有结构与 Redis 编码，`Item::ByteValue` 使用新的 Redis 编码，须先更新消费者再开始发送。
+
+macOS 的 SQLite HTTP Facade、三库严格性矩阵、Redis 8.10.3 到 SQLite 的 HTTP 写入和消费链路、独立 Redis 失败保留与重试、隔离快照格式及相关严格 Clippy 通过。Pulse 与 Telescope 默认 89 项通过，两项按环境跳过。三语文档构建和六组桌面／移动检查通过。Windows 11 ARM64 的文件缓存、字节 Graph 及 Value 各经 SQLite 和 Redis 8.10.3 通过，独立 Redis 失败保留、重试和裁剪通过。时间裁剪的测试使用固定历史消息 ID，避免跨主机时钟差影响结果。证据为 `target/tmp/observability-parity/pulse-byte-value-{macos,docs}.log` 和 `target/tmp/observability-windows/pulse-byte-value-arm64.log`。本批 Linux ARM64 及 Release 继续验收。
+
+同一固定 PHP 探针发现 `collapseValues` 的下一项差异。单批内 `01` 与 `1`、`1e0` 与 `1.0` 作为类型或键时按 PHP 宽松比较只保留较后提交的等值项。大小写有差异的文本、空文本与 `0`、相邻的大整数及同向溢出的整数字符串仍可独立保存。Rust 此批按原始类型和键字节精确比较，宽松比较继续对齐。证据为 `target/tmp/observability-parity/pulse-value-numeric-keys-upstream.log`。 [固定 DatabaseStorage](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Storage/DatabaseStorage.php)
 
 ## SlowJobs 任务尝试计时
 

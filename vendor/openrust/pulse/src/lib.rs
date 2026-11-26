@@ -28,7 +28,7 @@ pub use provider::PulseServiceProvider;
 mod configuration;
 pub use entry::{Entry, Item};
 pub use pulse::Pulse;
-pub use value::Value;
+pub use value::{ByteValue, Value};
 pub type Result<T> = std::result::Result<T, Error>;
 pub type PulseFuture<'a, T> =
     std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send + 'a>>;

@@ -175,6 +175,7 @@ impl<'de> Deserialize<'de> for Entry {
 pub enum Item {
     Entry(Entry),
     Value(crate::Value),
+    ByteValue(crate::ByteValue),
 }
 impl From<Entry> for Item {
     fn from(e: Entry) -> Self {
@@ -184,5 +185,10 @@ impl From<Entry> for Item {
 impl From<crate::Value> for Item {
     fn from(v: crate::Value) -> Self {
         Self::Value(v)
+    }
+}
+impl From<crate::ByteValue> for Item {
+    fn from(value: crate::ByteValue) -> Self {
+        Self::ByteValue(value)
     }
 }

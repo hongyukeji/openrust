@@ -9,6 +9,29 @@ pub trait Storage: Send + Sync {
         r#type: &'a str,
         keys: Option<&'a [String]>,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>>;
+    /// 按原始字节键查询仪表值。默认实现委托给支持 UTF-8 的文本查询。
+    fn values_bytes<'a>(
+        &'a self,
+        r#type: &'a str,
+        keys: Option<&'a [Vec<u8>]>,
+    ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
+        Box::pin(async move {
+            let keys = keys
+                .map(|keys| {
+                    keys.iter()
+                        .map(|key| {
+                            std::str::from_utf8(key).map(str::to_owned).map_err(|_| {
+                                crate::Error::InvalidConfiguration(
+                                    "当前 Pulse 存储仅支持 UTF-8 值键".into(),
+                                )
+                            })
+                        })
+                        .collect::<crate::Result<Vec<_>>>()
+                })
+                .transpose()?;
+            self.values(r#type, keys.as_deref()).await
+        })
+    }
     fn graph<'a>(
         &'a self,
         types: &'a [String],
