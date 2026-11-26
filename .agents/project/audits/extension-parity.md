@@ -18,6 +18,8 @@ Horizon 修复所有权变化期间的 Redis 保留竞态。Linux ARM64 优化�
 
 macOS 以 `8df774457` 及 `b4424267f` 的 Pulse 修复文件构建根应用。启用三个扩展时，各包的发现、发布及配置缓存测试均通过。同一个可执行文件完成包发现、配置缓存和 SQLite 迁移，`pulse:check --once` 写入一条系统指标，`telescope:list command --json` 读到一条命令记录，`horizon:status --json` 连接独占 Redis 8.10.3 并返回空数组。关闭扩展重新构建后，根应用配置缓存及 Artisan 命令中均无三个扩展。构建使用开发配置。证据为 `target/tmp/observability-parity/{pulse-card-cache-suppression-macos,observability-release-candidate-runtime-macos}.log`。
 
+macOS 从完整归档 `1d5388cdff898cf78974d12be9a3c88d648ff084` 验证锁定依赖和三个扩展组合。默认 142 项通过，独占 Redis 8.10.3 单独执行条件用例 25 项和 Pulse 具名缓存 1 项。Horizon 实际 Artisan 和 HTTP 进程矩阵通过，覆盖任务执行、进程替换、一分钟冷却、创建失败恢复、暂停继续、正常排空、元数据失联回收与授权脱敏。构建使用开发配置。证据为 `target/tmp/observability-parity/observability-exact-1d5388cdf-macos.log`。
+
 ## 来源和取舍
 
 联网取得以下提交的完整 GitHub 源码归档（含包内文档、测试与许可证，以归档实际内容为准），保存于 `tmp/openrust-ecosystem-20261121/upstream`。搜索工具未返回可用内容，因此依据直接取得的 GitHub 主来源核对，不宣称已核实实时热门榜或 Star 排名。
