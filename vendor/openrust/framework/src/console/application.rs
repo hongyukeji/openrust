@@ -226,10 +226,29 @@ impl Application {
         definition: &std::sync::Weak<Syntax>,
         description: &'static str,
     ) -> Result<(), ConsoleError> {
+        self.active_closure(name, definition)?.purpose(description);
+        Ok(())
+    }
+
+    pub(crate) fn set_closure_help_namespace(
+        &mut self,
+        name: &str,
+        definition: &std::sync::Weak<Syntax>,
+        namespace: &'static str,
+    ) -> Result<(), ConsoleError> {
+        let command = self.active_closure(name, definition)?;
+        command.definition = command.definition.clone().with_help_namespace(namespace);
+        Ok(())
+    }
+
+    fn active_closure(
+        &mut self,
+        name: &str,
+        definition: &std::sync::Weak<Syntax>,
+    ) -> Result<&mut ClosureCommand, ConsoleError> {
         match self.commands.get_mut(name) {
             Some(Entry::Closure(command)) if command.registration_key().ptr_eq(definition) => {
-                command.purpose(description);
-                Ok(())
+                Ok(command)
             }
             _ => Err(ConsoleError::new(format!(
                 "Command '{name}' is no longer active in this registration scope."

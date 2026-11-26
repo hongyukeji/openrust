@@ -15,6 +15,7 @@ use crate::{
     billing::adjustments::Direction,
     budget::BudgetScope,
     gateway::Gateway,
+    localization::NAMESPACE,
     managed_keys::{KeyRecord, PREFIX, now},
 };
 
@@ -33,7 +34,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     ] {
         Artisan::add(Box::new(KeyCommand {
             kind,
-            definition: CommandDefinition::from_signature(signature)?,
+            definition: CommandDefinition::from_signature(signature)?
+                .with_help_namespace(NAMESPACE),
         }))?;
     }
     Artisan::command_with(
@@ -89,7 +91,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?.with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:billing:import {file : 供应商账单 JSON 文件} {--actor= : 审计操作者}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -122,7 +124,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?
+    .with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:billing:adjust {file : 费用调整 JSON 文件} {--actor= : 审计操作者}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -155,7 +158,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?
+    .with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:billing:report {id : 导入返回的供应商账单 ID}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -178,7 +182,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?
+    .with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:budget:show {group : 分组或连接名称} {--account : 按上游连接查询}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -203,7 +208,8 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?
+    .with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:budget:reconcile {attempt-id : 用量尝试 ID} {--direction= : cost 或 receivable} {--reference= : 核对凭据编号} {--actor= : 审计操作者}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -236,7 +242,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?.with_help_namespace(NAMESPACE)?;
     Artisan::command_with(
         "ai:gateway:budget:recover {group : 分组或连接名称} {--account : 按上游连接恢复} {--after= : 最短等待秒数，默认 300} {--limit= : 最多处理条数，默认 50}",
         AsyncCommandCallback::new(|_, input, output| {
@@ -261,7 +267,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 Ok(0)
             })
         }),
-    )?;
+    )?.with_help_namespace(NAMESPACE)?;
     Ok(())
 }
 

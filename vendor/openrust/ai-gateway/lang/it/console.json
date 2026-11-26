@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Emettere una chiave gestita del gateway"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Ruotare una chiave gestita del gateway"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Revocare una chiave gestita del gateway"
+    },
+    "ai:gateway:key:list": {
+      "description": "Elencare le chiavi gestite del gateway"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Elencare i tentativi di utilizzo del gateway"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Importare un rendiconto del fornitore",
+      "arguments": {
+        "file": "File JSON del rendiconto del fornitore"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Registrare una rettifica di fatturazione",
+      "arguments": {
+        "file": "File JSON della rettifica di fatturazione"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Mostrare un rendiconto importato del fornitore",
+      "arguments": {
+        "id": "ID del rendiconto restituito dall’importazione"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Mostrare il saldo del budget del gateway",
+      "arguments": {
+        "group": "Nome del gruppo o della connessione"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Liberare le riserve scadute delle richieste mai inviate",
+      "arguments": {
+        "group": "Nome del gruppo o della connessione"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Riconciliare un addebito con il suo budget"
+    }
+  },
+  "arguments": {
+    "name": "Nome della chiave",
+    "group": "Gruppo autorizzato",
+    "expires-in": "Validità in secondi",
+    "requests-per-minute": "Limite di richieste al minuto",
+    "id": "ID della chiave",
+    "before": "Mostrare le voci precedenti a questo cursore",
+    "limit": "Numero massimo di voci",
+    "request-id": "ID della richiesta",
+    "key-id": "ID della chiave gestita",
+    "billing": "Includere snapshot e importi di fatturazione",
+    "invocation-id": "ID di invocazione SDK",
+    "invocation-scope": "Ambito del chiamante",
+    "file": "File JSON di input",
+    "actor": "Operatore da registrare nell’audit",
+    "account": "Usare l’account a monte",
+    "after": "Età minima in secondi",
+    "attempt-id": "ID del tentativo di utilizzo",
+    "direction": "Direzione dell’addebito (cost o receivable)",
+    "reference": "Riferimento del giustificativo"
+  }
+}

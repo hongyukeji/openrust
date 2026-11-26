@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "ออกคีย์เกตเวย์ที่จัดการ"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "หมุนเวียนคีย์เกตเวย์ที่จัดการ"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "เพิกถอนคีย์เกตเวย์ที่จัดการ"
+    },
+    "ai:gateway:key:list": {
+      "description": "แสดงรายการคีย์เกตเวย์ที่จัดการ"
+    },
+    "ai:gateway:usage:list": {
+      "description": "แสดงรายการความพยายามใช้งานเกตเวย์"
+    },
+    "ai:gateway:billing:import": {
+      "description": "นำเข้าใบแจ้งยอดของผู้ให้บริการ",
+      "arguments": {
+        "file": "ไฟล์ JSON ใบแจ้งยอดผู้ให้บริการ"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "บันทึกการปรับยอดเรียกเก็บเงิน",
+      "arguments": {
+        "file": "ไฟล์ JSON การปรับยอดเรียกเก็บเงิน"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "แสดงใบแจ้งยอดผู้ให้บริการที่นำเข้า",
+      "arguments": {
+        "id": "รหัสใบแจ้งยอดผู้ให้บริการที่ได้จากการนำเข้า"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "แสดงยอดคงเหลืองบประมาณเกตเวย์",
+      "arguments": {
+        "group": "ชื่อกลุ่มหรือการเชื่อมต่อ"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "คืนยอดสำรองที่หมดอายุของคำขอที่ยังไม่ส่ง",
+      "arguments": {
+        "group": "ชื่อกลุ่มหรือการเชื่อมต่อ"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "กระทบยอดค่าใช้จ่ายที่ยืนยันแล้วกับงบประมาณ"
+    }
+  },
+  "arguments": {
+    "name": "ชื่อคีย์",
+    "group": "กลุ่มที่ได้รับอนุญาต",
+    "expires-in": "ระยะเวลาที่ใช้ได้เป็นวินาที",
+    "requests-per-minute": "ขีดจำกัดคำขอต่อนาที",
+    "id": "รหัสคีย์",
+    "before": "แสดงรายการก่อนเคอร์เซอร์นี้",
+    "limit": "จำนวนรายการสูงสุด",
+    "request-id": "รหัสคำขอ",
+    "key-id": "รหัสคีย์ที่จัดการ",
+    "billing": "รวมข้อมูลการเรียกเก็บเงินและยอดเงิน",
+    "invocation-id": "รหัสการเรียกใช้ SDK",
+    "invocation-scope": "ขอบเขตของผู้เรียกใช้",
+    "file": "ไฟล์ JSON อินพุต",
+    "actor": "ผู้ดำเนินการสำหรับการตรวจสอบ",
+    "account": "ใช้บัญชีผู้ให้บริการ",
+    "after": "ระยะเวลาขั้นต่ำเป็นวินาที",
+    "attempt-id": "รหัสความพยายามใช้งาน",
+    "direction": "ทิศทางค่าใช้จ่าย (cost หรือ receivable)",
+    "reference": "เลขอ้างอิงหลักฐาน"
+  }
+}

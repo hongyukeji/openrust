@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Yönetilen bir ağ geçidi anahtarı oluştur"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Yönetilen ağ geçidi anahtarını yenile"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Yönetilen ağ geçidi anahtarını iptal et"
+    },
+    "ai:gateway:key:list": {
+      "description": "Yönetilen ağ geçidi anahtarlarını listele"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Ağ geçidi kullanım denemelerini listele"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Sağlayıcı hesap özetini içe aktar",
+      "arguments": {
+        "file": "Sağlayıcı hesap özeti JSON dosyası"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Faturalama düzeltmesini kaydet",
+      "arguments": {
+        "file": "Faturalama düzeltmesi JSON dosyası"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "İçe aktarılan sağlayıcı hesap özetini göster",
+      "arguments": {
+        "id": "İçe aktarmanın döndürdüğü sağlayıcı hesap özeti kimliği"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Ağ geçidi bütçe bakiyesini göster",
+      "arguments": {
+        "group": "Grup veya bağlantı adı"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Gönderilmemiş isteklerin süresi dolan rezervasyonlarını serbest bırak",
+      "arguments": {
+        "group": "Grup veya bağlantı adı"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Doğrulanan ücreti bütçesiyle mutabık kıl"
+    }
+  },
+  "arguments": {
+    "name": "Anahtar adı",
+    "group": "Yetkili grup",
+    "expires-in": "Saniye cinsinden geçerlilik süresi",
+    "requests-per-minute": "Dakika başına istek sınırı",
+    "id": "Anahtar kimliği",
+    "before": "Bu imleçten önceki kayıtları göster",
+    "limit": "Azami kayıt sayısı",
+    "request-id": "İstek kimliği",
+    "key-id": "Yönetilen anahtar kimliği",
+    "billing": "Faturalama anlık görüntülerini ve tutarlarını ekle",
+    "invocation-id": "SDK çağrı kimliği",
+    "invocation-scope": "Çağıran tarafın kapsamı",
+    "file": "Girdi JSON dosyası",
+    "actor": "Denetim için işlemi yapan kişi",
+    "account": "Üst sağlayıcı hesabını kullan",
+    "after": "Saniye cinsinden asgari bekleme",
+    "attempt-id": "Kullanım denemesi kimliği",
+    "direction": "Ücret yönü (cost veya receivable)",
+    "reference": "Kanıt başvurusu"
+  }
+}

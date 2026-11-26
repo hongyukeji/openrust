@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Einen verwalteten Gateway-Schlüssel ausstellen"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Einen verwalteten Gateway-Schlüssel erneuern"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Einen verwalteten Gateway-Schlüssel widerrufen"
+    },
+    "ai:gateway:key:list": {
+      "description": "Verwaltete Gateway-Schlüssel auflisten"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Nutzungsversuche des Gateways auflisten"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Eine Anbieterabrechnung importieren",
+      "arguments": {
+        "file": "JSON-Datei der Anbieterabrechnung"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Eine Abrechnungskorrektur buchen",
+      "arguments": {
+        "file": "JSON-Datei der Abrechnungskorrektur"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Eine importierte Anbieterabrechnung anzeigen",
+      "arguments": {
+        "id": "Beim Import ausgegebene Anbieterabrechnungs-ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Den Saldo eines Gateway-Budgets anzeigen",
+      "arguments": {
+        "group": "Name der Gruppe oder Verbindung"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Abgelaufene Reservierungen nicht gesendeter Anfragen freigeben",
+      "arguments": {
+        "group": "Name der Gruppe oder Verbindung"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Bestätigte Kosten mit dem Budget abgleichen"
+    }
+  },
+  "arguments": {
+    "name": "Schlüsselname",
+    "group": "Berechtigte Gruppe",
+    "expires-in": "Gültigkeitsdauer in Sekunden",
+    "requests-per-minute": "Anfragelimit pro Minute",
+    "id": "Schlüssel-ID",
+    "before": "Einträge vor diesem Cursor anzeigen",
+    "limit": "Höchstzahl der Einträge",
+    "request-id": "Anfrage-ID",
+    "key-id": "ID des verwalteten Schlüssels",
+    "billing": "Abrechnungsschnappschüsse und Beträge einbeziehen",
+    "invocation-id": "SDK-Aufruf-ID",
+    "invocation-scope": "Geltungsbereich des Aufrufers",
+    "file": "JSON-Eingabedatei",
+    "actor": "Verantwortliche Person für das Audit",
+    "account": "Upstream-Konto verwenden",
+    "after": "Mindestalter in Sekunden",
+    "attempt-id": "ID des Nutzungsversuchs",
+    "direction": "Buchungsrichtung (cost oder receivable)",
+    "reference": "Belegreferenz"
+  }
+}

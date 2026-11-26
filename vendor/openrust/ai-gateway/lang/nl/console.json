@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Een beheerde gatewaysleutel uitgeven"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Een beheerde gatewaysleutel vernieuwen"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Een beheerde gatewaysleutel intrekken"
+    },
+    "ai:gateway:key:list": {
+      "description": "Beheerde gatewaysleutels weergeven"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Gebruikspogingen van de gateway weergeven"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Een afrekening van een leverancier importeren",
+      "arguments": {
+        "file": "JSON-bestand met de leveranciersafrekening"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Een facturatiecorrectie boeken",
+      "arguments": {
+        "file": "JSON-bestand voor de facturatiecorrectie"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Een geïmporteerde leveranciersafrekening tonen",
+      "arguments": {
+        "id": "ID van de leveranciersafrekening uit de import"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Het saldo van een gatewaybudget tonen",
+      "arguments": {
+        "group": "Naam van de groep of verbinding"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Verlopen reserveringen voor nooit verzonden aanvragen vrijgeven",
+      "arguments": {
+        "group": "Naam van de groep of verbinding"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Bevestigde kosten met hun budget afstemmen"
+    }
+  },
+  "arguments": {
+    "name": "Naam van de sleutel",
+    "group": "Bevoegde groep",
+    "expires-in": "Geldigheidsduur in seconden",
+    "requests-per-minute": "Aanvraaglimiet per minuut",
+    "id": "Sleutel-ID",
+    "before": "Toon vermeldingen vóór deze cursor",
+    "limit": "Maximumaantal vermeldingen",
+    "request-id": "Aanvraag-ID",
+    "key-id": "ID van beheerde sleutel",
+    "billing": "Facturatiesnapshots en bedragen opnemen",
+    "invocation-id": "SDK-aanroep-ID",
+    "invocation-scope": "Bereik van de aanroeper",
+    "file": "JSON-invoerbestand",
+    "actor": "Uitvoerder voor de audit",
+    "account": "Gebruik het account van de leverancier",
+    "after": "Minimumleeftijd in seconden",
+    "attempt-id": "ID van de gebruikspoging",
+    "direction": "Richting van de boeking (cost of receivable)",
+    "reference": "Referentie van het bewijsstuk"
+  }
+}

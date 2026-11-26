@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Emitir una clave administrada de la puerta de enlace"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Rotar una clave administrada de la puerta de enlace"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Revocar una clave administrada de la puerta de enlace"
+    },
+    "ai:gateway:key:list": {
+      "description": "Listar las claves administradas de la puerta de enlace"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Listar los intentos de uso de la puerta de enlace"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Importar un estado de cuenta del proveedor",
+      "arguments": {
+        "file": "Archivo JSON del estado de cuenta del proveedor"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Registrar un ajuste de facturación",
+      "arguments": {
+        "file": "Archivo JSON del ajuste de facturación"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Mostrar un estado de cuenta del proveedor importado",
+      "arguments": {
+        "id": "ID del estado de cuenta devuelto al importar"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Mostrar el saldo del presupuesto de la puerta de enlace",
+      "arguments": {
+        "group": "Nombre del grupo o de la conexión"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Liberar reservas vencidas de solicitudes que nunca se enviaron",
+      "arguments": {
+        "group": "Nombre del grupo o de la conexión"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Conciliar un cargo con su presupuesto"
+    }
+  },
+  "arguments": {
+    "name": "Nombre de la clave",
+    "group": "Grupo autorizado",
+    "expires-in": "Vigencia en segundos",
+    "requests-per-minute": "Límite de solicitudes por minuto",
+    "id": "ID de la clave",
+    "before": "Mostrar entradas anteriores a este cursor",
+    "limit": "Número máximo de entradas",
+    "request-id": "ID de la solicitud",
+    "key-id": "ID de la clave administrada",
+    "billing": "Incluir instantáneas e importes de facturación",
+    "invocation-id": "ID de invocación del SDK",
+    "invocation-scope": "Ámbito de la parte que invoca",
+    "file": "Archivo JSON de entrada",
+    "actor": "Responsable de la acción auditada",
+    "account": "Usar la cuenta del proveedor",
+    "after": "Antigüedad mínima en segundos",
+    "attempt-id": "ID del intento de uso",
+    "direction": "Dirección del cargo (cost o receivable)",
+    "reference": "Referencia del comprobante"
+  }
+}

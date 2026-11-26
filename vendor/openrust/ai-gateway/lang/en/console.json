@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Issue a managed gateway key"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Rotate a managed gateway key"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Revoke a managed gateway key"
+    },
+    "ai:gateway:key:list": {
+      "description": "List managed gateway keys"
+    },
+    "ai:gateway:usage:list": {
+      "description": "List gateway usage attempts"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Import a provider statement",
+      "arguments": {
+        "file": "Provider statement JSON file"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Post a billing adjustment",
+      "arguments": {
+        "file": "Billing adjustment JSON file"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Show an imported provider statement",
+      "arguments": {
+        "id": "Provider statement ID returned by import"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Show a gateway budget balance",
+      "arguments": {
+        "group": "Group or connection name"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Release stale reservations for requests that never went out",
+      "arguments": {
+        "group": "Group or connection name"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Reconcile a charge against its budget"
+    }
+  },
+  "arguments": {
+    "name": "Key name",
+    "group": "Authorized group",
+    "expires-in": "Lifetime in seconds",
+    "requests-per-minute": "Request limit per minute",
+    "id": "Key ID",
+    "before": "Show entries before this cursor",
+    "limit": "Maximum number of entries",
+    "request-id": "Request ID",
+    "key-id": "Managed key ID",
+    "billing": "Include billing snapshots and amounts",
+    "invocation-id": "SDK invocation ID",
+    "invocation-scope": "Caller scope of the invocation",
+    "file": "Input JSON file",
+    "actor": "Audit actor",
+    "account": "Use the upstream account",
+    "after": "Minimum age in seconds",
+    "attempt-id": "Usage attempt ID",
+    "direction": "Charge direction: cost or receivable",
+    "reference": "Evidence reference"
+  }
+}

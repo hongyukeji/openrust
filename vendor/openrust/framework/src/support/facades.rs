@@ -969,6 +969,19 @@ impl RegisteredCommand {
             })
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }
+
+    /// 按当前语言读取包的 Console 命令帮助。
+    pub fn with_help_namespace(self, namespace: &'static str) -> Result<(), ConsoleError> {
+        CONSOLE
+            .try_with(|console| {
+                console.borrow_mut().set_closure_help_namespace(
+                    &self.name,
+                    &self.definition,
+                    namespace,
+                )
+            })
+            .map_err(|_| ConsoleError::new("当前没有 Artisan 注册作用域"))?
+    }
 }
 
 pub use crate::view::Blade;

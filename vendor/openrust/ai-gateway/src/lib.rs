@@ -42,6 +42,7 @@ mod invocation;
 mod invocation_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_ai_gateway_keys_table.rs"]
 mod key_migration;
+mod localization;
 mod managed_keys;
 mod output_quota;
 #[path = "../database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs"]
@@ -241,6 +242,12 @@ impl ServiceProvider for AiGatewayServiceProvider {
                 ],
                 "ai-gateway-migrations",
             )?;
+            self.load_bundled_translations_from(
+                app,
+                localization::RESOURCES,
+                localization::NAMESPACE,
+            )
+            .await?;
             self.commands(app, commands::register);
             let repository = app.config()?;
             let config = repository.get("ai_gateway");

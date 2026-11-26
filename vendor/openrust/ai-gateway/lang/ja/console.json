@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "管理対象のゲートウェイキーを発行する"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "管理対象のゲートウェイキーを更新する"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "管理対象のゲートウェイキーを失効させる"
+    },
+    "ai:gateway:key:list": {
+      "description": "管理対象のゲートウェイキーを一覧表示する"
+    },
+    "ai:gateway:usage:list": {
+      "description": "ゲートウェイの利用試行を一覧表示する"
+    },
+    "ai:gateway:billing:import": {
+      "description": "プロバイダーの請求明細を取り込む",
+      "arguments": {
+        "file": "プロバイダー請求明細の JSON ファイル"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "料金の調整を記録する",
+      "arguments": {
+        "file": "料金調整の JSON ファイル"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "取り込んだプロバイダーの請求明細を表示する",
+      "arguments": {
+        "id": "取り込みで返されたプロバイダー請求明細の ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "ゲートウェイの予算残高を表示する",
+      "arguments": {
+        "group": "グループ名または接続名"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "送信されなかった要求の期限切れ予約を解除する",
+      "arguments": {
+        "group": "グループ名または接続名"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "確定した料金を予算と照合する"
+    }
+  },
+  "arguments": {
+    "name": "キー名",
+    "group": "認可されたグループ",
+    "expires-in": "有効期間（秒）",
+    "requests-per-minute": "1 分あたりの要求上限",
+    "id": "キー ID",
+    "before": "このカーソルより前の項目を表示",
+    "limit": "最大件数",
+    "request-id": "要求 ID",
+    "key-id": "管理対象キー ID",
+    "billing": "料金のスナップショットと金額を含める",
+    "invocation-id": "SDK 呼び出し ID",
+    "invocation-scope": "呼び出し元のスコープ",
+    "file": "入力 JSON ファイル",
+    "actor": "監査用の操作者",
+    "account": "上流アカウントを使用する",
+    "after": "最短経過時間（秒）",
+    "attempt-id": "利用試行 ID",
+    "direction": "料金の方向（cost または receivable）",
+    "reference": "証憑の参照番号"
+  }
+}

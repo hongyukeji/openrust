@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "簽發閘道託管 Key"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "輪替閘道託管 Key"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "撤銷閘道託管 Key"
+    },
+    "ai:gateway:key:list": {
+      "description": "列出閘道託管 Key"
+    },
+    "ai:gateway:usage:list": {
+      "description": "列出閘道用量嘗試"
+    },
+    "ai:gateway:billing:import": {
+      "description": "匯入供應商帳單",
+      "arguments": {
+        "file": "供應商帳單 JSON 檔案"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "追加費用調整",
+      "arguments": {
+        "file": "費用調整 JSON 檔案"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "查看已匯入的供應商帳單",
+      "arguments": {
+        "id": "匯入傳回的供應商帳單 ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "查看閘道預算餘額",
+      "arguments": {
+        "group": "群組或連線名稱"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "釋放逾時且未送出的預留",
+      "arguments": {
+        "group": "群組或連線名稱"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "將已確認的費用結算至預算"
+    }
+  },
+  "arguments": {
+    "name": "Key 名稱",
+    "group": "授權群組",
+    "expires-in": "有效秒數",
+    "requests-per-minute": "每分鐘請求限額",
+    "id": "Key ID",
+    "before": "傳回游標之前的記錄",
+    "limit": "最多傳回的筆數",
+    "request-id": "請求 ID",
+    "key-id": "託管 Key ID",
+    "billing": "附加計費快照與金額",
+    "invocation-id": "SDK 呼叫 ID",
+    "invocation-scope": "呼叫方作用域",
+    "file": "JSON 輸入檔案",
+    "actor": "稽核操作者",
+    "account": "使用上游連線",
+    "after": "最短等待秒數",
+    "attempt-id": "用量嘗試 ID",
+    "direction": "費用方向（cost 或 receivable）",
+    "reference": "核對憑據編號"
+  }
+}

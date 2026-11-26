@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Cấp khóa cổng được quản lý"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Xoay vòng khóa cổng được quản lý"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Thu hồi khóa cổng được quản lý"
+    },
+    "ai:gateway:key:list": {
+      "description": "Liệt kê khóa cổng được quản lý"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Liệt kê các lần sử dụng cổng"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Nhập bảng kê của nhà cung cấp",
+      "arguments": {
+        "file": "Tệp JSON của bảng kê nhà cung cấp"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Ghi nhận điều chỉnh hóa đơn",
+      "arguments": {
+        "file": "Tệp JSON điều chỉnh hóa đơn"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Xem bảng kê nhà cung cấp đã nhập",
+      "arguments": {
+        "id": "ID bảng kê nhà cung cấp được trả về khi nhập"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Xem số dư ngân sách cổng",
+      "arguments": {
+        "group": "Tên nhóm hoặc kết nối"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Giải phóng khoản giữ chỗ hết hạn của yêu cầu chưa gửi",
+      "arguments": {
+        "group": "Tên nhóm hoặc kết nối"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Đối soát chi phí đã xác nhận với ngân sách"
+    }
+  },
+  "arguments": {
+    "name": "Tên khóa",
+    "group": "Nhóm được cấp quyền",
+    "expires-in": "Thời hạn tính bằng giây",
+    "requests-per-minute": "Giới hạn yêu cầu mỗi phút",
+    "id": "ID khóa",
+    "before": "Hiển thị mục trước con trỏ này",
+    "limit": "Số mục tối đa",
+    "request-id": "ID yêu cầu",
+    "key-id": "ID khóa được quản lý",
+    "billing": "Kèm bản chụp hóa đơn và số tiền",
+    "invocation-id": "ID lần gọi SDK",
+    "invocation-scope": "Phạm vi của bên gọi",
+    "file": "Tệp JSON đầu vào",
+    "actor": "Người thực hiện để kiểm toán",
+    "account": "Dùng tài khoản nhà cung cấp",
+    "after": "Thời gian tối thiểu tính bằng giây",
+    "attempt-id": "ID lần sử dụng",
+    "direction": "Chiều tính phí (cost hoặc receivable)",
+    "reference": "Tham chiếu chứng từ"
+  }
+}

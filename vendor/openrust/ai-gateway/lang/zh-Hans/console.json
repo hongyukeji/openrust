@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "签发网关托管 Key"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "轮换网关托管 Key"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "撤销网关托管 Key"
+    },
+    "ai:gateway:key:list": {
+      "description": "列出网关托管 Key"
+    },
+    "ai:gateway:usage:list": {
+      "description": "列出网关用量尝试"
+    },
+    "ai:gateway:billing:import": {
+      "description": "导入供应商账单",
+      "arguments": {
+        "file": "供应商账单 JSON 文件"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "追加费用调整",
+      "arguments": {
+        "file": "费用调整 JSON 文件"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "查看已导入的供应商账单",
+      "arguments": {
+        "id": "导入返回的供应商账单 ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "查看网关预算余额",
+      "arguments": {
+        "group": "分组或连接名称"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "释放超时未出站的预占",
+      "arguments": {
+        "group": "分组或连接名称"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "将确认的费用结算到预算"
+    }
+  },
+  "arguments": {
+    "name": "Key 名称",
+    "group": "授权分组",
+    "expires-in": "有效秒数",
+    "requests-per-minute": "每分钟请求限额",
+    "id": "Key ID",
+    "before": "返回游标之前的记录",
+    "limit": "最多返回的条数",
+    "request-id": "请求 ID",
+    "key-id": "托管 Key ID",
+    "billing": "附加计费快照和金额",
+    "invocation-id": "SDK 调用 ID",
+    "invocation-scope": "调用方作用域",
+    "file": "JSON 输入文件",
+    "actor": "审计操作者",
+    "account": "使用上游连接",
+    "after": "最短等待秒数",
+    "attempt-id": "用量尝试 ID",
+    "direction": "费用方向（cost 或 receivable）",
+    "reference": "核对凭据编号"
+  }
+}

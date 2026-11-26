@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "प्रबंधित गेटवे कुंजी जारी करें"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "प्रबंधित गेटवे कुंजी बदलें"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "प्रबंधित गेटवे कुंजी रद्द करें"
+    },
+    "ai:gateway:key:list": {
+      "description": "प्रबंधित गेटवे कुंजियाँ सूचीबद्ध करें"
+    },
+    "ai:gateway:usage:list": {
+      "description": "गेटवे उपयोग के प्रयास सूचीबद्ध करें"
+    },
+    "ai:gateway:billing:import": {
+      "description": "प्रदाता का विवरण आयात करें",
+      "arguments": {
+        "file": "प्रदाता विवरण की JSON फ़ाइल"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "बिलिंग समायोजन दर्ज करें",
+      "arguments": {
+        "file": "बिलिंग समायोजन की JSON फ़ाइल"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "आयातित प्रदाता विवरण दिखाएँ",
+      "arguments": {
+        "id": "आयात से मिला प्रदाता विवरण ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "गेटवे बजट की शेष राशि दिखाएँ",
+      "arguments": {
+        "group": "समूह या कनेक्शन का नाम"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "न भेजे गए अनुरोधों के पुराने आरक्षण जारी करें",
+      "arguments": {
+        "group": "समूह या कनेक्शन का नाम"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "पुष्ट शुल्क का बजट से मिलान करें"
+    }
+  },
+  "arguments": {
+    "name": "कुंजी का नाम",
+    "group": "अधिकृत समूह",
+    "expires-in": "वैधता अवधि सेकंड में",
+    "requests-per-minute": "प्रति मिनट अनुरोध सीमा",
+    "id": "कुंजी ID",
+    "before": "इस कर्सर से पहले की प्रविष्टियाँ दिखाएँ",
+    "limit": "प्रविष्टियों की अधिकतम संख्या",
+    "request-id": "अनुरोध ID",
+    "key-id": "प्रबंधित कुंजी ID",
+    "billing": "बिलिंग स्नैपशॉट और राशियाँ शामिल करें",
+    "invocation-id": "SDK आह्वान ID",
+    "invocation-scope": "आह्वानकर्ता का दायरा",
+    "file": "इनपुट JSON फ़ाइल",
+    "actor": "ऑडिट के लिए ऑपरेटर",
+    "account": "अपस्ट्रीम खाते का उपयोग करें",
+    "after": "न्यूनतम आयु सेकंड में",
+    "attempt-id": "उपयोग प्रयास ID",
+    "direction": "शुल्क की दिशा (cost या receivable)",
+    "reference": "साक्ष्य का संदर्भ"
+  }
+}

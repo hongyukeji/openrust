@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Emitir uma chave gerenciada do gateway"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Rotacionar uma chave gerenciada do gateway"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Revogar uma chave gerenciada do gateway"
+    },
+    "ai:gateway:key:list": {
+      "description": "Listar chaves gerenciadas do gateway"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Listar tentativas de uso do gateway"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Importar um extrato do provedor",
+      "arguments": {
+        "file": "Arquivo JSON do extrato do provedor"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Registrar um ajuste de faturamento",
+      "arguments": {
+        "file": "Arquivo JSON de ajuste de faturamento"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Exibir um extrato importado do provedor",
+      "arguments": {
+        "id": "ID do extrato retornado na importação"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Exibir o saldo do orçamento do gateway",
+      "arguments": {
+        "group": "Nome do grupo ou da conexão"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Liberar reservas vencidas de solicitações nunca enviadas",
+      "arguments": {
+        "group": "Nome do grupo ou da conexão"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Conciliar uma cobrança com seu orçamento"
+    }
+  },
+  "arguments": {
+    "name": "Nome da chave",
+    "group": "Grupo autorizado",
+    "expires-in": "Validade em segundos",
+    "requests-per-minute": "Limite de solicitações por minuto",
+    "id": "ID da chave",
+    "before": "Mostrar entradas anteriores a este cursor",
+    "limit": "Número máximo de entradas",
+    "request-id": "ID da solicitação",
+    "key-id": "ID da chave gerenciada",
+    "billing": "Incluir instantâneos e valores de faturamento",
+    "invocation-id": "ID de invocação do SDK",
+    "invocation-scope": "Escopo do chamador",
+    "file": "Arquivo JSON de entrada",
+    "actor": "Responsável pela ação auditada",
+    "account": "Usar a conta do provedor",
+    "after": "Idade mínima em segundos",
+    "attempt-id": "ID da tentativa de uso",
+    "direction": "Direção da cobrança (cost ou receivable)",
+    "reference": "Referência do comprovante"
+  }
+}

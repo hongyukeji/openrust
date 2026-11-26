@@ -375,6 +375,8 @@ Run `./artisan ai:gateway:budget:show openai --account` to inspect the account b
 
 After a supplier statement or charge adjustment resolves a cost, run `./artisan ai:gateway:budget:reconcile <attempt-id> --direction=cost --reference=<evidence-id> --actor=operator`. Use `--direction=receivable` for a downstream adjustment. The command settles the confirmed amount in the original budget window. Retrying the same evidence reference returns its original record. For a corrected amount, use a new evidence reference. An amount above the original reservation ceiling stops new admissions for that window and remains visible for review.
 
+Run `./artisan help ai:gateway:budget:reconcile` for gateway command help in the application locale. Override descriptions in `lang/vendor/ai-gateway/<locale>/console.json` under `commands.<command>.description` or `commands.<command>.arguments.<argument>`. Command, argument, and option names stay the same across locales.
+
 ### Group output-token quotas {#gateway-output-quota}
 
 Enable the usage ledger and run the migrations before adding a group quota. All keys in the group share a daily output-token budget across gateway instances. The window resets at midnight UTC.

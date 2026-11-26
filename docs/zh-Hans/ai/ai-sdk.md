@@ -375,6 +375,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 供应商账单或借贷项确认费用后，运行 `./artisan ai:gateway:budget:reconcile <attempt-id> --direction=cost --reference=<凭据编号> --actor=operator`。核对下游应收时改用 `--direction=receivable`。命令在原预算账期内结算已确认金额。重复提交同一凭据编号会返回原记录，更正金额时使用新的凭据编号。费用超出原预占上界时，本账期停止新增调用，实际金额仍可核对。
 
+运行 `./artisan help ai:gateway:budget:reconcile` 可按应用当前语言查看网关命令说明。应用可在 `lang/vendor/ai-gateway/<locale>/console.json` 中覆写 `commands.<命令>.description` 或 `commands.<命令>.arguments.<参数>`。命令名、参数名和选项名在各语言下相同。
+
 ### 分组输出 Token 配额 {#gateway-output-quota}
 
 启用用量账本并运行迁移后，可在分组上配置输出 Token 配额。同组所有 Key 在各网关实例共享每日额度，按 UTC 零点重置。

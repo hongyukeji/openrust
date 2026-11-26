@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "إصدار مفتاح بوابة مُدار"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "تدوير مفتاح بوابة مُدار"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "إلغاء مفتاح بوابة مُدار"
+    },
+    "ai:gateway:key:list": {
+      "description": "عرض مفاتيح البوابة المُدارة"
+    },
+    "ai:gateway:usage:list": {
+      "description": "عرض محاولات استخدام البوابة"
+    },
+    "ai:gateway:billing:import": {
+      "description": "استيراد كشف حساب المزود",
+      "arguments": {
+        "file": "ملف JSON لكشف حساب المزود"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "تسجيل تسوية في الفوترة",
+      "arguments": {
+        "file": "ملف JSON لتسوية الفوترة"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "عرض كشف حساب مزود مستورد",
+      "arguments": {
+        "id": "معرّف كشف المزود الذي أعادته عملية الاستيراد"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "عرض رصيد ميزانية البوابة",
+      "arguments": {
+        "group": "اسم المجموعة أو الاتصال"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "تحرير الحجوزات المنتهية للطلبات التي لم تُرسل",
+      "arguments": {
+        "group": "اسم المجموعة أو الاتصال"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "مطابقة الرسوم المؤكدة مع الميزانية"
+    }
+  },
+  "arguments": {
+    "name": "اسم المفتاح",
+    "group": "المجموعة المصرح لها",
+    "expires-in": "مدة الصلاحية بالثواني",
+    "requests-per-minute": "حد الطلبات في الدقيقة",
+    "id": "معرّف المفتاح",
+    "before": "عرض السجلات السابقة لهذا المؤشر",
+    "limit": "الحد الأقصى لعدد السجلات",
+    "request-id": "معرّف الطلب",
+    "key-id": "معرّف المفتاح المُدار",
+    "billing": "تضمين تفاصيل الفوترة والمبالغ",
+    "invocation-id": "معرّف استدعاء SDK",
+    "invocation-scope": "نطاق الجهة المستدعية",
+    "file": "ملف JSON للإدخال",
+    "actor": "المنفّذ لأغراض التدقيق",
+    "account": "استخدام حساب المزود",
+    "after": "المدة الدنيا بالثواني",
+    "attempt-id": "معرّف محاولة الاستخدام",
+    "direction": "اتجاه الفوترة (cost أو receivable)",
+    "reference": "مرجع المستند المؤيد"
+  }
+}

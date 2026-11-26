@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Terbitkan kunci gateway terkelola"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Rotasi kunci gateway terkelola"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Cabut kunci gateway terkelola"
+    },
+    "ai:gateway:key:list": {
+      "description": "Daftar kunci gateway terkelola"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Daftar percobaan penggunaan gateway"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Impor laporan penyedia",
+      "arguments": {
+        "file": "Berkas JSON laporan penyedia"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Catat penyesuaian tagihan",
+      "arguments": {
+        "file": "Berkas JSON penyesuaian tagihan"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Tampilkan laporan penyedia yang diimpor",
+      "arguments": {
+        "id": "ID laporan penyedia yang dikembalikan saat impor"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Tampilkan saldo anggaran gateway",
+      "arguments": {
+        "group": "Nama grup atau koneksi"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Lepaskan reservasi kedaluwarsa untuk permintaan yang belum dikirim",
+      "arguments": {
+        "group": "Nama grup atau koneksi"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Rekonsiliasi biaya terkonfirmasi dengan anggaran"
+    }
+  },
+  "arguments": {
+    "name": "Nama kunci",
+    "group": "Grup yang diizinkan",
+    "expires-in": "Masa berlaku dalam detik",
+    "requests-per-minute": "Batas permintaan per menit",
+    "id": "ID kunci",
+    "before": "Tampilkan entri sebelum kursor ini",
+    "limit": "Jumlah maksimum entri",
+    "request-id": "ID permintaan",
+    "key-id": "ID kunci terkelola",
+    "billing": "Sertakan cuplikan dan jumlah tagihan",
+    "invocation-id": "ID pemanggilan SDK",
+    "invocation-scope": "Cakupan pemanggil",
+    "file": "Berkas JSON masukan",
+    "actor": "Pelaku untuk audit",
+    "account": "Gunakan akun penyedia",
+    "after": "Umur minimum dalam detik",
+    "attempt-id": "ID percobaan penggunaan",
+    "direction": "Arah tagihan (cost atau receivable)",
+    "reference": "Rujukan bukti"
+  }
+}

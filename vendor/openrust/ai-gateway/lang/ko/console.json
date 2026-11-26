@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "관리형 게이트웨이 키 발급"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "관리형 게이트웨이 키 교체"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "관리형 게이트웨이 키 폐기"
+    },
+    "ai:gateway:key:list": {
+      "description": "관리형 게이트웨이 키 목록 표시"
+    },
+    "ai:gateway:usage:list": {
+      "description": "게이트웨이 사용 시도 목록 표시"
+    },
+    "ai:gateway:billing:import": {
+      "description": "공급자 명세서 가져오기",
+      "arguments": {
+        "file": "공급자 명세서 JSON 파일"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "청구 조정 기록",
+      "arguments": {
+        "file": "청구 조정 JSON 파일"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "가져온 공급자 명세서 보기",
+      "arguments": {
+        "id": "가져오기에서 반환한 공급자 명세서 ID"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "게이트웨이 예산 잔액 보기",
+      "arguments": {
+        "group": "그룹 또는 연결 이름"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "전송되지 않은 요청의 오래된 예약 해제",
+      "arguments": {
+        "group": "그룹 또는 연결 이름"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "확정된 비용을 예산에 반영"
+    }
+  },
+  "arguments": {
+    "name": "키 이름",
+    "group": "권한이 부여된 그룹",
+    "expires-in": "유효 기간(초)",
+    "requests-per-minute": "분당 요청 한도",
+    "id": "키 ID",
+    "before": "이 커서 이전 항목 표시",
+    "limit": "최대 항목 수",
+    "request-id": "요청 ID",
+    "key-id": "관리형 키 ID",
+    "billing": "청구 스냅샷과 금액 포함",
+    "invocation-id": "SDK 호출 ID",
+    "invocation-scope": "호출자 범위",
+    "file": "입력 JSON 파일",
+    "actor": "감사 작업자",
+    "account": "업스트림 계정 사용",
+    "after": "최소 경과 시간(초)",
+    "attempt-id": "사용 시도 ID",
+    "direction": "요금 방향(cost 또는 receivable)",
+    "reference": "증빙 참조 번호"
+  }
+}

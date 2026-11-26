@@ -1,0 +1,73 @@
+{
+  "commands": {
+    "ai:gateway:key:create": {
+      "description": "Émettre une clé de passerelle gérée"
+    },
+    "ai:gateway:key:rotate": {
+      "description": "Renouveler une clé de passerelle gérée"
+    },
+    "ai:gateway:key:revoke": {
+      "description": "Révoquer une clé de passerelle gérée"
+    },
+    "ai:gateway:key:list": {
+      "description": "Lister les clés de passerelle gérées"
+    },
+    "ai:gateway:usage:list": {
+      "description": "Lister les tentatives d’utilisation de la passerelle"
+    },
+    "ai:gateway:billing:import": {
+      "description": "Importer un relevé du fournisseur",
+      "arguments": {
+        "file": "Fichier JSON du relevé du fournisseur"
+      }
+    },
+    "ai:gateway:billing:adjust": {
+      "description": "Enregistrer un ajustement de facturation",
+      "arguments": {
+        "file": "Fichier JSON d’ajustement de facturation"
+      }
+    },
+    "ai:gateway:billing:report": {
+      "description": "Afficher un relevé du fournisseur importé",
+      "arguments": {
+        "id": "Identifiant du relevé renvoyé à l’importation"
+      }
+    },
+    "ai:gateway:budget:show": {
+      "description": "Afficher le solde d’un budget de passerelle",
+      "arguments": {
+        "group": "Nom du groupe ou de la connexion"
+      }
+    },
+    "ai:gateway:budget:recover": {
+      "description": "Libérer les réservations expirées des requêtes jamais envoyées",
+      "arguments": {
+        "group": "Nom du groupe ou de la connexion"
+      }
+    },
+    "ai:gateway:budget:reconcile": {
+      "description": "Rapprocher des frais avec leur budget"
+    }
+  },
+  "arguments": {
+    "name": "Nom de la clé",
+    "group": "Groupe autorisé",
+    "expires-in": "Durée de validité en secondes",
+    "requests-per-minute": "Limite de requêtes par minute",
+    "id": "Identifiant de la clé",
+    "before": "Afficher les entrées précédant ce curseur",
+    "limit": "Nombre maximal d’entrées",
+    "request-id": "Identifiant de la requête",
+    "key-id": "Identifiant de la clé gérée",
+    "billing": "Inclure les instantanés et montants de facturation",
+    "invocation-id": "Identifiant d’invocation du SDK",
+    "invocation-scope": "Périmètre de l’appelant",
+    "file": "Fichier JSON d’entrée",
+    "actor": "Opérateur à auditer",
+    "account": "Utiliser le compte amont",
+    "after": "Délai minimal en secondes",
+    "attempt-id": "Identifiant de la tentative d’utilisation",
+    "direction": "Sens de la facturation (cost ou receivable)",
+    "reference": "Référence du justificatif"
+  }
+}
