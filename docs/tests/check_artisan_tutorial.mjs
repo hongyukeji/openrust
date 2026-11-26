@@ -106,6 +106,7 @@ try {
                     assert.equal(await page.locator('h2#registering-commands').count(),1);
                     assert.equal(await page.locator('h2#command-structure').count(),1);
                     assert.equal(await page.locator('h4#passing-boolean-values').count(),1);
+                    assert.equal(await page.locator('h2#calling-commands-from-other-commands').count(),1);
                     assert.equal(await page.locator('h4#passing-array-values').count(),1);
                     assert.equal(await page.locator('h2#writing-commands').count(),1);
                     assert.deepEqual(errors,[]);

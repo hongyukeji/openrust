@@ -2264,7 +2264,8 @@
     "76: Command manual failure renders a component and reports code 1; explicit codes and ordinary errors preserve their established paths.",
     "77: Verified the four tutorial sections for command I/O, output, tables and progress against their documented methods and actual consumers.",
     "79: Explicit command type resolution, native definition and provider dependencies, and type/name lifecycle are verified. Programmatic argument and output edges remain open.",
-    "80: Named array/Boolean input and the full command-line string are verified. Existing token dispatch and native shell-independent parsing are retained."
+    "80: Named array/Boolean input and the full command-line string are verified. Existing token dispatch and native shell-independent parsing are retained.",
+    "81: Verified command-call output sinks, nested options and quiet routing. Native AsOutput selection and per-call capture are explicit adaptations."
   ],
   "native_adaptations": [
     {
@@ -2829,9 +2830,10 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "通用 OutputInterface 和程序调用第三参数任意自定义流／分区，继续按 programmatically-executing-commands 验收。",
     "原生组件动态绑定可覆盖动态入口，类型化行组件覆盖范围与对象借用持续沿用 command-component-factory 契约。",
-    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。"
+    "旧 PHP 布局对象的强引用与字节格式差异见原验收，不扩大闭合范围至额外未验契约。",
+    "命令嵌套的跨层事件顺序作为 Events 章节另行核对。",
+    "任意外部原生流可通过应用自定义 AsOutput 绑定现有 Output；未声称 PHP 任意子类的同步逐次写入机制适用于 Rust 的分区缓冲。"
   ],
   "output_format_explicit_normal": {
     "Normal": 0,
@@ -3102,6 +3104,23 @@
       "call_line",
       "call",
       "call_type"
+    ]
+  },
+  "artisan_nested_calls": {
+    "CommandIo": [
+      "call",
+      "call_named",
+      "call_silently"
+    ],
+    "Artisan": [
+      "call",
+      "call_type",
+      "call_named",
+      "call_line",
+      "call_captured"
+    ],
+    "AsOutput": [
+      "as_output"
     ]
   }
 }

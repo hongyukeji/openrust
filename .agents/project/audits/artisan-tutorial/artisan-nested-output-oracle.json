@@ -1,0 +1,27 @@
+[
+    {
+        "kind": "default",
+        "code": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n"
+    },
+    {
+        "kind": "custom",
+        "code": 7,
+        "out": "custom prefix\nparent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "writes": 4
+    },
+    {
+        "kind": "section",
+        "decorated": false,
+        "code": 7,
+        "contents": "",
+        "stream": "section prefix\nparent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n"
+    },
+    {
+        "kind": "section",
+        "decorated": true,
+        "code": 7,
+        "contents": "section prefix\nparent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "stream": "section prefix\nparent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n"
+    }
+]

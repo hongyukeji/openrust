@@ -66,6 +66,33 @@ impl std::ops::Deref for OutputReference<'_> {
     }
 }
 impl OutputReference<'_> {
+    pub(crate) fn command_output(&mut self) -> Option<&mut Output> {
+        (self.section.is_none() && !self.error_stream).then_some(self.output)
+    }
+
+    pub(crate) fn command_buffer(&mut self) -> Output {
+        let mut output = Output {
+            formatter: self.formatter().clone(),
+            ..Output::default()
+        };
+        output.set_verbosity(self.get_verbosity());
+        output
+    }
+
+    pub(crate) fn replay_command_buffer(&mut self, output: Output) -> Result<(), ConsoleError> {
+        let options = OutputOptions {
+            format: OutputFormat::Raw,
+            verbosity: Some(OutputVerbosity::Silent),
+        };
+        if !output.stdout.is_empty() {
+            self.write(&output.stdout, false, options)?;
+        }
+        if !output.stderr.is_empty() {
+            self.write(&output.stderr, false, options)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn formatter(&mut self) -> &mut super::formatting::Formatter {
         if self.error_stream {
             return self.output.progress_formatter();

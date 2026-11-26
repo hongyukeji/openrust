@@ -478,13 +478,14 @@
     },
     {
       "anchor": "programmatically-executing-commands",
-      "status": "pending_public_contract_review",
+      "status": "verified_tutorial_scope",
       "evidence": [
         "artisan-command-type-contracts.json",
-        "artisan-call-arguments-contracts.json"
-      ],
-      "remaining": [
-        "命令类型、命令行字符串与具名参数已经验证。继续输出缓冲参数的实际自定义／分区消费者，以及可选输出消费。"
+        "artisan-call-arguments-contracts.json",
+        "artisan-nested-call-contracts.json",
+        "accepted-artisan-nested-call.json",
+        "console_artisan_nested_call",
+        "formal_nested_commands_example"
       ]
     },
     {
@@ -514,8 +515,13 @@
     },
     {
       "anchor": "calling-commands-from-other-commands",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-nested-call-contracts.json",
+        "accepted-artisan-nested-call.json",
+        "console_artisan_nested_call",
+        "formal_nested_commands_example"
+      ]
     },
     {
       "anchor": "signal-handling",
@@ -851,6 +857,14 @@
     "remaining": [
       "程序调用第三参数的可选输出、任意输出和分区、嵌套命令助手继续逐项验收。",
       "CLI 定义无法表达的布尔默认值覆盖及中间缺省位置拒绝，原始 OsString 继续支持平台原生输入。"
+    ]
+  },
+  "artisan_nested_calls": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-nested-call-contracts.json",
+    "remaining": [
+      "命令嵌套的跨层事件顺序作为 Events 章节另行核对。",
+      "任意外部原生流可通过应用自定义 AsOutput 绑定现有 Output；未声称 PHP 任意子类的同步逐次写入机制适用于 Rust 的分区缓冲。"
     ]
   }
 }

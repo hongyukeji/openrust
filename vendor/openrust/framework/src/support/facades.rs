@@ -753,12 +753,12 @@ impl Artisan {
     pub async fn call(
         command: &str,
         arguments: &[OsString],
-        output: &mut Output,
+        output: &mut (impl crate::console::AsOutput + ?Sized),
     ) -> Result<i32, ConsoleError> {
-        Box::pin(foundation::console::call_in_application(
+        Box::pin(foundation::console::call_with_output(
             foundation::console::CommandTarget::Name(command),
             crate::console::command_arguments::CommandArguments::Tokens(arguments),
-            output,
+            output.as_output(),
         ))
         .await
     }
@@ -766,15 +766,15 @@ impl Artisan {
     /// 通过已注册的具体命令类型调用同一 Artisan 实例。
     pub async fn call_type<C: crate::console::Command + 'static>(
         arguments: &[OsString],
-        output: &mut Output,
+        output: &mut (impl crate::console::AsOutput + ?Sized),
     ) -> Result<i32, ConsoleError> {
-        Box::pin(foundation::console::call_in_application(
+        Box::pin(foundation::console::call_with_output(
             foundation::console::CommandTarget::Type(
                 std::any::TypeId::of::<C>(),
                 std::any::type_name::<C>(),
             ),
             crate::console::command_arguments::CommandArguments::Tokens(arguments),
-            output,
+            output.as_output(),
         ))
         .await
     }
@@ -783,20 +783,33 @@ impl Artisan {
     pub async fn call_named(
         command: &str,
         arguments: &[(&str, serde_json::Value)],
-        output: &mut Output,
+        output: &mut (impl crate::console::AsOutput + ?Sized),
     ) -> Result<i32, ConsoleError> {
-        Box::pin(foundation::console::call_in_application(
+        Box::pin(foundation::console::call_with_output(
             foundation::console::CommandTarget::Name(command),
             crate::console::command_arguments::CommandArguments::Named(arguments),
-            output,
+            output.as_output(),
         ))
         .await
     }
 
     /// 解析完整命令字符串并在本应用内执行；不会调用 Shell。
-    pub async fn call_line(command_line: &str, output: &mut Output) -> Result<i32, ConsoleError> {
+    pub async fn call_line(
+        command_line: &str,
+        output: &mut (impl crate::console::AsOutput + ?Sized),
+    ) -> Result<i32, ConsoleError> {
         let (command, arguments) = crate::console::command_arguments::line_arguments(command_line)?;
         Self::call(&command, &arguments, output).await
+    }
+
+    /// 执行命令并返回本次输出缓冲，不在应用间共享上一次输出。
+    pub async fn call_captured(
+        command: &str,
+        arguments: &[OsString],
+    ) -> Result<(i32, Output), ConsoleError> {
+        let mut output = Output::default();
+        let status = Self::call(command, arguments, &mut output).await?;
+        Ok((status, output))
     }
 
     /// Runs a registered command and discards its console output.

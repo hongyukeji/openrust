@@ -97,6 +97,20 @@ pub(crate) enum CommandTarget<'a> {
     Type(std::any::TypeId, &'static str),
 }
 
+pub(crate) async fn call_with_output(
+    command: CommandTarget<'_>,
+    arguments: crate::console::command_arguments::CommandArguments<'_>,
+    mut output: crate::console::OutputReference<'_>,
+) -> Result<i32, ConsoleError> {
+    if let Some(original) = output.command_output() {
+        return call_in_application(command, arguments, original).await;
+    }
+    let mut buffer = output.command_buffer();
+    let result = call_in_application(command, arguments, &mut buffer).await;
+    let replay = output.replay_command_buffer(buffer);
+    result.and_then(|code| replay.map(|()| code))
+}
+
 pub(crate) async fn call_in_application(
     command: CommandTarget<'_>,
     arguments: crate::console::command_arguments::CommandArguments<'_>,

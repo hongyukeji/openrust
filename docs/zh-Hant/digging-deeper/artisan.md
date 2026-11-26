@@ -213,6 +213,40 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 用 `./artisan queue:work redis --queue=commands` 啟動對應的 Worker。工作資料以 JSON 儲存命令名稱和 UTF-8 引數。Worker 在自身應用程式內解析命令，捨棄主控台輸出，並確認正常傳回的工作，即使結束代碼非零。需要使用佇列重試和失敗記錄時，在命令中回傳 `ConsoleError`。
 
+## 從其他命令呼叫 {#calling-commands-from-other-commands}
+
+用 `CommandIo::call` 在父命令目前輸出中執行子命令。具名參數可用 `call_named`。用 `call_silently` 捨棄子命令輸出並保留結束代碼。呼叫繼承父命令的 ANSI、互動、安靜及詳細程度選項。子命令明確選項優先。
+
+可把任意 `AsOutput` 介接器傳給 `Artisan::call`，包括主控台分區或應用程式自訂包裝器。一般輸出保留各條串流。選定分區接收本次呼叫的緩衝輸出。用 `call_captured` 同時回傳結束代碼及獨立輸出緩衝。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, Output},
+    support::facades::Artisan,
+};
+
+fn register_nested_commands() -> Result<(), ConsoleError> {
+    Artisan::command("reports:prepare", |out| out.stdout.push_str("Preparing\n"))?;
+    Artisan::command_with("reports:parent", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let status = io.call("reports:prepare", &[]).await?;
+            if status != 0 {
+                return Ok(status);
+            }
+            io.call_silently("reports:prepare", &[]).await?;
+            io.line("Ready")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+
+async fn capture_report() -> Result<(i32, Output), ConsoleError> {
+    Artisan::call_captured("reports:parent", &[]).await
+}
+```
+
 ## 按需安裝路由 {#optional-route-installers}
 
 在原始碼目錄執行下列命令，產生路由檔案並更新模組宣告與啟動設定，然後重新建置。既有路由檔案會保留。

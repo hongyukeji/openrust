@@ -503,6 +503,27 @@ async fn formal_named_call_arguments_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_call_arguments{\n'+call_args_snippet+call_args_checks+'}\n')
 
+    nested_calls_snippet=re.search(r'```rust\n(.*?)```',text.split('{#calling-commands-from-other-commands}',1)[1],re.S).group(1)
+    nested_calls_checks=r'''
+#[tokio::test]
+async fn formal_nested_commands_example() {
+    use openrust::foundation::{Application, configuration::Routing};
+    use openrust::support::facades::{App, Facade as _};
+    let root = std::env::temp_dir().join(format!("artisan-nested-{}-{}", std::process::id(), module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app = Application::configure(root.clone()).with_routing(Routing::default().commands(register_nested_commands)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let (status, captured) = capture_report().await.unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(captured.stdout, "Preparing\nReady\n");
+        assert!(captured.stderr.is_empty());
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_nested_calls{\n'+nested_calls_snippet+nested_calls_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

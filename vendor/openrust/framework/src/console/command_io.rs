@@ -1,4 +1,5 @@
 use serde_json::{Map, Value};
+use std::ffi::OsString;
 
 use super::{CommandInput, ConsoleError, Input, Output, OutputStyle, OutputVerbosity};
 use crate::support::Str;
@@ -79,6 +80,97 @@ impl<'a> CommandIo<'a> {
     }
     pub fn output_components(&mut self) -> super::view::components::Factory<'_, OutputStyle<'a>> {
         self.components()
+    }
+
+    /// 调用子命令，沿用当前输出和父命令可继承的全局选项。
+    pub async fn call(
+        &mut self,
+        command: &str,
+        arguments: &[OsString],
+    ) -> Result<i32, ConsoleError> {
+        let arguments = self.child_arguments(arguments);
+        crate::support::facades::Artisan::call(command, &arguments, &mut self.output).await
+    }
+
+    /// 按具名参数调用子命令，显式子参数优先于继承的同名选项。
+    pub async fn call_named(
+        &mut self,
+        command: &str,
+        arguments: &[(&str, Value)],
+    ) -> Result<i32, ConsoleError> {
+        let mut merged = self.inherited_options();
+        merged.retain(|(name, _)| {
+            !arguments
+                .iter()
+                .any(|(provided, _)| option_overrides(name, provided))
+        });
+        merged.extend_from_slice(arguments);
+        crate::support::facades::Artisan::call_named(command, &merged, &mut self.output).await
+    }
+
+    /// 调用子命令并丢弃它的输出，保留退出值。
+    pub async fn call_silently(
+        &mut self,
+        command: &str,
+        arguments: &[OsString],
+    ) -> Result<i32, ConsoleError> {
+        let arguments = self.child_arguments(arguments);
+        crate::support::facades::Artisan::call_silently(command, &arguments).await
+    }
+
+    fn inherited_options(&self) -> Vec<(&'static str, Value)> {
+        [
+            ("--ansi", "ansi"),
+            ("--no-ansi", "no-ansi"),
+            ("--no-interaction", "no-interaction"),
+            ("--quiet", "quiet"),
+        ]
+        .into_iter()
+        .filter_map(|(flag, key)| {
+            self.input
+                .matches()
+                .try_get_one::<bool>(key)
+                .ok()
+                .flatten()
+                .copied()
+                .unwrap_or(false)
+                .then_some((flag, Value::Bool(true)))
+        })
+        .chain(
+            self.input
+                .matches()
+                .try_get_one::<u8>("verbose")
+                .ok()
+                .flatten()
+                .copied()
+                .filter(|value| *value > 0)
+                .map(|value| ("--verbose", Value::from(value))),
+        )
+        .collect()
+    }
+
+    fn child_arguments(&self, arguments: &[OsString]) -> Vec<OsString> {
+        let mut merged = Vec::new();
+        for (flag, value) in self.inherited_options() {
+            if arguments
+                .iter()
+                .take_while(|arg| arg.as_os_str() != "--")
+                .filter_map(|arg| arg.to_str())
+                .any(|provided| {
+                    option_overrides(flag, provided.split('=').next().unwrap_or(provided))
+                })
+            {
+                continue;
+            }
+            if flag == "--verbose" {
+                merged
+                    .push(format!("-{}", "v".repeat(value.as_u64().unwrap_or(0) as usize)).into());
+            } else {
+                merged.push(flag.into());
+            }
+        }
+        merged.extend_from_slice(arguments);
+        merged
     }
 
     pub fn get_output(&mut self) -> &mut OutputStyle<'a> {
@@ -178,5 +270,21 @@ impl<'a> CommandIo<'a> {
     pub fn new_line(&mut self, count: usize) -> Result<&mut Self, ConsoleError> {
         self.output.new_line(count)?;
         Ok(self)
+    }
+}
+
+fn option_overrides(name: &str, provided: &str) -> bool {
+    if name == provided {
+        return true;
+    }
+    let short = provided.strip_prefix('-').filter(|value| {
+        !value.starts_with('-') && value.chars().all(|flag| matches!(flag, 'q' | 'n' | 'v'))
+    });
+    match name {
+        "--ansi" | "--no-ansi" => matches!(provided, "--ansi" | "--no-ansi"),
+        "--quiet" => short.is_some_and(|flags| flags.contains('q')),
+        "--no-interaction" => short.is_some_and(|flags| flags.contains('n')),
+        "--verbose" => short.is_some_and(|flags| flags.contains('v')),
+        _ => false,
     }
 }

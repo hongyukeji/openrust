@@ -213,6 +213,40 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 Start a Worker for the selected destination with `./artisan queue:work redis --queue=commands`. The payload stores the command name and UTF-8 argument tokens as JSON. The Worker resolves the command in its own application, discards its console output and acknowledges a returned exit code, including a nonzero code. Return a `ConsoleError` from the command to use normal queue retries and failure recording.
 
+## Calling Commands From Other Commands {#calling-commands-from-other-commands}
+
+Use `CommandIo::call` to run a child command with the parent’s current output. Use `call_named` for named arguments, or `call_silently` to discard the child output and keep its exit code. The call inherits the parent’s ANSI, interaction, quiet and verbosity options. Explicit child options take precedence.
+
+Pass any `AsOutput` adapter to `Artisan::call`, including a console section or an application’s wrapper. The base output retains its streams. A selected section receives that invocation’s buffered output. Use `call_captured` to return the exit code and a fresh output buffer together.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, Output},
+    support::facades::Artisan,
+};
+
+fn register_nested_commands() -> Result<(), ConsoleError> {
+    Artisan::command("reports:prepare", |out| out.stdout.push_str("Preparing\n"))?;
+    Artisan::command_with("reports:parent", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let status = io.call("reports:prepare", &[]).await?;
+            if status != 0 {
+                return Ok(status);
+            }
+            io.call_silently("reports:prepare", &[]).await?;
+            io.line("Ready")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+
+async fn capture_report() -> Result<(i32, Output), ConsoleError> {
+    Artisan::call_captured("reports:parent", &[]).await
+}
+```
+
 ## Optional Route Installers {#optional-route-installers}
 
 Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.

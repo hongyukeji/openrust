@@ -1,0 +1,48 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "CommandIo": [
+      "call",
+      "call_named",
+      "call_silently"
+    ],
+    "Artisan": [
+      "call",
+      "call_type",
+      "call_named",
+      "call_line",
+      "call_captured"
+    ],
+    "AsOutput": [
+      "as_output"
+    ]
+  },
+  "source_oracle": [
+    "artisan-nested-call-oracle.json",
+    "artisan-nested-output-oracle.json"
+  ],
+  "runtime": {
+    "source_nested_call_cases": 8,
+    "source_output_cases": 4,
+    "test_targets": 10,
+    "framework_parent_tests": 46,
+    "new_artisan_processes": 3,
+    "new_http_requests": 1,
+    "formal_document_consumers": 240,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "嵌套调用借用当前父命令输出，继承 ANSI、交互、quiet 与 verbose 选项；具名与令牌显式子选项优先。静默调用使用独立缓冲并返回退出码。",
+    "Root Output 和自定义 AsOutput 包装器使用原流；带分区或错误流选择的输出借用将本次缓冲写入实际选定流，普通输出仍保留 stdout 与 stderr。",
+    "真实固定器的无装饰分区只写物理流，开启装饰才保存分区内容。Rust 保留这一行为。调用错误仍交付已写字节及错误。",
+    "按次返回默认缓冲，避免在并发请求之间共享“上一次输出”。源自定义类按每条写入计数，Rust 原生适配借用一次。",
+    "已验负颜色开关、安静模式的 Rust 现有交互保护和是否可见，保留明确的原生差异。"
+  ],
+  "remaining": [
+    "命令嵌套的跨层事件顺序作为 Events 章节另行核对。",
+    "任意外部原生流可通过应用自定义 AsOutput 绑定现有 Output；未声称 PHP 任意子类的同步逐次写入机制适用于 Rust 的分区缓冲。"
+  ]
+}

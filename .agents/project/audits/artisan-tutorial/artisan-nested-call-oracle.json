@@ -1,0 +1,71 @@
+[
+    {
+        "mode": "plain",
+        "flags": [],
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":true,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "plain",
+        "flags": {
+            "--no-interaction": true
+        },
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":false,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "plain",
+        "flags": {
+            "--no-ansi": true
+        },
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":true,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "plain",
+        "flags": {
+            "--ansi": true,
+            "--verbose": true
+        },
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":true,\"verbose\":true,\"quiet\":false,\"ansi\":true,\"no_ansi\":false}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "plain",
+        "flags": {
+            "--quiet": true
+        },
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":true,\"verbose\":false,\"quiet\":true,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "interactive",
+        "flags": {
+            "--no-interaction": true
+        },
+        "status": 7,
+        "out": "parent begin\n{\"label\":\"Ada Lovelace\",\"interactive\":true,\"verbose\":false,\"quiet\":false,\"ansi\":null,\"no_ansi\":null}\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "silent",
+        "flags": {
+            "--no-interaction": true
+        },
+        "status": 7,
+        "out": "parent begin\nparent after=7\n",
+        "error": null
+    },
+    {
+        "mode": "failure",
+        "flags": [],
+        "status": null,
+        "out": "parent begin\n",
+        "error": "LogicException:nested child error"
+    }
+]

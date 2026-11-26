@@ -1,0 +1,44 @@
+{
+  "base": "89aa3ac3b3cb8475317dd0f78a0eec7f3ad5c2f5",
+  "contract": "artisan-nested-call-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.39s",
+    "test result: ok. 240 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.19s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.14s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.32s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.12s"
+  ],
+  "runtime": {
+    "source_nested_call_cases": 8,
+    "source_output_cases": 4,
+    "test_targets": 10,
+    "framework_parent_tests": 46,
+    "new_artisan_processes": 3,
+    "new_http_requests": 1,
+    "formal_document_consumers": 240,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-disk.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-section-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-clippy-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-call-source.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-nested-output-source.json"
+  ],
+  "unaccepted_attempts": [
+    "首轮守卫触32GB返回75并完成缓存清理；重试发现无装饰分区仅记录物理写入，按固定源的两种模式修订断言后完整复验；严格检查初轮建议直接初始化捕获缓冲，已修正并复跑。"
+  ],
+  "remaining": [
+    "命令嵌套的跨层事件顺序作为 Events 章节另行核对。",
+    "任意外部原生流可通过应用自定义 AsOutput 绑定现有 Output；未声称 PHP 任意子类的同步逐次写入机制适用于 Rust 的分区缓冲。"
+  ],
+  "pushed": false
+}
