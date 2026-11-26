@@ -106,75 +106,97 @@ impl StreamedAgentResponse {
 fn collect_steps(events: &[StreamEvent]) -> Vec<Step> {
     let mut steps = Vec::new();
     let mut current = None;
-    for (index, event) in events.iter().enumerate() {
-        if let StreamEventData::StreamStart { provider, model } = &event.data {
-            current = Some((
-                index,
-                Step {
-                    provider: provider.clone(),
-                    model: model.clone(),
-                    ..Step::default()
-                },
-            ));
-            continue;
+    for event in events {
+        if matches!(event.data, StreamEventData::StreamStart { .. }) {
+            current = Some(StreamStep::default());
         }
-        let Some((_, step)) = &mut current else {
-            continue;
-        };
-        let finish_reason = match &event.data {
-            StreamEventData::TextDelta { delta, .. } => {
-                step.text.push_str(delta);
-                None
-            }
-            StreamEventData::Citation { citation, .. } => {
-                step.citations.push(citation.clone());
-                None
-            }
-            StreamEventData::ToolCall { call } => {
-                step.tool_calls.push(call.clone());
-                None
-            }
-            StreamEventData::ToolResult { result } => {
-                step.tool_results.push(result.clone());
-                None
-            }
-            StreamEventData::StreamEnd { reason, usage } => {
-                step.usage.clone_from(usage);
-                Some(FinishReason::from_wire(Some(reason)))
-            }
-            StreamEventData::ToolApprovalRequest { .. } => Some(FinishReason::ToolCalls),
-            _ => None,
-        };
-        if let Some(finish_reason) = finish_reason
-            && let Some((start, mut step)) = current.take()
+        if let Some(step) = current.as_mut()
+            && step.record(&event.data)
+            && let Some(step) = current.take()
         {
-            step.finish_reason = finish_reason;
-            step.reasoning = collect_reasoning(&events[start..=index]);
-            steps.push(step);
+            steps.push(step.finish());
         }
     }
     steps
 }
 
+#[derive(Default)]
+pub(super) struct StreamStep {
+    step: Step,
+    reasoning: ReasoningBlocks,
+}
+
+impl StreamStep {
+    pub(super) fn record(&mut self, data: &StreamEventData) -> bool {
+        match data {
+            StreamEventData::StreamStart { provider, model } => {
+                self.step.provider.clone_from(provider);
+                self.step.model.clone_from(model);
+            }
+            StreamEventData::TextDelta { delta, .. } => self.step.text.push_str(delta),
+            StreamEventData::Citation { citation, .. } => {
+                self.step.citations.push(citation.clone())
+            }
+            StreamEventData::ToolCall { call } => self.step.tool_calls.push(call.clone()),
+            StreamEventData::ToolResult { result } => self.step.tool_results.push(result.clone()),
+            StreamEventData::StreamEnd { reason, usage } => {
+                self.step.usage.clone_from(usage);
+                self.step.finish_reason = FinishReason::from_wire(Some(reason));
+                return true;
+            }
+            StreamEventData::ToolApprovalRequest { .. } => {
+                self.step.finish_reason = FinishReason::ToolCalls;
+                return true;
+            }
+            _ => self.reasoning.record(data),
+        }
+        false
+    }
+
+    pub(super) fn finish(mut self) -> Step {
+        self.step.reasoning = self.reasoning.finish();
+        self.step
+    }
+}
+
 fn collect_reasoning(events: &[StreamEvent]) -> String {
-    let mut indices = BTreeMap::new();
-    let mut blocks: Vec<String> = Vec::new();
+    let mut reasoning = ReasoningBlocks::default();
     for event in events {
+        reasoning.record(&event.data);
+    }
+    reasoning.finish()
+}
+
+#[derive(Default)]
+struct ReasoningBlocks {
+    indices: BTreeMap<String, usize>,
+    blocks: Vec<String>,
+}
+
+impl ReasoningBlocks {
+    fn record(&mut self, data: &StreamEventData) {
         if let StreamEventData::ReasoningDelta {
             reasoning_id,
             delta,
-        } = &event.data
+        } = data
         {
-            let index = *indices.entry(reasoning_id).or_insert_with(|| {
-                let index = blocks.len();
-                blocks.push(String::new());
-                index
-            });
-            blocks[index].push_str(delta);
+            let index = match self.indices.get(reasoning_id) {
+                Some(index) => *index,
+                None => {
+                    let index = self.blocks.len();
+                    self.blocks.push(String::new());
+                    self.indices.insert(reasoning_id.clone(), index);
+                    index
+                }
+            };
+            self.blocks[index].push_str(delta);
         }
     }
-    blocks.retain(|block| !block.trim().is_empty());
-    blocks.join("\n\n")
+
+    fn finish(mut self) -> String {
+        self.blocks.retain(|block| !block.trim().is_empty());
+        self.blocks.join("\n\n")
+    }
 }
 
 type Callback = Box<dyn FnOnce(&StreamedAgentResponse) + Send>;

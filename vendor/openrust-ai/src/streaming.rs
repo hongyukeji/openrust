@@ -26,8 +26,8 @@ mod completion;
 mod protocols;
 mod reasoning;
 pub use citations::UrlCitation;
-use completion::CompletionCallbacks;
 pub use completion::StreamedAgentResponse;
+use completion::{CompletionCallbacks, StreamStep};
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
 pub use reasoning::ReasoningPart;
 
@@ -125,6 +125,45 @@ impl StreamableAgentResponse {
             self.inspected.push(event?);
         }
         Ok(self)
+    }
+
+    pub(crate) fn observe_step(mut self, observation: crate::events::StepObservation) -> Self {
+        let Ok(app) = App::get_facade_root() else {
+            return self;
+        };
+        if !observation.wants_result() {
+            return self;
+        }
+        let mut upstream = self.events;
+        self.events = Box::pin(async_stream::stream! {
+            let mut step = observation.wants_response().then(StreamStep::default);
+            let mut observation = Some(observation);
+            while let Some(result) = upstream.next().await {
+                match &result {
+                    Ok(event) => {
+                        if let Some(step) = &mut step {
+                            step.record(&event.data);
+                        }
+                        if matches!(event.data, StreamEventData::StreamEnd { .. })
+                            && let Some(observation) = observation.take()
+                            && let Some(step) = step.take()
+                        {
+                            app.scope(observation.complete(|_| step.finish())).await;
+                        }
+                    }
+                    Err(error) => {
+                        if let Some(observation) = observation.take() {
+                            app.scope(observation.fail(error)).await;
+                        }
+                    }
+                }
+                yield result;
+            }
+            if let Some(observation) = observation {
+                app.scope(observation.fail(&AiError::InvalidResponse)).await;
+            }
+        });
+        self
     }
 
     pub(crate) fn observe_attempt(mut self, attempt: Option<crate::events::StreamAttempt>) -> Self {

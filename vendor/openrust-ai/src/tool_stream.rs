@@ -8,8 +8,9 @@ use openrust::{
 
 use crate::{
     AgentPrompt, AiError, AiResult, StepEvent, StepEventStream, StreamEventData,
-    StreamableAgentResponse, TextProvider, Tool,
+    StreamableAgentResponse, TextProvider, Tool, ToolDefinition, ToolStep,
     approval_turn::ApprovalSession,
+    events::StepObservation,
     messages::OwnedPrompt,
     streaming::{TextMessages, event},
     tools,
@@ -23,6 +24,7 @@ pub(crate) struct PreparedToolStream {
     run: tools::ToolRun,
     max_steps: usize,
     upstream: StepEventStream,
+    agent: Option<&'static str>,
 }
 
 pub(crate) async fn prepare(
@@ -37,11 +39,15 @@ pub(crate) async fn prepare(
     if let Some(choice) = prompt.tool_choice {
         choice.validate(&definitions)?;
     }
-    let gateway = provider
-        .step_text_gateway()
-        .ok_or(AiError::ToolsNotSupported)?;
     let run = tools::ToolRun::new(max_steps);
-    let mut upstream = gateway.stream_text_step(&prompt, &definitions, &[]).await?;
+    let mut upstream = stream_step(
+        provider.as_ref(),
+        &prompt,
+        &definitions,
+        &[],
+        max_steps == 1,
+    )
+    .await?;
     if probe {
         let first = upstream.next().await.transpose()?;
         if let Some(first) = first {
@@ -56,6 +62,7 @@ pub(crate) async fn prepare(
         run,
         max_steps,
         upstream,
+        agent: crate::request_context::agent_invocation().map(|(agent, _)| agent),
     })
 }
 
@@ -73,6 +80,7 @@ pub(crate) fn response(
         mut run,
         max_steps,
         mut upstream,
+        agent,
     } = prepared;
     let invocation_id = run.invocation_id.clone();
     let stream = async_stream::try_stream! {
@@ -171,14 +179,68 @@ pub(crate) fn response(
                 return;
             }
             run.add_step(completed, results);
-            let gateway = provider.step_text_gateway().ok_or(AiError::ToolsNotSupported)?;
-            upstream = crate::request_context::in_invocation(
-                &invocation_id, step,
-                gateway.stream_text_step(&prompt.as_prompt(step), &definitions, &run.history),
-            ).await?;
+            let request = prompt.as_prompt(step);
+            let open = crate::request_context::in_agent_invocation(
+                &invocation_id, step, agent,
+                stream_step(provider.as_ref(), &request, &definitions, &run.history, step + 1 == max_steps),
+            );
+            upstream = in_tool_scope(application.as_deref(), locale.as_deref(), open).await??;
         }
     };
     StreamableAgentResponse::from_events(Box::pin(stream))
+}
+
+async fn stream_step(
+    provider: &dyn TextProvider,
+    prompt: &AgentPrompt<'_>,
+    definitions: &[ToolDefinition],
+    history: &[ToolStep],
+    final_step: bool,
+) -> AiResult<StepEventStream> {
+    let gateway = provider
+        .step_text_gateway()
+        .ok_or(AiError::ToolsNotSupported)?;
+    let observation =
+        StepObservation::start(provider.name(), prompt, history, history.len(), final_step).await;
+    let mut events = match gateway.stream_text_step(prompt, definitions, history).await {
+        Ok(events) => events,
+        Err(error) => {
+            if let Some(observation) = observation {
+                observation.fail(&error).await;
+            }
+            return Err(error);
+        }
+    };
+    let Some(observation) = observation.filter(StepObservation::wants_result) else {
+        return Ok(events);
+    };
+    let app = App::get_instance().ok();
+    let locale = Lang::get_locale().ok();
+    Ok(Box::pin(async_stream::try_stream! {
+        let mut observation = Some(observation);
+        while let Some(event) = events.next().await {
+            match &event {
+                Ok(StepEvent::Finished { response, .. }) => {
+                    if let Some(observation) = observation.take() {
+                        let complete = observation.complete(|step| {
+                            response.public_step(&step.prompt.provider, step.prompt.as_prompt().text.model)
+                        });
+                        in_tool_scope(app.as_deref(), locale.as_deref(), complete).await?;
+                    }
+                }
+                Err(error) => {
+                    if let Some(observation) = observation.take() {
+                        in_tool_scope(app.as_deref(), locale.as_deref(), observation.fail(error)).await?;
+                    }
+                }
+                _ => {}
+            }
+            yield event?;
+        }
+        if let Some(observation) = observation {
+            in_tool_scope(app.as_deref(), locale.as_deref(), observation.fail(&AiError::InvalidResponse)).await?;
+        }
+    }))
 }
 
 async fn in_tool_scope<T>(

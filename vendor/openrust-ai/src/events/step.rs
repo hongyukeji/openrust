@@ -72,6 +72,14 @@ pub(crate) struct StepObservation {
 }
 
 impl StepObservation {
+    pub(crate) fn wants_response(&self) -> bool {
+        self.completed
+    }
+
+    pub(crate) fn wants_result(&self) -> bool {
+        self.completed || self.failed
+    }
+
     pub(crate) async fn start(
         provider: &str,
         prompt: &AgentPrompt<'_>,

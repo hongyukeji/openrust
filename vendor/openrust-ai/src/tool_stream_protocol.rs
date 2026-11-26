@@ -166,6 +166,7 @@ impl Chat {
             .collect();
         let mut response = tool_protocol::chat_step(json!({
             "model":self.model,"choices":[{
+                "finish_reason":reason,
                 "message":{"content":self.text,"tool_calls":calls,"reasoning_content":self.reasoning_content}
             }],
         }))?;

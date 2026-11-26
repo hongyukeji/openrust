@@ -866,10 +866,26 @@ impl AiManager {
                             provider.name(),
                             request,
                             move |request| async move {
-                                let response = provider
-                                    .stream(request)
-                                    .await
-                                    .map_err(ProviderAttemptError::BeforeCommit)?;
+                                let observation = crate::events::StepObservation::start(
+                                    provider.name(),
+                                    &request,
+                                    &[],
+                                    0,
+                                    true,
+                                )
+                                .await;
+                                let mut response = match provider.stream(request).await {
+                                    Ok(response) => response,
+                                    Err(error) => {
+                                        if let Some(observation) = observation {
+                                            observation.fail(&error).await;
+                                        }
+                                        return Err(ProviderAttemptError::BeforeCommit(error));
+                                    }
+                                };
+                                if let Some(observation) = observation {
+                                    response = response.observe_step(observation);
+                                }
                                 if probe {
                                     response
                                         .probe()

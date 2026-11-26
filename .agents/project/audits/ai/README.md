@@ -671,7 +671,9 @@ Responses 的公开摘要按上游输出项与摘要位置生成 `reasoning_star
 
 - [固定 Laravel GeneratesText](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/GeneratesText.php) · [固定 Laravel StreamsText](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/StreamsText.php)
 
-非流式 SDK 的 `StartingStep` 在步骤中间件处理后交付请求快照及此前的工具结果，`StepCompleted` 在本步工具执行前报告响应，`StepFailed` 持有类型化错误。两个终态事件提供耗时，步骤从零开始。Artisan 与 HTTP 覆盖结构化及普通文本、两步工具、首步与续轮 503、401、连接切换、每步改写模型及短路中间件。事件区分请求模型和供应商实际模型。短路响应无出站请求及逐步事件。SQLite 审批由独立 HTTP 进程恢复时，模型步骤事件沿用存档调用 ID、原连接、Agent 类型和续轮编号，工具仍只执行一次。SDK 回归、严格 Clippy 和三语站点通过。流式逐步事件和逐工具事件待补。
+非流式 SDK 的 `StartingStep` 在步骤中间件处理后交付请求快照及此前的工具结果，`StepCompleted` 在本步工具执行前报告响应，`StepFailed` 持有类型化错误。两个终态事件提供耗时，步骤从零开始。Artisan 与 HTTP 覆盖结构化及普通文本、两步工具、首步与续轮 503、401、连接切换、每步改写模型及短路中间件。事件区分请求模型和供应商实际模型。短路响应无出站请求及逐步事件。SQLite 审批由独立 HTTP 进程恢复时，模型步骤事件沿用存档调用 ID、原连接、Agent 类型和续轮编号，工具仍只执行一次。SDK 回归、严格 Clippy 和三语站点通过。
+
+模型步骤事件覆盖普通和带工具的流。Artisan 与 HTTP 实测 Responses 到 Chat 的启动 503 切换、部分文本后断开、工具续轮 503、原生／Vercel／AG-UI 两步成功以及晚到用量帧。两步请求均为 `backup-model`，事件报告实际的 `backup-first-rev` 与 `backup-final-rev`，用量为 12 输入／5 输出及 6 输入／3 输出，跟随模型步骤交付。修复兼容 Chat 流从终帧解析的结束原因在构建步骤响应时丢失。SQLite 审批独立进程确认 `StepCompleted` 在工具运行前报告 31 输入／20 输出、两项待批调用及原调用 ID。文本、工具、会话、UI 回归及 SDK 严格 Clippy 通过。逐工具执行事件待补。
 
 - [固定 Laravel TextGenerationLoop](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php) · [固定 Laravel RunContext](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/RunContext.php)
 
