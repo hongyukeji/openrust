@@ -14,4 +14,10 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用实际 HTTP、Artisan 配置／路
 
 在隔离源码 `cf93ec968` 上，用 Rust 1.94.0 构建真实消费者。通过 HTTP 接收原文，待可观测标记确认已领取接收租约且进入业务处理后，实际强制终止独立 Artisan Worker。仅在隔离测试库把旧任务推进到重领和预算边界，并把接收租约推进到过期；已有租约测试另覆盖自然到期。下一 Worker 将旧投递结算为失败，回调读到已保存的失败记录，接收尝试仍可接管。相同投递身份的副本只被确认。真实 `queue:retry` 使用同一任务 UUID 和接收标识生成新投递身份，清除旧失败记录。独立 Worker 重新领取并完成，旧领域尝试标记过期，新尝试标记完成。
 
-第一次复跑使用相同投递身份的副本，按原生规则被确认。改用真实 `queue:retry` 后，夹具正确处理首次投递的可选身份字段。各次日志保存在本机 `target/tmp/webhook-native-exhaustion/`。本轮范围为数据库队列、SQLite、PostgreSQL 18.7 和 MySQL 8.4.13。全仓格式检查、启用两个 Webhook 特性的消费者严格 Clippy、三语站点构建及两种部署前缀下的十二个浏览器页面检查通过。强制超时隔离执行器、其他队列服务和远端部署仍按各自门禁验收。
+第一次复跑使用相同投递身份的副本，按原生规则被确认。改用真实 `queue:retry` 后，夹具正确处理首次投递的可选身份字段。各次日志保存在本机 `target/tmp/webhook-native-exhaustion/`。本轮范围为数据库队列、SQLite、PostgreSQL 18.7 和 MySQL 8.4.13。全仓格式检查、启用两个 Webhook 特性的消费者严格 Clippy、三语站点构建及两种部署前缀下的十二个浏览器页面检查通过。其他队列服务和远端部署仍按各自门禁验收。
+
+## 隔离执行器强制超时 {#hard-timeout}
+
+Laravel 的 Worker 超时路径根据尝试上限和任务的超时失败策略结算，再发出超时事件。OpenRust 在可选 `hard_timeout` 下用原生隔离执行器实现任务超时。三库在上述同一二进制上通过真实 HTTP 入队、独立 Artisan Worker 和 `queue:retry` 验收。在测试库的实际入队载荷启用 `hard_timeout` 和 `fail_on_timeout`，任务进入处理器并持有接收租约后达到其配置的四秒时限。Work 模式按配置退出 77，第一次尝试即保存超时失败，原生回调读取相应记录。将接收租约推进到过期并使用真实 Artisan 重试，替代任务完成接收记录，前一次领域尝试结算为过期。 [固定 Laravel Worker 超时处理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Worker.php#L305)
+
+三库的租约专项和整套路由回归均通过。PostgreSQL 在专项通过后，首次整套复跑被宿主磁盘守卫中止。清理后复跑发现旧更新时间断言依赖同秒执行，改为验证[非原子派发的实际更新时间契约](receipt-update-time.md)，再跑整套通过。三语站点构建及十二个浏览器页面检查通过，日志保存在上述路径。该专项覆盖 macOS 隔离执行器配本地三库。Windows 隔离执行器及其他后端的组合矩阵另验。

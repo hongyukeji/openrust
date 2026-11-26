@@ -105,7 +105,8 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert inspect_http(released, "receipt", 403, scope="outside") == {}
             assert inspect_http("00000000-0000-0000-0000-000000000000", "receipt", 404) == {}
             assert inspect(released, scope="outside") is None
-            assert updated_at(released) == fresh["received_at"]
+            # 非原子派发在插入后清空异常，数据库时钟可能已跨秒。
+            assert updated_at(released) >= fresh["received_at"]
             assert updated_at(released, "outside") is None
 
             write_database(driver, sql, f"UPDATE webhook_calls SET created_at=1, updated_at=NULL WHERE id='{released}'")
@@ -302,6 +303,38 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert not (root / "exhausted-replacement-failure.json").exists()
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
 
+            timed_out = dispatch(b"leased-stale")
+            write_database(driver, sql, "UPDATE jobs SET payload=replace(replace(payload,"
+                           "'\"hard_timeout\":false','\"hard_timeout\":true'),"
+                           "'\"fail_on_timeout\":false','\"fail_on_timeout\":true')")
+            job = json.loads(sql("SELECT payload FROM jobs"))
+            assert job["options"]["hard_timeout"] and job["options"]["fail_on_timeout"]
+            entered = root / "hard-timeout-entered"
+            timed_worker = subprocess.run(
+                [str(binary), "artisan", "queue:work", "database",
+                 "--queue=webhook-receipts", "--stop-when-empty", "--tries=1"],
+                env=worker("hard-timeout", FIXTURE_OLD_ENTERED=str(entered),
+                           FIXTURE_OLD_GATE=str(root / "hard-timeout-gate"),
+                           QUEUE_WORKER_TIMED_OUT_EXIT_CODE="77"),
+                capture_output=True, text=True, timeout=20,
+            )
+            assert timed_worker.returncode == 77, timed_worker.stdout + timed_worker.stderr
+            assert entered.exists() and not (root / "hard-timeout").exists()
+            terminal = json.loads((root / "hard-timeout-failure.json").read_text())
+            assert terminal["id"] == timed_out and terminal["attempts"] == 1
+            assert terminal["failed_jobs"] == 1 and terminal["exception"] is None
+            failure = sql(f"SELECT exception FROM failed_jobs WHERE payload LIKE '%{timed_out}%'")
+            assert "queued job timed out" in failure, failure
+            assert attempts(timed_out) == "1\trunning\t0"
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            write_database(driver, sql, f"UPDATE webhook_calls SET processing_until=0 WHERE id='{timed_out}'")
+            assert f"Queued failed job {job['uuid']}." in command(binary, current, "queue:retry", job["uuid"])
+            run("hard-timeout-replacement")
+            assert (root / "hard-timeout-replacement").exists()
+            assert attempts(timed_out) == "1\texpired\t1\n2\tcompleted\t1"
+            assert not (root / "hard-timeout-replacement-failure.json").exists()
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
             stale = dispatch(b"leased-stale")
             write_database(driver, sql, duplicate)
             gate = root / "stale-gate"
@@ -339,8 +372,8 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 15 个真实 HTTP、19 个独立 Worker。"
-          "主动释放、终态回调、脱敏分页、失配拒绝、进程强制终止后的队列耗尽与接管、旧令牌隔离通过")
+    print(f"{driver}: 接收处理租约 16 个真实 HTTP、21 个独立 Worker。"
+          "主动释放、终态回调、脱敏分页、失配拒绝、强制终止与隔离超时后的接管、旧令牌隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):

@@ -208,6 +208,8 @@ An active lease permits one Worker to enter the handler. A completed receipt is 
 
 When the database queue exhausts a task's attempts after a forced Worker exit, another Worker records the failed task and calls `ProcessWebhookJob::failed`. The receipt keeps its own lease state. Retrying the failed job by ID with `./artisan queue:retry <id>` creates a fresh delivery that can reclaim the receipt once its lease has expired.
 
+When both `hard_timeout` and `fail_on_timeout` are enabled, a timeout in the isolated executor also fails the queue task. The same receipt lease rules apply when you retry it.
+
 The database records each lease attempt by receipt and generation. A completed, released, deferred, failed or stopped attempt records its outcome with the corresponding receipt change. If another Worker reclaims an expired lease after a crash, the previous attempt is marked expired. Attempt records contain timestamps and status and are retained with the receipt. Only the current lease holder can store the result. A delayed Worker from an earlier generation cannot replace a later completion or its diagnostic state.
 
 In a cluster, use the same primary database for receipt claims on every Worker. Receipt lease deadlines use that database’s clock. Synchronize node clocks for any inbound signature validator that checks a timestamp.
