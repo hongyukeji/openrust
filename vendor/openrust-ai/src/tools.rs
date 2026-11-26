@@ -109,6 +109,8 @@ pub struct StepResponse {
     pub model: Option<String>,
     pub text: Option<String>,
     pub usage: Usage,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub citations: Vec<crate::UrlCitation>,
     pub tool_calls: Vec<ToolCall>,
     pub provider_content: Option<Value>,
 }
@@ -336,7 +338,7 @@ impl ToolRun {
             .collect::<HashSet<_>>();
         for step in self.history.len()..self.max_steps {
             let final_step = step + 1 == self.max_steps;
-            let (response, allowed) = crate::middleware::generate_step(
+            let (mut response, allowed) = crate::middleware::generate_step(
                 provider,
                 PendingStep {
                     number: step,
@@ -388,6 +390,11 @@ impl ToolRun {
             let results = plan.run().await;
             let finished = response.tool_calls.is_empty() || final_step;
             let model = response.model.clone();
+            let citations = if finished {
+                std::mem::take(&mut response.citations)
+            } else {
+                Vec::new()
+            };
             self.add_step(response, results);
             if finished {
                 let text = self.history.last_mut().and_then(|step| step.text.take());
@@ -405,7 +412,7 @@ impl ToolRun {
                     usage: self.usage.unwrap_or_default(),
                     provider: provider.name().into(),
                     model: model.unwrap_or_else(|| prompt.text.model.into()),
-                    citations: Vec::new(),
+                    citations,
                     tool_calls,
                     tool_results,
                 });

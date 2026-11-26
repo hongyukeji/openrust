@@ -1037,11 +1037,7 @@ fn parse_responses(response: Response) -> AiResult<ParsedText> {
                         annotations,
                     } => {
                         text.get_or_insert_default().push_str(&part);
-                        if let Some(annotations) = annotations.as_array() {
-                            citations.extend(
-                                annotations.iter().filter_map(UrlCitation::from_annotation),
-                            );
-                        }
+                        citations.extend(UrlCitation::from_annotations(&annotations));
                     }
                     ResponsesContent::Refusal => return Err(AiError::Refused),
                     ResponsesContent::Other => {}

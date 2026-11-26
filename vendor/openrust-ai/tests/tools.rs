@@ -167,8 +167,14 @@ async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
         call,
     ]).await;
     let (responses, response_calls) = fixture("responses", vec![
-        json!({"status":"completed","output":[{"type":"function_call","call_id":"call_fixture","name":"lookup","arguments":arguments}],"usage":{"input_tokens":5,"output_tokens":1}}),
-        json!({"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"four remaining"}]}],"usage":{"input_tokens":6,"output_tokens":2}}),
+        json!({"status":"completed","output":[
+            {"type":"message","content":[{"type":"output_text","text":"Checking",
+                "annotations":[{"type":"url_citation","url":"https://example.test/first"}]}]},
+            {"type":"function_call","call_id":"call_fixture","name":"lookup","arguments":arguments}
+        ],"usage":{"input_tokens":5,"output_tokens":1}}),
+        json!({"status":"completed","output":[{"type":"message","content":[{"type":"output_text",
+            "text":"four remaining","annotations":[{"type":"url_citation","url":"https://example.test/final"}]}]}],
+            "usage":{"input_tokens":6,"output_tokens":2}}),
     ]).await;
     let mut app = TestApp::create(|builder| {
         builder
@@ -228,9 +234,11 @@ async fn sdk_tools_roundtrip_through_chat_and_responses() -> TestResult {
     );
     let responses = response_calls.await?;
     assert_eq!(responses[0]["tools"][0]["name"], "lookup");
-    assert_eq!(responses[1]["input"][1]["call_id"], "call_fixture");
-    assert_eq!(responses[1]["input"][2]["type"], "function_call_output");
+    assert!(!responses[1]["input"].to_string().contains("annotations"));
+    assert_eq!(responses[1]["input"][1]["content"], "Checking");
     assert_eq!(responses[1]["input"][2]["call_id"], "call_fixture");
+    assert_eq!(responses[1]["input"][3]["type"], "function_call_output");
+    assert_eq!(responses[1]["input"][3]["call_id"], "call_fixture");
     Ok(())
 }
 
@@ -253,6 +261,13 @@ async fn check_tools(provider: &str) {
     assert!(!response.tool_results[0].failed);
     assert_eq!(response.usage.prompt_tokens, Some(11));
     assert_eq!(response.usage.completion_tokens, Some(3));
+    if provider == "openai" {
+        assert_eq!(response.meta().citations.len(), 1);
+        assert_eq!(
+            response.meta().citations[0].url,
+            "https://example.test/final"
+        );
+    }
 }
 
 #[tokio::test]

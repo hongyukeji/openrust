@@ -548,6 +548,7 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
         model: value["modelVersion"].as_str().map(str::to_owned),
         text,
         usage: usage(&value),
+        citations: Vec::new(),
         tool_calls,
         provider_content: Some(content),
     })

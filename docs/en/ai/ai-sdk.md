@@ -55,7 +55,7 @@ Register `stream.then(callback)` to receive a `StreamedAgentResponse` when consu
 
 OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets. Tool continuations keep the citations from every model step in emission order.
 
-Buffered OpenAI Responses results expose the connection, model, and URL citations through `response.meta()`. Citations keep the upstream order and each text part’s reported offsets. The method is also available on structured results. Custom text providers can use `AgentResponse::new` to initialize a response and then fill its citations.
+Buffered OpenAI Responses results expose the connection, model, and URL citations through `response.meta()`. Citations keep the upstream order and each text part’s reported offsets. The method is also available on structured results. Custom text providers can use `AgentResponse::new` to initialize a response and then fill its citations. For buffered tool calls, the top-level metadata belongs to the final model step.
 
 For a Responses model that provides public reasoning summaries, set `reasoning.summary` to `auto` in `with_provider_options`. Summary fragments have their own events in native SSE, Vercel, and AG-UI. Use `StreamedAgentResponse::reasoning()` to read the joined summary in a completion callback.
 

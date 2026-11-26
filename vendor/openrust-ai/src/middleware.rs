@@ -174,6 +174,7 @@ pub(crate) async fn generate_step(
                         model: Some(response.model),
                         text: Some(response.text),
                         usage: response.usage,
+                        citations: response.citations,
                         tool_calls: response.tool_calls,
                         provider_content: None,
                     });

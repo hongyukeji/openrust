@@ -1,8 +1,8 @@
-use serde::{Serialize, Serializer, ser::SerializeStruct};
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use serde_json::Value;
 
 /// 网页来源以及上游报告的文本位置。
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UrlCitation {
     pub url: String,
     pub title: Option<String>,
@@ -11,6 +11,14 @@ pub struct UrlCitation {
 }
 
 impl UrlCitation {
+    pub(crate) fn from_annotations(annotations: &Value) -> impl Iterator<Item = Self> {
+        annotations
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Self::from_annotation)
+    }
+
     pub(crate) fn from_annotation(value: &Value) -> Option<Self> {
         if value["type"] != "url_citation" {
             return None;

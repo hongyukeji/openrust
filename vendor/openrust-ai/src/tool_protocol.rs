@@ -96,6 +96,7 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
         model: data["model"].as_str().map(str::to_owned),
         text: message["content"].as_str().map(str::to_owned),
         usage: Usage::from_openai(&data["usage"]),
+        citations: Vec::new(),
         tool_calls,
         provider_content: message["reasoning_content"]
             .as_str()
@@ -111,6 +112,7 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
         return Err(AiError::InvalidResponse);
     }
     let mut text = None::<String>;
+    let mut citations = Vec::new();
     let mut tool_calls = Vec::new();
     for item in data["output"].as_array().ok_or(AiError::InvalidResponse)? {
         match item["type"].as_str() {
@@ -118,9 +120,12 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
             Some("message") => {
                 for part in item["content"].as_array().ok_or(AiError::InvalidResponse)? {
                     match part["type"].as_str() {
-                        Some("output_text") => text
-                            .get_or_insert_default()
-                            .push_str(part["text"].as_str().ok_or(AiError::InvalidResponse)?),
+                        Some("output_text") => {
+                            text.get_or_insert_default()
+                                .push_str(part["text"].as_str().ok_or(AiError::InvalidResponse)?);
+                            citations
+                                .extend(crate::UrlCitation::from_annotations(&part["annotations"]));
+                        }
                         Some("refusal") => return Err(AiError::Refused),
                         _ => {}
                     }
@@ -133,6 +138,7 @@ pub(crate) fn responses_step(data: Value) -> AiResult<StepResponse> {
         model: data["model"].as_str().map(str::to_owned),
         text,
         usage: Usage::from_openai(&data["usage"]),
+        citations,
         tool_calls,
         provider_content: None,
     })

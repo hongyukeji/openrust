@@ -55,7 +55,7 @@ Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/ve
 
 OpenAI Responses 文本流的网页引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名为 `citation` 的 `CUSTOM` 事件。原生引文带有对应的文本消息 ID。可在完成回调中通过 `StreamedAgentResponse::citations()` 按顺序读取引文和上游报告的文本位置。 工具续轮会按事件顺序保留各次模型调用的引文。
 
-OpenAI Responses 的普通响应可通过 `response.meta()` 读取来源连接、模型和网页引文。引文沿用上游顺序与各文本分段报告的位置。结构化响应也提供该方法。自定义文本驱动可用 `AgentResponse::new` 创建响应，再填写引文。
+OpenAI Responses 的普通响应可通过 `response.meta()` 读取来源连接、模型和网页引文。引文沿用上游顺序与各文本分段报告的位置。结构化响应也提供该方法。自定义文本驱动可用 `AgentResponse::new` 创建响应，再填写引文。 非流式工具调用的响应元数据取自最后一个模型步骤。
 
 Responses 模型支持公开推理摘要时，可通过 `with_provider_options` 将 `reasoning.summary` 设为 `auto`。摘要片段在原生 SSE、Vercel 和 AG-UI 中使用独立事件。可在完成回调中用 `StreamedAgentResponse::reasoning()` 读取合并后的摘要。
 

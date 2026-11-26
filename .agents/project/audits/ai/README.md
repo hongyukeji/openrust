@@ -643,7 +643,7 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 `AgentResponse::meta()` 提供来源连接、实际模型和网页引文。普通 OpenAI Responses 从文本内容项按上游顺序读取引文，保留分段的原始位置。普通结构化响应通过同一 Rust 接口提供元数据，序列化结果继续遵循应用 Schema。完成的流也可经聚合响应访问已发出的引文。自定义文本驱动可用 `AgentResponse::new` 创建带空引文列表的响应。
 
-真实 Artisan 与 HTTP 通过隔离协议服务核对普通和结构化 Responses、Chat Completions 空引文、Unicode 分段、空缺标题、非法 URL 和文件注解、未知注解结构、实际模型以及计数。文本、工具、UI、会话回归、SDK 严格 Clippy 和三语站点通过。缓冲工具多轮的单步元数据及其他协议引文继续分批验收。
+真实 Artisan 与 HTTP 通过隔离协议服务核对普通和结构化 Responses、Chat Completions 空引文、Unicode 分段、空缺标题、非法 URL 和文件注解、未知注解结构、实际模型以及计数。文本、工具、UI、会话回归、SDK 严格 Clippy 和三语站点通过。缓冲 Responses 工具调用的顶层 `meta` 取终步，与固定基线 `RunContext::recordedResponse` 一致。Artisan 与 HTTP 核对首轮与终轮各自带引文，终步模型和引文正确、结果回传一次、引文不随工具结果回传上游，计数为 18 输入和 6 输出 Token。仓库回归、SDK 严格 Clippy 和三语文档通过。待补各步公开元数据与其他协议引文。
 
 - [固定 Laravel Meta](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/Meta.php) · [Laravel Responses 解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenAi/Concerns/ParsesTextResponses.php) · [OpenAI Responses 注解](https://developers.openai.com/api/reference/resources/responses/methods/create)
 
