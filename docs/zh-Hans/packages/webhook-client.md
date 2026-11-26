@@ -155,6 +155,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
 
+覆盖 `ProcessWebhookJob::middleware` 以返回原生队列中间件。用应用的具名 `RateLimited` 策略限制执行量，或用 `WithoutOverlapping` 和稳定范围键协调共享锁。中间件在领取接收租约与执行业务前运行。中间件释放任务后，接收记录仍可由后续队列尝试处理。多个 Worker 使用共享缓存，配置原生任务尝试预算时要计入中间件释放。
+
 ### 限制已验签的接收流量 {#verified-rate-limit}
 
 在已有 `scope` 的 profile 上将 `verified_requests_per_minute` 设为正整数。请求通过验签和 Profile 筛选后、写入接收记录或排队前消耗一次额度。验签失败和被忽略的请求保留原额度。已验签的重试也消耗额度，包括此前已接收的事件。额度用尽时返回 HTTP 429 和 `Retry-After`。

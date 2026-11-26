@@ -11,7 +11,7 @@ use openrust::{
     http::HttpFuture,
     queue::{
         Delay, DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError,
-        QueueFacade, QueueFuture, QueueManager, QueueResult,
+        QueueFacade, QueueFuture, QueueManager, QueueResult, middleware::JobMiddleware,
     },
 };
 pub use recovery::{DispatchRecoveryReport, RecoveryDispatch};
@@ -19,6 +19,11 @@ use std::{sync::Arc, time::Duration};
 
 /// 应用业务处理器从其注册的存储读取载荷及附件。
 pub trait ProcessWebhookJob: Send + Sync {
+    /// 在业务处理及领取接收租约前运行原生队列中间件。
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        Vec::new()
+    }
+
     fn handle<'a>(
         &'a self,
         context: &'a mut JobContext<'_>,
@@ -307,6 +312,10 @@ struct RegisteredJob {
 }
 
 impl JobHandler for RegisteredJob {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        self.handler.middleware()
+    }
+
     fn handle<'a>(
         &'a self,
         context: &'a mut JobContext<'_>,

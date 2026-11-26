@@ -1,6 +1,7 @@
 """真实 Webhook HTTP 节点、共享限流、Artisan 和 Worker。"""
 import concurrent.futures
 from contextlib import ExitStack, closing
+import base64
 import hashlib
 import hmac
 import http.client
@@ -9,7 +10,9 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import subprocess
 import tempfile
+import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +31,71 @@ def submit(env, profile="verified-quota", body=b"signed", valid=True, route="pac
         response = client.getresponse()
         assert secret.encode() not in response.read()
         return response.status, response.getheader("Retry-After")
+
+
+def check_worker_controls(binary, first, second, root, driver, backend, sql, artisan):
+    worker = ("queue:work", "database", "--queue=webhook-receipts", "--once")
+
+    def dispatch(env, profile, body):
+        assert submit(env, profile, body) == (200, None)
+        encoded = base64.b64encode(body).decode()
+        return sql(f"SELECT id FROM webhook_calls WHERE name='{profile}' AND raw_body='{encoded}'")
+
+    def inspect(identifier):
+        return json.loads(artisan(second, "webhook-client:inspect", identifier, "--scope=webhook-acceptance"))
+
+    def check_released(identifier):
+        diagnostic = inspect(identifier)
+        assert diagnostic["generation"] == 0 and diagnostic["state"] == "received", diagnostic
+        attempts, available = map(int, sql(
+            f"SELECT attempts,available_at FROM jobs WHERE payload LIKE '%{identifier}%'"
+        ).split())
+        assert attempts == 1 and available > int(time.time())
+
+    def wake_job():
+        routes["write_database"](driver, sql, "UPDATE jobs SET available_at=0")
+
+    rated_first = dispatch(first, "worker-rate", b"first-rate-slot")
+    rated_second = dispatch(second, "worker-rate", b"blocked-while-rate-limited")
+    artisan(first, *worker)
+    artisan(second, *worker)
+    assert inspect(rated_first)["state"] == "completed"
+    check_released(rated_second)
+    artisan(first, "cache:clear")
+    wake_job()
+    artisan(second, *worker)
+    assert inspect(rated_second)["state"] == "completed"
+
+    held = dispatch(first, "worker-lock", b"hold-worker-lock")
+    blocked = dispatch(second, "worker-lock", b"wait-for-shared-worker-lock")
+    gate = root / "worker-lock"
+    gate.mkdir()
+    env = first | {"FIXTURE_QUEUE_LOCK_BARRIER": str(gate)}
+    with (gate / "worker.log").open("w+") as log:
+        process = subprocess.Popen([str(binary), "artisan", *worker], env=env, stdout=log, stderr=log)
+        try:
+            deadline = time.monotonic() + 7
+            while not (gate / "entered").exists():
+                assert process.poll() is None and time.monotonic() < deadline
+                time.sleep(.02)
+            assert inspect(held)["state"] == "processing"
+            artisan(second, *worker)
+            assert process.poll() is None
+            check_released(blocked)
+        finally:
+            (gate / "release").touch()
+            try:
+                assert process.wait(timeout=10) == 0
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+                raise
+    assert inspect(held)["state"] == "completed"
+    wake_job()
+    artisan(second, *worker)
+    assert inspect(blocked)["state"] == "completed"
+    assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
+    print(f"{driver}/{backend}: 原生 Job 限流和共享锁用真实 HTTP 与 6 次 Worker 验证，受控任务未领取接收租约。")
 
 
 def main():
@@ -124,6 +192,7 @@ def main():
             artisan(second, "queue:work", "database", "--queue=webhook-receipts", "--once")
         assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         print(f"{driver}/{cache_backend}: 两接收进程共享 3 个配额，隔离 profile／范围、手动处理器、Retry-After、缓存失败和 5 次独立 Worker 通过")
+        check_worker_controls(binary, first, second, root, driver, cache_backend, sql, artisan)
 
 
 if __name__ == "__main__":

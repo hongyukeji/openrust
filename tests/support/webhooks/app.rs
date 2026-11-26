@@ -368,6 +368,35 @@ fn runtime_error(
     }
 }
 struct FixtureJob;
+struct FixtureControlledJob(std::sync::Arc<dyn openrust::queue::middleware::JobMiddleware>);
+impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureControlledJob {
+    fn middleware(&self) -> Vec<std::sync::Arc<dyn openrust::queue::middleware::JobMiddleware>> {
+        vec![self.0.clone()]
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut openrust::queue::JobContext<'_>,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+        store: &'a dyn openrust_webhook_client::WebhookStore,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            if call.raw_body() == b"hold-worker-lock" {
+                let gate = std::path::PathBuf::from(
+                    std::env::var_os("FIXTURE_QUEUE_LOCK_BARRIER").expect("队列锁验收目录"),
+                );
+                tokio::fs::write(gate.join("entered"), b"entered")
+                    .await
+                    .map_err(runtime_error)?;
+                while !gate.join("release").exists() {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+            }
+            FixtureJob.handle(context, call, store).await
+        })
+    }
+}
+
 impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
     fn handle<'a>(
         &'a self,
@@ -782,6 +811,8 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                 "unregistered",
                 "leased",
                 "deferred",
+                "worker-rate",
+                "worker-lock",
             ] {
                 WebhookRuntime::register_job_dispatcher(
                     openrust::contracts::foundation::Application::container(app),
@@ -797,17 +828,15 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                                 .on_queue("webhook-receipts")
                                 .with_options(openrust::queue::JobOptions {
                                     max_tries: Some(match name {
-                                        "leased" => 4,
+                                        "leased" | "worker-rate" | "worker-lock" => 4,
                                         "deferred" => 1,
                                         _ => 2,
                                     }),
-                                    timeout: Some(std::time::Duration::from_secs(
-                                        if matches!(name, "leased" | "deferred") {
-                                            4
-                                        } else {
-                                            12
-                                        },
-                                    )),
+                                    timeout: Some(std::time::Duration::from_secs(match name {
+                                        "worker-lock" => 10,
+                                        "leased" | "deferred" | "worker-rate" => 4,
+                                        _ => 12,
+                                    })),
                                     ..Default::default()
                                 }),
                         ))
@@ -1027,6 +1056,39 @@ impl openrust::support::ServiceProvider for FixtureProvider {
             }
             let queue = app.make::<openrust::queue::QueueManager>().await?;
             let manager = app.make::<openrust::database::DatabaseManager>().await?;
+            app.make::<openrust::cache::RateLimiter>()
+                .await?
+                .for_job("fixture-webhook-worker", |_| {
+                    openrust::cache::rate_limiting::Limit::per_minute(1).by("webhook-acceptance")
+                });
+            use openrust::queue::middleware::{JobMiddleware, RateLimited, WithoutOverlapping};
+            use std::{sync::Arc, time::Duration};
+            let controls: [(&str, Arc<dyn JobMiddleware>); 2] = [
+                (
+                    "worker-rate",
+                    Arc::new(RateLimited::new("fixture-webhook-worker")),
+                ),
+                (
+                    "worker-lock",
+                    Arc::new(
+                        WithoutOverlapping::new("webhook-acceptance")
+                            .release_after(Duration::from_secs(20))
+                            .expire_after(Duration::from_secs(20)),
+                    ),
+                ),
+            ];
+            for (name, middleware) in controls {
+                openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_lease(
+                    &queue,
+                    name,
+                    Arc::new(openrust_webhook_client::DatabaseWebhookStore::new(
+                        manager.connection(None)?,
+                        "webhook-acceptance",
+                    )?),
+                    Arc::new(FixtureControlledJob(middleware)),
+                    15,
+                )?;
+            }
             for profile in ["hint", "hint-standard"] {
                 fixture_hint_queue(&manager, profile)?
                     .register(&queue, std::sync::Arc::new(FixtureHint))?;
@@ -1199,6 +1261,8 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "deferred",
         "verified-quota",
         "verified-other",
+        "worker-rate",
+        "worker-lock",
         "event-dedup",
         "event-other",
         "event-unsigned",
@@ -1602,6 +1666,16 @@ async fn main() -> ExitCode {
                 {"name":"atomic-foreign","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"factory-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"factory-fails","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"}
             ]}));
+            let profiles = config.get_mut("webhook-client").expect("Webhook 测试配置")["configs"]
+                .as_array_mut().expect("Webhook 测试 profile 列表");
+            for name in ["worker-rate", "worker-lock"] {
+                profiles.push(json!({
+                    "name": name, "signing_secret": {"env":"FIXTURE_SPATIE_SECRET"},
+                    "scope": "webhook-acceptance", "process_webhook_job": name,
+                    "signature_validator": "default", "webhook_profile": "process-everything",
+                    "webhook_model": "database",
+                }));
+            }
             if let Some(value) = env.get_utf8("FIXTURE_PRUNE_POLICY")? {
                 config.get_mut("webhook-client").unwrap()["delete_after_days"] = serde_json::from_str(value).expect("夹具配置必须是有效 JSON");
             }

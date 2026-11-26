@@ -155,6 +155,8 @@ Implement `jobs::ProcessWebhookJob` to process a saved receipt. Optionally overr
 
 Set connection and queue on the dispatcher. The native `JobOptions` controls attempts, backoff and timeout. Assign business policy in your handler. The queued data contains the receipt identifiers. Workers open the saved record without using the receiver’s verification secret. Failed handler attempts save a generic receipt exception, and a subsequent attempt clears the previous diagnostic. Choose a Worker-backed connection. The dispatcher rejects built-in sync, null, deferred and background connections and requires the queue to return an enqueue result.
 
+Override `ProcessWebhookJob::middleware` to return native queue middleware. Use the application’s named `RateLimited` policy for execution quotas and `WithoutOverlapping` with a stable scope key for shared locks. Middleware runs before receipt claim and business processing. When middleware releases a job, the receipt remains eligible for the next queue attempt. Configure a shared cache across Workers and count middleware releases when choosing the native job attempt budget.
+
 ### Limit accepted callback traffic {#verified-rate-limit}
 
 Set `verified_requests_per_minute` to a positive integer on a profile with a configured `scope`. A request uses one slot after signature verification and profile acceptance, before receipt storage or queue dispatch. Invalid signatures and ignored requests leave this quota untouched. Verified retries consume slots, including retries of an event already received. Once the quota is exhausted, the receiver sends HTTP 429 with `Retry-After`.

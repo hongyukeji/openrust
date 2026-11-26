@@ -155,6 +155,8 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 派發器可指定佇列連線和名稱，原生 `JobOptions` 控制試行次數、退避及逾時。業務策略由處理器決定。佇列載荷儲存接收記錄識別資料，Worker 直接讀取已驗收的記錄，無需接收方的驗簽金鑰。處理器失敗時記錄固定異常，下次試行清除上次診斷。請選擇由 Worker 消費的連線。派發器拒絕內建 sync、null、deferred 和 background 連線，並要求佇列回傳已入列結果。
 
+覆寫 `ProcessWebhookJob::middleware` 以回傳原生佇列中介層。用應用程式的具名 `RateLimited` 策略限制執行量，或用 `WithoutOverlapping` 和穩定範圍鍵協調共用鎖。中介層在領取接收租約及執行業務前執行。中介層釋放任務後，接收記錄仍可由後續佇列嘗試處理。多個 Worker 使用共享快取，設定原生任務嘗試預算時應計入中介層釋放。
+
 ### 限制已驗簽的接收流量 {#verified-rate-limit}
 
 在已設定 `scope` 的 profile 上將 `verified_requests_per_minute` 設為正整數。請求通過驗簽及 Profile 篩選後、寫入接收記錄或入佇列前使用一次額度。驗簽失敗和被忽略的請求保留原額度。已驗簽的重試也會使用額度，包括先前已接收的事件。額度用盡時回傳 HTTP 429 和 `Retry-After`。
