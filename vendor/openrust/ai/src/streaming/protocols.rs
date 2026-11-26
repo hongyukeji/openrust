@@ -7,7 +7,7 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
-use crate::{AgentEventStream, PendingApproval, StreamEventData, Usage, localization};
+use crate::{AgentEventStream, PendingApproval, StreamEventData, UrlCitation, Usage, localization};
 
 /// 将 Agent 事件封装成公开 HTTP 流。
 pub trait StreamProtocol: Send {
@@ -56,6 +56,12 @@ impl StreamProtocol for VercelDataProtocol {
                         }
                         StreamEventData::TextEnd { message_id } => {
                             yield payload(json!({"type":"text-end","id":message_id}));
+                        }
+                        StreamEventData::Citation { citation, .. } => {
+                            let mut part = citation_data(citation);
+                            part["type"] = "source-url".into();
+                            part["sourceId"] = part["url"].clone();
+                            yield payload(part);
                         }
                         StreamEventData::ToolCall { call } => {
                             yield payload(json!({"type":"tool-input-available","toolCallId":call.id,"toolName":call.name,"input":call.arguments}));
@@ -160,6 +166,9 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                         StreamEventData::TextEnd { message_id } => {
                             yield payload(json!({"type":"TEXT_MESSAGE_END","messageId":message_id}));
                         }
+                        StreamEventData::Citation { citation, .. } => {
+                            yield payload(json!({"type":"CUSTOM","name":"citation","value":citation_data(citation)}));
+                        }
                         StreamEventData::ToolCall { call } => {
                             yield payload(json!({"type":"TOOL_CALL_START","toolCallId":call.id,"toolCallName":call.name}));
                             yield payload(json!({"type":"TOOL_CALL_ARGS","toolCallId":call.id,"delta":serde_json::to_string(&call.arguments).expect("参数为 JSON 对象")}));
@@ -216,6 +225,14 @@ impl StreamProtocol for AgentUserInteractionProtocol {
 fn stream_error_message() -> String {
     // 在构造响应时读取请求语言，正文可能在该作用域退出后才开始读取。
     localization::text("ai::errors.stream", &Default::default(), "发生错误")
+}
+
+fn citation_data(citation: UrlCitation) -> Value {
+    let mut data = json!({"url":citation.url});
+    if let Some(title) = citation.title {
+        data["title"] = title.into();
+    }
+    data
 }
 
 pub(super) fn headers() -> HeaderMap {

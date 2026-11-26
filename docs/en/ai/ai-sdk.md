@@ -53,6 +53,8 @@ Use `stream.each(|event| { inspect(event); true }).await?` to visit events and k
 
 Register `stream.then(callback)` to receive a `StreamedAgentResponse` when consumption completes. It carries the combined text and usage, tool calls and results, and original events. A stream that pauses for approval also includes its saved approval batch. Register a callback after a complete `each` visit to receive the result immediately.
 
+OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets.
+
 The Vercel and AG-UI stream adapters use the application locale for generation failure messages. Override the generic message under `stream` in `lang/vendor/ai/<locale>/errors.json`.
 
 Use `agent(instructions).with_schema(schema).prompt(text)` to request a JSON object. Build the schema with the framework’s `JsonSchema` builder. Read members from `response.structured` or use `response.decode::<YourType>()`. A model must support the connection’s native structured-output format. The structured stream emits the generated JSON as text deltas. To try a schema from Artisan, pass a JSON object schema to `./artisan ai:prompt` with `--schema`. The SDK disables additional properties on objects in the outgoing schema, including nested objects. Mark every property required when your model enforces strict OpenAI schemas.

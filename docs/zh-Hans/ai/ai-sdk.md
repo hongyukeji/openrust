@@ -53,6 +53,8 @@ Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/ve
 
 可用 `stream.then(callback)` 在流消费完成时取得 `StreamedAgentResponse`。它包含合并后的文本与用量、工具调用及结果和原始事件。流暂停等待审批时，也会带上已保存的审批批次。在 `each` 完整遍历后注册回调会立即取得结果。
 
+OpenAI Responses 文本流的网页引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名为 `citation` 的 `CUSTOM` 事件。原生引文带有对应的文本消息 ID。可在完成回调中通过 `StreamedAgentResponse::citations()` 按顺序读取引文和上游报告的文本位置。
+
 Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆写 `stream` 文案。
 
 使用 `agent(instructions).with_schema(schema).prompt(text)` 请求 JSON 对象。Schema 用框架已有的 `JsonSchema` 构建。可读取 `response.structured`，或通过 `response.decode::<YourType>()` 转为 Rust 类型。所选模型须支持连接的原生结构化输出格式。结构化流将 JSON 作为文本增量发出。可用 `./artisan ai:prompt` 的 `--schema` 传入 JSON 对象 Schema 试调用。 SDK 会在出站 Schema 中禁用对象的额外属性，包括嵌套对象。如果模型执行 OpenAI 严格 Schema 校验，请将所有属性标记为必填。

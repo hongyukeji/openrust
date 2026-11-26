@@ -29,6 +29,7 @@ impl StreamBroadcast {
             StreamEventData::TextStart { .. } => "text_start",
             StreamEventData::TextDelta { .. } => "text_delta",
             StreamEventData::TextEnd { .. } => "text_end",
+            StreamEventData::Citation { .. } => "citation",
             StreamEventData::ToolCall { .. } => "tool_call",
             StreamEventData::ToolResult { .. } => "tool_result",
             StreamEventData::ToolApprovalRequest { .. } => "tool_approval_request",

@@ -130,7 +130,7 @@ pub use stores::{
 };
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,
-    StreamableAgentResponse, StreamedAgentResponse, VercelDataProtocol,
+    StreamableAgentResponse, StreamedAgentResponse, UrlCitation, VercelDataProtocol,
 };
 pub use structured::{
     HasStructuredOutput, StructuredAgentResponse, StructuredAnonymousAgent, StructuredOutput,

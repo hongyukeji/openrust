@@ -8,7 +8,7 @@ use openrust::{
 
 use crate::{AgentResponse, PendingToolApprovals, Usage};
 
-use super::{AgentEventStream, StreamEvent, StreamEventData};
+use super::{AgentEventStream, StreamEvent, StreamEventData, UrlCitation};
 
 /// 消费完整流后得到的响应与原始事件。等待审批的流包含其审批批次。
 #[derive(Clone, Debug)]
@@ -21,6 +21,13 @@ pub struct StreamedAgentResponse {
 }
 
 impl StreamedAgentResponse {
+    pub fn citations(&self) -> impl Iterator<Item = &UrlCitation> {
+        self.events.iter().filter_map(|event| match &event.data {
+            StreamEventData::Citation { citation, .. } => Some(citation),
+            _ => None,
+        })
+    }
+
     pub(super) fn from_events(events: Vec<StreamEvent>) -> Option<Self> {
         let invocation_id = events.first()?.invocation_id.clone();
         let (conversation_id, pending_approvals) = match &events.last()?.data {

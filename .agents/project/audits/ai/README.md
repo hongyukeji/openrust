@@ -627,6 +627,14 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 - [固定 Laravel McpServerTool](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/McpServerTool.php)
 
+### AI-02 Responses 文本流网页引文
+
+原生 Responses 文本流将 URL 标注转换成 SDK `citation`、Vercel `source-url` 和 AG-UI `CUSTOM` 事件。按上游输出项及内容位置关联文本消息，已结束的文本仍可关联后到引文。完成回调从 `citations()` 读取原顺序及上游提供的起止位置。网页引文接受 HTTP 与 HTTPS 地址。
+
+实际 Artisan 和 HTTP 核对两个交错输出、提前和迟到引文、分片 UTF-8、文本 ID、无标题来源、文件标注和非网页地址。三种 SSE 输出及最终 Token 用量逐项比较。文本、工具与 UI 回归、严格 Clippy 和三语文档通过。带工具的 Responses 流及非流式元数据继续按所属契约验收。
+
+- [固定 Laravel Citation 事件](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/Citation.php) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events)
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     pin::Pin,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -20,8 +21,10 @@ use crate::{
     agent_broadcast::StreamBroadcast, text::transport_error,
 };
 
+mod citations;
 mod completion;
 mod protocols;
+pub use citations::UrlCitation;
 use completion::CompletionCallbacks;
 pub use completion::StreamedAgentResponse;
 pub use protocols::{AgentUserInteractionProtocol, StreamProtocol, VercelDataProtocol};
@@ -53,6 +56,11 @@ pub enum StreamEventData {
     },
     TextEnd {
         message_id: String,
+    },
+    Citation {
+        message_id: String,
+        #[serde(serialize_with = "citations::serialize_event")]
+        citation: UrlCitation,
     },
     ToolCall {
         call: ToolCall,
@@ -249,7 +257,7 @@ impl StreamableAgentResponse {
             crate::request_context::invocation_id().unwrap_or_else(|| Str::ulid().to_string());
         let events = async_stream::try_stream! {
             let mut source = stream.eventsource();
-            let mut message = None::<String>;
+            let mut messages = TextMessages::default();
             let mut started = false;
             let mut reason = None;
             let mut usage = Usage::default();
@@ -267,18 +275,19 @@ impl StreamableAgentResponse {
                     });
                 }
                 if let Some(delta) = part.delta.filter(|delta| !delta.is_empty()) {
-                    let message_id = match &message {
-                        Some(message_id) => message_id.clone(),
-                        None => {
-                            let message_id = Str::ulid().to_string();
-                            message = Some(message_id.clone());
-                            yield event(&invocation, StreamEventData::TextStart { message_id: message_id.clone() });
-                            message_id
-                        }
-                    };
+                    let message = messages.get(part.output_part.as_ref());
+                    let message_id = message.id.clone();
+                    if !message.open {
+                        message.open = true;
+                        yield event(&invocation, StreamEventData::TextStart { message_id: message_id.clone() });
+                    }
                     yield event(&invocation, StreamEventData::TextDelta { message_id, delta });
                 }
-                if part.end_message && let Some(message_id) = message.take() {
+                if let Some(citation) = part.citation {
+                    let message_id = messages.get(part.output_part.as_ref()).id.clone();
+                    yield event(&invocation, StreamEventData::Citation { message_id, citation });
+                }
+                if part.end_message && let Some(message_id) = messages.close(part.output_part.as_ref()) {
                     yield event(&invocation, StreamEventData::TextEnd { message_id });
                 }
                 if let Some(update) = part.usage {
@@ -292,7 +301,7 @@ impl StreamableAgentResponse {
                 }
             }
             let reason = reason.ok_or(AiError::InvalidResponse)?;
-            if let Some(message_id) = message {
+            for message_id in messages.open_ids() {
                 yield event(&invocation, StreamEventData::TextEnd { message_id });
             }
             let usage = match protocol {
@@ -326,10 +335,60 @@ pub(crate) fn event(invocation: &str, data: StreamEventData) -> StreamEvent {
     }
 }
 
+type OutputPart = (String, u64);
+
+#[derive(Default)]
+struct TextMessages {
+    indexed: BTreeMap<OutputPart, TextMessage>,
+    anonymous: Option<TextMessage>,
+}
+
+struct TextMessage {
+    id: String,
+    open: bool,
+}
+
+impl TextMessages {
+    fn get(&mut self, part: Option<&OutputPart>) -> &mut TextMessage {
+        let create = || TextMessage {
+            id: Str::ulid().to_string(),
+            open: false,
+        };
+        match part {
+            Some(part) => self.indexed.entry(part.clone()).or_insert_with(create),
+            None => self.anonymous.get_or_insert_with(create),
+        }
+    }
+
+    fn close(&mut self, part: Option<&OutputPart>) -> Option<String> {
+        match part {
+            Some(part) => {
+                let message = self.indexed.get_mut(part)?;
+                std::mem::take(&mut message.open).then(|| message.id.clone())
+            }
+            None => self
+                .anonymous
+                .take()
+                .filter(|message| message.open)
+                .map(|message| message.id),
+        }
+    }
+
+    fn open_ids(self) -> impl Iterator<Item = String> {
+        self.anonymous
+            .into_iter()
+            .chain(self.indexed.into_values())
+            .filter(|message| message.open)
+            .map(|message| message.id)
+    }
+}
+
 #[derive(Default)]
 struct Part {
     model: Option<String>,
     delta: Option<String>,
+    output_part: Option<OutputPart>,
+    citation: Option<UrlCitation>,
     usage: Option<Usage>,
     reason: Option<String>,
     end_message: bool,
@@ -370,13 +429,24 @@ impl TextEndpoint {
                 let response = &value["response"];
                 let usage = &response["usage"];
                 let model = string(&response["model"]);
+                let output_part = value["item_id"]
+                    .as_str()
+                    .zip(value["content_index"].as_u64())
+                    .map(|(item, index)| (item.to_owned(), index));
                 match value["type"].as_str() {
                     Some("response.output_text.delta") => Ok(Part {
                         delta: string(&value["delta"]),
+                        output_part,
                         ..Default::default()
                     }),
                     Some("response.output_text.done") => Ok(Part {
                         end_message: true,
+                        output_part,
+                        ..Default::default()
+                    }),
+                    Some("response.output_text.annotation.added") => Ok(Part {
+                        output_part,
+                        citation: UrlCitation::from_annotation(&value["annotation"]),
                         ..Default::default()
                     }),
                     Some("response.refusal.delta" | "response.refusal.done") => {
@@ -427,6 +497,7 @@ impl TextEndpoint {
                     usage: usage.map(Usage::from_anthropic),
                     end_message: value["type"] == "content_block_stop",
                     done: value["type"] == "message_stop",
+                    ..Default::default()
                 })
             }
             Self::GeminiStreamGenerateContent => {
