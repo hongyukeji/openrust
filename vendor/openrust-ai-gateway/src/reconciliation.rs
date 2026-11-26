@@ -470,12 +470,24 @@ pub(crate) fn with_evidence<'a>(
             "cost_evidence.currency as evidence_currency",
             "cost_evidence.amount as evidence_amount",
             "cost_evidence.revision as evidence_revision",
+            "ai_gateway_charges.reported_cost_usd",
         ]))
 }
 
 pub(crate) fn actual_costs(rows: &[Row]) -> DatabaseResult<BTreeMap<String, ActualCost>> {
     let mut latest = BTreeMap::<(String, String), (i64, ActualCost)>::new();
+    let mut resolved = BTreeMap::<String, ActualCost>::new();
     for row in rows {
+        if let Some(amount) = optional_text(row, "reported_cost_usd")? {
+            resolved.insert(
+                text(row, "attempt_id")?,
+                ActualCost {
+                    state: "confirmed",
+                    currency: Some("USD".into()),
+                    amount: Some(amount),
+                },
+            );
+        }
         let Some(revision) = integer(row, "evidence_revision")? else {
             continue;
         };
@@ -490,7 +502,6 @@ pub(crate) fn actual_costs(rows: &[Row]) -> DatabaseResult<BTreeMap<String, Actu
             *selected = (revision, candidate);
         }
     }
-    let mut resolved = BTreeMap::<String, ActualCost>::new();
     for ((attempt, _), (_, candidate)) in latest {
         let current = resolved.entry(attempt).or_insert_with(|| candidate.clone());
         if *current != candidate {

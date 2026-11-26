@@ -1048,6 +1048,7 @@ async fn request_upstream(
     }
     if let Ok(data) = upstream.json::<Value>() {
         call.observe_usage(&data);
+        call.observe_final_cost(&data);
     }
     call.outcome("upstream_error");
     let retryable = status.is_server_error()
@@ -1135,6 +1136,7 @@ async fn respond(
         };
     } else if !endpoint.is_counting() {
         call.observe_usage(&data);
+        call.observe_final_cost(&data);
     }
     if let Some(bridge) = bridge {
         let Some(response) = bridge.response(name.clone(), &data) else {
@@ -1234,6 +1236,10 @@ async fn stream(
                 return;
             };
             if matches!(data["type"].as_str(), Some("error" | "response.failed")) || event.event == "error" || data.get("error").is_some_and(|value| !value.is_null()) {
+                if endpoint == TextEndpoint::Responses && data["type"] == "response.failed" {
+                    call.observe_usage(&data["response"]);
+                    call.observe_final_cost(&data["response"]);
+                }
                 call.outcome("upstream_error");
                 call.settle().await;
                 yield Ok(error_frame);
@@ -1261,6 +1267,9 @@ async fn stream(
                     observed |= call.observe_usage(response);
                     rename_model(response, &name);
                 }
+            }
+            if ended && endpoint == TextEndpoint::Responses {
+                call.observe_final_cost(&data["response"]);
             }
             let final_usage = ended || (matches!(protocol, Protocol::Gemini)
                 && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());

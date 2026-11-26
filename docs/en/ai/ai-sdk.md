@@ -833,6 +833,8 @@ For xAI text, set `AI_PROVIDER=xai`, `XAI_API_KEY`, and `XAI_MODEL`. Override th
 
 With the native xAI connection, SDK usage and the gateway ledger count reasoning tokens once in the output total and keep the reasoning count available separately. If xAI also reports a total, the accounting checks whether the output count already includes reasoning. Native gateway responses retain the upstream usage fields on the wire.
 
+Native xAI reports actual charges in USD ticks. Read `response.usage.cost_in_usd_ticks` for text or `response.usage.tokens.cost_in_usd_ticks` for images. One US dollar equals 10¹⁰ ticks. A buffered multi-step Agent response totals the charges when every step reports one. With gateway billing enabled, `./artisan ai:gateway:usage:list --billing` shows final native Responses charges in `reported_cost_usd`, alongside the configured rate calculation and downstream receivable. A conflicting invoice appears as `actual.state=conflicting_evidence`. Apply the latest `ai-gateway-migrations` to existing installations.
+
 For provider-side tools on xAI, pass `ProviderTool::options` to `with_provider_options` for the connection. Available choices are `WebSearch` with up to five allowed domains, `CodeExecution` in the provider sandbox, and `FileSearch` over existing xAI collections. Use the collection IDs as `vector_store_ids`. The provider executes these tools, and the same agent can also run local functions configured through `with_tools`.
 
 ```rust

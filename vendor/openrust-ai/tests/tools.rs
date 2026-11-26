@@ -462,11 +462,11 @@ async fn xai_provider_tools_coexist_with_local_functions_and_replay() -> TestRes
         "responses",
         vec![
             json!({"status":"completed","output":[reasoning,native,function],
-                "usage":{"input_tokens":10,"output_tokens":3,"total_tokens":17,
+                "usage":{"input_tokens":10,"output_tokens":3,"total_tokens":17,"cost_in_usd_ticks":12345,
                     "output_tokens_details":{"reasoning_tokens":4}}}),
             json!({"status":"completed","output":[{"type":"message","content":[
                 {"type":"output_text","text":"four remaining"}
-            ]}],"usage":{"input_tokens":10,"output_tokens":7,"total_tokens":17,
+            ]}],"usage":{"input_tokens":10,"output_tokens":7,"total_tokens":17,"cost_in_usd_ticks":67890,
                 "output_tokens_details":{"reasoning_tokens":4}}}),
         ],
     )
@@ -494,6 +494,7 @@ async fn xai_provider_tools_coexist_with_local_functions_and_replay() -> TestRes
                     assert_eq!(response.usage.completion_tokens, Some(14));
                     assert_eq!(response.usage.reasoning_tokens, Some(8));
                     assert_eq!(response.usage.total_tokens(), Some(34));
+                    assert_eq!(response.usage.cost_in_usd_ticks, Some(80235));
                     assert_eq!(tool.0.load(Ordering::Relaxed), 1);
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;

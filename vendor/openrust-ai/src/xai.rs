@@ -71,7 +71,9 @@ impl ImageProvider for XaiImageProvider {
             let data: Value = validate(Ok(response))?
                 .json()
                 .map_err(|_| AiError::InvalidResponse)?;
-            parse_base64_image_response(&data, self.0.name(), prompt.model)
+            let mut response = parse_base64_image_response(&data, self.0.name(), prompt.model)?;
+            response.usage.tokens.cost_in_usd_ticks = data["usage"]["cost_in_usd_ticks"].as_u64();
+            Ok(response)
         })
     }
 }

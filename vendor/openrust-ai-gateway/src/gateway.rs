@@ -650,6 +650,7 @@ impl Gateway {
             logger: self.logger.clone(),
             provider: target.provider.clone(),
             context,
+            reported_cost_usd_ticks: None,
             attempt,
             outcome: "cancelled",
             dispatch_started: false,
@@ -743,6 +744,7 @@ pub(crate) enum UsageAdmission {
 pub(crate) struct Call {
     logger: Arc<Logger>,
     provider: Arc<dyn TextProvider>,
+    reported_cost_usd_ticks: Option<u64>,
     context: openrust::log::LogContext,
     attempt: Option<UsageAttempt>,
     outcome: &'static str,
@@ -775,7 +777,10 @@ impl Call {
     }
 
     fn settlement(&self) -> Settlement {
-        Settlement::from_context(self.outcome, &self.context, self.dispatch_started)
+        let mut settlement =
+            Settlement::from_context(self.outcome, &self.context, self.dispatch_started);
+        settlement.reported_cost_usd = self.reported_cost_usd_ticks.map(Amount::from_usd_ticks);
+        settlement
     }
 
     pub(crate) async fn complete(&mut self) -> bool {
@@ -825,6 +830,16 @@ impl Call {
                 self.context.insert("upstream_request_id".into(), json!(id));
                 break;
             }
+        }
+    }
+
+    pub(crate) fn observe_final_cost(&mut self, payload: &Value) {
+        if self.dispatch_started && self.outcome != "completed" {
+            self.reported_cost_usd_ticks = self
+                .provider
+                .normalize_reported_usage(&payload["usage"])
+                .and_then(|usage| usage.cost_in_usd_ticks)
+                .or(self.reported_cost_usd_ticks);
         }
     }
 

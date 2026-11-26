@@ -26,6 +26,11 @@ pub(crate) struct Amount(i128);
 
 impl Amount {
     pub(crate) const ZERO: Self = Self(0);
+
+    pub(crate) fn from_usd_ticks(ticks: u64) -> Self {
+        Self(i128::from(ticks) * (SCALE / 10_000_000_000))
+    }
+
     pub(crate) fn from_atoms(atoms: i64) -> Self {
         Self(i128::from(atoms))
     }
@@ -283,6 +288,13 @@ impl ChargePlan {
     }
 
     pub(crate) fn cost(&self, settlement: &Settlement) -> Option<Amount> {
+        if let Some(actual) = settlement.reported_cost_usd {
+            return self
+                .upstream
+                .as_ref()
+                .filter(|tariff| tariff.currency == "USD")
+                .map(|_| actual);
+        }
         self.charge("cost", self.upstream.as_ref(), settlement).1
     }
 
@@ -329,18 +341,24 @@ impl ChargePlan {
     ) -> DatabaseResult<()> {
         for (direction, tariff) in self.tariffs() {
             let (state, amount) = self.charge(direction, tariff, settlement);
+            let mut update = Record::from([
+                ("state".into(), state.into()),
+                (
+                    "amount".into(),
+                    amount.map_or(Value::Null, |amount| String::from(amount).into()),
+                ),
+            ]);
+            if direction == "cost"
+                && let Some(actual) = settlement.reported_cost_usd
+            {
+                update.insert("reported_cost_usd".into(), String::from(actual).into());
+            }
             let affected = transaction
                 .table(TABLE)
                 .r#where("attempt_id", "=", attempt)
                 .r#where("direction", "=", direction)
                 .r#where("state", "=", "pending")
-                .update(Record::from([
-                    ("state".into(), state.into()),
-                    (
-                        "amount".into(),
-                        amount.map_or(Value::Null, |amount| String::from(amount).into()),
-                    ),
-                ]))
+                .update(update)
                 .await?;
             if affected != 1 {
                 return Err(openrust::database::DatabaseError::InvalidQuery(
@@ -469,6 +487,8 @@ pub(crate) struct ChargeRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) actual: Option<crate::reconciliation::ActualCost>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    reported_cost_usd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     adjustments: Option<adjustments::Summary>,
 }
 
@@ -502,6 +522,7 @@ pub(crate) fn decode(row: &Row) -> DatabaseResult<ChargeRecord> {
         amount: optional_text("amount")?,
         state: text("state")?,
         actual: None,
+        reported_cost_usd: optional_text("reported_cost_usd")?,
         adjustments: None,
     })
 }

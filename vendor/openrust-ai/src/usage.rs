@@ -11,6 +11,9 @@ pub struct Usage {
     pub cache_write_input_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_tokens: Option<u64>,
+    /// 供应商报告的实际费用。1 USD 等于 10¹⁰ ticks。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_in_usd_ticks: Option<u64>,
 }
 
 impl Usage {
@@ -21,6 +24,7 @@ impl Usage {
             cache_read_input_tokens: Some(0),
             cache_write_input_tokens: Some(0),
             reasoning_tokens: Some(0),
+            cost_in_usd_ticks: None,
         }
     }
 
@@ -57,6 +61,10 @@ impl Usage {
                 self.cache_write_input_tokens,
             ),
             reasoning_tokens: reported_sum(previous.reasoning_tokens, self.reasoning_tokens),
+            cost_in_usd_ticks: previous
+                .cost_in_usd_ticks
+                .zip(self.cost_in_usd_ticks)
+                .and_then(|(previous, current)| previous.checked_add(current)),
         }
     }
 
@@ -71,6 +79,7 @@ impl Usage {
             .cache_write_input_tokens
             .or(self.cache_write_input_tokens);
         self.reasoning_tokens = newer.reasoning_tokens.or(self.reasoning_tokens);
+        self.cost_in_usd_ticks = newer.cost_in_usd_ticks.or(self.cost_in_usd_ticks);
     }
 
     pub(crate) fn from_openai(usage: &Value) -> Self {
@@ -92,6 +101,7 @@ impl Usage {
             cache_read_input_tokens: usage["cache_read_input_tokens"].as_u64(),
             cache_write_input_tokens: usage["cache_creation_input_tokens"].as_u64(),
             reasoning_tokens: usage["output_tokens_details"]["thinking_tokens"].as_u64(),
+            ..Self::default()
         }
     }
 
@@ -137,6 +147,7 @@ pub(crate) struct OpenAiUsage {
     #[serde(alias = "output_tokens")]
     completion_tokens: Option<u64>,
     total_tokens: Option<Value>,
+    cost_in_usd_ticks: Option<Value>,
     #[serde(alias = "input_tokens_details")]
     prompt_tokens_details: Option<InputDetails>,
     #[serde(alias = "output_tokens_details")]
@@ -157,8 +168,10 @@ struct OutputDetails {
 impl OpenAiUsage {
     pub(crate) fn into_xai_responses(mut self) -> Usage {
         let total = self.total_tokens.take();
+        let cost = self.cost_in_usd_ticks.as_ref().and_then(Value::as_u64);
         // 固定 Laravel 基线使用分开计数。报告总数时，用它区分是否已包含推理。
         let mut usage = Usage::from(self);
+        usage.cost_in_usd_ticks = cost;
         if let Some((output, reasoning)) = usage.completion_tokens.zip(usage.reasoning_tokens)
             && let Some(inclusive) = output.checked_add(reasoning)
             && total.is_none_or(|total| {
@@ -187,6 +200,7 @@ impl From<OpenAiUsage> for Usage {
             reasoning_tokens: usage
                 .completion_tokens_details
                 .and_then(|details| details.reasoning_tokens),
+            ..Self::default()
         }
     }
 }

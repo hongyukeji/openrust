@@ -51,6 +51,8 @@ mod protocol;
 mod reconciliation;
 #[path = "../database/migrations/2026_11_26_000007_create_ai_gateway_cost_evidence_tables.rs"]
 mod reconciliation_migration;
+#[path = "../database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs"]
+mod reported_cost_migration;
 mod session_affinity;
 mod usage;
 #[path = "../database/migrations/2026_11_26_000002_create_ai_gateway_usage_table.rs"]
@@ -151,6 +153,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs",
         &budget_settlements_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs",
+        &reported_cost_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -238,6 +244,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         BUDGET_SETTLEMENTS_MIGRATION,
                         include_bytes!("../database/migrations/2026_11_26_000014_create_ai_gateway_budget_settlements_table.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs",
+                        include_bytes!("../database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

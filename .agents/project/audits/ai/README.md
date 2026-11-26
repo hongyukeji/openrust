@@ -314,7 +314,7 @@ SQLite 普通及流式、PostgreSQL 18.7 普通、MySQL 8.4.13 流式以独立 A
 
 `Image` 通过 `xai` 连接接入 `/images/generations`，沿用固定 Laravel 的宽高比、画质到分辨率的映射和默认 120 秒请求超时。按 xAI 原生接口补齐 `/images/edits`，单图用 `image`，多图用有序的 `images`，最多五张。生成与编辑均请求 Base64 响应，通过共享解析器按实际内容识别图像类型，保留模型和可用 Token 数据。
 
-独立 Artisan 与 HTTP 经本地协议服务验证 Bearer 鉴权、URL 覆盖、默认及显式模型、生成、单图和双图编辑、双图顺序和多张输出、私有落盘、六张图提前拒绝、非法 Base64、非图像字节、空输出及 403。缺省 Token 保持未知。20 项 SDK 回归、严格 Clippy 与三语文档站点通过。xAI 官方账户实机及图像费用字段 `cost_in_usd_ticks` 的归集仍待验收。
+独立 Artisan 与 HTTP 经本地协议服务验证 Bearer 鉴权、URL 覆盖、默认及显式模型、生成、单图和双图编辑、双图顺序和多张输出、私有落盘、六张图提前拒绝、非法 Base64、非图像字节、空输出及 403。缺省 Token 保持未知。20 项 SDK 回归、严格 Clippy 与三语文档站点通过。xAI 官方账户实机仍待验收。图像费用字段的 SDK 验收见下文。
 
 - [固定 Laravel XaiImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/XaiImageGateway.php) · [xAI Images REST](https://docs.x.ai/developers/rest-api-reference/inference/images) · [xAI 多图编辑](https://docs.x.ai/developers/model-capabilities/images/multi-image-editing)
 
@@ -699,6 +699,10 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 SDK 直连的普通、SSE、普通工具续步和流式工具续步使用同一用量规则。没有 `total_tokens` 时沿用固定 Laravel 的分开计数。上游给出总量时，只有输入、输出和推理之和与总量相符才加上推理，避免托管版 Grok 已合并时重复累加。缺失的输出计数保持未知。独立 HTTP 和 Artisan 使用本地协议上游验证两种口径和两轮累计，图像链路、21 项 SDK 回归、SDK 与网关严格 Clippy、三语站点同步复验。网关结算证据见 [GW-04 xAI 原生用量](gateway.md#gw-04-xai-原生用量)。
 
 - [固定 Laravel xAI 响应用量](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Xai/Concerns/ParsesTextResponses.php) · [Google Cloud Grok Responses 用量样例](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/grok/responses)
+
+xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上游实际费用。一次请求报一个整数，普通多步 Agent 仅在所有回合均有值时加总。用独立 HTTP 和 Artisan 经本地协议服务核对两步 12345 与 67890 ticks、明确零、缺失费用及图像编辑 200000001 ticks。网关证据见 [GW-04 xAI 回报实际费用](gateway.md#gw-04-xai-回报实际费用)。
+
+- [xAI 实际费用字段](https://docs.x.ai/developers/cost-tracking)
 
 ### xAI 原生供应商工具
 

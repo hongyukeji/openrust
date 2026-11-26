@@ -833,6 +833,8 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 使用 xAI 原生连接时，SDK 用量和网关账本将推理 Token 计入输出总量一次，并单独记录推理子项。上游同时报告总量时，按总量判断输出字段是否已经包含推理。网关原生转发保留上游响应中的用量字段。
 
+xAI 原生响应按美元 ticks 报告实际费用。文本读取 `response.usage.cost_in_usd_ticks`，图像读取 `response.usage.tokens.cost_in_usd_ticks`，1 美元等于 10¹⁰ ticks。普通多步 Agent 响应在每一步都报告费用时返回合计。启用网关计费后，`./artisan ai:gateway:usage:list --billing` 的 `reported_cost_usd` 显示原生 Responses 最终回报的费用，费率估算和下游应收可分别查询。账单金额与回报不一致时，`actual.state` 为 `conflicting_evidence`。已有安装需应用最新的 `ai-gateway-migrations`。
+
 在 xAI 使用供应商工具时，将 `ProviderTool::options` 的结果通过 `with_provider_options` 传给对应连接。可选 `WebSearch`（最多指定五个允许的域名）、`CodeExecution`（供应商沙箱）和 `FileSearch`（搜索已有 xAI 集合）。`vector_store_ids` 填写 xAI 集合 ID。同一个 Agent 可通过 `with_tools` 添加本地函数。
 
 ```rust
