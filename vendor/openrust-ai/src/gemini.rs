@@ -97,8 +97,8 @@ impl GeminiTextProvider {
     }
 
     fn function_result(result: &ToolResult, id: Option<Value>) -> Value {
-        let payload = if result.failed {
-            json!({"error":result.result})
+        let payload = if let Some(error) = result.error() {
+            json!({"error":error})
         } else {
             json!({"output":result.result})
         };

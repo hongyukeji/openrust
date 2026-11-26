@@ -713,6 +713,8 @@ Keep the conversation ID and approval ID. For the same authenticated participant
 
 Rejecting with `Decision::reject(None)`, boolean `false`, or a blank result ends the turn after saving the approval decisions and completed tool results. The resumed call incurs zero model usage. Pass a nonempty result if the model should continue based on the rejection, for example `Decision::reject(Some("The user requested the original amount.".into()))`. Tools explicitly approved in the same batch still run.
 
+`ToolResult.denied` marks a rejected approval. `ToolResult.failed` marks an execution failure. `successful()` checks both flags and `error()` returns the result text for an unsuccessful call. Vercel streams emit `tool-output-denied` for a rejection. AG-UI reports it in `metadata.denied` on the tool result. To construct a tool result, use `ToolResult::new(id, name, result)` and set the applicable flag.
+
 When a turn pauses for approval, history immediately shows its user message and a `paused` assistant message. After approval, the SDK saves the tool results on that assistant message. The message keeps its ID through further pauses, completion, or failure. The original user message retains its attachment references.
 
 Resuming approval saves the step’s tool results before the next model request. Call `approval_results_for` with the same participant, agent, conversation, and approval ID to read the saved results while the turn is active. After completion, read them from conversation history. If the resuming process exits before it finishes, the saved results remain available and duplicate approval calls are rejected to prevent repeating tools.

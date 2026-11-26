@@ -87,7 +87,30 @@ pub struct ToolResult {
     pub id: String,
     pub name: String,
     pub result: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub denied: bool,
+    #[serde(default)]
     pub failed: bool,
+}
+
+impl ToolResult {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, result: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            result: result.into(),
+            denied: false,
+            failed: false,
+        }
+    }
+
+    pub fn successful(&self) -> bool {
+        !self.denied && !self.failed
+    }
+
+    pub fn error(&self) -> Option<&str> {
+        (!self.successful()).then_some(&self.result)
+    }
 }
 
 #[derive(Clone)]
@@ -927,7 +950,7 @@ impl ExecutionPlan<'_> {
     pub(crate) async fn run(self) -> Vec<ToolResult> {
         let mut results = Vec::with_capacity(self.calls.len());
         for (call, action) in self.calls.iter().zip(self.actions) {
-            let output = match action {
+            let (result, denied, failed) = match action {
                 ToolAction::Run {
                     tool,
                     invocation_id,
@@ -941,19 +964,21 @@ impl ExecutionPlan<'_> {
                         call: edited.as_ref().unwrap_or(call),
                         invocation_id: &invocation_id,
                     };
-                    crate::events::observe_tool(request, |request| tool.handle(request))
-                        .await
-                        .map_err(|_| "工具执行失败".to_owned())
+                    match crate::events::observe_tool(request, |request| tool.handle(request)).await
+                    {
+                        Ok(result) => (result, false, false),
+                        Err(_) => ("工具执行失败".to_owned(), false, true),
+                    }
                 }
-                ToolAction::Reject(message) => Err(message),
-                ToolAction::Skip(message) => Err(message.to_owned()),
+                ToolAction::Reject(message) => (message, true, false),
+                ToolAction::Skip(message) => (message.to_owned(), false, true),
             };
-            let failed = output.is_err();
             results.push(ToolResult {
                 id: call.id.clone(),
                 name: call.name.clone(),
+                denied,
                 failed,
-                result: output.unwrap_or_else(std::convert::identity),
+                result,
             });
         }
         results

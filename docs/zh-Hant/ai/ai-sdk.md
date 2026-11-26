@@ -713,6 +713,8 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 使用 `Decision::reject(None)`、布林值 `false` 或空白結果直接拒絕時，本輪在儲存審批決定和已執行的工具結果後結束，後續模型用量為零。若希望模型依拒絕結果繼續，請傳入非空結果，例如 `Decision::reject(Some("使用者要求保留原金額".into()))`。同一批次中已明確核准的工具仍會執行。
 
+`ToolResult.denied` 表示審批拒絕，`ToolResult.failed` 表示執行失敗。`successful()` 會同時檢查兩者，`error()` 會回傳未成功的結果文字。Vercel 串流以 `tool-output-denied` 表示拒絕，AG-UI 會在工具結果的 `metadata.denied` 回報拒絕。手動建立結果時可使用 `ToolResult::new(id, name, result)`，再依需要設定旗標。
+
 審批暫停時，對話歷史會立即顯示本輪使用者訊息和狀態為 `paused` 的助手訊息。恢復後，工具結果會寫回同一則助手訊息。再次暫停或完成仍沿用該訊息的 ID，完成或失敗時更新狀態。附件參照隨原使用者訊息保留。
 
 審批恢復會在下一次模型請求前儲存這一步的工具結果。應用程式可按同一參與者、Agent、對話和審批 ID 呼叫 `approval_results_for`，讀取已儲存且仍在處理中的結果。完成後可從對話歷史讀取結果。如果恢復程序在續跑途中結束，仍可查詢已儲存結果，重複提交同一審批會被拒絕，以防工具重複執行。

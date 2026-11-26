@@ -1146,7 +1146,8 @@ fn replay_steps(fallback: Message, steps: &str, paused: bool) -> DatabaseResult<
                         id: call.id.clone(),
                         name: call.name.clone(),
                         result: "会话继续前，此工具调用尚未获得批准".into(),
-                        failed: true,
+                        denied: true,
+                        failed: false,
                     })
                 })
             {

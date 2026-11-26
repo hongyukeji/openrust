@@ -605,11 +605,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的独立 Artisan／HTTP 实测暂停�
 
 - [固定 Laravel DatabaseConversationStore::resumePausedRow](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php#L214)
 
-直接拒绝、布尔 `false`、空白结果都结束本轮续跑。混合决定仍执行明确批准的工具。已有结果按原审批流程落库，原历史转为完成并保留暂停前的步骤及用量。非流式返回空文本、当前审批结果和零新增用量，原生流发送工具结果及零新增用量的 `stop`。具有非空结果的拒绝可将该结果交给模型继续。拒绝的默认结果随应用语言解析，可覆写 `ai::errors.approval.rejected_result`。Rust 公开工具结果沿用现有 `failed` 字段，单独的 `denied` 契约仍待核对。
+直接拒绝、布尔 `false`、空白结果都结束本轮续跑。混合决定仍执行明确批准的工具。已有结果按原审批流程落库，原历史转为完成并保留暂停前的步骤及用量。非流式返回空文本、当前审批结果和零新增用量，原生流发送工具结果及零新增用量的 `stop`。具有非空结果的拒绝可将该结果交给模型继续。拒绝的默认结果随应用语言解析，可覆写 `ai::errors.approval.rejected_result`。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan 和 HTTP 验证批量、布尔、空白字符串、混合决定，以及默认／Vercel／AG-UI 流。模拟上游确认直接拒绝时零次续跑请求，混合批次仅执行一次批准的工具，原历史保留 31／20 Token。附带结果的拒绝继续生成。SQLite 另用实际 HTTP 逐项核对 18 种默认拒绝文案。SDK 16 项、严格 Clippy 和三语站点通过。
 
 - [固定 Laravel Decision::reject](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Approvals/Decision.php) · [固定 Laravel 审批续跑](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php#L978)
+
+`ToolResult.denied` 独立标记审批拒绝及继续会话时补齐的未批准调用；`failed` 记录执行失败或当前运行约束阻止的调用。`successful()` 与 `error()` 汇总两种未成功状态。旧 JSON 没有 `denied` 时按 `false` 读取，保存过的 `failed` 保持原含义。Rust 的结构体字面量需包含新字段，新增 `ToolResult::new` 可构造普通结果。原生 SSE 与历史共享字段，Vercel 使用 `tool-output-denied`，AG-UI 在工具结果元数据中保存 `denied`。Anthropic 的 `is_error` 和 Gemini 的 `response.error` 都考虑两种状态。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测同一审批批次的一次工具执行失败和一次拒绝，检查独立 Artisan／HTTP、原生 SSE、Vercel、AG-UI 和最终存储。SQLite 验证 Anthropic 与 Gemini 原生回放的错误映射。SDK 17 项含旧 JSON 读取和新结果序列化，严格 Clippy 及三语站点通过。
+
+- [固定 Laravel ToolResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Responses/Data/ToolResult.php) · [固定 Laravel Vercel 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php#L243) · [固定 Laravel AG-UI 结果映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php#L440)
 
 ## AI-03 流式工具审批事件
 

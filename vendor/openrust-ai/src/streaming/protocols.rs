@@ -76,8 +76,10 @@ impl StreamProtocol for VercelDataProtocol {
                             yield payload(json!({"type":"tool-input-available","toolCallId":call.id,"toolName":call.name,"input":call.arguments}));
                         }
                         StreamEventData::ToolResult { result } => {
-                            let data = if result.failed {
-                                json!({"type":"tool-output-error","toolCallId":result.id,"errorText":result.result})
+                            let data = if result.denied {
+                                json!({"type":"tool-output-denied","toolCallId":result.id})
+                            } else if let Some(error) = result.error() {
+                                json!({"type":"tool-output-error","toolCallId":result.id,"errorText":error})
                             } else {
                                 json!({"type":"tool-output-available","toolCallId":result.id,"output":result.result})
                             };
@@ -195,7 +197,14 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                             yield payload(json!({"type":"TOOL_CALL_END","toolCallId":call.id}));
                         }
                         StreamEventData::ToolResult { result } => {
-                            yield payload(json!({"type":"TOOL_CALL_RESULT","messageId":event.id,"toolCallId":result.id,"content":result.result,"role":"tool"}));
+                            let mut data = json!({"type":"TOOL_CALL_RESULT","messageId":event.id,"toolCallId":result.id,"content":result.result,"role":"tool"});
+                            if let Some(error) = result.error() {
+                                data["metadata"] = json!({"error":error});
+                                if result.denied {
+                                    data["metadata"]["denied"] = true.into();
+                                }
+                            }
+                            yield payload(data);
                         }
                         StreamEventData::ToolApprovalRequest { conversation_id, approval_id, approvals } => {
                             let interrupts: Vec<_> = approvals.into_iter().map(|approval| {

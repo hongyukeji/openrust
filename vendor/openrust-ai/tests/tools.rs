@@ -18,7 +18,7 @@ use openrust::{
 };
 use openrust_ai::{
     Agent, AiError, AiResult, FinishReason, PromptOptions, ProviderTarget, StreamEventData, Tool,
-    ToolRequest, agent,
+    ToolRequest, ToolResult, agent,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -30,6 +30,25 @@ use tokio::{
 };
 
 type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
+
+#[test]
+fn tool_result_preserves_denial_and_execution_failure_separately() -> TestResult {
+    let legacy: ToolResult = serde_json::from_value(json!({
+        "id": "old", "name": "lookup", "result": "tool failed", "failed": true
+    }))?;
+    assert!(legacy.failed && !legacy.denied);
+    assert_eq!(legacy.error(), Some("tool failed"));
+
+    let mut denied = ToolResult::new("new", "lookup", "not approved");
+    assert!(denied.successful());
+    denied.denied = true;
+    assert!(!denied.successful());
+    assert_eq!(denied.error(), Some("not approved"));
+    assert_eq!(serde_json::from_value::<ToolResult>(json!(denied))?, denied);
+    assert!(json!(denied)["denied"].as_bool().unwrap());
+    assert!(!json!(denied)["failed"].as_bool().unwrap());
+    Ok(())
+}
 
 struct Lookup(AtomicUsize);
 
