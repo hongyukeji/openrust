@@ -60,7 +60,9 @@ Redis 已写入保留后，TCP 夹具扣住领取回复，写入继任令牌再�
 
 macOS 与 Redis 8.10.3 真正复验普通领取、收到阻塞通知后领取及保留已过期三种情形。旧 Worker 均未启动任务，新 Worker 各执行一次，未过期的两例在新 Worker 开始前尝试次数为零。真实 `queue:work` 新增无等待和允许等待的回归。隔离快照格式、Horizon Redis 20 项、框架 Redis 队列 2 项、相关目标严格 Clippy、三语站点构建和六组桌面／移动浏览器检查通过。验收日志为 `target/tmp/observability-parity/horizon-in-flight-{transit-amd64-baseline-final,transit-macos,macos,docs}.log`。
 
-Windows 11 ARM64 使用固定修复提交 `06d60f418` 的原生程序及 Redis 8.10.3 通过三条领取接管用例。宿主磁盘停线中断首轮完整进程矩阵，同一程序在空间恢复后通过矩阵，覆盖进程包装器、输出、停止等待、快速重启、父进程退出、真实处理器和队列。证据为 `target/tmp/observability-windows/horizon-in-flight-arm64{,-retry}.log`。本批 Linux ARM64 默认优化构建继续复验。
+Windows 11 ARM64 使用固定修复提交 `06d60f418` 的原生程序及 Redis 8.10.3 通过三条领取接管用例。宿主磁盘停线中断首轮完整进程矩阵，同一程序在空间恢复后通过矩阵，覆盖进程包装器、输出、停止等待、快速重启、父进程退出、真实处理器和队列。证据为 `target/tmp/observability-windows/horizon-in-flight-arm64{,-retry}.log`。
+
+Linux 7.0.14 ARM64 以 Rust 1.94.0 默认优化构建 `6ebab2d5c` 加 `06d60f418` 的框架领取改动，逐文件确认构建输入与修复提交的相关生产源码相同。首轮触及宿主磁盘停线，恢复后生成原生 Release。使用 Redis 8.10.3 通过完整进程和 HTTP 矩阵、四组主从切换、三条已发出领取的接管路径，以及领取回复丢失和归还请求无法写入两例。证据为 `target/tmp/observability-parity/horizon-in-flight-arm64-{source-commit,build-retry.log,runtime-retry.log}` 和 `horizon-in-flight-failure-arm64.log`。
 
 Redis 元数据与队列连接可配置为不同实例。复核只覆盖交给 Worker 前的最后一次检查，已通过检查之后发生的切换仍按任务执行和队列租约规则处理。领取回复丢失或归还无法写入时，仍依赖保留过期和正常恢复。macOS 使用修复提交 `06d60f418` 及本机 Redis 8.10.3，分别在保留写入后断开回复、在归还命令写入前切断连接。两例旧 Worker 均未启动任务，Redis 中保持标识相同且尝试次数为 1 的保留。夹具将过期分数提前，持继任令牌的实际 Artisan Worker 通过正常迁移路径取得任务，各执行一次。证据为 `target/tmp/observability-parity/horizon-in-flight-failure-macos.log`。
 
@@ -88,7 +90,7 @@ Linux ARM64 的同一低优化框架 Release 另做了写入未复制的切换�
 
 固定提交 `42e89b6f7` 的干净归档以 Rust 1.94.0 和默认优化构建 ARM64 Release。生成的程序在 Linux 7.0.14 ARM64 原生执行，使用 Redis 8.10.3 通过完整进程与 HTTP 矩阵及四组主从切换。证据为 `target/tmp/observability-parity/horizon-metadata-arm64-standard-{source-commit,build.log,runtime.log}`。
 
-macOS 使用修复提交 `06d60f418` 和本机 Redis 8.10.3，在独立端口启动主节点、副本和三个 Sentinel，法定票数为 2。确认租约已复制后停止旧主，由 Sentinel 自动选主。测试端点从多数 Sentinel 的 `GET-MASTER-ADDR-BY-NAME` 结果选取新地址，Horizon 配置的 Redis URL 保持固定。两次分别约 3.22 秒和 3.68 秒切换，同一 Master 恢复，前后任务各完成一次。证据为 `target/tmp/observability-parity/horizon-metadata-sentinel-macos-{retry,confirm}.log`。 [Redis Sentinel 高可用](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
+macOS 使用修复提交 `06d60f418` 和本机 Redis 8.10.3，在独立端口启动主节点、副本和三个 Sentinel，法定票数为 2。确认租约已复制后停止旧主，由 Sentinel 自动选主。测试端点从多数 Sentinel 的 `GET-MASTER-ADDR-BY-NAME` 结果选取新地址，Horizon 配置的 Redis URL 保持固定。两次分别约 3.22 秒和 3.68 秒切换，同一 Master 恢复，前后任务各完成一次。同批 Linux ARM64 默认优化程序也通过三节点 Sentinel 实测，约 3.67 秒切换。证据为 `target/tmp/observability-parity/horizon-metadata-sentinel-macos-{retry,confirm}.log` 和 `horizon-metadata-sentinel-arm64-fixed.log`。 [Redis Sentinel 高可用](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
 
 物理 x86_64 主机、其他真实部署的故障转移端点、跨失败域拓扑的写入耐久性和应用重放策略继续验收。
 
