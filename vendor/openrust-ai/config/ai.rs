@@ -41,6 +41,19 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "XAI_MODEL",
     )?;
     xai["models"]["images"] = json!({"default": env.get_utf8("XAI_IMAGE_MODEL")?});
+    let bedrock_region = env
+        .get_utf8("AWS_REGION")?
+        .or(env.get_utf8("AWS_DEFAULT_REGION")?)
+        .unwrap_or("us-east-1");
+    let mut bedrock = provider(
+        "bedrock",
+        "BEDROCK_URL",
+        "https://bedrock-runtime.amazonaws.com",
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "BEDROCK_MODEL",
+    )?;
+    bedrock["region"] = bedrock_region.into();
+    bedrock["url"] = env.get_utf8("BEDROCK_URL")?.into();
     let mut groq = provider(
         "groq",
         "GROQ_URL",
@@ -188,6 +201,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
             "ark": provider("openai-compatible", "ARK_URL", "https://ark.cn-beijing.volces.com/api/v3", "ARK_API_KEY", "ARK_MODEL")?,
             "openai": openai,
             "xai": xai,
+            "bedrock": bedrock,
             "ollama": ollama,
             "eleven": {
                 "driver": "eleven",

@@ -844,6 +844,8 @@ Cohere 讀取原生浮點向量和計費輸入 Token，Jina 使用 `retrieval.pa
 
 使用 Groq 時，設定 `GROQ_API_KEY`、`AI_PROVIDER=groq` 和 `GROQ_MODEL`，可用 `GROQ_URL` 覆寫預設位址 `https://api.groq.com/openai/v1`。驅動支援 Chat Completions、SSE、本機工具續步與支援模型上的圖片輸入。無工具的非串流結構化請求使用原生 JSON Schema。使用工具或串流時，SDK 將 Schema 放入提示詞，並檢查最終結果能否解析為 JSON 物件。轉錄設定 `AI_TRANSCRIPTION_PROVIDER=groq` 和 `GROQ_TRANSCRIPTION_MODEL`，傳回文字、時間戳記和上游回報的時長。需要區分說話者時，可選用其他轉錄連線。
 
+使用 Amazon Bedrock Converse 時，設定 `AI_PROVIDER=bedrock` 和 `BEDROCK_MODEL`，並用 `AWS_REGION` 或 `AWS_DEFAULT_REGION` 指定 AWS 區域。可用 `BEDROCK_URL` 覆寫執行階段位址。憑證可使用 `AWS_BEARER_TOKEN_BEDROCK`、明確的 AWS 憑證及選用的 `AWS_SESSION_TOKEN`，或 AWS 憑證鏈。SDK 支援一般文字、會話歷程及內嵌 PNG、JPEG、WebP、PDF、純文字和 Markdown。用 `BEDROCK_MODEL_CHEAPEST` 或 `BEDROCK_MODEL_SMARTEST` 設定獨立模型級別。 如需代入 IAM 角色，在具名連線設定 `assume_role.arn`。可在 `assume_role` 中設定 `session_name`、`duration_seconds` 和 `external_id`，暫時憑證由 AWS SDK 取得和重新整理。
+
 使用 xAI 文字模型時，設定 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆寫預設位址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 設定模型級別。連線使用原生 Responses，支援 SSE、結構化輸出、本機函式工具，以及受支援模型的影像輸入。上游傳回加密推理時，本機工具續步會將它隨請求送回。執行 `./artisan ai:models xai` 查看探索到的模型及已設定的模型。
 
 使用 xAI 原生連線時，SDK 用量和閘道帳本將推理 Token 計入輸出總量一次，並另外記錄推理子項。上游同時回報總量時，依總量判斷輸出欄位是否已經包含推理。閘道原生轉發保留上游回應中的用量欄位。

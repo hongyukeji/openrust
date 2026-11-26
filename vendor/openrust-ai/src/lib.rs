@@ -22,6 +22,7 @@ mod approvals;
 mod attachment_storage;
 mod attachments;
 mod audio;
+mod bedrock;
 pub mod classification;
 #[path = "../config/ai.rs"]
 mod configuration;

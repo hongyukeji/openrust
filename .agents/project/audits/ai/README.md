@@ -688,6 +688,14 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 - [固定 Laravel Mistral Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Mistral/MistralGateway.php) · [Mistral Chat](https://docs.mistral.ai/api/endpoint/chat) · [Mistral 推理块](https://docs.mistral.ai/inference/conversations/reasoning) · [Mistral Embeddings](https://docs.mistral.ai/api/endpoint/embeddings)
 
+### Bedrock 原生 Converse
+
+`bedrock` 命名连接复用项目 AWS SDK 依赖风格，新增官方 Bedrock Runtime Rust SDK 1.151.0。客户端按需初始化，支持应用环境中的 Bearer、SigV4 静态凭证和会话令牌、AWS 默认凭证链、STS AssumeRole、区域及可覆盖的运行时端点。Converse 按固定 Laravel 映射系统指令、消息历史、内联图片和文档、采样选项及用量。输入总量含缓存读取和写入并保留两个子项。Typed SDK 负责模型路径编码和签名，单次请求关闭 SDK 自动重试，错误交给既有 SDK 处理。
+
+独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。ConverseStream、工具、结构化输出、签名推理续步、远程目录及其他 Bedrock 媒体能力继续按对应批次实施。IAM 实机和权限范围待正式账户验收。
+
+- [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) · [AWS Rust SDK 1.151.0](https://docs.rs/aws-sdk-bedrockruntime/1.151.0/aws_sdk_bedrockruntime/)
+
 ### xAI 原生 Responses
 
 `xai` 连接复用 Responses 请求、SSE、模型目录与本地函数执行。支持显式模型和模型档位、原生 JSON Schema、图像内容、引用和上游 Token 明细。固定 Laravel 默认发送 `tool_choice: auto` 和封闭工具参数对象。按 xAI 官方无状态方案请求加密推理，在工具结果前回送同一连接返回的推理与调用条目。工具续步无需依赖 `previous_response_id`。加密推理沿用按连接和模型隔离的内部历史机制。

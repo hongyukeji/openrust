@@ -20,6 +20,7 @@ use crate::{
     RecordedAudio, RecordedEmbeddings, RecordedReranking, RecordedTranscription, RerankingProvider,
     StreamableAgentResponse, StructuredOutput, TextModelTier, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
+    bedrock::BedrockProvider,
     classification::{
         DecisionsProtocol, FakeClassificationGateway, FakeClassificationResult,
         HttpDecisionsProvider, RecordedClassification,
@@ -186,6 +187,17 @@ impl AiManager {
                     http.clone(),
                     Authorization::ElevenLabs,
                 )?))))
+            });
+        }
+        {
+            let environment = environment.clone();
+            let http = http.clone();
+            manager.extend("bedrock", move |config| {
+                Ok(Arc::new(BedrockProvider::new(
+                    config,
+                    environment.clone(),
+                    http.clone(),
+                )?))
             });
         }
         manager.extend("gemini", move |config| {

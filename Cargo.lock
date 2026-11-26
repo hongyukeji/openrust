@@ -557,6 +557,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-bedrockruntime"
+version = "1.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f008e2a7a47e6c8f4a61c3783def307c6817532c1e05ce417da51657088fbe02"
+dependencies = [
+ "arc-swap",
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-sigv4",
+ "aws-smithy-async",
+ "aws-smithy-eventstream",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-observability",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-schema",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http",
+ "http-body-util",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-dynamodb"
 version = "1.141.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4595,6 +4623,9 @@ version = "0.0.0"
 dependencies = [
  "async-openai",
  "async-stream",
+ "aws-config",
+ "aws-sdk-bedrockruntime",
+ "aws-smithy-runtime-api",
  "bytes",
  "cap-std",
  "eventsource-stream",

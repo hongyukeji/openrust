@@ -14,6 +14,9 @@ providers = true
 openrust = { package = "openrust-framework", path = "../openrust-framework" }
 async-openai = { version = "=0.43.0", default-features = false, features = ["chat-completion-types", "embedding-types", "response-types"] }
 async-stream = "0.3.6"
+aws-config = { version = "=1.13.4", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
+aws-sdk-bedrockruntime = { version = "=1.151.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-smithy-runtime-api = "=1.22.1"
 bytes = "1.12.1"
 cap-std = "4.0.3"
 eventsource-stream = "=0.2.3"
@@ -25,7 +28,7 @@ saphyr = { version = "=0.4.1", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-tokio = { version = "1.54.1", features = ["fs", "io-util"] }
+tokio = { version = "1.54.1", features = ["fs", "io-util", "sync"] }
 url = "2.5"
 
 [dev-dependencies]
