@@ -35,7 +35,7 @@ use crate::{
     ModelCatalog, RerankingProvider, Step, StepEventStream, StepResponse, StepTextGateway,
     StreamableAgentResponse, StructuredOutput, TextGenerationOptions, ToolCall, ToolChoice,
     ToolDefinition, ToolResult, ToolStep, UrlCitation, Usage,
-    audio::{AudioProvider, OpenAiAudioProvider},
+    audio::{AudioProvider, MistralAudioProvider, OpenAiAudioProvider},
     classification::{
         ClassificationProvider, DecisionsProtocol, HttpDecisionsProvider,
         OpenAiClassificationProvider,
@@ -48,7 +48,7 @@ use crate::{
     provider_options::apply_provider_options,
     reranking::{HttpRerankingProvider, RerankingProtocol},
     stores::StoreProvider,
-    transcription::{OpenAiTranscriptionProvider, TranscriptionProvider},
+    transcription::{HttpTranscriptionProvider, TranscriptionProtocol, TranscriptionProvider},
     usage::OpenAiUsage,
 };
 
@@ -720,6 +720,9 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn audio_provider(&self) -> Option<Arc<dyn AudioProvider>> {
+        if matches!(self.protocol, OpenAiProtocol::Mistral) {
+            return Some(Arc::new(MistralAudioProvider(self.connection.clone())));
+        }
         (matches!(self.protocol, OpenAiProtocol::Responses) || self.connection.audio_configured())
             .then(|| {
                 Arc::new(OpenAiAudioProvider(self.connection.clone())) as Arc<dyn AudioProvider>
@@ -727,12 +730,18 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn transcription_provider(&self) -> Option<Arc<dyn TranscriptionProvider>> {
-        (matches!(self.protocol, OpenAiProtocol::Responses)
-            || self.connection.transcription_configured())
-        .then(|| {
-            Arc::new(OpenAiTranscriptionProvider(self.connection.clone()))
-                as Arc<dyn TranscriptionProvider>
-        })
+        let protocol = match self.protocol {
+            OpenAiProtocol::Mistral => TranscriptionProtocol::Mistral,
+            OpenAiProtocol::Responses => TranscriptionProtocol::OpenAi,
+            OpenAiProtocol::ChatCompletions if self.connection.transcription_configured() => {
+                TranscriptionProtocol::OpenAi
+            }
+            _ => return None,
+        };
+        Some(Arc::new(HttpTranscriptionProvider {
+            connection: self.connection.clone(),
+            protocol,
+        }))
     }
 
     fn image_provider(&self) -> Option<Arc<dyn ImageProvider>> {

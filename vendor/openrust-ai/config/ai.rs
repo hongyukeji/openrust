@@ -38,6 +38,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "MISTRAL_MODEL",
     )?;
     mistral["models"]["embeddings"] = json!({"default": env.get_utf8("MISTRAL_EMBEDDING_MODEL")?});
+    mistral["models"]["audio"] = json!({"default": env.get_utf8("MISTRAL_AUDIO_MODEL")?});
+    mistral["models"]["transcription"] =
+        json!({"default": env.get_utf8("MISTRAL_TRANSCRIPTION_MODEL")?});
     let mut ollama = provider(
         "ollama",
         "OLLAMA_URL",

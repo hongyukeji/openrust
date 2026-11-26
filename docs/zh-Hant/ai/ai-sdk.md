@@ -925,6 +925,17 @@ let transcript = Transcription::from_storage(&path, None).await?.language("en").
 
 已儲存於磁碟的錄音用 `Transcription::from_storage` 載入，也可用 `from_path`、`from_upload` 或 `from_bytes` 讀取本機輸入。已知語言時設定 `language()`。需要說話者和分段時間時，使用 `diarize(true)` 並選擇支援此功能的模型。回應包含文字與上游實際回報的用量。OpenAI 相容連線可透過 `models.audio` 或 `models.transcription` 啟用相應能力。
 
+Mistral 沿用 `Audio` 和 `Transcription` 入口。設定 `MISTRAL_API_KEY`，需要替換服務位址時設定 `MISTRAL_URL`。
+
+```dotenv
+AI_AUDIO_PROVIDER=mistral
+MISTRAL_AUDIO_MODEL=voxtral-mini-tts-3-0
+AI_TRANSCRIPTION_PROVIDER=mistral
+MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
+```
+
+語音預設回傳 MP3，也支援 WAV、Opus、FLAC 和 PCM。`male()` 使用 `en_paul_neutral`，預設音色和 `female()` 使用 `gb_jane_neutral`。可透過 `voice()` 指定 Mistral 音色 ID。此驅動沿用 Laravel 的對應方式，朗讀風格透過輸入文字表達。`diarize(true)` 請求帶有說話者標記的分段，優先於 `language()`。
+
 ## 分類 {#classification}
 
 將 `AI_CLASSIFICATION_PROVIDER` 設為連線名稱，並將該連線的預設模型設為支援對應 Decisions API 的模型 ID。

@@ -4,6 +4,7 @@ use bytes::Bytes;
 use openrust::{
     filesystem::Visibility,
     http::{HttpFuture, UploadedFile},
+    support::Str,
 };
 use serde_json::json;
 
@@ -324,6 +325,57 @@ impl AudioProvider for OpenAiAudioProvider {
                 .map_err(transport_error)?;
             let response = validate(Ok(response))?;
             let content = response.body().map_err(|_| AiError::InvalidResponse)?;
+            AudioResponse::from_bytes(content, prompt.format, self.name(), prompt.model)
+                .map_err(|_| AiError::InvalidResponse)
+        })
+    }
+}
+
+pub(crate) struct MistralAudioProvider(pub(crate) Arc<Connection>);
+
+impl AudioProvider for MistralAudioProvider {
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+
+    fn default_audio_model(&self) -> AiResult<&str> {
+        self.0.default_audio_model()
+    }
+
+    fn generate_audio<'a>(
+        &'a self,
+        prompt: AudioPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<AudioResponse>> {
+        Box::pin(async move {
+            prompt.validate()?;
+            if prompt.format == AudioFormat::Aac {
+                return Err(AiError::InvalidConfiguration("audio.format"));
+            }
+            let voice_id = match prompt.voice {
+                AudioVoice::Default | AudioVoice::Female => "gb_jane_neutral",
+                AudioVoice::Male => "en_paul_neutral",
+                AudioVoice::Named(name) => name,
+            };
+            let body = json!({
+                "model": prompt.model,
+                "input": prompt.text,
+                "voice_id": voice_id,
+                "response_format": prompt.format.extension(),
+            });
+            #[derive(serde::Deserialize)]
+            struct Speech {
+                audio_data: String,
+            }
+            let response: Speech = validate(
+                self.0
+                    .request(Some(prompt.timeout))?
+                    .post("audio/speech", &body)
+                    .await,
+            )?
+            .json()
+            .map_err(|_| AiError::InvalidResponse)?;
+            let content =
+                Str::from_base64(&response.audio_data).map_err(|_| AiError::InvalidResponse)?;
             AudioResponse::from_bytes(content, prompt.format, self.name(), prompt.model)
                 .map_err(|_| AiError::InvalidResponse)
         })

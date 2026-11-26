@@ -636,9 +636,15 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `mistral` 具名连接复用 Chat Completions 的请求、工具步骤和 SSE 解析，保留原生 `document_url`、嵌套推理块和 `model_length` 结束原因。模型目录使用 `/models`。向量使用固定 Laravel 的原生请求字段，按输入索引复原响应顺序，校验指定维度。默认 URL 为 `https://api.mistral.ai/v1`，应用可覆盖 URL 并显式选择文本与向量模型。
 
-独立 Artisan 与真实 HTTP 经本地协议服务验证目录、结构化提示、代理路径、Bearer、工具 ID 和结果、流式推理与答案分离、截断返回错误、PNG 与 Markdown 附件、批量向量及用量。23 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。语音合成与音频转录待实现，官方账户实机结果待验收。
+独立 Artisan 与真实 HTTP 经本地协议服务验证目录、结构化提示、代理路径、Bearer、工具 ID 和结果、流式推理与答案分离、截断返回错误、PNG 与 Markdown 附件、批量向量及用量。23 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。官方账户实机结果待验收。
 
 - [固定 Laravel Mistral Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Mistral/MistralGateway.php) · [Mistral Chat](https://docs.mistral.ai/api/endpoint/chat) · [Mistral 推理块](https://docs.mistral.ai/inference/conversations/reasoning) · [Mistral Embeddings](https://docs.mistral.ai/api/endpoint/embeddings)
+
+AI-06 接通同一 Mistral 连接的语音合成和音频转录。语音沿用固定 Laravel 的默认 MP3 和音色映射，按官方格式补充 WAV、Opus、FLAC、PCM，校验 Base64 与解码后的音频。转录按基线选择语言提示或说话人分段，保留上游模型、说话人、时间戳、Token 及音频秒数。
+
+独立 Artisan 通过本地协议服务获取真实编码的 MP3 并保存到私有 Storage。另一 HTTP 进程从 Storage 读取并逐字节核对 multipart 上传。验收覆盖代理路径、鉴权、MP3／WAV／Opus／FLAC／PCM、默认及自定义音色、模型覆盖、无标签分段、AAC 拒绝、无效 Base64 和格式不匹配。19 项 SDK 回归、严格 Clippy 和三语文档站点检查通过。官方账户实机结果继续待验。
+
+- [Mistral Speech API](https://docs.mistral.ai/api/endpoint/audio/speech) · [Mistral Transcriptions API](https://docs.mistral.ai/api/endpoint/audio/transcriptions)
 
 ## AI-03 流式工具审批事件
 

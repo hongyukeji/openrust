@@ -925,6 +925,17 @@ Use `Audio::of(text)` or the `ToAudio` extension on a string. Set the voice with
 
 Use `Transcription::from_storage` for recordings on a disk, or `from_path`, `from_upload` or `from_bytes` for local input. Call `language()` when the language is known. To get speaker labels and timed segments, enable `diarize(true)` and select a model that supports it. Responses include the text and upstream usage when reported. OpenAI-compatible connections can enable either capability with `models.audio` or `models.transcription`.
 
+Mistral uses the same `Audio` and `Transcription` entry points. Set `MISTRAL_API_KEY` and optionally override the connection with `MISTRAL_URL`.
+
+```dotenv
+AI_AUDIO_PROVIDER=mistral
+MISTRAL_AUDIO_MODEL=voxtral-mini-tts-3-0
+AI_TRANSCRIPTION_PROVIDER=mistral
+MISTRAL_TRANSCRIPTION_MODEL=voxtral-mini-transcribe-3-0
+```
+
+Speech defaults to MP3 and also supports WAV, Opus, FLAC and PCM. `male()` selects `en_paul_neutral`, while the default and `female()` select `gb_jane_neutral`. Use `voice()` for a Mistral voice ID. The Mistral driver follows Laravel’s mapping and takes speech direction from the input text. `diarize(true)` requests speaker segments and takes precedence over `language()`.
+
 ## Classification {#classification}
 
 Set `AI_CLASSIFICATION_PROVIDER` to the connection name and set its default model to an ID that supports the provider's Decisions API.
