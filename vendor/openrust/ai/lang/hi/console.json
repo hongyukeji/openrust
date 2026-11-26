@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "AI कनेक्शन चुनें",
+    "choose_model": "मॉडल चुनें",
+    "manual_model": "मॉडल आईडी स्वयं दर्ज करें",
+    "model_label": "मॉडल :model",
+    "input_model": "मॉडल आईडी दर्ज करें",
+    "confirm_save": "क्या :provider के मॉडल को :variable में सहेजना है?",
+    "saved_cached": "मॉडल सहेज लिया गया है। उपयोग से पहले ऐप की कॉन्फ़िगरेशन कैश फिर से बनाएँ।"
+  }
+}

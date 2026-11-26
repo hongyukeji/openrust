@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Kies een AI-verbinding",
+    "choose_model": "Kies een model",
+    "manual_model": "Voer handmatig een model-ID in",
+    "model_label": "Model :model",
+    "input_model": "Voer de model-ID in",
+    "confirm_save": "Het model voor :provider opslaan in :variable?",
+    "saved_cached": "Het model is opgeslagen. Genereer de configuratiecache van de applicatie opnieuw voordat je het model gebruikt."
+  }
+}

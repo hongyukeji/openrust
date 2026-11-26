@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Choisir une connexion IA",
+    "choose_model": "Choisir un modèle",
+    "manual_model": "Saisir un identifiant de modèle",
+    "model_label": "Modèle :model",
+    "input_model": "Saisissez l’identifiant du modèle",
+    "confirm_save": "Enregistrer le modèle de :provider dans :variable ?",
+    "saved_cached": "Le modèle a été enregistré. Régénérez le cache de configuration de l’application avant de l’utiliser."
+  }
+}

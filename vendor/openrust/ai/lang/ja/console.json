@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "AI 接続を選択",
+    "choose_model": "モデルを選択",
+    "manual_model": "モデル ID を手入力",
+    "model_label": "モデル :model",
+    "input_model": "モデル ID を入力",
+    "confirm_save": "接続 :provider のモデルを :variable に保存しますか？",
+    "saved_cached": "モデルを保存しました。利用する前にアプリケーションの設定キャッシュを再生成してください。"
+  }
+}

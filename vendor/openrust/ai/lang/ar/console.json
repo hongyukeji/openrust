@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "اختر اتصال الذكاء الاصطناعي",
+    "choose_model": "اختر نموذجًا",
+    "manual_model": "أدخل معرّف النموذج يدويًا",
+    "model_label": "النموذج :model",
+    "input_model": "أدخل معرّف النموذج",
+    "confirm_save": "هل تريد حفظ نموذج :provider في :variable؟",
+    "saved_cached": "تم حفظ النموذج. أعد إنشاء ذاكرة التخزين المؤقت لإعدادات التطبيق قبل استخدامه."
+  }
+}

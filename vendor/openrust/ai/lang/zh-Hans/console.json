@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "选择 AI 连接",
+    "choose_model": "选择模型",
+    "manual_model": "手填模型 ID",
+    "model_label": "模型：:model",
+    "input_model": "输入模型 ID",
+    "confirm_save": "将 :provider 的模型保存到 :variable？",
+    "saved_cached": "已保存模型。请重新生成应用配置缓存后使用。"
+  }
+}

@@ -2,14 +2,16 @@ use std::{io::ErrorKind, path::PathBuf};
 
 use openrust::{
     config::{Environment, EnvironmentDocument, EnvironmentFile, EnvironmentFileError},
-    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    console::{
+        ChoiceQuestion, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
+    },
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     support::facades::Artisan,
 };
 use serde_json::Value;
 
-use crate::{Ai, AiError, AiManager};
+use crate::{Ai, AiError, AiManager, localization};
 
 use super::{console_error, write_line};
 
@@ -96,13 +98,19 @@ impl Command for SelectModel {
                     }) => None,
                     Err(error) => return Err(environment_error(error)),
                 };
-                if interactive
-                    && !input
-                        .io(output)
-                        .confirm(&format!("将 {provider} 的模型保存到 {variable}？"))
-                        .await?
-                {
-                    return Ok(0);
+                if interactive {
+                    let prompt = localization::text(
+                        "ai::console.select_model.confirm_save",
+                        &[
+                            ("provider".into(), provider.clone()),
+                            ("variable".into(), variable.into()),
+                        ]
+                        .into(),
+                        &format!("将 {provider} 的模型保存到 {variable}？"),
+                    );
+                    if !input.io(output).confirm(&prompt).await? {
+                        return Ok(0);
+                    }
                 }
                 if let Some(mut editor) = editor {
                     editor.set_many(changes).map_err(environment_error)?;
@@ -118,7 +126,10 @@ impl Command for SelectModel {
                         .map_err(environment_error)?;
                 }
                 if app.configuration_is_cached() {
-                    output.info("已保存模型。请重新生成应用配置缓存后使用。");
+                    output.info(&message(
+                        "saved_cached",
+                        "已保存模型。请重新生成应用配置缓存后使用。",
+                    ));
                 }
             }
             write_line(output, &model)?;
@@ -177,7 +188,7 @@ async fn choose_provider(
     available.sort();
     input
         .io(output)
-        .choice("选择 AI 连接", available)
+        .choice(&message("choose_connection", "选择 AI 连接"), available)
         .await?
         .as_str()
         .map(str::to_owned)
@@ -201,23 +212,44 @@ async fn choose(
         .filter(|model| !model.chars().any(char::is_control))
         .collect();
     if !models.is_empty() {
-        let mut choices = vec![Value::String("手填模型 ID".into())];
-        choices.extend(
-            models
-                .iter()
-                .map(|model| Value::String(format!("模型：{model}"))),
+        let labels = std::iter::once(message("manual_model", "手填模型 ID")).chain(
+            models.iter().map(|model| {
+                localization::text(
+                    "ai::console.select_model.model_label",
+                    &[("model".into(), model.clone())].into(),
+                    &format!("模型：{model}"),
+                )
+            }),
         );
-        let selected = io.choice("选择模型", choices).await?;
+        let choice = ChoiceQuestion::from_pairs_with_associative(
+            message("choose_model", "选择模型"),
+            labels
+                .enumerate()
+                .map(|(index, label)| (index as i64, label)),
+            None,
+            |_| true,
+        )?;
+        let selected = io.get_output().ask_question(choice.as_question()).await?;
         if let Some(model) = selected
             .as_str()
-            .and_then(|value| value.strip_prefix("模型："))
+            .and_then(|value| value.parse::<usize>().ok())
+            .and_then(|index| index.checked_sub(1))
+            .and_then(|index| models.get(index))
         {
-            return Ok(model.to_owned());
+            return Ok(model.clone());
         }
     }
-    io.ask("输入模型 ID")
+    io.ask(&message("input_model", "输入模型 ID"))
         .await?
         .ok_or_else(|| ConsoleError::new("请提供模型 ID"))
+}
+
+fn message(key: &str, fallback: &str) -> String {
+    localization::text(
+        &format!("ai::console.select_model.{key}"),
+        &Default::default(),
+        fallback,
+    )
 }
 
 fn valid_variable(name: &str) -> bool {

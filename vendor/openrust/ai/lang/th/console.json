@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "เลือกการเชื่อมต่อ AI",
+    "choose_model": "เลือกโมเดล",
+    "manual_model": "กรอกรหัสโมเดลด้วยตนเอง",
+    "model_label": "โมเดล :model",
+    "input_model": "กรอกรหัสโมเดล",
+    "confirm_save": "บันทึกโมเดลสำหรับ :provider ใน :variable หรือไม่",
+    "saved_cached": "บันทึกโมเดลแล้ว โปรดสร้างแคชการกำหนดค่าแอปพลิเคชันใหม่ก่อนใช้งาน"
+  }
+}

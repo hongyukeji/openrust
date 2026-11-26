@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Scegli una connessione AI",
+    "choose_model": "Scegli un modello",
+    "manual_model": "Inserisci manualmente un ID del modello",
+    "model_label": "Modello :model",
+    "input_model": "Inserisci l’ID del modello",
+    "confirm_save": "Salvare il modello per :provider in :variable?",
+    "saved_cached": "Il modello è stato salvato. Rigenera la cache di configurazione dell’applicazione prima di utilizzarlo."
+  }
+}

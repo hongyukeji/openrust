@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "KI-Verbindung auswählen",
+    "choose_model": "Modell auswählen",
+    "manual_model": "Modell-ID manuell eingeben",
+    "model_label": "Modell :model",
+    "input_model": "Modell-ID eingeben",
+    "confirm_save": "Das Modell für :provider in :variable speichern?",
+    "saved_cached": "Das Modell wurde gespeichert. Erstellen Sie den Anwendungskonfigurationscache vor der Verwendung neu."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Pilih koneksi AI",
+    "choose_model": "Pilih model",
+    "manual_model": "Masukkan ID model secara manual",
+    "model_label": "Model :model",
+    "input_model": "Masukkan ID model",
+    "confirm_save": "Simpan model untuk :provider di :variable?",
+    "saved_cached": "Model telah disimpan. Buat ulang cache konfigurasi aplikasi sebelum memakainya."
+  }
+}

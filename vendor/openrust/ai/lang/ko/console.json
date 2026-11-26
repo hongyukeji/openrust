@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "AI 연결 선택",
+    "choose_model": "모델 선택",
+    "manual_model": "모델 ID 직접 입력",
+    "model_label": "모델 :model",
+    "input_model": "모델 ID를 입력하세요",
+    "confirm_save": "연결 :provider 에서 사용할 모델을 :variable 에 저장할까요?",
+    "saved_cached": "모델을 저장했습니다. 사용하기 전에 애플리케이션 설정 캐시를 다시 생성하세요."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Chọn kết nối AI",
+    "choose_model": "Chọn mô hình",
+    "manual_model": "Nhập mã mô hình thủ công",
+    "model_label": "Mô hình :model",
+    "input_model": "Nhập mã mô hình",
+    "confirm_save": "Lưu mô hình của :provider vào :variable?",
+    "saved_cached": "Đã lưu mô hình. Hãy tạo lại bộ nhớ đệm cấu hình của ứng dụng trước khi sử dụng."
+  }
+}

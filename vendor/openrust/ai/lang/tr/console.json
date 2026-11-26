@@ -1,0 +1,11 @@
+{
+  "select_model": {
+    "choose_connection": "Bir yapay zekâ bağlantısı seçin",
+    "choose_model": "Bir model seçin",
+    "manual_model": "Model kimliğini elle girin",
+    "model_label": "Model :model",
+    "input_model": "Model kimliğini girin",
+    "confirm_save": ":provider için modeli :variable değişkenine kaydetmek istiyor musunuz?",
+    "saved_cached": "Model kaydedildi. Kullanmadan önce uygulama yapılandırmasının önbelleğini yeniden oluşturun."
+  }
+}

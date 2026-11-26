@@ -31,6 +31,8 @@ Run `./artisan ai:models deepseek` to list models, or add `--json` to distinguis
 
 Run `./artisan ai:select-model --save --default` to choose a model and save its connection as the application default. Artisan uses the current default or suggests the only configured connection with credentials. To select a specific connection, supply its name. Use `--model=your-model-id` to enter a model manually and `--no-interaction` to run without prompts. Saving uses the application’s selected environment file. If the configuration is cached, rebuild it after saving.
 
+Interactive connection and model selection follow the application locale. Numeric menu choices and the returned model ID stay stable across languages. Override the prompts through `lang/vendor/ai/<locale>/console.json` under `select_model`.
+
 Use `agent(instructions).with_messages(history)` to include earlier turns. Build the history in order with `Message::user(text)` and `Message::assistant(text)`. Both `prompt` and `stream` send those turns before the latest prompt. Artisan accepts the same history as a JSON array of `role` and `content` entries in `--messages`.
 
 In an HTTP route, return the default SDK SSE events with `agent(instructions).stream(prompt).await?.to_response()`. Use `into_stream()` to consume the events directly.
