@@ -576,14 +576,17 @@ The default description and the `task` field help are translated when the tool s
 
 Use `Skill::from_directory` to open a directory with `SKILL.md`. YAML metadata supplies the skill name and description, and the Markdown body supplies the instructions. Use `Skill::new` to define a skill in Rust and add any inline resources to its `files`.
 
-Register the skills with `LoadSkill::new` as an Agent tool. The tool description advertises the skill names and descriptions. The model calls `load_skill` with `name` to load the instructions and file list, or with `name` and a relative `path` to read a bundled UTF-8 file up to 256 KiB. The tool’s prompts use the application locale.
+Use `with_skills` for an anonymous Agent or implement `Agent::skills` for a named Agent. Sources can be a `Skill`, a directory of skill folders, or a resolver. A resolver runs when a real call prepares its tools. When the Agent also registers a `LoadSkill`, OpenRust merges its declared skills into that tool.
+
+The model calls `load_skill` with `name` to read the instructions and file list. Add a relative `path` to read a bundled UTF-8 file up to 256 KiB. The tool's prompts use the application locale.
+
+Use `LoadSkill::new` to register resolved skills directly. `LoadSkill::from_sources([])` discovers skills under the application's `resources/skills` directory.
 
 ```rust
-use std::sync::Arc;
-use openrust_ai::{LoadSkill, Skill, agent};
+use openrust_ai::{Skill, agent};
 
 let skill = Skill::from_directory("resources/skills/catalog")?;
-let assistant = agent("").with_tools(vec![Arc::new(LoadSkill::new(skill))]);
+let assistant = agent("").with_skills(skill);
 ```
 
 ### Tool approval policy {#tool-approval}

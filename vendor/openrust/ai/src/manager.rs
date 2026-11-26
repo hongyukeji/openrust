@@ -703,7 +703,7 @@ impl AiManager {
             attachments,
             structured_output,
         };
-        let tools = agent.tools();
+        let tools = crate::load_skill::tools_for(agent)?;
         if tools.is_empty()
             && let Some(choice) = &choice
         {
@@ -793,7 +793,7 @@ impl AiManager {
         if !agent.middleware().is_empty() {
             return Err(AiError::StreamingMiddlewareNotSupported);
         }
-        let tools = agent.tools();
+        let tools = crate::load_skill::tools_for(agent)?;
         if tools.is_empty()
             && let Some(choice) = &choice
         {

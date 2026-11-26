@@ -120,7 +120,7 @@ pub use reranking::{
     RerankingProvider, RerankingResponse, Reranks,
 };
 pub use similarity_search::SimilaritySearch;
-pub use skill::Skill;
+pub use skill::{Skill, SkillSource};
 pub use stores::{
     FakeStoreGateway, ProviderStoreFilePage, ProviderStorePage, RecordedStoreCreation,
     RecordedStoreDeletion, Store, StoreFile, StoreFileCounts, StoreFileInfo, StoreFilePage,

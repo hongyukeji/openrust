@@ -56,6 +56,10 @@ pub trait Agent: Send + Sync + 'static {
         Vec::new()
     }
 
+    fn skills(&self) -> Vec<crate::SkillSource> {
+        Vec::new()
+    }
+
     fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {
         Vec::new()
     }
@@ -213,6 +217,7 @@ pub struct AnonymousAgent {
     messages: Vec<Message>,
     attachments: Vec<Attachment>,
     tools: Vec<Arc<dyn Tool>>,
+    skills: Vec<crate::SkillSource>,
     tool_choice: Option<ToolChoice>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     max_steps: Option<usize>,
@@ -227,6 +232,7 @@ pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
         messages: Vec::new(),
         attachments: Vec::new(),
         tools: Vec::new(),
+        skills: Vec::new(),
         tool_choice: None,
         middleware: Vec::new(),
         max_steps: None,
@@ -260,6 +266,14 @@ impl AnonymousAgent {
 
     pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
         self.tools = tools;
+        self
+    }
+
+    pub fn with_skills(
+        mut self,
+        skills: impl IntoIterator<Item = impl Into<crate::SkillSource>>,
+    ) -> Self {
+        self.skills = skills.into_iter().map(Into::into).collect();
         self
     }
 
@@ -324,6 +338,10 @@ impl Agent for AnonymousAgent {
 
     fn tools(&self) -> Vec<Arc<dyn Tool>> {
         self.tools.clone()
+    }
+
+    fn skills(&self) -> Vec<crate::SkillSource> {
+        self.skills.clone()
     }
 
     fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {

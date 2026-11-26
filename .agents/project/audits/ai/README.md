@@ -595,9 +595,17 @@ OpenAI、Anthropic、Gemini 网关的凭证拒绝与 SSE 终止失败提示使�
 
 `Skill::new` 定义内联技能，`Skill::from_directory` 读取 `SKILL.md` 的 YAML 元数据及 Markdown 正文。YAML 使用纯 Rust 的 Saphyr，配套文件通过框架已使用的 `cap-std` 在对应目录中读取。应用通过 `LoadSkill::new` 显式注册技能。出站 Schema 仅列技能名与描述，模型请求时才发送正文及配套文件或读取指定 UTF-8 文件。重复名称按配置中首次出现的技能处理。
 
-真实 Artisan 与并发 HTTP 经本地 Responses 上游验证 18 语、应用覆写、回退、目录名称回退、折叠 YAML、畸形文档、内联资源、256 KiB 配套文件边界、二进制及目录外路径。流式工具执行恢复创建流时的语言，防止 HTTP 正文延后读取时切回默认语言。SDK 工具、UI 与会话回归、严格 Clippy 和三语文档通过。Agent 自动装配、目录集合发现及延迟来源合并继续按固定 Laravel 契约核对。
+真实 Artisan 与并发 HTTP 经本地 Responses 上游验证 18 语、应用覆写、回退、目录名称回退、折叠 YAML、畸形文档、内联资源、256 KiB 配套文件边界、二进制及目录外路径。流式工具执行恢复创建流时的语言，防止 HTTP 正文延后读取时切回默认语言。SDK 工具、UI 与会话回归、严格 Clippy 和三语文档通过。
 
 - [固定 Laravel Skill](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Skills/Skill.php) · [固定 Laravel LoadSkill](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/LoadSkill.php) · [Agent Skills 规范](https://agentskills.io/specification) · [Saphyr 文档](https://docs.rs/saphyr/0.4.1/saphyr/)
+
+### AI-03 Agent 技能自动装配
+
+固定 Laravel 的 `HasSkills` 使用 Rust `Agent::skills` 对应，匿名 Agent 使用 `with_skills` 声明。技能来源可为内联实例、集合目录或延迟解析函数。显式 `LoadSkill::from_sources([])` 发现应用的 `resources/skills`。已有的 `LoadSkill` 与 Agent 声明合并为一个工具，已有同名技能优先。普通调用、流式调用及审批恢复共用工具装配。
+
+实际 Artisan 验证匿名声明、已有加载器合并、默认目录和解析器只在实际调用时执行一次。真实并发 HTTP 验证具名 Agent 的流式用法及 18 语。独立 SQLite 的审批暂停与恢复验收确认两段出站 Schema 都包含声明的技能。SDK 工具、UI 与会话回归、严格 Clippy 和三语文档通过。
+
+- [固定 Laravel HasSkills](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/HasSkills.php) · [固定 Laravel 技能来源与合并](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/LoadSkill.php)
 
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 

@@ -211,6 +211,10 @@ impl Agent for StructuredAnonymousAgent {
         self.agent.tools()
     }
 
+    fn skills(&self) -> Vec<crate::SkillSource> {
+        self.agent.skills()
+    }
+
     fn middleware(&self) -> Vec<Arc<dyn AgentMiddleware>> {
         self.agent.middleware()
     }

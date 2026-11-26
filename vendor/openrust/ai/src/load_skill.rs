@@ -1,12 +1,16 @@
-use std::{borrow::Cow, collections::BTreeMap, fmt::Write as _};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Write as _, sync::Arc};
 
 use openrust::{
+    contracts::foundation::Application as _,
     http::HttpFuture,
     json_schema::{JsonSchemaTypeFactory, types::ObjectType},
+    support::facades::{App, Log},
 };
 use serde::Deserialize;
 
-use crate::{AiResult, Skill, Tool, ToolRequest, localization, skill::Resource};
+use crate::{
+    Agent, AiError, AiResult, Skill, SkillSource, Tool, ToolRequest, localization, skill::Resource,
+};
 
 const DESCRIPTION: &str = "匹配任务时加载技能说明，也可读取指定的配套文件。";
 
@@ -22,6 +26,20 @@ impl LoadSkill {
             sources.entry(skill.name.clone()).or_insert(skill);
         }
         Self { skills: sources }
+    }
+
+    pub fn from_sources(sources: impl IntoIterator<Item = SkillSource>) -> AiResult<Self> {
+        let mut sources = sources.into_iter().peekable();
+        if sources.peek().is_none() {
+            let application = App::get_instance().map_err(|_| AiError::Unavailable)?;
+            let source = SkillSource::Directory(application.base_path().join("resources/skills"));
+            return Ok(Self::new(source.resolve()?));
+        }
+        let mut skills = Vec::new();
+        for source in sources {
+            skills.extend(source.resolve()?);
+        }
+        Ok(Self::new(skills))
     }
 
     fn instructions(&self, skill: &Skill) -> String {
@@ -61,6 +79,10 @@ impl Tool for LoadSkill {
 
     fn description(&self) -> &str {
         DESCRIPTION
+    }
+
+    fn as_load_skill(&self) -> Option<&Self> {
+        Some(self)
     }
 
     fn localized_description(&self) -> Cow<'_, str> {
@@ -131,6 +153,34 @@ impl Tool for LoadSkill {
             ))
         })
     }
+}
+
+pub(crate) fn tools_for(agent: &impl Agent) -> AiResult<Vec<Arc<dyn Tool>>> {
+    let mut tools = agent.tools();
+    let sources = agent.skills();
+    if sources.is_empty() {
+        return Ok(tools);
+    }
+    let mut loader = LoadSkill::from_sources(sources)?;
+    if let Some((slot, existing)) = tools
+        .iter()
+        .enumerate()
+        .find_map(|(slot, tool)| tool.as_load_skill().map(|loader| (slot, loader)))
+    {
+        let mut skills = existing.skills.clone();
+        for (name, skill) in loader.skills {
+            skills.entry(name).or_insert(skill);
+        }
+        loader.skills = skills;
+        tools[slot] = Arc::new(loader);
+        let _ = Log::warning(
+            "已将 Agent 声明的技能合并到现有技能加载工具",
+            &Default::default(),
+        );
+    } else {
+        tools.push(Arc::new(loader));
+    }
+    Ok(tools)
 }
 
 fn text(key: &str, fallback: &str) -> String {

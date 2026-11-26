@@ -29,6 +29,11 @@ pub trait Tool: Send + Sync {
         Cow::Borrowed(self.description())
     }
     fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType;
+    #[doc(hidden)]
+    fn as_load_skill(&self) -> Option<&crate::LoadSkill> {
+        None
+    }
+
     fn should_request_approval(&self, _request: &ToolRequest<'_>) -> Option<crate::Approval> {
         None
     }

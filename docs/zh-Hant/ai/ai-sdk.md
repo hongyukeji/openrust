@@ -576,14 +576,17 @@ let response = agent("Search the policy documents before answering.")
 
 用 `Skill::from_directory` 開啟含有 `SKILL.md` 的目錄。YAML 中繼資料宣告技能名稱與說明，Markdown 正文提供操作指引。也可用 `Skill::new` 在 Rust 中定義技能，透過 `files` 提供內嵌資源。
 
-透過 `LoadSkill::new` 將技能註冊為 Agent 工具。工具說明列出技能名稱與介紹。模型呼叫 `load_skill` 時，傳入 `name` 讀取操作指引和檔案清單，另傳相對 `path` 讀取不超過 256 KiB 的 UTF-8 配套檔案。工具提示使用應用程式目前的語言。
+匿名 Agent 可用 `with_skills` 宣告技能，具名 Agent 可實作 `Agent::skills`。來源可為 `Skill`、包含多個技能的目錄或解析函式。實際呼叫準備工具時執行解析函式。Agent 同時註冊了 `LoadSkill` 時，OpenRust 會把宣告的技能合併至該工具。
+
+模型呼叫 `load_skill` 時，傳入 `name` 讀取操作指引和檔案清單，另傳相對 `path` 讀取不超過 256 KiB 的 UTF-8 配套檔案。工具提示使用應用程式目前的語言。
+
+使用 `LoadSkill::new` 可直接註冊已解析的技能。`LoadSkill::from_sources([])` 會從應用程式的 `resources/skills` 目錄尋找技能。
 
 ```rust
-use std::sync::Arc;
-use openrust_ai::{LoadSkill, Skill, agent};
+use openrust_ai::{Skill, agent};
 
 let skill = Skill::from_directory("resources/skills/catalog")?;
-let assistant = agent("").with_tools(vec![Arc::new(LoadSkill::new(skill))]);
+let assistant = agent("").with_skills(skill);
 ```
 
 ### 工具審批策略 {#tool-approval}

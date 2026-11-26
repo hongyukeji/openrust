@@ -2,6 +2,7 @@ use std::{
     collections::BTreeMap,
     io::{ErrorKind, Read as _},
     path::{Component, Path, PathBuf},
+    sync::Arc,
 };
 
 use cap_std::{ambient_authority, fs::Dir};
@@ -44,7 +45,11 @@ impl Skill {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(AiError::InvalidSkill),
         };
-        let document = match read_file(&directory, Path::new(MANIFEST)) {
+        Self::from_open_dir(path, &directory)
+    }
+
+    fn from_open_dir(path: &Path, directory: &Dir) -> AiResult<Option<Self>> {
+        let document = match read_file(directory, Path::new(MANIFEST)) {
             Resource::Text(document) => document,
             Resource::Missing => return Ok(None),
             Resource::TooLarge | Resource::Binary => return Err(AiError::InvalidSkill),
@@ -122,6 +127,70 @@ impl Skill {
     fn open_directory(&self) -> Option<Dir> {
         Dir::open_ambient_dir(self.path.as_ref()?, ambient_authority()).ok()
     }
+}
+
+/// 为技能加载工具提供内联技能、集合目录或运行时解析器。
+#[derive(Clone)]
+pub enum SkillSource {
+    Skill(Skill),
+    Directory(PathBuf),
+    Resolver(Arc<dyn Fn() -> AiResult<Vec<Skill>> + Send + Sync>),
+}
+
+impl SkillSource {
+    pub fn resolver(resolve: impl Fn() -> AiResult<Vec<Skill>> + Send + Sync + 'static) -> Self {
+        Self::Resolver(Arc::new(resolve))
+    }
+
+    pub(crate) fn resolve(self) -> AiResult<Vec<Skill>> {
+        match self {
+            Self::Skill(skill) => Ok(vec![skill]),
+            Self::Directory(path) => discover(&path),
+            Self::Resolver(resolve) => resolve(),
+        }
+    }
+}
+
+impl From<Skill> for SkillSource {
+    fn from(skill: Skill) -> Self {
+        Self::Skill(skill)
+    }
+}
+
+impl From<PathBuf> for SkillSource {
+    fn from(path: PathBuf) -> Self {
+        Self::Directory(path)
+    }
+}
+
+fn discover(path: &Path) -> AiResult<Vec<Skill>> {
+    let directory = match Dir::open_ambient_dir(path, ambient_authority()) {
+        Ok(directory) => directory,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(_) => return Err(AiError::InvalidSkill),
+    };
+    let mut directories = Vec::new();
+    for entry in directory.entries().map_err(|_| AiError::InvalidSkill)? {
+        let entry = entry.map_err(|_| AiError::InvalidSkill)?;
+        if entry
+            .file_type()
+            .map_err(|_| AiError::InvalidSkill)?
+            .is_dir()
+        {
+            directories.push(entry.file_name());
+        }
+    }
+    directories.sort_unstable();
+    let mut skills = Vec::new();
+    for name in directories {
+        let child = directory
+            .open_dir(&name)
+            .map_err(|_| AiError::InvalidSkill)?;
+        if let Some(skill) = Skill::from_open_dir(&path.join(name), &child)? {
+            skills.push(skill);
+        }
+    }
+    Ok(skills)
 }
 
 fn delimiter(line: &str) -> bool {

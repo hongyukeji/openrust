@@ -232,7 +232,7 @@ impl<A: Agent> PendingConversation<'_, A> {
         let outcome = checkpoint
             .resume(
                 provider.as_ref(),
-                self.agent.tools(),
+                crate::load_skill::tools_for(self.agent)?,
                 self.agent.middleware(),
                 &decisions,
                 &mut session,
