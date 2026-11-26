@@ -56,3 +56,9 @@ python3 -B tests/webhooks_licenses.py --image openrust:webhook-licenses-default-
 以 UID/GID 10001 和只读根文件系统复验包发现、37 项 SQLite 迁移及幂等重跑、配置与路由缓存、接收积压、缺失出站策略的拒绝和独立 Worker 的空队列检查。缓存前后均实际访问 HTTP，重启后 `/up`、`/`、`/api` 均返回 200，SIGTERM 退出码为 0。
 
 `ldd` 列出的原生库由 Debian 的 glibc 和 libgcc 提供，可读取其版权文件。ELF 同时定义了 `pcre2_compile_8` 和 `pcre2_jit_compile_8`，表明交叉构建包含静态 PCRE2。本次镜像的根声明及随附 Webhook 声明未包含该静态原文，单列后续打包。证据在 `target/tmp/webhook-runtime-amd64/`。物理 x86_64 运行及发布渠道的完整制品核对仍开放。
+
+### 静态 PCRE2 和 SLJIT 原文
+
+核对 `pcre2-sys 0.2.10` crate 的 SHA-256 与 `Cargo.lock` 一致。其头文件标明 PCRE2 10.46，SLJIT 头文件与该版本固定子模块 `e51eabbfb8eabc6526f56e4e88b29fb10d1ee048` 逐字节一致。复用运行镜像已有的根 `THIRD_PARTY_NOTICES.md`，保存 Rust 封装的 MIT／Unlicense、PCRE2 和 SLJIT 的完整原文。 [PCRE2 10.46 原文](https://github.com/PCRE2Project/pcre2/blob/pcre2-10.46/LICENCE.md) · [SLJIT 原文](https://github.com/zherczeg/sljit/blob/e51eabbfb8eabc6526f56e4e88b29fb10d1ee048/LICENSE)
+
+对同一源码叠加声明后重建 amd64 镜像，从实际只读容器取回声明，逐字节核对四份原文及整份根声明。原有 10 个许可文件核对仍通过。复测 HTTP、37 项 Artisan 迁移、重复迁移、缓存重启、空队列 Worker 及 SIGTERM 退出 0。没有改动部署命令、包功能或版权原文。其他静态依赖和发布渠道保留逐制品核对。
