@@ -123,6 +123,29 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }),
     )?;
     Artisan::command_with(
+        "ai:gateway:billing:report {id : 导入返回的供应商账单 ID}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway =
+                    Gateway::get_facade_root().map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway
+                    .usage_store
+                    .as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let id = argument(input, "id")
+                    .filter(|id| id.len() == 64 && id.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                    .ok_or_else(|| ConsoleError::new("供应商账单 ID 必须为 64 位十六进制值"))?;
+                let report = store
+                    .cost_report(id.to_ascii_lowercase())
+                    .await
+                    .map_err(|_| ConsoleError::new("无法读取供应商账单记录"))?
+                    .ok_or_else(|| ConsoleError::new("未找到供应商账单记录"))?;
+                write_json(output, json!(report))?;
+                Ok(0)
+            })
+        }),
+    )?;
+    Artisan::command_with(
         "ai:gateway:budget:show {group : 分组或连接名称} {--account : 按上游连接查询}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {

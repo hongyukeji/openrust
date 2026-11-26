@@ -23,6 +23,7 @@ const PER_MILLION: i128 = 1_000_000;
 pub(crate) struct Amount(i128);
 
 impl Amount {
+    pub(crate) const ZERO: Self = Self(0);
     pub(crate) const ONE: Self = Self(SCALE);
 
     pub(crate) fn from_atoms(atoms: i64) -> Self {
@@ -32,15 +33,33 @@ impl Amount {
     pub(crate) fn atoms(self) -> Option<i64> {
         self.0.try_into().ok()
     }
-}
 
-impl TryFrom<String> for Amount {
-    type Error = &'static str;
+    pub(crate) fn ledger(text: &str) -> DatabaseResult<Self> {
+        Self::parse_decimal(text, 27).map_err(|_| DatabaseError::InvalidScalar)
+    }
 
-    fn try_from(text: String) -> Result<Self, Self::Error> {
-        let (whole, fraction) = text.split_once('.').unwrap_or((&text, ""));
+    pub(crate) fn add(self, other: Self) -> DatabaseResult<Self> {
+        self.0
+            .checked_add(other.0)
+            .map(Self)
+            .ok_or(DatabaseError::InvalidScalar)
+    }
+
+    pub(crate) fn difference(self, other: Self) -> DatabaseResult<Self> {
+        self.0
+            .checked_sub(other.0)
+            .map(Self)
+            .ok_or(DatabaseError::InvalidScalar)
+    }
+
+    pub(crate) fn is_zero(self) -> bool {
+        self.0 == 0
+    }
+
+    fn parse_decimal(text: &str, width: usize) -> Result<Self, &'static str> {
+        let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
         if whole.is_empty()
-            || whole.len() > 12
+            || whole.len() > width
             || fraction.len() > 12
             || !whole
                 .bytes()
@@ -49,26 +68,43 @@ impl TryFrom<String> for Amount {
         {
             return Err("费率必须是非负十进制金额，整数和小数各最多 12 位");
         }
-        let whole = whole.parse::<i128>().map_err(|_| "无效费率")? * SCALE;
+        let whole = whole
+            .parse::<i128>()
+            .ok()
+            .and_then(|whole| whole.checked_mul(SCALE))
+            .ok_or("金额超出计费范围")?;
         let fraction = if fraction.is_empty() {
             0
         } else {
             fraction.parse::<i128>().map_err(|_| "无效费率")?
                 * 10_i128.pow(12 - fraction.len() as u32)
         };
-        Ok(Self(whole + fraction))
+        whole
+            .checked_add(fraction)
+            .map(Self)
+            .ok_or("金额超出计费范围")
+    }
+}
+
+impl TryFrom<String> for Amount {
+    type Error = &'static str;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        Self::parse_decimal(&text, 12)
     }
 }
 
 impl From<Amount> for String {
     fn from(value: Amount) -> Self {
-        let fraction = format!("{:012}", value.0 % SCALE);
+        let sign = if value.0.is_negative() { "-" } else { "" };
+        let magnitude = value.0.unsigned_abs();
+        let fraction = format!("{:012}", magnitude % SCALE as u128);
         let fraction = fraction.trim_end_matches('0');
-        let whole = value.0 / SCALE;
+        let whole = magnitude / SCALE as u128;
         if fraction.is_empty() {
-            whole.to_string()
+            format!("{sign}{whole}")
         } else {
-            format!("{whole}.{fraction}")
+            format!("{sign}{whole}.{fraction}")
         }
     }
 }

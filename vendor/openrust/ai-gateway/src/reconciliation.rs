@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
+    aggregate_costs::{self, ComparedTotal, CostTotal},
     billing::{self, Amount},
     managed_keys::{integer, now, text},
 };
@@ -24,7 +25,10 @@ pub(crate) struct CostReport {
     complete: bool,
     starts_at: i64,
     ends_at: i64,
+    #[serde(default)]
     entries: Vec<CostEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    totals: Vec<CostTotal>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -43,6 +47,23 @@ pub(crate) struct ImportResult {
     complete: bool,
     duplicate: bool,
     entries: Vec<ImportedEntry>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    totals: Vec<ComparedTotal>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct StoredReport {
+    report_id: String,
+    source: String,
+    statement_id: String,
+    revision: i64,
+    complete: bool,
+    starts_at: i64,
+    ends_at: i64,
+    actor: String,
+    imported_at: i64,
+    entries: Vec<StoredEntry>,
+    totals: Vec<ComparedTotal>,
 }
 
 #[derive(Serialize)]
@@ -50,6 +71,16 @@ struct ImportedEntry {
     id: String,
     state: String,
     attempt_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct StoredEntry {
+    #[serde(flatten)]
+    result: ImportedEntry,
+    provider: String,
+    upstream_request_id: String,
+    currency: String,
+    amount: String,
 }
 
 #[derive(Clone, Serialize, PartialEq, Eq)]
@@ -87,6 +118,7 @@ impl CostReport {
             }
         }
         self.entries.sort_by(|left, right| left.id.cmp(&right.id));
+        aggregate_costs::validate(&mut self.totals)?;
         Ok(())
     }
 
@@ -110,20 +142,79 @@ pub(crate) async fn import(
     actor: String,
 ) -> DatabaseResult<ImportResult> {
     report.validate(&actor)?;
+    let query_source = connection.clone();
     connection
         .transaction(
             move |transaction| {
                 let report = report.clone();
                 let actor = actor.clone();
-                Box::pin(async move { insert_report(transaction, &report, &actor).await })
+                let source = query_source.clone();
+                Box::pin(async move { insert_report(transaction, &source, &report, &actor).await })
             },
             3,
         )
         .await
 }
 
+pub(crate) async fn read(
+    connection: &Connection,
+    id: String,
+) -> DatabaseResult<Option<StoredReport>> {
+    connection
+        .transaction(
+            move |transaction| {
+                let id = id.clone();
+                Box::pin(async move {
+                    let Some(header) = transaction
+                        .table(REPORTS)
+                        .select([
+                            "source",
+                            "statement_id",
+                            "revision",
+                            "complete",
+                            "starts_at",
+                            "ends_at",
+                            "actor",
+                            "imported_at",
+                        ])
+                        .r#where("id", "=", id.as_str())
+                        .first()
+                        .await?
+                    else {
+                        return Ok(None);
+                    };
+                    let required = |key| integer(&header, key)?.ok_or(DatabaseError::InvalidScalar);
+                    let complete = match header.get("complete") {
+                        Some(Value::Bool(value)) => *value,
+                        Some(Value::Integer(0) | Value::Unsigned(0)) => false,
+                        Some(Value::Integer(1) | Value::Unsigned(1)) => true,
+                        _ => return Err(DatabaseError::InvalidScalar),
+                    };
+                    let entries = stored_entries(transaction, &id).await?;
+                    let totals = aggregate_costs::load(transaction, &id).await?;
+                    Ok(Some(StoredReport {
+                        report_id: id,
+                        source: text(&header, "source")?,
+                        statement_id: text(&header, "statement_id")?,
+                        revision: required("revision")?,
+                        complete,
+                        starts_at: required("starts_at")?,
+                        ends_at: required("ends_at")?,
+                        actor: text(&header, "actor")?,
+                        imported_at: required("imported_at")?,
+                        entries,
+                        totals,
+                    }))
+                })
+            },
+            1,
+        )
+        .await
+}
+
 async fn insert_report(
     transaction: &mut Transaction,
+    connection: &Connection,
     report: &CostReport,
     actor: &str,
 ) -> DatabaseResult<ImportResult> {
@@ -197,11 +288,27 @@ async fn insert_report(
         }
         entries
     };
+    let totals = if report.totals.is_empty() {
+        Vec::new()
+    } else if inserted == 0 {
+        aggregate_costs::load(transaction, &id).await?
+    } else {
+        aggregate_costs::save(
+            transaction,
+            connection,
+            &id,
+            &report.totals,
+            (report.starts_at, report.ends_at),
+            report.complete,
+        )
+        .await?
+    };
     Ok(ImportResult {
         report_id: id,
         complete: report.complete,
         duplicate: inserted == 0,
         entries,
+        totals,
     })
 }
 
@@ -217,14 +324,48 @@ async fn report_entries(
         .get()
         .await?
         .iter()
+        .map(parse_entry)
+        .collect()
+}
+
+async fn stored_entries(
+    transaction: &mut Transaction,
+    report_id: &str,
+) -> DatabaseResult<Vec<StoredEntry>> {
+    transaction
+        .table(EVIDENCE)
+        .select([
+            "entry_id",
+            "state",
+            "attempt_id",
+            "provider",
+            "upstream_request_id",
+            "currency",
+            "amount",
+        ])
+        .r#where("report_id", "=", report_id)
+        .order_by("entry_id", "asc")
+        .get()
+        .await?
+        .iter()
         .map(|row| {
-            Ok(ImportedEntry {
-                id: text(row, "entry_id")?,
-                state: text(row, "state")?,
-                attempt_id: optional_text(row, "attempt_id")?,
+            Ok(StoredEntry {
+                result: parse_entry(row)?,
+                provider: text(row, "provider")?,
+                upstream_request_id: text(row, "upstream_request_id")?,
+                currency: text(row, "currency")?,
+                amount: text(row, "amount")?,
             })
         })
         .collect()
+}
+
+fn parse_entry(row: &Row) -> DatabaseResult<ImportedEntry> {
+    Ok(ImportedEntry {
+        id: text(row, "entry_id")?,
+        state: text(row, "state")?,
+        attempt_id: optional_text(row, "attempt_id")?,
+    })
 }
 
 async fn match_attempt(
@@ -274,7 +415,7 @@ async fn match_attempt(
     Ok(("matched", Some(id)))
 }
 
-pub(crate) fn evidence_query(connection: &Connection) -> Builder<'_> {
+fn evidence_query(connection: &Connection) -> Builder<'_> {
     connection
         .table(EVIDENCE)
         .join(
@@ -292,6 +433,28 @@ pub(crate) fn evidence_query(connection: &Connection) -> Builder<'_> {
         ])
         .r#where("ai_gateway_cost_evidence.state", "=", "matched")
         .r#where("ai_gateway_cost_reports.complete", "=", true)
+}
+
+pub(crate) fn with_evidence<'a>(
+    query: Builder<'a>,
+    connection: &Connection,
+) -> DatabaseResult<Builder<'a>> {
+    let mut evidence = evidence_query(connection);
+    Ok(query
+        .left_join_sub(&mut evidence, "cost_evidence", |join| {
+            join.on(
+                "ai_gateway_charges.attempt_id",
+                "=",
+                "cost_evidence.attempt_id",
+            )
+            .r#where("ai_gateway_charges.direction", "=", "cost")
+        })?
+        .add_select([
+            "cost_evidence.entry_scope as evidence_scope",
+            "cost_evidence.currency as evidence_currency",
+            "cost_evidence.amount as evidence_amount",
+            "cost_evidence.revision as evidence_revision",
+        ]))
 }
 
 pub(crate) fn actual_costs(rows: &[Row]) -> DatabaseResult<BTreeMap<String, ActualCost>> {
@@ -325,7 +488,7 @@ pub(crate) fn actual_costs(rows: &[Row]) -> DatabaseResult<BTreeMap<String, Actu
     Ok(resolved)
 }
 
-fn optional_text(row: &Row, key: &str) -> DatabaseResult<Option<String>> {
+pub(crate) fn optional_text(row: &Row, key: &str) -> DatabaseResult<Option<String>> {
     match row.get(key) {
         Some(Value::Text(text)) => Ok(Some(text.clone())),
         Some(Value::Null) => Ok(None),
@@ -340,6 +503,6 @@ fn fingerprint(value: &impl Serialize) -> String {
     )
 }
 
-fn valid(value: &str, max: usize) -> bool {
+pub(crate) fn valid(value: &str, max: usize) -> bool {
     !value.is_empty() && value.len() <= max && value.bytes().all(|byte| byte.is_ascii_graphic())
 }

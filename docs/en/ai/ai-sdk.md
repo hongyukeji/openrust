@@ -278,6 +278,34 @@ Use `complete: false` for a partial statement. For a corrected statement, keep i
 
 When gateway billing is enabled, request `GET /v1/sub2api/billing` with a Key assigned to a group. The response uses the Sub2API version 1 token billing metadata format. The response reports the group’s configured rate multiplier, which defaults to `1`. Add `?include=group` to see the calling Key’s group name. Upstream costs and other groups’ balances are available through operator commands.
 
+### Aggregate provider statements {#provider-cost-totals}
+
+For a statement grouped by upstream connection and currency, supply `totals` to the same import command. Convert the provider’s original statement window to UTC timestamps. Use `category: "tokens"` for token charges. Other categories are retained with their original amounts.
+
+```json
+{
+  "source": "daily-provider-costs",
+  "statement_id": "2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "totals": [
+    {
+      "id": "tokens-usd",
+      "provider": "openai",
+      "currency": "USD",
+      "category": "tokens",
+      "amount": "0.16"
+    }
+  ]
+}
+```
+
+At import, the gateway compares each total with the ledger for that connection, currency and window. Confirmed per-request evidence takes precedence over the corresponding price calculation. The result stores the reported and recorded amounts, the signed difference and counts of priced and pending attempts. Partial statements, unknown costs and unmapped categories stay available for review. Aggregate differences stay at the statement level.
+
+Run `./artisan ai:gateway:billing:report <report-id>` to read the saved entries, comparison and import details. Use the `report_id` printed by the import command.
+
 ### Daily group billing budget {#billing-budget}
 
 In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.

@@ -393,6 +393,13 @@ impl UsageStore {
         crate::reconciliation::import(&self.connection, report, actor).await
     }
 
+    pub(crate) async fn cost_report(
+        &self,
+        id: String,
+    ) -> DatabaseResult<Option<reconciliation::StoredReport>> {
+        reconciliation::read(&self.connection, id).await
+    }
+
     pub(crate) async fn begin(
         &self,
         context: &LogContext,
@@ -635,9 +642,8 @@ impl UsageStore {
         &self,
         mut page: Builder<'_>,
     ) -> DatabaseResult<(Vec<UsageRecord>, Option<Vec<ChargeRecord>>)> {
-        let mut evidence = reconciliation::evidence_query(&self.connection);
         // 先限定用量页，再在同一条查询中读取结算与证据。
-        let rows = self
+        let query = self
             .connection
             .table(TABLE)
             .use_write_pdo()
@@ -648,22 +654,9 @@ impl UsageStore {
                 "=",
                 "ai_gateway_charges.attempt_id",
             )
-            .left_join_sub(&mut evidence, "cost_evidence", |join| {
-                join.on(
-                    "ai_gateway_charges.attempt_id",
-                    "=",
-                    "cost_evidence.attempt_id",
-                )
-                .r#where("ai_gateway_charges.direction", "=", "cost")
-            })?
             .select(["usage_page.*"])
-            .add_select(billing::COLUMNS)
-            .add_select([
-                "cost_evidence.entry_scope as evidence_scope",
-                "cost_evidence.currency as evidence_currency",
-                "cost_evidence.amount as evidence_amount",
-                "cost_evidence.revision as evidence_revision",
-            ])
+            .add_select(billing::COLUMNS);
+        let rows = reconciliation::with_evidence(query, &self.connection)?
             .order_by_desc("usage_page.id")
             .order_by("ai_gateway_charges.direction", "asc")
             .get()

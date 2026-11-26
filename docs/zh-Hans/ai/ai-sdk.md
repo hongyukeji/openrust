@@ -278,6 +278,34 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 
 启用网关计费后，用已分组的 Key 请求 `GET /v1/sub2api/billing`。响应采用 Sub2API 第 1 版 Token 计费元数据格式。响应返回该分组的费率倍率，默认为 `1`。附加 `?include=group` 可查询当前 Key 的分组名称。上游成本与其他分组的余额由运维命令查询。
 
+### 供应商汇总账单 {#provider-cost-totals}
+
+供应商按连接和币种给出汇总时，通过同一导入命令提交 `totals`。将供应商原始账期换算为 UTC 时间戳。Token 费用使用 `category: "tokens"`，其他费用分类保留原金额。
+
+```json
+{
+  "source": "daily-provider-costs",
+  "statement_id": "2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "totals": [
+    {
+      "id": "tokens-usd",
+      "provider": "openai",
+      "currency": "USD",
+      "category": "tokens",
+      "amount": "0.16"
+    }
+  ]
+}
+```
+
+导入时，网关把每个汇总项与对应连接、币种和账期的账本比较。已确认的逐请求账单证据优先于该笔的费率核算值。结果记录供应商金额、本地记账金额、带正负号的差额以及已定价和待确认的尝试数。部分账单、待确定成本及未映射的费用分类保留供核对。汇总差额留在账单层级。
+
+使用导入命令返回的 `report_id` 运行 `./artisan ai:gateway:billing:report <report-id>`，可查看已保存的明细、汇总差额和导入记录。
+
 ### 分组每日货币预算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。

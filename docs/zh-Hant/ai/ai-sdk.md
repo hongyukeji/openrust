@@ -278,6 +278,34 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 
 啟用閘道計費後，使用已分組的 Key 請求 `GET /v1/sub2api/billing`。回應採用 Sub2API 第 1 版 Token 計費中繼資料格式。回應傳回該群組的費率倍率，預設為 `1`。附加 `?include=group` 可查詢目前 Key 的群組名稱。上游成本與其他群組的餘額由維運指令查詢。
 
+### 供應商彙總帳單 {#provider-cost-totals}
+
+供應商依連線與幣別提供彙總時，透過同一匯入指令提交 `totals`。將供應商原始帳期換算為 UTC 時間戳記。Token 費用使用 `category: "tokens"`，其他費用分類保留原金額。
+
+```json
+{
+  "source": "daily-provider-costs",
+  "statement_id": "2026-11-26",
+  "revision": 1,
+  "complete": true,
+  "starts_at": 1795651200,
+  "ends_at": 1795737600,
+  "totals": [
+    {
+      "id": "tokens-usd",
+      "provider": "openai",
+      "currency": "USD",
+      "category": "tokens",
+      "amount": "0.16"
+    }
+  ]
+}
+```
+
+匯入時，閘道會將每個彙總項與對應連線、幣別和帳期的帳本比較。已確認的逐請求帳單證據優先於該筆的費率核算值。結果記錄供應商金額、本地記帳金額、帶正負號的差額，以及已定價和待確認的嘗試數。部分帳單、待確定成本與未對應的費用分類保留供核對。彙總差額保留在帳單層級。
+
+使用匯入指令傳回的 `report_id` 執行 `./artisan ai:gateway:billing:report <report-id>`，可查看已儲存的明細、彙總差額與匯入記錄。
+
 ### 分組每日貨幣預算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。
