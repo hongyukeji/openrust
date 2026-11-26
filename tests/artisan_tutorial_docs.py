@@ -379,6 +379,10 @@ async fn formal_progress_example(){
     style_inheritance_checks=style_attachment_checks.replace('formal_terminal_style_attachment_example','formal_terminal_style_inheritance_example').replace('register_attached_styles)','register_inherited_styles)').replace('"tools:attached-style"','"tools:inherited-style"').replace('"Attached ready"','"Inherited ready"')
     parts.append('mod '+locale.replace('-','_').lower()+'_terminal_style_inheritance{\n'+style_inheritance_snippet+style_inheritance_checks+'}\n')
 
+    style_modifiers_snippet=re.search(r'```rust\n(.*?)```',text.split('{#terminal-style-modifiers}',1)[1],re.S).group(1)
+    style_modifiers_checks=style_inheritance_checks.replace('formal_terminal_style_inheritance_example','formal_terminal_style_modifiers_example').replace('register_inherited_styles)','register_style_modifiers)').replace('"tools:inherited-style"','"tools:style-modifiers"').replace('"Inherited ready"','"Result: ready!"')
+    parts.append('mod '+locale.replace('-','_').lower()+'_terminal_style_modifiers{\n'+style_modifiers_snippet+style_modifiers_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

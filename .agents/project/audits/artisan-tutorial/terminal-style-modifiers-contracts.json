@@ -1,0 +1,36 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "termwind_version": "2.3.3",
+  "status": "verified_terminal_text_and_style_modifier_callbacks",
+  "bindings": {
+    "TerminalStyles": [
+      "with_modifiers"
+    ],
+    "TerminalStyleModifiers": [
+      "new / Default",
+      "set_text",
+      "set_style"
+    ]
+  },
+  "source_oracle": "terminal-style-modifiers-oracle.json",
+  "runtime": {
+    "source_modifier_cases": 24,
+    "framework_targets": 16,
+    "framework_parent_tests": 60,
+    "new_artisan_processes": 4,
+    "new_http_requests": 14,
+    "formal_document_consumers": 219,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "文本回调在宽度计算前依次接收当前文本、样式与祖先数据。样式回调在宽度计算后接收文本和样式，之后复用现有标记输出。",
+    "自定义有序集合和现有内置变换按固定管线组合。自定义重名替换保留位置，内置类型方法沿用既定顺序。",
+    "属性替换和元素关联保留回调。原生独立样式只在提供回调时持有该集合，默认 HTML 路径不分配回调存储。",
+    "正文与格式回调返回已有 ConsoleError，停止后续工作，保留真实调用方的失败退出和 HTTP 错误。"
+  ],
+  "remaining": [
+    "动态元素方法转发和一般 HTML 恢复。",
+    "Factory 容器构造和其他 Artisan 文档锚点。"
+  ]
+}

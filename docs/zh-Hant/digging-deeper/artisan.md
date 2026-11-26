@@ -2688,3 +2688,34 @@ fn register_inherited_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 自訂文字與樣式修飾器 {#terminal-style-modifiers}
+
+`TerminalStyleModifiers` 儲存兩組依序執行的回呼。用 `set_text` 註冊文字回呼，回呼在計算寬度前收到目前文字、樣式屬性與祖先屬性。用 `set_style` 註冊的回呼在封裝輸出標記前收到調整後的文字與樣式屬性。
+
+透過 `TerminalStyles::with_modifiers` 關聯回呼。同組回呼名稱重複時會取代原回呼並保留位置。每個階段先執行自訂回呼，再執行內建轉換。回呼回傳錯誤時，格式化會停止並將錯誤回傳呼叫端。
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalStyleModifiers, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_style_modifiers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:style-modifiers", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut modifiers = TerminalStyleModifiers::new();
+            modifiers.set_text("prefix", |value, _, _| Ok(format!("Result: {value}")));
+            modifiers.set_style("punctuate", |value, _| Ok(format!("{value}!")));
+
+            let mut style = TerminalStyles::new().with_modifiers(modifiers);
+            style.text("green")?;
+            let text = style.format("ready")?;
+            output.as_output().writeln(&text, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

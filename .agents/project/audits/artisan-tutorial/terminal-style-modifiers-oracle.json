@@ -1,0 +1,1458 @@
+[
+    {
+        "kind": "base",
+        "width": 20,
+        "attached": false,
+        "output": "<fg=green>  [x:data:y  ]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:data:y  ]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "native",
+        "width": 20,
+        "attached": false,
+        "output": "<fg=green;options=bold>  \u001b[4m[B-X:DATA:Y]!\u001b[0m<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "B-X:DATA:Y",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[B-X:DATA:Y]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "inherit",
+        "width": 20,
+        "attached": false,
+        "output": "<fg=green>  [x:dat]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "outer",
+                "x:dat",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:dat]",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": "1\/2",
+                "pl": 2
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    16
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "kind": "replace",
+        "width": 20,
+        "attached": false,
+        "output": "<options=bold>[x:data:y]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                [],
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                [],
+                []
+            ],
+            [
+                "outer",
+                "x:data:y",
+                []
+            ],
+            [
+                "count",
+                "[x:data:y]",
+                []
+            ]
+        ],
+        "properties": {
+            "isFirstChild": false,
+            "options": {
+                "bold": true
+            }
+        }
+    },
+    {
+        "kind": "body-error",
+        "width": 20,
+        "attached": false,
+        "output": null,
+        "error": "RuntimeException:text stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "style-error",
+        "width": 20,
+        "attached": false,
+        "output": null,
+        "error": "RuntimeException:style stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "base",
+        "width": 20,
+        "attached": true,
+        "output": "<fg=green>  [x:data:y  ]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:data:y  ]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "native",
+        "width": 20,
+        "attached": true,
+        "output": "<fg=green;options=bold>  \u001b[4m[B-X:DATA:Y]!\u001b[0m<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "B-X:DATA:Y",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[B-X:DATA:Y]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "inherit",
+        "width": 20,
+        "attached": true,
+        "output": "<fg=green>  [x:dat]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "outer",
+                "x:dat",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:dat]",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": "1\/2",
+                "pl": 2
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    16
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "kind": "replace",
+        "width": 20,
+        "attached": true,
+        "output": "<options=bold>[x:data:y]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                [],
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                [],
+                []
+            ],
+            [
+                "outer",
+                "x:data:y",
+                []
+            ],
+            [
+                "count",
+                "[x:data:y]",
+                []
+            ]
+        ],
+        "properties": {
+            "isFirstChild": false,
+            "options": {
+                "bold": true
+            }
+        }
+    },
+    {
+        "kind": "body-error",
+        "width": 20,
+        "attached": true,
+        "output": null,
+        "error": "RuntimeException:text stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "style-error",
+        "width": 20,
+        "attached": true,
+        "output": null,
+        "error": "RuntimeException:style stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "base",
+        "width": 40,
+        "attached": false,
+        "output": "<fg=green>  [x:data:y  ]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:data:y  ]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "native",
+        "width": 40,
+        "attached": false,
+        "output": "<fg=green;options=bold>  \u001b[4m[B-X:DATA:Y]!\u001b[0m<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "B-X:DATA:Y",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[B-X:DATA:Y]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "inherit",
+        "width": 40,
+        "attached": false,
+        "output": "<fg=green>  [x:dat]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "outer",
+                "x:dat",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:dat]",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": "1\/2",
+                "pl": 2
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    16
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "kind": "replace",
+        "width": 40,
+        "attached": false,
+        "output": "<options=bold>[x:data:y]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                [],
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                [],
+                []
+            ],
+            [
+                "outer",
+                "x:data:y",
+                []
+            ],
+            [
+                "count",
+                "[x:data:y]",
+                []
+            ]
+        ],
+        "properties": {
+            "isFirstChild": false,
+            "options": {
+                "bold": true
+            }
+        }
+    },
+    {
+        "kind": "body-error",
+        "width": 40,
+        "attached": false,
+        "output": null,
+        "error": "RuntimeException:text stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "style-error",
+        "width": 40,
+        "attached": false,
+        "output": null,
+        "error": "RuntimeException:style stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "base",
+        "width": 40,
+        "attached": true,
+        "output": "<fg=green>  [x:data:y  ]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:data:y  ]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "native",
+        "width": 40,
+        "attached": true,
+        "output": "<fg=green;options=bold>  \u001b[4m[B-X:DATA:Y]!\u001b[0m<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "B-X:DATA:Y",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[B-X:DATA:Y]",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": {
+                "bold": true
+            },
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "inherit",
+        "width": 40,
+        "attached": true,
+        "output": "<fg=green>  [x:dat]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                },
+                {
+                    "ml": [
+                        0
+                    ],
+                    "mr": [
+                        0
+                    ],
+                    "pl": [
+                        0
+                    ],
+                    "pr": [
+                        2
+                    ],
+                    "width": [
+                        16
+                    ],
+                    "minWidth": [
+                        0
+                    ],
+                    "maxWidth": [
+                        0
+                    ],
+                    "spaceY": [
+                        0
+                    ],
+                    "spaceX": [
+                        0
+                    ],
+                    "justifyContent": false
+                }
+            ],
+            [
+                "outer",
+                "x:dat",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ],
+            [
+                "count",
+                "[x:dat]",
+                {
+                    "width": "1\/2",
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": "1\/2",
+                "pl": 2
+            },
+            "parentStyles": {
+                "ml": [
+                    0
+                ],
+                "mr": [
+                    0
+                ],
+                "pl": [
+                    0
+                ],
+                "pr": [
+                    2
+                ],
+                "width": [
+                    16
+                ],
+                "minWidth": [
+                    0
+                ],
+                "maxWidth": [
+                    0
+                ],
+                "spaceY": [
+                    0
+                ],
+                "spaceX": [
+                    0
+                ],
+                "justifyContent": false
+            }
+        }
+    },
+    {
+        "kind": "replace",
+        "width": 40,
+        "attached": true,
+        "output": "<options=bold>[x:data:y]!<\/>",
+        "error": null,
+        "events": [
+            [
+                "prefix",
+                "data",
+                [],
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                [],
+                []
+            ],
+            [
+                "outer",
+                "x:data:y",
+                []
+            ],
+            [
+                "count",
+                "[x:data:y]",
+                []
+            ]
+        ],
+        "properties": {
+            "isFirstChild": false,
+            "options": {
+                "bold": true
+            }
+        }
+    },
+    {
+        "kind": "body-error",
+        "width": 40,
+        "attached": true,
+        "output": null,
+        "error": "RuntimeException:text stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    },
+    {
+        "kind": "style-error",
+        "width": 40,
+        "attached": true,
+        "output": null,
+        "error": "RuntimeException:style stop",
+        "events": [
+            [
+                "prefix",
+                "data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "suffix",
+                "x:data",
+                {
+                    "width": 12,
+                    "pl": 2
+                },
+                []
+            ],
+            [
+                "outer",
+                "x:data:y  ",
+                {
+                    "width": 12,
+                    "pl": 2
+                }
+            ]
+        ],
+        "properties": {
+            "colors": {
+                "fg": "green"
+            },
+            "options": [],
+            "isFirstChild": true,
+            "styles": {
+                "width": 12,
+                "pl": 2
+            }
+        }
+    }
+]

@@ -1,6 +1,6 @@
 {
   "source_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
-  "status": "style_inheritance_verified_modifier_extension_pending",
+  "status": "style_modifiers_verified_dynamic_element_and_html_recovery_pending",
   "scope": "Default renderer internal helpers are distinct from exporting standalone dependency types. Sizing bindings verified above do not close all public extension objects.",
   "verified_backend_evidence": [
     "component-render-contracts.json",
@@ -17,7 +17,8 @@
     "standalone-terminal-styles-contracts.json",
     "terminal-style-properties-contracts.json",
     "attached-terminal-style-contracts.json",
-    "terminal-style-inheritance-contracts.json"
+    "terminal-style-inheritance-contracts.json",
+    "terminal-style-modifiers-contracts.json"
   ],
   "types": {
     "Termwind\\ValueObjects\\Styles": [
@@ -1412,7 +1413,8 @@
       "set_properties",
       "with",
       "flex1",
-      "inherit_from_styles"
+      "inherit_from_styles",
+      "with_modifiers"
     ],
     "TerminalElement": [
       "new",
@@ -1459,6 +1461,11 @@
       "max_width",
       "margin",
       "padding"
+    ],
+    "TerminalStyleModifiers": [
+      "new / Default",
+      "set_text",
+      "set_style"
     ]
   }
 }

@@ -2256,7 +2256,8 @@
     "68: Standalone style construction, defaults and width measurements are verified. Attached-element and generic style property APIs stay open.",
     "69: Standalone style property replacement and recursive merging are verified. Attached-element and custom modifiers stay open.",
     "70: Attached element properties and width are verified against source, with native weak retention. Explicit inheritance and modifier customization stay open.",
-    "71: Explicit terminal style inheritance and ancestor layout are verified. Custom modifier and dynamic element dispatch stay open."
+    "71: Explicit terminal style inheritance and ancestor layout are verified. Custom modifier and dynamic element dispatch stay open.",
+    "72: Custom terminal modifier callback order, data and errors are verified. Dynamic element dispatch and HTML recovery stay open."
   ],
   "native_adaptations": [
     {
@@ -3014,6 +3015,16 @@
     ],
     "TerminalElement": [
       "inherit_from_styles"
+    ]
+  },
+  "terminal_style_modifiers": {
+    "TerminalStyles": [
+      "with_modifiers"
+    ],
+    "TerminalStyleModifiers": [
+      "new / Default",
+      "set_text",
+      "set_style"
     ]
   }
 }

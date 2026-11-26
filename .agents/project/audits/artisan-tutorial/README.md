@@ -937,3 +937,10 @@ StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒�
 独立样式与关联元素的64个固定继承场景逐项比较颜色、粗细、祖先布局快照、内宽、空属性以及分数宽度错误。新增独立查询用例验证内宽只依赖边距和间距。祖先顺序沿用现有宽度计算。真实 CLI 和 HTTP 使用标准元素渲染入口。
 
 56 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、216 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续自定义修饰器等其余入口。见 terminal-style-inheritance-contracts.json 与 accepted-terminal-style-inheritance.json。
+
+
+## 72. 自定义终端文本和样式修饰器
+
+24 个固定源码场景验证真实回调参数、宽度计算前后输出、按序执行、内置变换组合、属性替换、父样式及短路错误。同时验证原生重名集合保序。回调统一复用当前独立样式与元素格式管线，默认渲染路径只在提供回调时建立集合。
+
+60 个框架父测试、真实 Artisan 4 进程、HTTP 14 请求、219 个三语文档示例和 12 组浏览器检查通过。Rust 1.94 锁定严格 Clippy、格式检查通过。继续元素动态入口和 HTML 恢复。见 terminal-style-modifiers-contracts.json 与 accepted-terminal-style-modifiers.json。

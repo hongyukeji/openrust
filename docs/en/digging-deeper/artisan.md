@@ -2688,3 +2688,34 @@ fn register_inherited_styles() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Custom text and style modifiers {#terminal-style-modifiers}
+
+`TerminalStyleModifiers` stores two ordered groups of callbacks. Register text callbacks with `set_text`. They receive the current text, style properties, and ancestor properties before width calculation. Callbacks registered with `set_style` receive the adjusted text and style properties before markup is applied.
+
+Attach the callbacks with `TerminalStyles::with_modifiers`. A callback with an existing name replaces it in that group without changing its position. Built-in transformations follow the custom callbacks at each stage. A callback error stops formatting and reaches the caller.
+
+```rust
+use openrust::console::{
+    AsOutput, AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{TerminalStyleModifiers, TerminalStyles},
+};
+use openrust::support::facades::Artisan;
+
+fn register_style_modifiers() -> Result<(), ConsoleError> {
+    Artisan::command_with("tools:style-modifiers", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut modifiers = TerminalStyleModifiers::new();
+            modifiers.set_text("prefix", |value, _, _| Ok(format!("Result: {value}")));
+            modifiers.set_style("punctuate", |value, _| Ok(format!("{value}!")));
+
+            let mut style = TerminalStyles::new().with_modifiers(modifiers);
+            style.text("green")?;
+            let text = style.format("ready")?;
+            output.as_output().writeln(&text, OutputFormat::Normal)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

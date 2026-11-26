@@ -3,7 +3,7 @@ use super::super::display::{trim_text, visible_width};
 use super::dimensions::{self, Constraint, Dimension, Dimensions, Target};
 use super::dom::Node;
 use super::{
-    StyleRepository, TerminalStyles, palette, properties,
+    StyleRepository, TerminalStyleModifiers, TerminalStyles, palette, properties,
     style_methods::{self, MethodCall, StyleArgument as Argument},
     style_tokens,
 };
@@ -40,6 +40,7 @@ pub(super) struct Style {
     pub(super) space: [usize; 2],
     pub(super) href: Option<String>,
     pub(super) properties: Option<Box<serde_json::Map<String, serde_json::Value>>>,
+    pub(super) custom_modifiers: Option<Arc<TerminalStyleModifiers>>,
 }
 fn error(value: &str) -> ConsoleError {
     ConsoleError::new(format!("控制台组件暂不支持此终端样式：{value}"))
@@ -401,7 +402,21 @@ pub(super) fn format(
     first: bool,
     inherited_space: [usize; 2],
 ) -> Result<String, ConsoleError> {
-    let mut text = content;
+    let empty = serde_json::Value::Array(Vec::new());
+    let modifiers = s.custom_modifiers.as_deref().map(|modifiers| {
+        let get = |key| {
+            s.properties
+                .as_deref()
+                .and_then(|properties| properties.get(key))
+                .unwrap_or(&empty)
+        };
+        (modifiers, get("styles"), get("parentStyles"))
+    });
+    let mut text = if let Some((modifiers, properties, ancestors)) = modifiers {
+        modifiers.modify_text(content, properties, ancestors)?
+    } else {
+        content
+    };
     for operation in &s.transform {
         text = match *operation {
             "upper" => Str::upper(&text),
@@ -486,6 +501,9 @@ pub(super) fn format(
                 };
             }
         }
+    }
+    if let Some((modifiers, properties, _)) = modifiers {
+        text = modifiers.modify_style(text, properties)?;
     }
     for code in &s.modifiers {
         if *code == 0 {

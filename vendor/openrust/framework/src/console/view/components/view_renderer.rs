@@ -8,6 +8,8 @@ mod inheritance;
 pub use element::{TerminalChild, TerminalContent, TerminalElement, TerminalElementKind};
 mod layout;
 mod lists;
+mod modifiers;
+pub use modifiers::TerminalStyleModifiers;
 mod palette;
 mod pre;
 mod properties;

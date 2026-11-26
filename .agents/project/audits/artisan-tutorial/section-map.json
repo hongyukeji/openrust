@@ -366,7 +366,8 @@
       "standalone_terminal_styles": "standalone-terminal-styles-contracts.json",
       "terminal_style_properties": "terminal-style-properties-contracts.json",
       "attached_terminal_style": "attached-terminal-style-contracts.json",
-      "terminal_style_inheritance": "terminal-style-inheritance-contracts.json"
+      "terminal_style_inheritance": "terminal-style-inheritance-contracts.json",
+      "terminal_style_modifiers": "terminal-style-modifiers-contracts.json"
     },
     {
       "anchor": "tables",
@@ -751,6 +752,14 @@
     "contract": "terminal-style-inheritance-contracts.json",
     "remaining": [
       "自定义文本与样式修饰器、动态方法转发及一般 HTML 恢复。",
+      "Factory 容器构造和其他 Artisan 文档锚点。"
+    ]
+  },
+  "terminal_style_modifiers": {
+    "status": "verified_terminal_text_and_style_modifier_callbacks",
+    "contract": "terminal-style-modifiers-contracts.json",
+    "remaining": [
+      "动态元素方法转发和一般 HTML 恢复。",
       "Factory 容器构造和其他 Artisan 文档锚点。"
     ]
   }

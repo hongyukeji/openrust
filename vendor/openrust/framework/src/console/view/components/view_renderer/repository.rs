@@ -384,6 +384,11 @@ impl TerminalStyles<'static> {
         self
     }
 
+    pub fn with_modifiers(mut self, modifiers: super::TerminalStyleModifiers) -> Self {
+        self.state.get_mut().custom_modifiers = Some(Arc::new(modifiers));
+        self
+    }
+
     pub fn with_repository(mut self, repository: StyleRepository) -> Self {
         self.repository = Some(Cow::Owned(repository));
         self
