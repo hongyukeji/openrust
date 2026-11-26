@@ -7,10 +7,10 @@
 | 固定基线路由 | 鉴权和行为 | OpenRust 裁决 |
 |---|---|---|
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | GW-02 已验收 OpenAI 同协议 JSON、SSE 和下游取消。跨协议映射及多账号待 GW-03／04。 |
-| `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | GW-02 已验收同协议 JSON 和 SSE。GW-03 已验收 Responses → Messages 纯文本 JSON、SSE 和用量。工具、结构化及反向转换待补。 |
+| `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | GW-02 已验收同协议 JSON 和 SSE。GW-03 已验收 Responses → Messages 纯文本 JSON、SSE 和用量。反向纯文本转换也已验收。工具、结构化及高级字段转换待补。 |
 | `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | GW-03 待逐操作核对。GW-02 拒绝共享凭证上的 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
 | `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 待验收首帧、取消、连接期间权限、账号归属和关闭码。 |
-| `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | GW-03 已接 Anthropic 同协议，原生错误、SSE、下游 `x-api-key` 与独立上游认证。跨协议待验收。 |
+| `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | GW-03 已接 Anthropic 同协议，原生错误、SSE、下游 `x-api-key` 与独立上游认证。Messages → OpenAI Responses 的普通与 SSE 纯文本经实际 HTTP 验收，其余能力待补。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | GW-03 原生 Anthropic 计数已接通。上游返回的估算与生成用量分开；其他上游的实现仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。Codex 清单及版本分支待 GW-05 验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent?alt=sse`、`countTokens`、`x-goog-api-key` 及 Google 认证错误。JSON 流、Embeddings 等后续动作仍待核对。 |

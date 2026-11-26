@@ -108,6 +108,8 @@ pub(crate) struct Response {
     sequence: u64,
     input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    cache_read_tokens: Option<u64>,
+    cache_creation_tokens: Option<u64>,
 }
 
 impl Response {
@@ -123,6 +125,8 @@ impl Response {
             sequence: 0,
             input_tokens: None,
             output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
         }
     }
 
@@ -140,18 +144,38 @@ impl Response {
                 vec![text_part(part)],
             ));
         }
+        if self.output.is_empty() && matches!(finish, Finish::Complete) {
+            return None;
+        }
         Some(self.response(Some(finish)))
     }
 
     fn observe_usage(&mut self, usage: &Value) {
         self.input_tokens = usage["input_tokens"].as_u64().or(self.input_tokens);
         self.output_tokens = usage["output_tokens"].as_u64().or(self.output_tokens);
+        self.cache_read_tokens = usage["cache_read_input_tokens"]
+            .as_u64()
+            .or(self.cache_read_tokens);
+        self.cache_creation_tokens = usage["cache_creation_input_tokens"]
+            .as_u64()
+            .or(self.cache_creation_tokens);
     }
 
     fn response(&self, finish: Option<Finish>) -> Value {
         let usage = match (self.input_tokens, self.output_tokens) {
             (Some(input), Some(output)) => {
-                json!({"input_tokens":input,"output_tokens":output,"total_tokens":input.saturating_add(output),"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}})
+                let cached = self.cache_read_tokens.unwrap_or_default();
+                let input = input
+                    .saturating_add(cached)
+                    .saturating_add(self.cache_creation_tokens.unwrap_or_default());
+                let mut usage = json!({
+                    "input_tokens":input,"output_tokens":output,"total_tokens":input.saturating_add(output),
+                    "input_tokens_details":{"cached_tokens":cached},"output_tokens_details":{"reasoning_tokens":0},
+                });
+                if let Some(created) = self.cache_creation_tokens {
+                    usage["cache_creation_input_tokens"] = created.into();
+                }
+                usage
             }
             _ => Value::Null,
         };
@@ -302,6 +326,9 @@ impl StreamState {
             }
             "message_stop" if self.started && self.active.is_none() => {
                 let finish = self.finish?;
+                if response.output.is_empty() && matches!(finish, Finish::Complete) {
+                    return None;
+                }
                 let kind = if finish.incomplete_reason().is_some() {
                     "response.incomplete"
                 } else {

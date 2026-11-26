@@ -66,14 +66,14 @@ impl Model {
 
 fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
     if provider.supports_endpoint(endpoint) {
-        Some(endpoint)
-    } else if endpoint == TextEndpoint::Responses
-        && provider.supports_endpoint(TextEndpoint::Messages)
-    {
-        Some(TextEndpoint::Messages)
-    } else {
-        None
+        return Some(endpoint);
     }
+    let translated = match endpoint {
+        TextEndpoint::Responses => TextEndpoint::Messages,
+        TextEndpoint::Messages => TextEndpoint::Responses,
+        _ => return None,
+    };
+    provider.supports_endpoint(translated).then_some(translated)
 }
 
 pub(crate) struct Gateway {

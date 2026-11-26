@@ -283,13 +283,13 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
         let message = json!({
             "id":"msg_local", "type":"message", "model":"claude-private",
             "content":[{"type":"text","text":"こんにちは"}], "stop_reason":"end_turn",
-            "usage":{"input_tokens":6, "output_tokens":4}
+            "usage":{"input_tokens":6, "output_tokens":4, "cache_read_input_tokens":2, "cache_creation_input_tokens":1}
         });
         let mut structured = message.clone();
         structured["content"][0]["text"] = json!({"a":"b"}).to_string().into();
         let structured = structured.to_string();
         let events = [
-            json!({"type":"message_start","message":{"model":"claude-private","usage":{"input_tokens":6}}}),
+            json!({"type":"message_start","message":{"model":"claude-private","usage":{"input_tokens":6,"cache_read_input_tokens":2,"cache_creation_input_tokens":1}}}),
             json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
             json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"こんにちは"}}),
             json!({"type":"content_block_stop","index":0}),
@@ -497,7 +497,12 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     let response = response.json::<Value>()?;
     assert_eq!(response["model"], "claude-public");
     assert_eq!(response["output"][0]["content"][0]["text"], "こんにちは");
-    assert_eq!(response["usage"]["total_tokens"], 10);
+    assert_eq!(response["usage"]["total_tokens"], 13);
+    assert_eq!(
+        response["usage"]["input_tokens_details"]["cached_tokens"],
+        2
+    );
+    assert_eq!(response["usage"]["cache_creation_input_tokens"], 1);
     let mut input = input;
     input["stream"] = true.into();
     let response = send(&mut app, "/v1/responses", bearer, Some(input)).await?;
@@ -517,6 +522,7 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     let complete = frames.last().unwrap();
     assert_eq!(complete["type"], "response.completed");
     assert_eq!(complete["response"]["usage"]["output_tokens"], 4);
+    assert_eq!(complete["response"]["usage"]["input_tokens"], 9);
     assert_eq!(
         complete["response"]["output"][0]["id"],
         frames[2]["item"]["id"]
@@ -533,5 +539,137 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     assert_eq!(rows[2]["context"]["upstream_endpoint"], "messages");
     assert_eq!(rows[3]["context"]["input_tokens"], 6);
     assert_eq!(rows[3]["context"]["output_tokens"], 4);
+    Ok(())
+}
+
+#[tokio::test]
+async fn anthropic_clients_bridge_to_responses_with_text_and_usage() -> TestResult {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("http://{}/private/v1", listener.local_addr()?);
+    let upstream_task = tokio::spawn(async move {
+        let response = json!({
+            "id":"resp_upstream", "model":"private-responses", "status":"completed",
+            "output":[{"type":"message","content":[{"type":"output_text","text":"ready"}]}],
+            "usage":{"input_tokens":8,"output_tokens":3,"input_tokens_details":{"cached_tokens":2},"cache_creation_input_tokens":1}
+        });
+        let mut incomplete = response.clone();
+        incomplete["status"] = "incomplete".into();
+        incomplete["incomplete_details"]["reason"] = "max_output_tokens".into();
+        let events = [
+            json!({"type":"response.created","response":{"id":"resp_upstream"}}),
+            json!({"type":"response.output_item.added","item":{"type":"message"}}),
+            json!({"type":"response.content_part.added","part":{"type":"output_text","text":""},"output_index":0,"content_index":0}),
+            json!({"type":"response.output_text.delta","delta":"ready","output_index":0,"content_index":0}),
+            json!({"type":"response.content_part.done","part":{"type":"output_text","text":"ready"},"output_index":0,"content_index":0}),
+            json!({"type":"response.incomplete","response":incomplete}),
+        ].map(|event| format!("event: {}\ndata: {event}\n\n",event["type"].as_str().unwrap())).join("");
+        for (stream, kind, payload) in [
+            (false, "application/json", response.to_string()),
+            (true, "text/event-stream", events),
+        ] {
+            let (socket, _) = timeout(Duration::from_secs(5), listener.accept())
+                .await
+                .unwrap()
+                .unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut line = String::new();
+            socket.read_line(&mut line).await.unwrap();
+            assert_eq!(line.trim_end(), "POST /private/v1/responses HTTP/1.1");
+            let mut headers = BTreeMap::new();
+            loop {
+                line.clear();
+                assert_ne!(socket.read_line(&mut line).await.unwrap(), 0);
+                if line == "\r\n" {
+                    break;
+                }
+                let (key, value) = line.split_once(':').unwrap();
+                headers.insert(key.to_ascii_lowercase(), value.trim().to_owned());
+            }
+            assert_eq!(headers["authorization"], "Bearer openai-upstream");
+            assert!(!headers.contains_key("x-api-key"));
+            let mut body = vec![0; headers["content-length"].parse().unwrap()];
+            socket.read_exact(&mut body).await.unwrap();
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["model"], "private-responses");
+            assert_eq!(body["store"], false);
+            assert_eq!(body["stream"], stream);
+            assert_eq!(body["max_output_tokens"], 128);
+            assert_eq!(body["instructions"], "Reply briefly.");
+            assert_eq!(body["input"][0]["content"], "  text  ");
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                payload.len()
+            );
+            socket.get_mut().write_all(header.as_bytes()).await.unwrap();
+            socket
+                .get_mut()
+                .write_all(payload.as_bytes())
+                .await
+                .unwrap();
+        }
+    });
+    let mut app = fixture()?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nOPENAI_URL={url}\nOPENAI_API_KEY=openai-upstream\nCALLER_GENERAL=caller-all\nCALLER_LIMITED=caller-one\n"
+        ),
+    )?;
+    let request = |body: Value| {
+        http::Request::post("/v1/messages")
+            .header("x-api-key", "caller-all")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+    };
+    let mut query = json!({
+        "model":"public-responses","system":[{"type":"text","text":"Reply briefly."}],
+        "messages":[{"role":"user","content":[{"type":"text","text":"  text  "}]}],
+        "max_tokens":128,"stream":false,
+    });
+    let mut unsupported = query.clone();
+    unsupported["tools"] = json!([{"name":"unknown"}]);
+    let invalid = app.call(request(unsupported)?).await?;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        invalid.json::<Value>()?["error"]["type"],
+        "invalid_request_error"
+    );
+
+    let response = app.call(request(query.clone())?).await?.json::<Value>()?;
+    assert_eq!(response["model"], "public-responses");
+    assert_eq!(response["stop_reason"], "end_turn");
+    assert_eq!(response["content"][0]["text"], "ready");
+    assert_eq!(response["usage"]["input_tokens"], 5);
+    assert_eq!(response["usage"]["cache_read_input_tokens"], 2);
+    assert_eq!(response["usage"]["cache_creation_input_tokens"], 1);
+    assert_ne!(response["id"], "resp_upstream");
+
+    query["stream"] = true.into();
+    let response = app.call(request(query)?).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = std::str::from_utf8(response.streamed_content())?;
+    let frames = body
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .map(serde_json::from_str::<Value>)
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(frames[0]["message"]["model"], "public-responses");
+    assert_eq!(frames[2]["delta"]["text"], "ready");
+    assert_eq!(frames[4]["delta"]["stop_reason"], "max_tokens");
+    assert_eq!(frames[4]["usage"]["output_tokens"], 3);
+    assert_eq!(frames[5]["type"], "message_stop");
+    assert!(!body.contains("private-responses") && !body.contains("resp_upstream"));
+    upstream_task.await?;
+    let log = fs::read_to_string(app.root().join("gateway.log"))?;
+    let rows: Vec<Value> = log
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<Result<_, _>>()?;
+    assert!(
+        rows.iter()
+            .all(|row| row["context"]["endpoint"] == "messages"
+                && row["context"]["upstream_endpoint"] == "responses"
+                && row["context"]["input_tokens"] == 8)
+    );
     Ok(())
 }

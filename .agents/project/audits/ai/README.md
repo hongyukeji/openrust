@@ -79,3 +79,9 @@ OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 的 Rust 消
 `HasStructuredOutput`、匿名 Agent 的 `with_schema`、`StructuredAgentResponse` 与 `decode` 复用框架的 `JsonSchema`。Rust 普通及结构化调用分别拥有静态返回类型。OpenAI Chat Completions 和 Responses 使用 JSON Schema 请求，Anthropic 使用原生 `output_config.format`，Gemini GenerateContent 使用 `generationConfig.responseJsonSchema`。返回 JSON 对象，同时保留原始文本、模型和用量。SDK 流目前发出文本增量。接入方可解码为自己的类型；输出 Schema 的执行由原生模型协议处理。
 
 正常 HTTP Kernel 加本地协议服务验收四个适配器、深层对象和数组、严格标记、拒答、非 JSON 结果和 Responses 的结构化 SSE。独立 Artisan 用 `ai:prompt --schema=...` 验证实际 HTTP 请求及 JSON 输出。模型支持差异、Anthropic 合成工具降级、Gemini Interactions、流的结构化专用事件及其余高级选项仍待对应批次。
+
+## GW-03 Messages 转 OpenAI Responses
+
+原生端点优先。模型发布到 OpenAI Responses 连接时，可通过 Anthropic Messages 调用纯文本；规则仍使用同一 Key 和模型端点约束。对照固定 Sub2API 的 `apicompat/anthropic_to_responses.go`、`responses_to_anthropic.go`，处理指令、消息角色、采样与 Token 上限、普通和 SSE 生命周期、公开模型及拒答／截断。双向转换保留上游报告的输入、输出、缓存读写计数，并按各协议的包含关系投影。网关日志保留原上游生成用量，起始 SSE 帧的协议初始值不参与计量。
+
+包测试及独立 HTTP 进程通过两个协议的本地模拟验收反向转换，覆盖首段到达后上游才继续发送、最终事件和用量。Artisan 验证同一发布配置下的 Messages 路由。工具、文件、结构化和持久状态跨协议仍按能力表分批实施。

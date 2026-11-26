@@ -12,7 +12,7 @@ use openrust_ai::{AiError, TextEndpoint};
 use serde_json::{Value, json};
 
 use crate::{
-    compatibility::responses as bridge,
+    compatibility::Bridge,
     gateway::{Call, Gateway},
 };
 
@@ -413,9 +413,9 @@ async fn relay(
         );
     }
     data.insert("model".into(), json!(model.upstream_model));
-    let bridged = endpoint != upstream_endpoint;
-    let data = if bridged {
-        match bridge::to_messages(data) {
+    let bridge = Bridge::between(endpoint, upstream_endpoint);
+    let data = if let Some(bridge) = bridge {
+        match bridge.request(data) {
             Ok(data) => data,
             Err(message) => {
                 return protocol.error(StatusCode::BAD_REQUEST, "unsupported_conversion", message);
@@ -484,7 +484,7 @@ async fn relay(
             .map(|response| response.with_headers(headers));
     }
     if streaming {
-        return stream(upstream, headers, name, call, protocol, bridged);
+        return stream(upstream, headers, name, call, protocol, bridge);
     }
     let Ok(mut data) = upstream.json::<Value>() else {
         call.outcome("invalid_upstream_response");
@@ -494,23 +494,22 @@ async fn relay(
             "上游未返回有效 JSON",
         );
     };
-    if bridged {
-        call.observe_usage(&data);
-        let Some(response) = bridge::Response::new(name.clone()).buffered(&data) else {
-            call.outcome("invalid_upstream_response");
-            return protocol.error(
-                StatusCode::BAD_GATEWAY,
-                "invalid_upstream_response",
-                "无法将上游消息转换为 Responses",
-            );
-        };
-        data = response;
-    }
     if !matches!(
         endpoint,
         TextEndpoint::CountMessageTokens | TextEndpoint::GeminiCountTokens
     ) {
         call.observe_usage(&data);
+    }
+    if let Some(bridge) = bridge {
+        let Some(response) = bridge.response(name.clone(), &data) else {
+            call.outcome("invalid_upstream_response");
+            return protocol.error(
+                StatusCode::BAD_GATEWAY,
+                "invalid_upstream_response",
+                "无法转换上游协议响应",
+            );
+        };
+        data = response;
     }
     call.outcome("completed");
     rename_model(&mut data, &name);
@@ -523,7 +522,7 @@ fn stream(
     name: String,
     mut call: Call,
     protocol: Protocol,
-    bridged: bool,
+    bridge: Option<Bridge>,
 ) -> HttpResult {
     let status = upstream.status();
     let is_sse = upstream
@@ -552,8 +551,8 @@ fn stream(
         header::CONTENT_TYPE,
         HeaderValue::from_static("text/event-stream"),
     );
-    if bridged {
-        let stream = bridged_stream(body, name, call);
+    if let Some(bridge) = bridge {
+        let stream = bridged_stream(body, bridge.stream(name), call, protocol);
         return Ok(Response::stream(status, stream).with_headers(headers));
     }
     let stream = async_stream::stream! {
@@ -619,25 +618,25 @@ fn stream(
 
 fn bridged_stream(
     body: client::ResponseStream,
-    name: String,
+    mut state: crate::compatibility::Stream,
     mut call: Call,
+    protocol: Protocol,
 ) -> impl futures_util::Stream<Item = Result<String, Infallible>> {
     async_stream::stream! {
         let mut events = body.eventsource();
-        let mut state = bridge::StreamState::default();
-        let mut response = bridge::Response::new(name);
         while let Some(event) = events.next().await {
             let data = event.ok().and_then(|event| serde_json::from_str::<Value>(&event.data).ok());
             let Some(data) = data else {
                 call.outcome("stream_error");
-                yield Ok(Protocol::OpenAi.stream_error());
+                yield Ok(protocol.stream_error());
                 return;
             };
             call.observe_usage(&data);
             call.observe_usage(&data["message"]);
-            let Some((frames, terminal)) = state.convert(&mut response, &data) else {
+            call.observe_usage(&data["response"]);
+            let Some((frames, terminal)) = state.convert(&data) else {
                 call.outcome("invalid_upstream_response");
-                yield Ok(Protocol::OpenAi.stream_error());
+                yield Ok(protocol.stream_error());
                 return;
             };
             if terminal {
@@ -651,7 +650,7 @@ fn bridged_stream(
             }
         }
         call.outcome("incomplete_stream");
-        yield Ok(Protocol::OpenAi.stream_error());
+        yield Ok(protocol.stream_error());
     }
 }
 
