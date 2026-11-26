@@ -103,6 +103,28 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 簽發和輪替只回傳一次可用的 Bearer Token。資料庫儲存 SHA-256 摘要。輪替沿用 Key ID、群組、有效期限與請求額度。舊版、撤銷或過期的 Token 後續請求回傳 HTTP 401。需要自訂遷移時，執行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新編譯後執行遷移。
 
+### Codex 模型目錄 {#codex-model-catalog}
+
+使用 Bearer 憑證請求 `/v1/models?client_version=0.170.0` 可取得 Codex 模型目錄。`/backend-api/codex/models` 提供相同格式。目錄僅列出目前 Key 能透過 Responses 呼叫的公開模型。一般 OpenAI 和 Anthropic 模型端點沿用各自格式。
+
+在公開模型對應中可選填 `codex` 物件，用來設定顯示名稱、說明、上下文視窗、輸入類型和推理選項。預設使用公開模型名稱作為顯示名稱，並宣告文字輸入。用戶端可帶上 `If-None-Match` 重複使用已授權的目錄。
+
+```json
+{
+  "models": {
+    "support-chat": {
+      "provider": "openai",
+      "model": "upstream-model",
+      "codex": {
+        "display_name": "Support Assistant",
+        "context_window": 40000,
+        "input_modalities": ["text", "image"]
+      }
+    }
+  }
+}
+```
+
 ### 持久化閘道用量 {#gateway-usage}
 
 在 `config/ai_gateway.rs` 設定 `usage.enabled = true` 後執行遷移。多個執行個體共用用量資料庫時，可透過 `usage.connection` 指定連線。

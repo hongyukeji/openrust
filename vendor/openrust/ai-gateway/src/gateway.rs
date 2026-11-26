@@ -16,6 +16,7 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     accounts::{Account, MAX_SECONDS},
+    codex_catalog::CodexMetadata,
     managed_keys::KeyStore,
     output_quota::{OutputQuota, QuotaReservation},
     session_affinity::{self, SessionAffinity},
@@ -45,6 +46,7 @@ struct ModelConfiguration {
     #[serde(flatten)]
     primary: TargetConfiguration,
     endpoints: Option<Vec<String>>,
+    codex: Option<CodexMetadata>,
     #[serde(default)]
     fallbacks: Vec<TargetConfiguration>,
 }
@@ -161,6 +163,7 @@ pub(crate) struct Target {
 }
 
 pub(crate) struct Model {
+    pub(crate) codex: Option<CodexMetadata>,
     targets: Vec<Target>,
     endpoints: Vec<TextEndpoint>,
 }
@@ -277,6 +280,13 @@ impl Gateway {
             .models
             .into_iter()
             .map(|(name, model)| {
+                if model
+                    .codex
+                    .as_ref()
+                    .is_some_and(|metadata| !metadata.is_valid())
+                {
+                    return Err(invalid(format!("公开模型 {name} 的 Codex 描述无效")));
+                }
                 if name.trim().is_empty() {
                     return Err(invalid("ai_gateway.models 的公开模型名称不能为空"));
                 }
@@ -323,7 +333,14 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
-                Ok((name, Model { targets, endpoints }))
+                Ok((
+                    name,
+                    Model {
+                        targets,
+                        endpoints,
+                        codex: model.codex,
+                    },
+                ))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 

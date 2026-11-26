@@ -103,6 +103,28 @@ For database-managed keys, set `managed_keys.enabled` to `true`. The optional `m
 
 Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
 
+### Codex model catalog {#codex-model-catalog}
+
+A Bearer-authenticated request to `/v1/models?client_version=0.170.0` returns the Codex catalog. The `/backend-api/codex/models` alias serves the same format. Only aliases available to the current Key through the Responses endpoint appear. The ordinary OpenAI and Anthropic model endpoints keep their original formats.
+
+Add an optional `codex` object to a public model mapping to set its display name, description, context window, input modalities and reasoning choices. By default the catalog uses the public alias for its display name and advertises text input. A conditional request with `If-None-Match` can reuse the existing authorized catalog.
+
+```json
+{
+  "models": {
+    "support-chat": {
+      "provider": "openai",
+      "model": "upstream-model",
+      "codex": {
+        "display_name": "Support Assistant",
+        "context_window": 40000,
+        "input_modalities": ["text", "image"]
+      }
+    }
+  }
+}
+```
+
 ### Persist gateway usage {#gateway-usage}
 
 Set `usage.enabled` to `true` in `config/ai_gateway.rs` and run the migration. Set `usage.connection` to a named database connection when gateways share a usage database.

@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 
 use crate::{
     accounts::Admission,
+    codex_catalog,
     compatibility::{Bridge, Translation},
     gateway::{Call, Gateway, Key, Target, UsageAdmission},
     session_affinity::SessionAffinity,
@@ -27,6 +28,10 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
         shared_routes(router)?;
         router.post("/messages", messages)?;
+        Ok(())
+    })?;
+    Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {
+        router.get("/models", codex_models)?;
         Ok(())
     })?;
     Route::group(RouteGroup::new().prefix("/v1beta"), |router| {
@@ -98,7 +103,32 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 fn models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
         let protocol = catalog_protocol(request);
+        if matches!(protocol, Protocol::OpenAi) {
+            match codex_catalog::selected(request)? {
+                Some(true) => return codex_models(request).await,
+                Some(false) => {}
+                None => {
+                    return protocol.error(
+                        StatusCode::BAD_REQUEST,
+                        "invalid_request",
+                        "client_version 无效",
+                    );
+                }
+            }
+        }
         catalog(protocol.token(request), None, protocol).await
+    })
+}
+
+fn codex_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(async move {
+        let gateway = Gateway::get_facade_root()?;
+        let protocol = Protocol::OpenAi;
+        let key = match authorize(&gateway, protocol.token(request), protocol).await {
+            Ok(key) => key,
+            Err(response) => return response,
+        };
+        codex_catalog::respond(request, &gateway, &key)
     })
 }
 

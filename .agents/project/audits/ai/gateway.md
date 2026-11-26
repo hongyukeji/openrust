@@ -12,7 +12,7 @@
 | `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 待验收首帧、取消、连接期间权限、账号归属和关闭码。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
-| `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。Codex 清单及版本分支待 GW-05 验收。 |
+| `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，正式客户端进程待验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent?alt=sse`、`countTokens`、`x-goog-api-key` 及 Google 认证错误。JSON 流、Embeddings 等后续动作仍待核对。 |
 | `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03／04 待按生命周期核对，依赖租户与账号归属。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |

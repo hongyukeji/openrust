@@ -273,3 +273,11 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均经独立 HTTP、协议服务及 Ar
 SQLite、MySQL 8.4.13、PostgreSQL 18.7 均实测两个独立 HTTP 实例竞争。五个请求争用两个额度时只有两个到达上游。验证静态与数据库 Key 共享、取消、超报、回退、协议字段、计数及独立 Artisan 查询。SQLite 注入结算表暂时不可用，响应保留实际流结果，结算记录保留 `pending`，新尝试无出站；恢复数据库后保留原预留。三库迁移回退及重装、包测试、严格 Clippy、三语构建和浏览器通过。原生 Gemini 生成的 Token 算法、金额账本和未结算记录的手工核对仍待后续。
 
 - [OpenAI Responses 上限](https://developers.openai.com/api/docs/guides/reasoning) · [OpenAI Chat 上限](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) · [Anthropic Thinking 上限](https://platform.claude.com/docs/en/about-claude/models/extended-thinking-models)
+
+## GW-05 Codex 模型目录
+
+OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `/backend-api/codex/models`。启用无版本路径时 `/models` 也支持同一查询。清单使用公开模型名，按下游 Key 的分组和 Responses 路由能力筛选。可为模型配置显示名称、上下文窗口、输入类型和推理选项。默认公布文本能力，避免由模型 ID 推断未验证能力。ETag 由筛选后的内容生成，鉴权先于 304 判断。
+
+独立 HTTP 验证普通 OpenAI 和 Anthropic 目录、单模型形状、两类别名、不同 Key、未认证条件头、空版本及无效版本参数。独立 Artisan 走标准目录，外部 HTTP 用清单中的别名成功调用实际 Responses 线路。包测试、严格 Clippy、三语构建、AI 页面十二组浏览器与全站导航通过。官方 Codex 0.170.0 Linux ARM64 发布资产已校验，启动隔离客户端时 Docker 守护进程未在时限内响应，正式 CLI 读取仍待实测。固定 Sub2API 另有固定账号拉取与供应商清单合并，继续单列。
+
+- [固定 Sub2API Codex 模型处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_codex_models_handler.go) · [Codex 0.170.0 模型结构](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/protocol/src/openai_models.rs)

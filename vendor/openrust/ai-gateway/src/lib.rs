@@ -14,6 +14,7 @@ use openrust::{
 };
 
 mod accounts;
+mod codex_catalog;
 mod commands;
 mod compatibility;
 #[path = "../config/ai_gateway.rs"]
