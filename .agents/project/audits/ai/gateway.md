@@ -52,3 +52,9 @@
 在同一个账号配置中增加 `max_concurrent_requests`。参考固定 Sub2API 的 [ConcurrencyService](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/concurrency_service.go) 保留独占账号槽位和所有者语义。OpenRust 复用 Cache 的并发限流器，当前按候选顺序探测有空位的连接。响应流持有槽位，完成或断开时释放。进程异常退出由缓存租约到期恢复，内置协议请求的超时短于租约。全部候选无可用槽位时返回协议 503。
 
 独立 Artisan 验证配置。两个网关进程共享 Redis 8，经本地上游验证相同账号跨别名和进程的忙碌状态、切换备用账号、原生 SSE 完成以及客户端断开导致的回收。框架 Cache 回归覆盖直接获取槽位、主动释放和丢弃后的复用。
+
+## GW-04 下游分组授权
+
+按固定 [Sub2API 组合路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/docs/COMPOSITE_GROUPS.md) 核对账号候选与分组归属。OpenRust 在现有模型映射上增加 `groups.<name>.models` 和可选的 `providers`。环境 Key 使用 `group` 继承分组范围，自身 `models` 可进一步收窄。模型发现、单模型读取、首选账号与备用账号均使用同一个分组权限，调用日志记录分组名称。
+
+HTTP Kernel 和独立网关进程验证分组 Key 的列表、模型交集、不同账号选择，以及主账号 429 时未授权备用账号无请求。Artisan 检查配置和凭证脱敏。持久化 Key 生命周期、账号黏性和分组额度仍在后续批次。

@@ -74,6 +74,17 @@ Use `accounts.deepseek.cooldown_seconds = 30` in `config/ai_gateway.rs` to pause
 
 Set `accounts.deepseek.max_concurrent_requests` to cap active requests for that connection across replicas using the same cache. A stream holds a slot until it finishes or the caller disconnects. When the connection is full, the gateway checks the next eligible connection before sending the request. If all available connection slots are full, it returns HTTP 503 with `upstream_busy`.
 
+To share an access policy across keys, add a group and set the key's `group` field. A group's `models` lists published aliases. Its optional `providers` limits upstream connections for both initial requests and fallback. A key can also specify `models` to narrow that group's model list.
+
+```rust
+"groups": {
+    "support-team": {"models": ["support-chat"], "providers": ["deepseek", "openai"]},
+},
+"keys": {
+    "support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "group": "support-team"},
+},
+```
+
 ## Agent tools {#agent-tools}
 
 Implement `Tool` with a name, description, JSON Schema, and asynchronous `handle` method. Use `ToolRequest::validate` to apply framework validation rules or `decode` to read arguments into a Rust type. The tool receives an ID for the provider call and a separate ID for its execution.

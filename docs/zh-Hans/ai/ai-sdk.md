@@ -74,6 +74,17 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 设置 `accounts.deepseek.max_concurrent_requests` 可限制该连接的并发请求数。使用同一缓存的网关进程共用槽位。流式请求会占用槽位，直到结束或客户端断开。首选连接已满时，网关在发出请求前检查下一个可用连接。如果所有可用连接的槽位都已满，返回 HTTP 503 和 `upstream_busy`。
 
+多个 Key 共用权限时，可配置分组，并在 Key 中填写 `group`。分组的 `models` 列出公开模型别名，可选的 `providers` 限制首选和回退时可以调用的上游连接。Key 也可以再填写 `models`，缩小分组授予的模型范围。
+
+```rust
+"groups": {
+    "support-team": {"models": ["support-chat"], "providers": ["deepseek", "openai"]},
+},
+"keys": {
+    "support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "group": "support-team"},
+},
+```
+
 ## Agent 工具 {#agent-tools}
 
 实现 `Tool` 的名称、描述、JSON Schema 和异步 `handle`。用 `ToolRequest::validate` 运行框架验证规则，或通过 `decode` 将参数读为 Rust 类型。工具可以读取上游调用 ID 和本次执行的独立 ID。

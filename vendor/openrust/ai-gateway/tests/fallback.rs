@@ -255,3 +255,98 @@ async fn account_cooldown_is_shared_across_aliases_and_obeys_retry_after() -> Te
     assert_eq!(logs.lines().count(), 3);
     Ok(())
 }
+
+fn group_config(path: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+    let mut config = config(path, env)?;
+    let gateway = config.get_mut("ai_gateway").unwrap();
+    gateway["models"]["hidden"] = json!({"provider":"openai","model":"backup"});
+    gateway["groups"] = json!({
+        "primary-team":{"models":["public"],"providers":["deepseek"]},
+        "backup-team":{"models":["public","hidden"],"providers":["openai"]},
+    });
+    gateway["keys"] = json!({
+        "caller":{"key_env":"CALLER_KEY","group":"primary-team"},
+        "backup":{"key_env":"BACKUP_CALLER_KEY","group":"backup-team","models":["public"]},
+    });
+    Ok(config)
+}
+
+#[tokio::test]
+async fn gateway_group_filters_catalogue_targets_and_fallbacks() -> TestResult {
+    let (primary, first) = fixture(
+        "primary-key",
+        "primary",
+        vec![("429 Too Many Requests", "application/json", "{}")],
+    )
+    .await;
+    let (backup, second) = fixture(
+        "backup-key",
+        "backup",
+        vec![(
+            "200 OK",
+            "application/json",
+            r#"{"model":"backup","choices":[{"message":{"content":"backup only"}}]}"#,
+        )],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(group_config)
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nDEEPSEEK_URL={primary}\nDEEPSEEK_API_KEY=primary-key\nOPENAI_URL={backup}\nOPENAI_API_KEY=backup-key\nCALLER_KEY=caller-fixture\nBACKUP_CALLER_KEY=caller-backup\n"
+        ),
+    )?;
+    let first_body = json!({"model":"public","messages":[{"role":"user","content":"hello"}]});
+    let blocked = send(&mut app, first_body.clone()).await?;
+    assert_eq!(blocked.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(blocked.json::<Value>()?["error"]["code"], "upstream_error");
+
+    for token in ["caller-fixture", "caller-backup"] {
+        let listing = app
+            .call(
+                http::Request::get("/v1/models")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())?,
+            )
+            .await?;
+        let list = listing.json::<Value>()?;
+        assert_eq!(list["data"].as_array().unwrap().len(), 1);
+        assert_eq!(list["data"][0]["id"], "public");
+        let hidden = app
+            .call(
+                http::Request::get("/v1/models/hidden")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(hidden.status(), StatusCode::NOT_FOUND);
+    }
+    let allowed = app
+        .call(
+            http::Request::post("/v1/chat/completions")
+                .header("authorization", "Bearer caller-backup")
+                .header("content-type", "application/json")
+                .body(Body::from(first_body.to_string()))?,
+        )
+        .await?;
+    assert_eq!(allowed.status(), StatusCode::OK);
+    assert_eq!(
+        allowed.json::<Value>()?["choices"][0]["message"]["content"],
+        "backup only"
+    );
+    first.await?;
+    second.await?;
+    let logs = fs::read_to_string(app.root().join("calls.log"))?;
+    let calls: Vec<Value> = logs
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<Result<_, _>>()?;
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["context"]["group"], "primary-team");
+    assert_eq!(calls[1]["context"]["group"], "backup-team");
+    Ok(())
+}

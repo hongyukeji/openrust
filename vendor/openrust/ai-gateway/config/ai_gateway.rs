@@ -12,6 +12,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "accounts": {
             // "deepseek": {"cooldown_seconds": 30, "max_concurrent_requests": 4},
         },
+        "groups": {
+            // "support-team": {"models": ["support-chat"], "providers": ["deepseek"]},
+        },
         "keys": {
             // "support": {"key_env": "AI_GATEWAY_SUPPORT_KEY", "models": ["support-chat"]},
         }

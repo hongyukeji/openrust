@@ -102,7 +102,7 @@ fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResul
         return protocol.unauthorized();
     };
     let mut accessible = gateway.models.iter().filter(|(name, model)| {
-        key.models.contains(name)
+        key.allows_model(name)
             && match protocol {
                 Protocol::OpenAi => [
                     TextEndpoint::ChatCompletions,
@@ -110,15 +110,15 @@ fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResul
                     TextEndpoint::Embeddings,
                 ]
                 .into_iter()
-                .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
-                Protocol::Anthropic => model.upstream_endpoint(TextEndpoint::Messages).is_some(),
+                .any(|endpoint| model.supports_for(endpoint, key)),
+                Protocol::Anthropic => model.supports_for(TextEndpoint::Messages, key),
                 Protocol::Gemini => [
                     TextEndpoint::GeminiGenerateContent,
                     TextEndpoint::GeminiStreamGenerateContent,
                     TextEndpoint::GeminiCountTokens,
                 ]
                 .into_iter()
-                .any(|endpoint| model.upstream_endpoint(endpoint).is_some()),
+                .any(|endpoint| model.supports_for(endpoint, key)),
             }
     });
     let describe = |name: &str, model: &crate::gateway::Model| match protocol {
@@ -135,7 +135,7 @@ fn catalog(request: &Request, id: Option<&str>, protocol: Protocol) -> HttpResul
                 TextEndpoint::GeminiCountTokens,
             ]
             .into_iter()
-            .filter(|endpoint| model.upstream_endpoint(*endpoint).is_some())
+            .filter(|endpoint| model.supports_for(*endpoint, key))
             .map(TextEndpoint::path)
             .collect::<Vec<_>>();
             json!({"name":format!("models/{name}"),"displayName": name,"supportedGenerationMethods":methods})
@@ -324,11 +324,11 @@ async fn relay(
     let Some(model) = gateway
         .models
         .get(&name)
-        .filter(|_| key.models.contains(&name))
+        .filter(|model| key.allows_model(&name) && model.supports_key(key))
     else {
         return protocol.error(StatusCode::NOT_FOUND, "model_not_found", "模型不可用");
     };
-    if model.upstream_endpoint(endpoint).is_none() {
+    if !model.supports_for(endpoint, key) {
         return protocol.error(
             StatusCode::BAD_REQUEST,
             "unsupported_endpoint",
@@ -427,7 +427,7 @@ async fn relay(
     let mut cooling = None::<u64>;
     let mut busy = false;
     let cache_store = gateway.account_cache_store.as_deref();
-    let mut targets = model.targets_for(endpoint).peekable();
+    let mut targets = model.targets_for(endpoint, key).peekable();
     while let Some((target, upstream_endpoint)) = targets.next() {
         let mut payload = if targets.peek().is_some() {
             data.clone()

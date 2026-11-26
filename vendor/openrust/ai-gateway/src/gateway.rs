@@ -26,6 +26,8 @@ struct Configuration {
     accounts: BTreeMap<String, AccountConfiguration>,
     account_cache_store: Option<String>,
     #[serde(default)]
+    groups: BTreeMap<String, GroupConfiguration>,
+    #[serde(default)]
     keys: BTreeMap<String, KeyConfiguration>,
 }
 
@@ -51,17 +53,50 @@ struct AccountConfiguration {
 }
 
 #[derive(Deserialize)]
+struct GroupConfiguration {
+    models: HashSet<String>,
+    providers: Option<HashSet<String>>,
+}
+
+struct Group {
+    name: String,
+    models: HashSet<String>,
+    providers: Option<HashSet<String>>,
+}
+
+#[derive(Deserialize)]
 struct KeyConfiguration {
     key_env: String,
-    models: Vec<String>,
+    group: Option<String>,
+    models: Option<HashSet<String>>,
     requests_per_minute: Option<u64>,
 }
 
 pub(crate) struct Key {
     pub(crate) name: String,
     digest: [u8; 32],
-    pub(crate) models: Vec<String>,
+    group: Option<Arc<Group>>,
+    models: Option<HashSet<String>>,
     pub(crate) requests_per_minute: Option<u64>,
+}
+
+impl Key {
+    pub(crate) fn allows_model(&self, name: &str) -> bool {
+        self.models
+            .as_ref()
+            .is_none_or(|models| models.contains(name))
+            && self
+                .group
+                .as_ref()
+                .is_none_or(|group| group.models.contains(name))
+    }
+
+    fn allows_target(&self, target: &Target) -> bool {
+        self.group
+            .as_ref()
+            .and_then(|group| group.providers.as_ref())
+            .is_none_or(|providers| providers.contains(&target.provider_name))
+    }
 }
 
 const ENDPOINTS: [TextEndpoint; 8] = [
@@ -76,6 +111,7 @@ const ENDPOINTS: [TextEndpoint; 8] = [
 ];
 
 pub(crate) struct Target {
+    provider_name: String,
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
     pub(crate) account: Option<Arc<Account>>,
@@ -87,19 +123,24 @@ pub(crate) struct Model {
 }
 
 impl Model {
-    pub(crate) fn upstream_endpoint(&self, endpoint: TextEndpoint) -> Option<TextEndpoint> {
-        self.targets_for(endpoint)
-            .next()
-            .map(|(_, upstream)| upstream)
+    pub(crate) fn supports_key(&self, key: &Key) -> bool {
+        self.endpoints
+            .iter()
+            .any(|endpoint| self.supports_for(*endpoint, key))
     }
 
-    pub(crate) fn targets_for(
-        &self,
+    pub(crate) fn supports_for(&self, endpoint: TextEndpoint, key: &Key) -> bool {
+        self.targets_for(endpoint, key).next().is_some()
+    }
+
+    pub(crate) fn targets_for<'a>(
+        &'a self,
         endpoint: TextEndpoint,
-    ) -> impl Iterator<Item = (&Target, TextEndpoint)> {
+        key: &'a Key,
+    ) -> impl Iterator<Item = (&'a Target, TextEndpoint)> {
         self.targets
             .iter()
-            .filter(move |_| self.endpoints.contains(&endpoint))
+            .filter(move |target| self.endpoints.contains(&endpoint) && key.allows_target(target))
             .filter_map(move |target| {
                 resolve_endpoint(target.provider.as_ref(), endpoint)
                     .map(|upstream| (target, upstream))
@@ -193,6 +234,7 @@ impl Gateway {
                         provider,
                         upstream_model: target.model,
                         account: accounts.get(&target.provider).cloned(),
+                        provider_name: target.provider,
                     });
                 }
                 let endpoints: Vec<_> = ENDPOINTS
@@ -222,6 +264,28 @@ impl Gateway {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 
+        let mut groups = BTreeMap::new();
+        for (name, group) in config.groups {
+            if name.trim().is_empty()
+                || group.models.iter().any(|model| !models.contains_key(model))
+                || group.providers.as_ref().is_some_and(|providers| {
+                    providers
+                        .iter()
+                        .any(|provider| ai.get_instance_config(provider).is_err())
+                })
+            {
+                return Err(invalid(format!("网关分组 {name} 的模型或连接配置无效")));
+            }
+            groups.insert(
+                name.clone(),
+                Arc::new(Group {
+                    name,
+                    models: group.models,
+                    providers: group.providers,
+                }),
+            );
+        }
+
         let mut keys = Vec::<Key>::new();
         for (name, key) in config.keys {
             if key
@@ -230,8 +294,24 @@ impl Gateway {
             {
                 return Err(invalid(format!("Key {name} 的每分钟请求限额无效")));
             }
-            if key.models.iter().any(|model| !models.contains_key(model)) {
+            let group = key
+                .group
+                .map(|group| {
+                    groups
+                        .get(&group)
+                        .cloned()
+                        .ok_or_else(|| invalid(format!("Key {name} 的分组未配置")))
+                })
+                .transpose()?;
+            if key
+                .models
+                .as_ref()
+                .is_some_and(|scope| scope.iter().any(|model| !models.contains_key(model)))
+            {
                 return Err(invalid(format!("Key {name} 授权了未发布的模型")));
+            }
+            if key.models.is_none() && group.is_none() {
+                return Err(invalid(format!("Key {name} 必须指定分组或模型")));
             }
             let value = env
                 .get_utf8(&key.key_env)
@@ -247,6 +327,7 @@ impl Gateway {
                 name,
                 digest,
                 models: key.models,
+                group,
                 requests_per_minute: key.requests_per_minute,
             });
         }
@@ -283,10 +364,14 @@ impl Gateway {
             logger: self.logger.clone(),
             context: [
                 ("key".into(), json!(key.name)),
+                (
+                    "group".into(),
+                    json!(key.group.as_ref().map(|group| &group.name)),
+                ),
                 ("request_id".into(), json!(request_id)),
                 ("model".into(), json!(name)),
                 ("upstream_model".into(), json!(target.upstream_model)),
-                ("provider".into(), json!(target.provider.name())),
+                ("provider".into(), json!(target.provider_name)),
                 ("endpoint".into(), json!(endpoint.path())),
                 ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
                 ("input_tokens".into(), Value::Null),
