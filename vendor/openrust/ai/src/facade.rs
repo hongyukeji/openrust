@@ -6,6 +6,7 @@ use crate::{
     Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
     FakeRerankingGateway, FakeRerankingResult, FakeTextGateway, ModelCatalog, RerankingProvider,
     TextProvider,
+    classification::{FakeClassificationGateway, FakeClassificationResult},
 };
 
 pub struct Ai;
@@ -74,6 +75,16 @@ impl Ai {
 
     pub fn image_provider(name: Option<&str>) -> AiResult<Arc<dyn crate::ImageProvider>> {
         Self::manager()?.image_provider(name)
+    }
+
+    pub fn fake_classification(
+        responses: impl IntoIterator<Item = FakeClassificationResult>,
+    ) -> AiResult<Arc<FakeClassificationGateway>> {
+        Ok(Self::manager()?.fake_classification(responses))
+    }
+
+    pub fn classification_is_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.classification_fake().is_some())
     }
 
     pub fn classification_provider(

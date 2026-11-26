@@ -15,11 +15,15 @@ use crate::{
 };
 
 mod answers;
+mod decide;
 mod decisions;
+mod fake;
 mod questions;
 
 pub use answers::{Answer, BooleanAnswer, ChoiceAnswer, ScoreAnswer};
+pub use decide::{DecideOptions, Decides, DecidesBetween, DecidesText};
 pub(crate) use decisions::{DecisionsProtocol, HttpDecisionsProvider};
+pub use fake::{FakeClassificationGateway, FakeClassificationResult, RecordedClassification};
 pub use questions::{Boolean, Choice, ChoiceOption, Question, Score, ScoreLevel};
 
 pub struct Classification;
@@ -36,6 +40,51 @@ impl Classification {
             attachments: Vec::new(),
             timeout: Duration::from_secs(30),
         })
+    }
+
+    pub fn fake(
+        responses: impl IntoIterator<Item = FakeClassificationResult>,
+    ) -> AiResult<Arc<FakeClassificationGateway>> {
+        Ai::fake_classification(responses)
+    }
+
+    pub fn fake_with(
+        resolve: impl Fn(&RecordedClassification) -> AiResult<FakeClassificationResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<FakeClassificationGateway>> {
+        Ok(Ai::manager()?.fake_classification_with(resolve))
+    }
+
+    pub fn is_faked() -> AiResult<bool> {
+        Ai::classification_is_faked()
+    }
+
+    #[track_caller]
+    pub fn assert_classified(predicate: impl Fn(&RecordedClassification) -> bool) -> AiResult<()> {
+        Self::fake_gateway()?.assert_classified(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_not_classified(
+        predicate: impl Fn(&RecordedClassification) -> bool,
+    ) -> AiResult<()> {
+        Self::fake_gateway()?.assert_not_classified(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assert_nothing_classified() -> AiResult<()> {
+        Self::fake_gateway()?.assert_nothing_classified();
+        Ok(())
+    }
+
+    fn fake_gateway() -> AiResult<Arc<FakeClassificationGateway>> {
+        Ai::manager()?
+            .classification_fake()
+            .ok_or(AiError::Unavailable)
     }
 }
 
@@ -90,10 +139,35 @@ impl PendingClassification {
         if self.questions.is_empty() || self.timeout.is_zero() {
             return Err(AiError::InvalidClassification);
         }
-        let provider = Ai::classification_provider(provider)?;
+        if model.is_some_and(|model| model.trim().is_empty()) {
+            return Err(AiError::MissingModel);
+        }
+        validate_questions(&self.questions)?;
+        let manager = Ai::manager()?;
+        if let Some(fake) = manager.classification_fake() {
+            let model = model.map(str::to_owned).or_else(|| {
+                manager
+                    .classification_provider(provider)
+                    .ok()
+                    .and_then(|provider| {
+                        provider
+                            .default_classification_model()
+                            .ok()
+                            .map(str::to_owned)
+                    })
+            });
+            return fake.respond(RecordedClassification {
+                state: self.state,
+                questions: self.questions,
+                attachments: self.attachments,
+                timeout: self.timeout,
+                provider: manager.classification_provider_name(provider).ok(),
+                model,
+            });
+        }
+        let provider = manager.classification_provider(provider)?;
         let model = match model {
-            Some(model) if !model.trim().is_empty() => model,
-            Some(_) => return Err(AiError::MissingModel),
+            Some(model) => model,
             None => provider.default_classification_model()?,
         };
         provider
@@ -125,7 +199,7 @@ pub trait ClassificationProvider: Send + Sync {
     ) -> HttpFuture<'a, AiResult<ClassificationResponse>>;
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct ClassificationUsage {
     #[serde(flatten)]
     pub tokens: Usage,
@@ -209,8 +283,12 @@ fn validate_prompt(prompt: &ClassificationPrompt<'_>) -> AiResult<()> {
     if !valid_state(prompt.state) || prompt.questions.is_empty() || prompt.timeout.is_zero() {
         return Err(AiError::InvalidClassification);
     }
+    validate_questions(prompt.questions)
+}
+
+fn validate_questions(questions: &[(String, Question)]) -> AiResult<()> {
     let mut keys = HashSet::new();
-    for (name, question) in prompt.questions {
+    for (name, question) in questions {
         if !keys.insert(name) {
             return Err(AiError::InvalidClassification);
         }

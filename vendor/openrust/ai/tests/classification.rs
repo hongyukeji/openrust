@@ -204,3 +204,178 @@ async fn decisions_classify_typed_questions_and_report_use()
     upstream.await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn classification_fake_and_decide_use_normal_application_entry_points()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use std::collections::BTreeMap;
+
+    use openrust::support::Collection;
+    use openrust_ai::{
+        Ai, DecideOptions, Decides, DecidesBetween, DecidesText,
+        classification::{BooleanAnswer, ChoiceAnswer},
+    };
+
+    let upstream = TcpListener::bind("127.0.0.1:0").await?;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/fake-decisions", || async {
+                    assert!(!Classification::is_faked().unwrap());
+                    let fake = Ai::fake_classification([BTreeMap::from([(
+                        "decision".into(),
+                        Answer::Boolean(BooleanAnswer { probability: 0.8 }),
+                    )])
+                    .into()])
+                    .unwrap();
+                    fake.prevent_stray_classifications(true);
+                    Classification::assert_nothing_classified().unwrap();
+                    assert!(
+                        Str::decide("a sale request", "Is it a sale?")
+                            .await
+                            .unwrap()
+                    );
+                    assert!(matches!(
+                        Str::of("a new request").decide("Is it new?").await,
+                        Err(AiError::FakeExhausted)
+                    ));
+                    Classification::assert_classified(|request| {
+                        request.state == "a sale request"
+                            && request.model.as_deref() == Some("fixture-model")
+                    })
+                    .unwrap();
+                    Classification::assert_not_classified(|request| {
+                        request.state == "a new request"
+                    })
+                    .unwrap();
+
+                    let fake = Classification::fake_with(|request| {
+                        let answer = match &request.questions[0].1 {
+                            openrust_ai::classification::Question::Choice(question) => {
+                                let selected = question.options()[1].value.clone();
+                                Answer::Choice(ChoiceAnswer {
+                                    choice: selected.clone(),
+                                    probabilities: BTreeMap::from([(selected, 0.64)]),
+                                    confidence: None,
+                                })
+                            }
+                            _ => Answer::Boolean(BooleanAnswer { probability: 0.7 }),
+                        };
+                        Ok(BTreeMap::from([("decision".into(), answer)]).into())
+                    })
+                    .unwrap();
+                    assert!(
+                        !Str::of("Example")
+                            .decide_with(
+                                "Does it match?",
+                                DecideOptions {
+                                    threshold: Some(0.8),
+                                    ..Default::default()
+                                }
+                            )
+                            .await
+                            .unwrap()
+                    );
+                    let values = Collection::make(["refund", "sale"]);
+                    assert_eq!(
+                        values.decide("Which category?", "Purchase").await.unwrap(),
+                        Some(&"sale")
+                    );
+                    let values = Collection::make([(1, "Refund"), (2, "New purchase")]);
+                    assert_eq!(
+                        values
+                            .decide_by(
+                                "Which category?",
+                                json!({"text":"Purchase"}),
+                                |item| ChoiceOption::new(item.0.to_string(), item.1),
+                                DecideOptions {
+                                    model: Some("overridden"),
+                                    timeout: Some(Duration::from_secs(9)),
+                                    ..Default::default()
+                                },
+                            )
+                            .await
+                            .unwrap(),
+                        Some(&(2, "New purchase"))
+                    );
+                    let keys = Collection::from_entries([
+                        ("refund", "Return a product"),
+                        ("sale", "Buy a product"),
+                    ]);
+                    assert_eq!(
+                        keys.decide_key(
+                            "Choose",
+                            "purchase",
+                            DecideOptions {
+                                threshold: Some(0.7),
+                                ..Default::default()
+                            }
+                        )
+                        .await
+                        .unwrap(),
+                        None
+                    );
+                    assert_eq!(
+                        keys.decide_key("Choose", "purchase", DecideOptions::default())
+                            .await
+                            .unwrap()
+                            .as_deref(),
+                        Some("sale")
+                    );
+                    assert!(matches!(
+                        Collection::make(["duplicate", "duplicate"])
+                            .decide("Choose", "purchase")
+                            .await,
+                        Err(AiError::InvalidClassification)
+                    ));
+                    fake.assert_classified(|request| {
+                        request.timeout == Duration::from_secs(9)
+                            && request.model.as_deref() == Some("overridden")
+                    });
+
+                    Classification::fake([]).unwrap();
+                    let generated = Classification::of("A sample")
+                        .unwrap()
+                        .question("eligible", Boolean::new("Is it eligible?"))
+                        .question("category", Choice::new("Category?", ["a", "b"]))
+                        .question("severity", Score::new("How urgent?", ["low", "high"]))
+                        .attachments([
+                            ImageAttachment::from_bytes(Str::from_base64(PNG).unwrap()).unwrap()
+                        ])
+                        .classify()
+                        .await
+                        .unwrap();
+                    assert!(matches!(
+                        generated.answer("eligible"),
+                        Some(Answer::Boolean(_))
+                    ));
+                    assert!(matches!(
+                        generated.answer("category"),
+                        Some(Answer::Choice(_))
+                    ));
+                    assert!(matches!(
+                        generated.answer("severity"),
+                        Some(Answer::Score(_))
+                    ));
+                    Classification::assert_classified(|request| request.attachments.len() == 1)
+                        .unwrap();
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_CLASSIFICATION_PROVIDER=openai\nOPENAI_CLASSIFICATION_MODEL=fixture-model\nOPENAI_URL=http://{}/v1\nOPENAI_API_KEY=unused-fixture\n",
+            upstream.local_addr()?
+        ),
+    )?;
+    assert_eq!(app.get("/fake-decisions").await?.status(), StatusCode::OK);
+    assert!(
+        timeout(Duration::from_millis(100), upstream.accept())
+            .await
+            .is_err()
+    );
+    Ok(())
+}

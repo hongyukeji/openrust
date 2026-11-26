@@ -281,3 +281,20 @@ let category = result.answer("category");
 Classification accepts text, a JSON object or a JSON array. Add keyed `Boolean`, `Choice` or `Score` questions. You can supply inline images with `attachments()`. Responses expose typed answers, explicit refusals, and the token counts reported by the provider.
 
 TypeSafe accepts PNG and JPEG attachments. When the state is a JSON object, TypeSafe reserves `images` for the attachment references. The OpenRouter and Gemini connections also accept WebP. Availability depends on the selected model and account.
+
+For a yes-or-no decision, import `Decides` for strings and `Stringable`, or `DecidesText` for `Str::decide`. Import `DecidesBetween` to select an original item from a collection. Use `decide_by` to supply each item’s label and description, or `decide_key` to select a key from a key-to-description collection. `DecideOptions` can specify a probability threshold, provider, model, and timeout. A choice below the threshold returns `None`.
+
+```rust
+use openrust::support::{Collection, Str};
+use openrust_ai::{Decides, DecidesBetween};
+
+let eligible = Str::of("The item arrived damaged")
+    .decide("Is this a return request?")
+    .await?;
+let department = Collection::make(["sales", "support"]);
+let assigned = department
+    .decide("Which department should reply?", "My blender arrived damaged")
+    .await?;
+```
+
+In tests, use `Classification::fake([])` for generated typed answers, supply a sequence of answer maps or complete responses, or use `fake_with` to compute answers from the request. Use `assert_classified`, `assert_not_classified`, and `assert_nothing_classified` to check calls. Enable `prevent_stray_classifications(true)` to fail after the supplied responses are exhausted.

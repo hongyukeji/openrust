@@ -155,6 +155,7 @@ fn detect_format(bytes: &Bytes) -> Option<ImageFormat> {
     }
 }
 
+#[derive(Clone)]
 pub struct ImageAttachment {
     content: Bytes,
     format: ImageFormat,

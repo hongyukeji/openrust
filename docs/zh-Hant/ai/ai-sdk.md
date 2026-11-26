@@ -281,3 +281,20 @@ let category = result.answer("category");
 分類輸入可為文字、JSON 物件或 JSON 陣列。為問題指定鍵，使用 `Boolean`、`Choice` 或 `Score` 宣告問題類型，也可用 `attachments()` 加入內嵌圖片。回應包含型別化答案、明確的拒答狀態，以及上游實際回報的 Token 數。
 
 TypeSafe 支援 PNG 和 JPEG。狀態為 JSON 物件時，`images` 用於儲存附件參照。OpenRouter 和 Gemini 連線也接受 WebP。實際可用性取決於所選模型和帳號。
+
+在字串或 `Stringable` 上匯入 `Decides` 即可做是非判斷，也可匯入 `DecidesText` 使用 `Str::decide`。匯入 `DecidesBetween` 可從集合選出原始項目。`decide_by` 接受標籤和描述產生函式，`decide_key` 可從鍵到描述的集合選出鍵。`DecideOptions` 可指定機率閾值、連線、模型和逾時。選項機率低於閾值時傳回 `None`。
+
+```rust
+use openrust::support::{Collection, Str};
+use openrust_ai::{Decides, DecidesBetween};
+
+let eligible = Str::of("The item arrived damaged")
+    .decide("Is this a return request?")
+    .await?;
+let department = Collection::make(["sales", "support"]);
+let assigned = department
+    .decide("Which department should reply?", "My blender arrived damaged")
+    .await?;
+```
+
+測試時可用 `Classification::fake([])` 自動產生具型別的答案，也可提供答案對應或完整回應的序列，或使用 `fake_with` 根據請求產生答案。呼叫記錄支援 `assert_classified`、`assert_not_classified` 和 `assert_nothing_classified`。開啟 `prevent_stray_classifications(true)` 後，回應序列用完即會報錯。

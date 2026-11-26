@@ -281,3 +281,20 @@ let category = result.answer("category");
 分类输入可为文本、JSON 对象或 JSON 数组。为问题指定键，使用 `Boolean`、`Choice` 或 `Score` 声明问题类型，也可用 `attachments()` 添加内联图片。返回包含类型化答案、明确的拒答状态，以及上游实际报告的 Token 数。
 
 TypeSafe 支持 PNG 和 JPEG。状态为 JSON 对象时，`images` 用于保存附件引用。OpenRouter 和 Gemini 连接也接受 WebP。实际可用性取决于所选模型和账号。
+
+在字符串或 `Stringable` 上导入 `Decides` 即可做是非判断，也可导入 `DecidesText` 使用 `Str::decide`。导入 `DecidesBetween` 可从集合选出原始条目。`decide_by` 接受标签和描述生成函数，`decide_key` 可从键到描述的集合选出键。`DecideOptions` 可指定概率阈值、连接、模型和超时。选项概率低于阈值时返回 `None`。
+
+```rust
+use openrust::support::{Collection, Str};
+use openrust_ai::{Decides, DecidesBetween};
+
+let eligible = Str::of("The item arrived damaged")
+    .decide("Is this a return request?")
+    .await?;
+let department = Collection::make(["sales", "support"]);
+let assigned = department
+    .decide("Which department should reply?", "My blender arrived damaged")
+    .await?;
+```
+
+测试时可以用 `Classification::fake([])` 自动生成类型化答案，也可提供答案映射或完整响应的序列，或使用 `fake_with` 根据请求生成答案。调用记录支持 `assert_classified`、`assert_not_classified` 和 `assert_nothing_classified`。开启 `prevent_stray_classifications(true)` 后，响应序列用尽即报错。

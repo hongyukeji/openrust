@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use crate::{AiError, AiResult};
 
+#[derive(Clone)]
 pub enum Question {
     Boolean(Boolean),
     Choice(Choice),
@@ -27,9 +28,22 @@ impl From<Score> for Question {
     }
 }
 
+#[derive(Clone)]
 pub struct Boolean {
     instructions: String,
     criteria: [Option<String>; 2],
+}
+
+impl From<&str> for Boolean {
+    fn from(instructions: &str) -> Self {
+        Self::new(instructions)
+    }
+}
+
+impl From<String> for Boolean {
+    fn from(instructions: String) -> Self {
+        Self::new(instructions)
+    }
 }
 
 impl Boolean {
@@ -59,6 +73,7 @@ impl Boolean {
     }
 }
 
+#[derive(Clone)]
 pub struct Choice {
     instructions: String,
     pub(super) options: Vec<ChoiceOption>,
@@ -119,6 +134,7 @@ impl From<String> for ChoiceOption {
     }
 }
 
+#[derive(Clone)]
 pub struct Score {
     instructions: String,
     pub(super) levels: Vec<ScoreLevel>,

@@ -19,7 +19,10 @@ use crate::{
     RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextPrompt,
     TextProvider,
     anthropic::AnthropicTextProvider,
-    classification::{DecisionsProtocol, HttpDecisionsProvider},
+    classification::{
+        DecisionsProtocol, FakeClassificationGateway, FakeClassificationResult,
+        HttpDecisionsProvider, RecordedClassification,
+    },
     connection::{Authorization, Connection},
     gemini::GeminiTextProvider,
     on_demand::{OnDemandProviders, reserved_name},
@@ -37,6 +40,7 @@ pub struct AiManager {
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
+    classification_fake: RwLock<Option<Arc<FakeClassificationGateway>>>,
     reranking_fake: RwLock<Option<Arc<FakeRerankingGateway>>>,
     on_demand: Arc<OnDemandProviders>,
 }
@@ -53,6 +57,7 @@ impl AiManager {
             providers: Mutex::default(),
             fakes: RwLock::default(),
             embeddings_fake: RwLock::default(),
+            classification_fake: RwLock::default(),
             reranking_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
         };
@@ -354,10 +359,44 @@ impl AiManager {
         &self,
         name: Option<&str>,
     ) -> AiResult<Arc<dyn crate::ClassificationProvider>> {
-        let name = self.provider_name_for(name, "default_for_classification")?;
+        let name = self.classification_provider_name(name)?;
         self.text_provider(Some(&name))?
             .classification_provider()
             .ok_or(AiError::ClassificationNotSupported)
+    }
+
+    pub(crate) fn classification_provider_name(&self, name: Option<&str>) -> AiResult<String> {
+        self.provider_name_for(name, "default_for_classification")
+    }
+
+    pub fn fake_classification(
+        &self,
+        responses: impl IntoIterator<Item = FakeClassificationResult>,
+    ) -> Arc<FakeClassificationGateway> {
+        self.install_classification_fake(FakeClassificationGateway::new(responses))
+    }
+
+    pub fn fake_classification_with(
+        &self,
+        resolve: impl Fn(&RecordedClassification) -> AiResult<FakeClassificationResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Arc<FakeClassificationGateway> {
+        self.install_classification_fake(FakeClassificationGateway::with(resolve))
+    }
+
+    fn install_classification_fake(
+        &self,
+        fake: FakeClassificationGateway,
+    ) -> Arc<FakeClassificationGateway> {
+        let fake = Arc::new(fake);
+        *self.classification_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn classification_fake(&self) -> Option<Arc<FakeClassificationGateway>> {
+        self.classification_fake.read().unwrap().clone()
     }
 
     pub fn reranking_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {

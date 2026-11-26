@@ -54,7 +54,9 @@ pub use audio::{
 };
 pub use classification::{
     Classification, ClassificationPrompt, ClassificationProvider, ClassificationResponse,
-    ClassificationUsage, PendingClassification,
+    ClassificationUsage, DecideOptions, Decides, DecidesBetween, DecidesText,
+    FakeClassificationGateway, FakeClassificationResult, PendingClassification,
+    RecordedClassification,
 };
 pub use configuration::load as default_config;
 pub use conversation_store::{
