@@ -92,6 +92,23 @@
 
 实际运行环境为 Windows ARM64 虚机的 x64 兼容层，证据位于本机 `target/tmp/goal-extension-combined-windows-x64/`。原生 Windows x64、Windows Docker Desktop、无 MSVC 工具链的安装、真实 New Relic 租户及目标发布渠道按各自环境复验。
 
+### Windows ARM64 与 x64 原生归档链接溯源
+
+复查上文已验收的两个 EXE，SHA-256 逐一相同。用 MSVC 随附 LLVM 19.1.5 读取 PE 的 CodeView GUID 和 Age，与原构建 PDB 逐项匹配。按归档成员名映射 PDB 模块，以 PE `.text` 的节编号和大小核对每段贡献的边界。无重链接。 [LLVM PDB section contributions](https://llvm.org/docs/CommandGuide/llvm-pdbutil.html)
+
+| 锁定归档 | ARM64 `.text` 字节 | x64 `.text` 字节 |
+| --- | ---: | ---: |
+| `aws-lc-sys` 0.47.0 | 812900 | 768116 |
+| `libsqlite3-sys` 0.39.1 | 1299452 | 1375174 |
+| `pcre2-sys` 0.2.10 | 341576 | 372873 |
+| `ring` 0.17.14 生产归档 | 99040 | 175466 |
+| `ring` 0.17.14 测试归档 | 0 | 0 |
+| `blake3` 1.8.7 的 NEON、AVX-512 与 SSE2／SSE4.1／AVX2 归档 | 0 | 48313 |
+
+ARM64 的 BLAKE3 NEON 对象在 PDB 中可见，`.text` 贡献为空。x64 两个汇编归档分别贡献 15,243 和 33,070 字节。按 `Cargo.lock` 校验 BLAKE3 归档 SHA-256，核对四份 MSVC 汇编源及可选的 CC0-1.0，原样将该许可文本收入根发行声明。表格仅统计这两份 PE 从 Cargo 构建脚本归档取得的 `.text`，其余节、工具链和发布渠道沿用各自的审核范围。压缩 PDB 转储与验收脚本在本机 `target/tmp/goal-extension-combined-windows/pdb-provenance/`。 [锁定 BLAKE3 1.8.7 归档](https://static.crates.io/crates/blake3/blake3-1.8.7.crate) · [根发行声明](../../../THIRD_PARTY_NOTICES.md)
+
+用相同 x64 EXE 加新发行声明重新生成 ZIP，归档 SHA-256 为 `b688f04959bac8b30d0a6212dee4188c31832b540e4d0da1c8959db3fbe69b9f`。10 份许可文件正确随附，直接从 ZIP 读取的 CC0 段与锁定归档逐字节一致。解包实测 58 项迁移、缓存前后 HTTP、Reverb、独立 Artisan Worker 与 Ctrl+C 退出均通过，仍运行在 ARM64 虚机的 x64 兼容层。
+
 ## macOS ARM64 组合候选制品
 
 沿用 `7dd141aac49bafa452f35293d68b45375b36d4ff` 的干净归档。使用本机 ARM64、macOS 27.2.1、Rust 1.94.0、`aarch64-apple-darwin`、`--release --locked --offline --jobs 4 --bin main` 及同一 `standalone` 和九项扩展特性。两次磁盘停线经过项目持锁清理。并发从 1 调至 4 后完成首个构建。
