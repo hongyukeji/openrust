@@ -250,6 +250,58 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
             assert "private-failed-hook-sentinel" not in log_path.read_text()
 
+            exhausted = dispatch(b"leased-stale")
+            job = json.loads(sql("SELECT payload FROM jobs"))
+            maximum = job["options"]["max_tries"]
+            assert maximum == 4
+            write_database(driver, sql, duplicate)
+            killed_ready = root / "exhausted-ready"
+            killed = subprocess.Popen(
+                work, env=worker("killed", FIXTURE_OLD_ENTERED=str(killed_ready),
+                                 FIXTURE_OLD_GATE=str(root / "exhausted-gate")), stdout=log, stderr=log,
+            )
+            try:
+                deadline = time.monotonic() + 7
+                while not killed_ready.exists() and killed.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.025)
+                assert killed_ready.exists() and killed.poll() is None
+                killed.kill()
+                assert killed.wait(timeout=10) != 0
+            finally:
+                if killed.poll() is None:
+                    killed.kill()
+                    killed.wait(timeout=10)
+            assert attempts(exhausted) == "1\trunning\t0"
+            assert not (root / "killed-failure.json").exists()
+            # 单独推进测试库中旧任务的尝试数和期限，保留原投递身份的副本。
+            write_database(driver, sql, f"UPDATE jobs SET attempts={maximum},reserved_at=0 WHERE attempts=1")
+            write_database(driver, sql, f"UPDATE webhook_calls SET processing_until=0 WHERE id='{exhausted}'")
+            run("exhausted")
+            terminal = json.loads((root / "exhausted-failure.json").read_text())
+            assert terminal["id"] == exhausted and terminal["attempts"] == maximum + 1
+            assert terminal["failed_jobs"] == 1 and terminal["exception"] is None and terminal["redacted_error"]
+            assert not (root / "exhausted").exists()
+            assert inspect(exhausted)["state"] == "lease_expired"
+            assert attempts(exhausted) == "1\trunning\t0" and sql("SELECT COUNT(*) FROM jobs") == "1"
+            run("exhausted-duplicate")
+            assert sql("SELECT COUNT(*) FROM jobs") == "0" and attempts(exhausted) == "1\trunning\t0"
+            assert not (root / "exhausted-duplicate").exists()
+            assert not (root / "exhausted-duplicate-failure.json").exists()
+
+            retry = command(binary, current, "queue:retry", job["uuid"])
+            assert f"Queued failed job {job['uuid']}." in retry, retry
+            renewed = json.loads(sql("SELECT payload FROM jobs"))
+            assert renewed["data"] == job["data"] and renewed["uuid"] == job["uuid"]
+            assert re.fullmatch(r"[0-9a-f-]{36}", renewed["delivery_id"])
+            assert renewed["delivery_id"] != job.get("delivery_id")
+            assert sql(f"SELECT COUNT(*) FROM failed_jobs WHERE payload LIKE '%{exhausted}%'") == "0"
+            run("exhausted-replacement")
+            replaced = (state(exhausted), attempts(exhausted))
+            assert replaced == ("2\t0\t1", "1\texpired\t1\n2\tcompleted\t1"), replaced
+            assert (root / "exhausted-replacement").exists()
+            assert not (root / "exhausted-replacement-failure.json").exists()
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
             stale = dispatch(b"leased-stale")
             write_database(driver, sql, duplicate)
             gate = root / "stale-gate"
@@ -287,7 +339,8 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 13 个真实 HTTP、15 个独立 Worker；主动释放、终态回调、脱敏状态和分页、失配拒绝、崩溃接管及旧令牌隔离通过")
+    print(f"{driver}: 接收处理租约 15 个真实 HTTP、19 个独立 Worker。"
+          "主动释放、终态回调、脱敏分页、失配拒绝、进程强制终止后的队列耗尽与接管、旧令牌隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):
