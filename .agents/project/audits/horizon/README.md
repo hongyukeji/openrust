@@ -74,7 +74,9 @@ macOS 用实际 Artisan 和两台 Redis 8.10.3 通过四组进程验收。短时
 
 Linux ARM64 的同一低优化框架 Release 另做了写入未复制的切换。先确认 Master 令牌和初始任务状态已经到达副本，再切断复制并向旧主单独入队。旧主确认该任务保留，副本上读不到它。切换后同一个 Master 继续运行并执行新主上的任务，旧主独有任务未出现在新主的待处理、保留或执行记录。本用例把未复制窗口固定在已确认的分界点。证据为 `target/tmp/observability-parity/horizon-metadata-replication-lag.log`。 [Redis Sentinel 的异步复制边界](https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/)
 
-标准优化的 Release 和 Linux x86_64 继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
+固定提交 `63dd69a31` 的干净归档，以 Rust 1.94.0 和默认优化交叉构建 `x86_64-unknown-linux-gnu` Release。Docker Desktop 在 ARM64 宿主上运行 linux/amd64，验证 ELF 架构、完整进程与 HTTP 矩阵，以及 Redis 8.10.3 上四组主从切换。进程和切换共五组通过。证据为 `target/tmp/observability-parity/horizon-metadata-amd64-{source-commit,build.log,runtime.log}`。
+
+Linux ARM64 默认优化构建和物理 x86_64 主机继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
 
 ### Master 命令队列与动态部署
 
