@@ -770,6 +770,10 @@ Implement `handle` for buffered calls and `handle_stream` for streaming calls. T
 
 Call `result.response().await` to inspect a complete step before returning it. This buffers that step and preserves its events for the caller. Return `StepResult::stop()` before `next.run` to end the stream with a cancellation status. The response retains the steps and usage already produced.
 
+Use `with_middleware(vec![Arc::new(Stop::when(|step: &PendingStep<'_>| !step.is_first_step()))])` to stop an Agent after its first model request. Import `Stop` and `PendingStep` from `openrust_ai`. `Stop::new`, `Stop::when`, and `Stop::unless` accept a boolean or a step predicate. `unless` stops when its condition is false.
+
+Stopping skips the pending model request. Stopping before the first step leaves the steps and usage empty and skips conversation persistence. Stopping later preserves completed tool results and usage. A stream ends with reason `cancelled`. When a stop leaves structured generation without a final object, the buffered result has an empty `structured` map and retains any completed steps. Custom buffered middleware can return `StepResponse::stop()` before calling `next.run`.
+
 ### Testing Agents {#agent-fake}
 
 Use `SupportAgent::fake` to supply an ordered list of strings, or `SupportAgent::fake_with` to return a result based on the `RecordedPrompt`. A callback can return text, a JSON object, or a complete `AgentResponse` using `.into()`. The Fake records each invocation once for `assert_prompted` and `assert_prompted_times`, including callbacks that return an error. The callback runs for each model step and sees the model selected by middleware plus any preceding tool results in `prompt.steps`. A fake model response that requests a registered tool goes through the normal tool handler. A streamed response keeps the supplied model, usage, public reasoning, citations, and tool outcomes.

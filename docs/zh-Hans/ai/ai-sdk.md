@@ -770,6 +770,10 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 可在返回前用 `result.response().await` 读取完整步骤。这会缓冲该步并将事件保留给调用方。要结束流，在调用 `next.run` 前返回 `StepResult::stop()`，流会以取消状态结束，响应保留已经产生的步骤和用量。
 
+使用 `with_middleware(vec![Arc::new(Stop::when(|step: &PendingStep<'_>| !step.is_first_step()))])` 可以让 Agent 在第一次模型请求后停止。通过 `openrust_ai` 导入 `Stop` 和 `PendingStep`。`Stop::new`、`Stop::when` 和 `Stop::unless` 都接受布尔值或步骤谓词。`unless` 在条件为假时停止。
+
+停止发生在模型请求发出前。首步停止时没有步骤和用量，也不会创建会话记录。后续步骤停止会保留已完成的工具结果和用量。流式终帧的原因为 `cancelled`。如果结构化生成因停止而没有最终对象，非流式结果中的 `structured` 是空映射，已完成步骤仍可读取。自定义非流式中间件可以在调用 `next.run` 前返回 `StepResponse::stop()`。
+
 ### 测试 Agent {#agent-fake}
 
 使用 `SupportAgent::fake` 提供有序字符串，也可用 `SupportAgent::fake_with` 根据 `RecordedPrompt` 决定结果。回调可用 `.into()` 返回文本、JSON 对象或完整的 `AgentResponse`。Fake 为每次调用记录一条提示，包括回调返回错误的调用，可通过 `assert_prompted` 和 `assert_prompted_times` 断言。回调在每个模型步骤运行，可看到中间件选定的模型及 `prompt.steps` 中此前的工具结果。模拟模型响应请求已注册的工具时，会经过正常工具处理器。流式响应保留所提供的模型、用量、公开推理摘要、引文和工具结果。

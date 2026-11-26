@@ -479,6 +479,107 @@ async fn agent_middleware_controls_each_step_without_replaying_disabled_tools() 
 }
 
 #[tokio::test]
+async fn stop_middleware_preserves_completed_steps_and_usage() -> TestResult {
+    use openrust_ai::{AgentMiddleware, NextStep, PendingStep, StepResponse, Stop};
+
+    struct DiscardResponse;
+
+    impl AgentMiddleware for DiscardResponse {
+        fn handle<'a, 'step: 'a>(
+            &'a self,
+            step: PendingStep<'step>,
+            next: NextStep<'a, 'step>,
+        ) -> HttpFuture<'a, AiResult<StepResponse>> {
+            Box::pin(async move {
+                next.run(step).await?;
+                Ok(StepResponse::stop())
+            })
+        }
+    }
+
+    let (url, calls) = fixture(
+        "chat/completions",
+        vec![
+            json!({
+            "model":"fixture-model",
+            "choices":[{"finish_reason":"tool_calls","message":{
+                "content":"looking up",
+                "tool_calls":[{
+                    "id":"call_fixture","type":"function",
+                    "function":{"name":"lookup","arguments":"{\"sku\":\"demo\"}"}
+                }]
+            }}],
+            "usage":{"prompt_tokens":11,"completion_tokens":4}
+            }),
+            json!({
+                "model":"fixture-model",
+                "choices":[{"finish_reason":"stop","message":{"content":"sent"}}],
+                "usage":{"prompt_tokens":3,"completion_tokens":1}
+            }),
+        ],
+    )
+    .await;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/stop", || async {
+                    let stopped = agent("")
+                        .with_middleware(vec![Arc::new(Stop::new(true))])
+                        .prompt("This step must not reach the provider.")
+                        .await
+                        .unwrap();
+                    assert!(stopped.text.is_empty());
+                    assert!(stopped.steps.is_empty());
+                    assert_eq!(stopped.usage.prompt_tokens.unwrap_or_default(), 0);
+                    assert_eq!(stopped.usage.completion_tokens.unwrap_or_default(), 0);
+
+                    let tool = Arc::new(Lookup(AtomicUsize::new(0)));
+                    let response = agent("")
+                        .with_tools(vec![tool.clone()])
+                        .with_middleware(vec![Arc::new(Stop::when(|step: &PendingStep<'_>| {
+                            !step.is_first_step()
+                        }))])
+                        .with_max_steps(3)
+                        .prompt("Check demo.")
+                        .await
+                        .unwrap();
+                    assert_eq!(tool.0.load(Ordering::Relaxed), 1);
+                    assert_eq!(response.text, "looking up");
+                    assert_eq!(response.steps.len(), 1);
+                    assert_eq!(response.steps[0].finish_reason, FinishReason::ToolCalls);
+                    assert_eq!(response.tool_results[0].id, "call_fixture");
+                    assert_eq!(response.usage.prompt_tokens, Some(11));
+                    assert_eq!(response.usage.completion_tokens, Some(4));
+
+                    let result = agent("")
+                        .with_middleware(vec![Arc::new(DiscardResponse)])
+                        .prompt("Do not discard a request that already ran.")
+                        .await;
+                    assert!(matches!(result, Err(AiError::InvalidResponse)));
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Ok(())
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_PROVIDER=deepseek\nDEEPSEEK_API_KEY=fixture-key\nDEEPSEEK_MODEL=default-model\nDEEPSEEK_URL={url}\n"
+        ),
+    )?;
+    assert_eq!(app.get("/stop").await?.status(), StatusCode::OK);
+    let requests = calls.await?;
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0]["messages"][0]["content"], "Check demo.");
+    assert_eq!(
+        requests[1]["messages"][0]["content"],
+        "Do not discard a request that already ran."
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn sdk_openai_streams_execute_tools_and_continue_with_same_call() -> TestResult {
     let events = |values: Vec<Value>, chat: bool| {
         let mut text: String = values

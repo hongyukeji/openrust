@@ -245,8 +245,20 @@ pub struct StructuredAgentResponse {
 }
 
 impl StructuredAgentResponse {
-    pub(crate) fn parse(response: AgentResponse) -> AiResult<Self> {
-        Self::parse_with_history(response).map_err(|_| AiError::InvalidStructuredResponse)
+    pub(crate) fn from_outcome(
+        outcome: crate::tools::BufferedOutcome,
+    ) -> Result<Self, Box<AgentResponse>> {
+        if outcome.stopped {
+            return Ok(Self {
+                structured: Map::new(),
+                response: outcome.response,
+            });
+        }
+        Self::parse_with_history(outcome.response)
+    }
+
+    pub(crate) fn parse(outcome: crate::tools::BufferedOutcome) -> AiResult<Self> {
+        Self::from_outcome(outcome).map_err(|_| AiError::InvalidStructuredResponse)
     }
 
     pub(crate) fn parse_with_history(response: AgentResponse) -> Result<Self, Box<AgentResponse>> {

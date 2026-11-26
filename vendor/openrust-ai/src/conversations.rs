@@ -16,7 +16,7 @@ use crate::{
     conversation_stream,
     error::ProviderAttemptError,
     structured::schema_for,
-    tools::ApprovalCheckpoint,
+    tools::{ApprovalCheckpoint, BufferedOutcome},
 };
 
 /// 实现此契约即可按参与者保存和继续 Agent 对话。
@@ -192,8 +192,8 @@ impl ConversationTurn {
     async fn buffered_outcome(
         &self,
         prompt: &str,
-        outcome: Result<AgentResponse, ProviderAttemptError>,
-    ) -> AiResult<AgentResponse> {
+        outcome: Result<BufferedOutcome, ProviderAttemptError>,
+    ) -> AiResult<BufferedOutcome> {
         match outcome {
             Err(ProviderAttemptError::CommittedWithSteps(error, partial)) => {
                 self.save_failed_steps(prompt, &partial).await;
@@ -258,9 +258,11 @@ impl<A: Agent> PendingConversation<'_, A> {
         let outcome = manager
             .prompt_in_session(self.agent, prompt, options, None, &history, None)
             .await;
-        let response = turn.buffered_outcome(prompt, outcome).await?;
-        turn.persist(prompt, &response).await?;
-        Ok(turn.reply(response))
+        let outcome = turn.buffered_outcome(prompt, outcome).await?;
+        if outcome.should_persist() {
+            turn.persist(prompt, &outcome.response).await?;
+        }
+        Ok(turn.reply(outcome.response))
     }
 
     pub async fn prompt_with_approvals(
@@ -527,14 +529,16 @@ async fn load_approval(
 async fn resolve_approval_turn(
     turn: ConversationTurn,
     prompt: &str,
-    outcome: AiResult<AgentResponse>,
+    outcome: AiResult<BufferedOutcome>,
     approval: Option<&ApprovalSession>,
 ) -> AiResult<ConversationResponse<ApprovalResponse>> {
     match outcome {
-        Ok(response) => {
-            turn.persist_with_approval(prompt, &response, approval)
-                .await?;
-            Ok(turn.reply(ApprovalResponse::Completed(Box::new(response))))
+        Ok(outcome) => {
+            if outcome.should_persist() {
+                turn.persist_with_approval(prompt, &outcome.response, approval)
+                    .await?;
+            }
+            Ok(turn.reply(ApprovalResponse::Completed(Box::new(outcome.response))))
         }
         Err(AiError::ApprovalPaused(pending)) => Ok(turn.reply(ApprovalResponse::Pending(pending))),
         Err(error) => Err(error),
@@ -565,8 +569,9 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
         let outcome = manager
             .prompt_in_session(self.agent, prompt, options, Some(schema), &history, None)
             .await;
-        let response = turn.buffered_outcome(prompt, outcome).await?;
-        let response = match StructuredAgentResponse::parse_with_history(response) {
+        let outcome = turn.buffered_outcome(prompt, outcome).await?;
+        let should_persist = outcome.should_persist();
+        let response = match StructuredAgentResponse::from_outcome(outcome) {
             Ok(response) => response,
             Err(response) => {
                 if let Some(partial) = response.into_completed_tool_steps() {
@@ -575,7 +580,9 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
                 return Err(AiError::InvalidStructuredResponse);
             }
         };
-        turn.persist(prompt, &response.response).await?;
+        if should_persist {
+            turn.persist(prompt, &response.response).await?;
+        }
         Ok(turn.reply(response))
     }
 

@@ -149,6 +149,31 @@ pub struct StepResponse {
 }
 
 impl StepResponse {
+    /// 在调用下一处理中间件前返回此结果以停止普通生成。
+    pub fn stop() -> Self {
+        Self {
+            model: None,
+            text: None,
+            finish_reason: FinishReason::Cancelled,
+            reasoning: String::new(),
+            usage: Usage::zero(),
+            citations: Vec::new(),
+            tool_calls: Vec::new(),
+            provider_content: None,
+        }
+    }
+
+    pub(crate) fn stopped(&self) -> bool {
+        self.finish_reason == FinishReason::Cancelled
+            && self.model.is_none()
+            && self.text.is_none()
+            && self.reasoning.is_empty()
+            && self.usage == Usage::zero()
+            && self.citations.is_empty()
+            && self.tool_calls.is_empty()
+            && self.provider_content.is_none()
+    }
+
     pub(crate) fn public_step(&self, provider: &str, requested_model: &str) -> Step {
         Step {
             text: self.text.clone().unwrap_or_default(),
@@ -260,7 +285,7 @@ impl ApprovalCheckpoint {
         decisions: &Decisions,
         session: &mut ApprovalSession,
         pending_record: (&str, i64),
-    ) -> Result<AgentResponse, ProviderAttemptError> {
+    ) -> Result<BufferedOutcome, ProviderAttemptError> {
         let prompt = self.prompt.as_prompt(0);
         crate::attachments::validate_prompt_attachments(prompt.attachments, prompt.messages)?;
         let (definitions, tools) = prepare(registered)?;
@@ -302,6 +327,26 @@ impl ApprovalCheckpoint {
     }
 }
 
+pub(crate) struct BufferedOutcome {
+    pub(crate) response: AgentResponse,
+    pub(crate) stopped: bool,
+}
+
+impl BufferedOutcome {
+    pub(crate) fn should_persist(&self) -> bool {
+        !self.stopped || !self.response.steps.is_empty()
+    }
+}
+
+impl From<AgentResponse> for BufferedOutcome {
+    fn from(response: AgentResponse) -> Self {
+        Self {
+            response,
+            stopped: false,
+        }
+    }
+}
+
 pub(crate) async fn run(
     provider: &dyn TextProvider,
     prompt: AgentPrompt<'_>,
@@ -309,7 +354,7 @@ pub(crate) async fn run(
     max_steps: Option<usize>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
     approvals: Option<&ApprovalSession>,
-) -> Result<AgentResponse, ProviderAttemptError> {
+) -> Result<BufferedOutcome, ProviderAttemptError> {
     let max_steps = step_limit(tools.len(), max_steps);
     let (definitions, tools) = prepare(tools)?;
     let mut run = ToolRun::new(max_steps);
@@ -444,7 +489,7 @@ impl ToolRun {
         tools: &ToolHandlers,
         middleware: &[Arc<dyn AgentMiddleware>],
         approvals: Option<&ApprovalSession>,
-    ) -> Result<AgentResponse, ProviderAttemptError> {
+    ) -> Result<BufferedOutcome, ProviderAttemptError> {
         let mut seen = self
             .history
             .iter()
@@ -465,6 +510,17 @@ impl ToolRun {
                     ProviderAttemptError::Committed(error)
                 }
             })?;
+            if generated.response.stopped() {
+                let response = if self.history.is_empty() {
+                    AgentResponse::new("", Usage::zero(), provider.name(), prompt.text.model)
+                } else {
+                    self.completed_response(provider, prompt.text.model)?
+                };
+                return Ok(BufferedOutcome {
+                    response,
+                    stopped: true,
+                });
+            }
             validate_calls(&generated.response.tool_calls, &mut seen)?;
             let plan = plan_execution(
                 &generated.response.tool_calls,
@@ -495,6 +551,7 @@ impl ToolRun {
             if finished {
                 return self
                     .completed_response(provider, prompt.text.model)
+                    .map(Into::into)
                     .map_err(Into::into);
             }
         }
@@ -503,10 +560,10 @@ impl ToolRun {
 
     fn preserve_completed_error(
         &mut self,
-        outcome: Result<AgentResponse, ProviderAttemptError>,
+        outcome: Result<BufferedOutcome, ProviderAttemptError>,
         provider: &dyn TextProvider,
         model: &str,
-    ) -> Result<AgentResponse, ProviderAttemptError> {
+    ) -> Result<BufferedOutcome, ProviderAttemptError> {
         match outcome {
             Err(error)
                 if !matches!(error.error(), AiError::ApprovalPaused(_))

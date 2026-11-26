@@ -31,6 +31,76 @@ pub trait AgentMiddleware: Send + Sync {
     }
 }
 
+type StepPredicate = dyn Fn(&PendingStep<'_>) -> bool + Send + Sync;
+
+/// 用布尔值或待执行步骤的谓词声明停止条件。
+pub struct StopCondition(Box<StepPredicate>);
+
+impl From<bool> for StopCondition {
+    fn from(condition: bool) -> Self {
+        Self(Box::new(move |_| condition))
+    }
+}
+
+impl StopCondition {
+    fn matches(&self, step: &PendingStep<'_>) -> bool {
+        (self.0)(step)
+    }
+}
+
+impl<F> From<F> for StopCondition
+where
+    F: Fn(&PendingStep<'_>) -> bool + Send + Sync + 'static,
+{
+    fn from(condition: F) -> Self {
+        Self(Box::new(condition))
+    }
+}
+
+/// 在满足条件的步骤发送模型请求前停止生成。
+pub struct Stop(StopCondition);
+
+impl Stop {
+    pub fn new(condition: impl Into<StopCondition>) -> Self {
+        Self(condition.into())
+    }
+
+    pub fn when(condition: impl Into<StopCondition>) -> Self {
+        Self::new(condition)
+    }
+
+    pub fn unless(condition: impl Into<StopCondition>) -> Self {
+        let StopCondition(condition) = condition.into();
+        Self::new(move |step: &PendingStep<'_>| !condition(step))
+    }
+}
+
+impl AgentMiddleware for Stop {
+    fn handle<'a, 'step: 'a>(
+        &'a self,
+        step: PendingStep<'step>,
+        next: NextStep<'a, 'step>,
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        if self.0.matches(&step) {
+            Box::pin(async { Ok(StepResponse::stop()) })
+        } else {
+            next.run(step)
+        }
+    }
+
+    fn handle_stream<'a, 'step: 'a>(
+        &'a self,
+        step: PendingStep<'step>,
+        next: NextStreamStep<'a, 'step>,
+    ) -> HttpFuture<'a, AiResult<StepResult>> {
+        if self.0.matches(&step) {
+            Box::pin(async { Ok(StepResult::stop()) })
+        } else {
+            next.run(step)
+        }
+    }
+}
+
 pub struct PendingStep<'a> {
     pub number: usize,
     pub is_final_step: bool,
@@ -456,7 +526,13 @@ pub(crate) async fn generate_step(
                 Ok(response)
             })
         })
-        .await;
+        .await
+        .and_then(|response| {
+            if response.stopped() && context.requested_model.is_some() {
+                return Err(AiError::InvalidResponse);
+            }
+            Ok(response)
+        });
     if let Some(observation) = context.observation {
         match &response {
             Ok(response) => {

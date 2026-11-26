@@ -140,6 +140,13 @@ Anthropic Messages 与 Gemini GenerateContent 已接入同一个原生非流式�
 
 - [固定 Laravel StepResult](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/StepResult.php)
 
+`Middleware\Stop` 的构造、`when`、`unless` 和步骤执行前判定映射到 `openrust_ai::Stop`，布尔值和 `&PendingStep` 谓词均可用。非流式中间件沿用现有返回类型，用 `StepResponse::stop()` 声明取消。调用过模型后丢弃响应并尝试返回取消会报错。首步取消返回空响应与零用量，已有步骤则返回累计结果和用量。结构化取消返回空对象与已完成步骤，流式对话跳过最终 JSON 解析。原生流仍按步骤提供增量用量，`cancelled` 终帧自身没有新增用量。
+
+独立 Artisan 和 HTTP 使用真实 SQLite（非流式及流式）、PostgreSQL 18.7（非流式）、MySQL 8.4.13（流式）及本地 Chat Completions 模拟验证首步停止零上游请求、无空会话，工具续步停止只发出一次模型请求，保留一次工具调用和 11／4 Token，跨进程 HTTP 继续会话时重放工具结果。SDK 回归 16 项，包含模型请求发出后拒绝取消响应。独立 SQLite 复验审批跨进程恢复、私有附件、迁移及原生和两种 UI 流。严格 Clippy 和三语站点通过。
+
+- [固定 Laravel Stop](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Middleware/Stop.php)
+- [固定 Laravel TextGenerationLoop](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TextGenerationLoop.php)
+
 ### AI-03 Agent 文本替身
 
 `Agent::fake_with` 及 `Ai::fake_with` 在应用范围内根据 `RecordedPrompt` 解析文本、JSON 对象或完整的 `AgentResponse`。真实 Artisan 和 HTTP 确认闭包收到已选定的供应商与模型、结构化 Schema 可读、对象按通用入口解码，Rust 类型不匹配时由 `decode` 返回错误。完整响应的实际模型、7 输入／3 输出 Token、摘要、引文与预设工具结果通过原生／Vercel／AG-UI 输出，测试上游收到零请求。SDK 回归 14 项、严格 Clippy 和三语站点通过。

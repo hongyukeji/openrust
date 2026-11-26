@@ -8,6 +8,7 @@ use openrust::{
 use crate::{
     AgentPrompt, AgentResponse, AiError, ConversationParticipant, PendingApproval,
     StreamedAgentResponse, ToolResult, error::ProviderAttemptError, messages::OwnedPrompt,
+    tools::BufferedOutcome,
 };
 
 mod step;
@@ -182,9 +183,9 @@ pub(crate) async fn observe_prompt<'a, Fut>(
     provider: &str,
     request: AgentPrompt<'a>,
     send: impl FnOnce(AgentPrompt<'a>) -> Fut,
-) -> Result<AgentResponse, ProviderAttemptError>
+) -> Result<BufferedOutcome, ProviderAttemptError>
 where
-    Fut: Future<Output = Result<AgentResponse, ProviderAttemptError>>,
+    Fut: Future<Output = Result<BufferedOutcome, ProviderAttemptError>>,
 {
     let Some(invocation_id) = crate::request_context::invocation_id() else {
         return send(request).await;
@@ -201,11 +202,11 @@ where
     .await;
     let result = send(request).await;
     match &result {
-        Ok(response) => {
+        Ok(outcome) => {
             dispatch_prompt_event(AgentPrompted {
                 invocation_id,
                 prompt,
-                response: response.clone(),
+                response: outcome.response.clone(),
             })
             .await;
         }

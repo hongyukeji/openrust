@@ -72,11 +72,12 @@ where
         let result = match (failure, final_event) {
             (None, Some(end)) => {
                 let mut response = response.finish(metadata.as_ref());
-                if response.steps.is_empty() && metadata.as_ref().is_some_and(StreamMetadata::stopped) {
+                let stopped = metadata.as_ref().is_some_and(StreamMetadata::stopped);
+                if response.steps.is_empty() && stopped {
                     yield end;
                     return;
                 }
-                if structured {
+                if structured && !stopped {
                     if let Some(last) = response.steps.last() {
                         response.text.clone_from(&last.text);
                     }

@@ -29,6 +29,7 @@ use crate::{
     on_demand::{OnDemandProviders, reserved_name},
     reranking::{HttpRerankingProvider, RerankingProtocol},
     text::{OpenAiProtocol, OpenAiTextProvider},
+    tools::BufferedOutcome,
 };
 
 type DriverFactory = dyn Fn(Value) -> AiResult<Arc<dyn TextProvider>> + Send + Sync;
@@ -639,7 +640,9 @@ impl AiManager {
         prompt: &str,
         options: PromptOptions<'_>,
     ) -> AiResult<AgentResponse> {
-        self.prompt_with_schema(agent, prompt, options, None).await
+        self.prompt_with_schema(agent, prompt, options, None)
+            .await
+            .map(|outcome| outcome.response)
     }
 
     pub(crate) async fn prompt_with_schema<A: Agent>(
@@ -648,22 +651,17 @@ impl AiManager {
         prompt: &str,
         options: PromptOptions<'_>,
         structured_output: Option<StructuredOutput<'_>>,
-    ) -> AiResult<AgentResponse> {
-        self.prompt_with_history(agent, prompt, options, structured_output, agent.messages())
-            .await
-    }
-
-    pub(crate) async fn prompt_with_history<A: Agent>(
-        &self,
-        agent: &A,
-        prompt: &str,
-        options: PromptOptions<'_>,
-        structured_output: Option<StructuredOutput<'_>>,
-        messages: &[crate::Message],
-    ) -> AiResult<AgentResponse> {
-        self.prompt_in_session(agent, prompt, options, structured_output, messages, None)
-            .await
-            .map_err(ProviderAttemptError::into_error)
+    ) -> AiResult<BufferedOutcome> {
+        self.prompt_in_session(
+            agent,
+            prompt,
+            options,
+            structured_output,
+            agent.messages(),
+            None,
+        )
+        .await
+        .map_err(ProviderAttemptError::into_error)
     }
 
     pub(crate) async fn prompt_in_session<A: Agent>(
@@ -674,7 +672,7 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
         approvals: Option<&crate::approval_turn::ApprovalSession>,
-    ) -> Result<AgentResponse, ProviderAttemptError> {
+    ) -> Result<BufferedOutcome, ProviderAttemptError> {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
@@ -740,7 +738,7 @@ impl AiManager {
                         if let Some(choice) = choice {
                             choice.validate_calls(&response.tool_calls)?;
                         }
-                        Ok(response)
+                        Ok(response.into())
                     },
                 ))
             })

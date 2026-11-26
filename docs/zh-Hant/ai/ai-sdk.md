@@ -770,6 +770,10 @@ Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組
 
 可在回傳前用 `result.response().await` 讀取完整步驟。這會緩衝該步驟並將事件保留給呼叫方。若要結束串流，在呼叫 `next.run` 前回傳 `StepResult::stop()`，串流會以取消狀態結束，回應保留已產生的步驟和用量。
 
+使用 `with_middleware(vec![Arc::new(Stop::when(|step: &PendingStep<'_>| !step.is_first_step()))])` 可以讓 Agent 在第一次模型請求後停止。從 `openrust_ai` 匯入 `Stop` 和 `PendingStep`。`Stop::new`、`Stop::when` 和 `Stop::unless` 都接受布林值或步驟條件函式。`unless` 會在條件為假時停止。
+
+停止發生在送出模型請求前。首步停止時沒有步驟和用量，也不會建立會話記錄。後續步驟停止會保留已完成的工具結果和用量。串流結束訊框的原因為 `cancelled`。如果結構化產生因停止而沒有最終物件，非串流結果中的 `structured` 是空映射，仍可讀取已完成的步驟。自訂非串流中介層可在呼叫 `next.run` 前回傳 `StepResponse::stop()`。
+
 ### 測試 Agent {#agent-fake}
 
 使用 `SupportAgent::fake` 提供有序字串，也可用 `SupportAgent::fake_with` 根據 `RecordedPrompt` 決定結果。回呼可用 `.into()` 回傳文字、JSON 物件或完整的 `AgentResponse`。Fake 為每次呼叫記錄一條提示，包括回呼回傳錯誤的呼叫，可透過 `assert_prompted` 和 `assert_prompted_times` 驗證。回呼在每個模型步驟執行，可看到中介層選定的模型及 `prompt.steps` 中先前的工具結果。模擬模型回應要求已註冊的工具時，會經過正常工具處理器。串流回應保留所提供的模型、用量、公開推理摘要、引文和工具結果。
