@@ -129,6 +129,39 @@ impl Request {
         };
         Some(union(fields.clone(), query))
     }
+    /// 仅使用已读取的正文和已解析的上传文件构造诊断快照。
+    pub(crate) fn observed_input_snapshot(&self) -> Option<Value> {
+        let plain_text = self
+            .headers()
+            .get(::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.to_ascii_lowercase().starts_with("text/plain"));
+        if plain_text {
+            let RawBody::Ready(bytes) = &self.raw_input else {
+                return None;
+            };
+            return std::str::from_utf8(bytes)
+                .ok()
+                .map(|text| Value::String(text.to_owned()));
+        }
+
+        let input = self.input_snapshot()?;
+        let Some(payload) = self
+            .payload_input
+            .as_ref()
+            .and_then(|payload| payload.as_ref().ok())
+            .filter(|payload| !payload.files.is_empty())
+        else {
+            return Some(input);
+        };
+        let files = Collection::from_value(payload.upload_metadata(&payload.file_indices));
+        let merged = Collection::from_value(input.clone())
+            .replace_recursive(files)
+            .and_then(|fields| fields.to_array())
+            .unwrap_or(input);
+        Some(merged)
+    }
+
     pub(crate) async fn apply_method_override(&mut self) -> Result<(), HttpError> {
         let policy = self
             .extensions()
@@ -1056,6 +1089,30 @@ fn filter_file_indices(value: Value) -> Option<Value> {
 impl Payload {
     fn upload(&self, value: &Value) -> Option<&UploadedFile> {
         self.files.get(value.as_str()?.parse::<usize>().ok()?)
+    }
+
+    fn upload_metadata(&self, value: &Value) -> Value {
+        match value {
+            Value::Array(values) => Value::Array(
+                values
+                    .iter()
+                    .map(|value| self.upload_metadata(value))
+                    .collect(),
+            ),
+            Value::Object(fields) => Value::Object(
+                fields
+                    .iter()
+                    .map(|(key, value)| (key.clone(), self.upload_metadata(value)))
+                    .collect(),
+            ),
+            _ => self.upload(value).map_or(Value::Null, |file| {
+                let size = crate::support::php_float_string(file.get_size() as f64 / 1000.0);
+                serde_json::json!({
+                    "name": file.get_client_original_name(),
+                    "size": format!("{size}KB"),
+                })
+            }),
+        }
     }
 
     fn upload_value(&self, value: &Value) -> UploadedFileValue {

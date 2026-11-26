@@ -134,6 +134,10 @@ impl Request {
         self.payload_input.take();
         &mut self.parts
     }
+    /// 仅变更请求扩展时保留已解析的请求数据。
+    pub(crate) fn extensions_mut(&mut self) -> &mut ::http::Extensions {
+        &mut self.parts.extensions
+    }
     pub fn take_body(&mut self) -> Body {
         std::mem::replace(&mut self.body, Body::empty())
     }

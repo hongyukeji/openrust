@@ -39,6 +39,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/request-watcher/{kind}", watched_response)?;
     openrust::support::facades::Route::post("/request-watcher/{kind}", watched_response)?;
     openrust::support::facades::Route::get("/request-view", watched_view)?;
+    openrust::support::facades::Route::post("/observed-plain", observed_plain_body)?;
+    openrust::support::facades::Route::post("/observed-upload", observed_upload)?;
     Ok(())
 }
 
@@ -1981,6 +1983,127 @@ async fn request_watcher_records_rendered_view_and_explicit_bindings() {
             .to_string()
             .contains("private-view-value")
     );
+}
+
+fn observed_plain_body(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let bytes = request.body_bytes().await?;
+        assert_eq!(bytes.as_ref(), "Plain\n正文".as_bytes());
+        Ok(openrust::http::Response::from("read plain"))
+    })
+}
+
+fn observed_upload(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let first = request
+            .file("form.attachments.0")
+            .await?
+            .expect("first upload");
+        assert_eq!(first.get_client_original_name(), "proof.txt");
+        assert_eq!(first.get_size(), 3);
+        let empty = request
+            .file("form.attachments.2")
+            .await?
+            .expect("zero byte upload");
+        assert_eq!(empty.get_size(), 0);
+        request.input(None).await?;
+        Ok(openrust::http::Response::from("read uploads"))
+    })
+}
+
+#[tokio::test]
+async fn request_watcher_records_plain_text_and_nested_upload_metadata_without_reading_streams() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.hide_request_parameters(&["form.attachments.2.name", "query_secret"]);
+    let boundary = "openrust-test";
+    let multipart = [
+        ("form[attachments][0]", None, "old"),
+        ("form[attachments][1]", None, "placeholder"),
+        ("form[label]", None, "paper"),
+        ("form[attachments][0]", Some("client/folder/proof.txt"), "abc"),
+        ("form[attachments][2]", Some("empty.log"), ""),
+    ]
+    .into_iter()
+    .map(|(name, filename, contents)| {
+        let filename = filename.map_or_else(String::new, |filename| {
+            format!("; filename=\"{filename}\"\r\nContent-Type: text/plain")
+        });
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"{filename}\r\n\r\n{contents}\r\n"
+        )
+    })
+    .collect::<String>() + &format!("--{boundary}--\r\n");
+    let request = |path, content_type: &str, body| {
+        http::Request::post(path)
+            .header(http::header::CONTENT_TYPE, content_type)
+            .body(body)
+            .unwrap()
+    };
+    for path in [
+        "/api/input?visible=ok&query_secret=hidden",
+        "/api/observed-upload?visible=ok&query_secret=hidden",
+    ] {
+        app.call(request(
+            path,
+            &format!("multipart/form-data; boundary={boundary}"),
+            openrust::http::Body::from(multipart.clone()),
+        ))
+        .await
+        .unwrap()
+        .assert_ok();
+    }
+    app.call(request(
+        "/api/observed-plain?visible=excluded",
+        "TEXT/PLAIN; charset=utf-8",
+        openrust::http::Body::from("Plain\n正文"),
+    ))
+    .await
+    .unwrap()
+    .assert_ok();
+    let unread = request(
+        "/api/unread?visible=excluded",
+        "text/plain",
+        openrust::http::Body::from_stream(futures_util::stream::pending::<
+            Result<&'static str, std::io::Error>,
+        >()),
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(2), app.call(unread))
+        .await
+        .unwrap()
+        .unwrap()
+        .assert_ok();
+
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let records = repository
+        .get(Some(EntryType::Request), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(records.len(), 4);
+    let expected = json!({
+        "form":{
+            "attachments":[{"name":"proof.txt","size":"0.003KB"}, "placeholder", {"name":"********","size":"0KB"}],
+            "label":"paper",
+        },
+        "visible":"ok",
+        "query_secret":"********",
+    });
+    for record in &records[2..] {
+        assert_eq!(
+            record.content["payload"], expected,
+            "{}",
+            record.content["uri"]
+        );
+    }
+    assert_eq!(records[1].content["payload"], "Plain\n正文");
+    assert!(records[0].content["payload"].is_null());
 }
 
 impl openrust::contracts::auth::Authenticatable for ObservedModel {

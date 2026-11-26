@@ -25,7 +25,7 @@ pub struct RequestHandled {
     pub ip_address: Option<IpAddr>,
     /// 已加载的会话快照。观察者应自行脱敏后再持久化。
     pub session: Option<serde_json::Value>,
-    /// Already-decoded input; an unread body is not consumed for observation.
+    /// 从现有正文缓存和上传元数据构造的输入快照。
     pub payload: Option<serde_json::Value>,
     /// Unix milliseconds captured when the kernel begins handling the request.
     pub request_started_at: i64,
@@ -68,7 +68,7 @@ impl RequestHandled {
                 .session()
                 .ok()
                 .map(|session| serde_json::to_value(session.all()).expect("会话数据可序列化")),
-            payload: request.input_snapshot(),
+            payload: request.observed_input_snapshot(),
             request_started_at,
             duration,
         }

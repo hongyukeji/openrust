@@ -167,7 +167,13 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过实际 Blade 响应及 Telescope �
 
 ### RequestWatcher 的文本正文与入站上传
 
-固定 PHP 8.5.12 探针确认，`text/plain` 使用原始正文；multipart 将同字段的上传信息递归写入请求参数。上传只公开客户端文件名和十进制 KB 字符串，空文件为 `0KB`，已有数组中间项保留。当前原生诊断尚未读取已缓存纯文本或已解析上传的元数据。待复用框架原始正文缓存和上传字段树，保持未读取流的观察边界。固定探针为 `target/tmp/observability-parity/telescope-request-inbound-payload-upstream.log`。
+固定 PHP 8.5.12 探针确认，`text/plain` 使用原始正文；multipart 将同字段的上传信息递归写入请求参数。上传保存客户端文件名和十进制 KB 字符串，空文件为 `0KB`，同数组现有中间项保留。Rust 使用既有原始正文缓存和上传字段树，纯文本记录限于已读取且可解码的 UTF-8。文件诊断沿用请求参数脱敏，未读取的正文流保留空值。 [固定 RequestWatcher 输入](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L156-L181)
+
+前态只读取已转换的表单参数。定向探针进一步发现，语言中间件更新请求扩展时会丢弃已解析的上传，读取文件的处理器又会从已有正文重建上传状态。框架现在用专用入口更新语言、路由和终结扩展，保留已解析的数据与通用 `parts_mut` 的失效契约。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的实际 HTTP 验证两种处理器都记录嵌套上传名与字节大小，文件值覆盖同键字段，异步未读流及时返回，缓冲纯文本保留换行。Pulse Provider 24 项、Telescope Provider 26 项、Watchers 19 项、仓储 14 项和框架 HTTP、Locale、Request 及路由共 55 项通过。独占 Redis 用例沿用环境条件。隔离快照全仓格式、相关严格 Clippy、三语构建和六组文档浏览器检查通过。磁盘停线持锁清理后重新构建通过。证据为 `target/tmp/observability-parity/telescope-request-inbound-payload-{upstream,macos-baseline,diagnose-caller,macos-resolved,docs}.log`。
+
+### Show 命令其余条目的分类详情
+
+固定 PHP 8.5.12 对查询、缓存、日志、邮件、事件、命令、调度、出站请求、Gate、模型、通知、View、Redis、Dump 和 Batch 十五类运行实际 `ShowCommand::renderEntry`。对账结果包含零值、源位置、联系人、监听器、组合器、正文分区及兜底内容。日志消息与 SQL 属于详情字段，单独的正文区块按 `--full` 控制。原生其余分类仍待补齐，固定证据为 `target/tmp/observability-parity/telescope-show-generic-upstream.log`。
 
 ### Query 事务和保存点的调用来源
 

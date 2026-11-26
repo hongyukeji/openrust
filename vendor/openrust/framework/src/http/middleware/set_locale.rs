@@ -328,7 +328,7 @@ impl Middleware for SetLocale {
                 preference.as_deref(),
             )?;
             App::set_locale(&locale).await?;
-            request.parts_mut().extensions.insert(LocaleSelection {
+            request.extensions_mut().insert(LocaleSelection {
                 // 回调已决定语言时，URL 控件无法覆盖它，因此不对页面提供可切换入口。
                 query_parameter: if from_callback { None } else { parameter },
                 supported: self.supported.clone(),
@@ -360,7 +360,7 @@ impl Middleware for SetLocale {
                 )?;
             }
             if cookie_active {
-                request.parts_mut().extensions.insert(PrivateLocaleResponse);
+                request.extensions_mut().insert(PrivateLocaleResponse);
                 add_vary(&mut response, "Cookie")?;
                 super::set_cache_headers::set_private_locale_cache_control(
                     &mut response.parts_mut().headers,

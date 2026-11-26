@@ -594,15 +594,11 @@ impl Router {
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
-        request
-            .parts_mut()
-            .extensions
-            .remove::<super::RouteMetadata>();
+        request.extensions_mut().remove::<super::RouteMetadata>();
         request.matched_route = false;
         request.route_name = None;
         request
-            .parts_mut()
-            .extensions
+            .extensions_mut()
             .remove::<super::middleware::MatchedRouteDomain>();
         request.session_block = None;
         request.apply_method_override().await?;
@@ -729,10 +725,9 @@ impl Router {
         // 命名分发会替换当前路由；不保留原路由参数、模型、域名和终结器。
         request.route_terminators.clear();
         request
-            .parts_mut()
-            .extensions
+            .extensions_mut()
             .remove::<super::middleware::MatchedRouteDomain>();
-        request.parts_mut().extensions.insert(super::RouteMetadata {
+        request.extensions_mut().insert(super::RouteMetadata {
             methods: route.methods.clone(),
             uri: route.uri.clone(),
             domain: route.domain.clone(),
@@ -746,8 +741,7 @@ impl Router {
         request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
         if let Some(domain) = &route.domain {
             request
-                .parts_mut()
-                .extensions
+                .extensions_mut()
                 .insert(super::middleware::MatchedRouteDomain(domain.clone()));
         }
         request.session_block = route.session_block;
@@ -775,11 +769,7 @@ impl Router {
         }) {
             crate::http::middleware::ProtectSensitiveData::mark(request, &route.uri);
         }
-        if let Some(metadata) = request
-            .parts_mut()
-            .extensions
-            .get_mut::<super::RouteMetadata>()
-        {
+        if let Some(metadata) = request.extensions_mut().get_mut::<super::RouteMetadata>() {
             metadata.middleware = middleware
                 .iter()
                 .map(|item| item.middleware_type_name().to_owned())

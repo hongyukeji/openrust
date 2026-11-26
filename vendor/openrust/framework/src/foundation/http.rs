@@ -493,7 +493,7 @@ impl http::Kernel for Kernel {
                         .filter(|middleware| middleware.terminable().is_some())
                         .cloned(),
                 );
-                let extensions = &mut request.parts_mut().extensions;
+                let extensions = request.extensions_mut();
                 if deferred.is_empty() {
                     extensions.remove::<DeferredCallbacks>();
                 } else {
