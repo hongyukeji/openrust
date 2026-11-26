@@ -53,6 +53,8 @@ Artisan 使用应用当前语言显示连接和供应商诊断。可在 `lang/ve
 
 可用 `stream.then(callback)` 在流消费完成时取得 `StreamedAgentResponse`。它包含合并后的文本与用量、工具调用及结果和原始事件。流暂停等待审批时，也会带上已保存的审批批次。在 `each` 完整遍历后注册回调会立即取得结果。
 
+在回调中读取 `result.response.steps`，可取得每步的文本、公开推理摘要、引文、工具调用和结果。供应商和模型取该步流开始事件的值。已完成的步骤带有流报告的用量与结束原因。暂停等候审批的步骤带有工具调用，结束原因为 `tool_calls`，用量为未知。
+
 OpenAI Responses 文本流的网页引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名为 `citation` 的 `CUSTOM` 事件。原生引文带有对应的文本消息 ID。可在完成回调中通过 `StreamedAgentResponse::citations()` 按顺序读取引文和上游报告的文本位置。 工具续轮会按事件顺序保留各次模型调用的引文。
 
 Anthropic Messages 流通过同一套原生 SSE、Vercel 和 AG-UI 格式发送网页搜索与抓取引文。每个模型步骤发送每个 URL 的首次出现，并保留公开标题。 Gemini GenerateContent 流也通过这些格式发送选中候选的 Grounding 网页来源。同一模型步骤内，跨帧重复的来源只发送一次。

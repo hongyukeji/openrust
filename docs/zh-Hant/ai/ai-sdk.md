@@ -53,6 +53,8 @@ Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在
 
 可用 `stream.then(callback)` 在串流消費完成時取得 `StreamedAgentResponse`。其中包含合併後的文字與用量、工具呼叫及結果和原始事件。串流暫停等候審批時，也會提供已儲存的審批批次。在 `each` 完整走訪後註冊回呼會立即取得結果。
 
+在回呼中讀取 `result.response.steps`，可取得每個步驟的文字、公開推理摘要、引文、工具呼叫和結果。供應商和模型取自該步驟的串流開始事件。已完成的步驟帶有串流回報的用量與結束原因。暫停等候審批的步驟帶有工具呼叫，結束原因為 `tool_calls`，用量為未知。
+
 OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名為 `citation` 的 `CUSTOM` 事件。原生引文會附上對應的文字訊息 ID。可在完成回呼中透過 `StreamedAgentResponse::citations()` 依序讀取引文和上游回報的文字位置。 工具續輪會依事件順序保留各次模型呼叫的引文。
 
 Anthropic Messages 串流透過同一套原生 SSE、Vercel 和 AG-UI 格式傳送網頁搜尋與擷取引文。每個模型步驟傳送每個 URL 的首次出現，並保留公開標題。 Gemini GenerateContent 串流也透過這些格式傳送選中候選的 Grounding 網頁來源。同一模型步驟內，跨資料框重複的來源只傳送一次。

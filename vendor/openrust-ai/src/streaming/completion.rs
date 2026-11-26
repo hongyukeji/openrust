@@ -6,7 +6,7 @@ use openrust::{
     support::facades::{App, Facade},
 };
 
-use crate::{AgentResponse, PendingToolApprovals, Usage};
+use crate::{AgentResponse, FinishReason, PendingToolApprovals, Step, Usage};
 
 use super::{AgentEventStream, StreamEvent, StreamEventData, UrlCitation};
 
@@ -87,6 +87,7 @@ impl StreamedAgentResponse {
         response.text = texts.join("\n\n");
         response.reasoning = collect_reasoning(&events);
         response.usage = usage.unwrap_or_default();
+        response.steps = collect_steps(&events);
         Some(Self {
             invocation_id,
             response,
@@ -95,6 +96,59 @@ impl StreamedAgentResponse {
             pending_approvals,
         })
     }
+}
+
+fn collect_steps(events: &[StreamEvent]) -> Vec<Step> {
+    let mut steps = Vec::new();
+    let mut current = None;
+    for (index, event) in events.iter().enumerate() {
+        if let StreamEventData::StreamStart { provider, model } = &event.data {
+            current = Some((
+                index,
+                Step {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    ..Step::default()
+                },
+            ));
+            continue;
+        }
+        let Some((_, step)) = &mut current else {
+            continue;
+        };
+        let finish_reason = match &event.data {
+            StreamEventData::TextDelta { delta, .. } => {
+                step.text.push_str(delta);
+                None
+            }
+            StreamEventData::Citation { citation, .. } => {
+                step.citations.push(citation.clone());
+                None
+            }
+            StreamEventData::ToolCall { call } => {
+                step.tool_calls.push(call.clone());
+                None
+            }
+            StreamEventData::ToolResult { result } => {
+                step.tool_results.push(result.clone());
+                None
+            }
+            StreamEventData::StreamEnd { reason, usage } => {
+                step.usage.clone_from(usage);
+                Some(FinishReason::from_wire(Some(reason)))
+            }
+            StreamEventData::ToolApprovalRequest { .. } => Some(FinishReason::ToolCalls),
+            _ => None,
+        };
+        if let Some(finish_reason) = finish_reason
+            && let Some((start, mut step)) = current.take()
+        {
+            step.finish_reason = finish_reason;
+            step.reasoning = collect_reasoning(&events[start..=index]);
+            steps.push(step);
+        }
+    }
+    steps
 }
 
 fn collect_reasoning(events: &[StreamEvent]) -> String {

@@ -36,7 +36,7 @@ impl FinishReason {
 }
 
 /// 单次模型生成与该步骤的工具结果。
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Step {
     pub text: String,
     pub tool_calls: Vec<ToolCall>,
