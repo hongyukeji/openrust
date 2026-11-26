@@ -586,6 +586,8 @@ let assistant = agent("").with_tools(vec![Arc::new(tool)]);
 
 可用 `with_approval` 为工具调用指定应用审批策略。`annotations()` 返回 MCP 服务公布的提示。
 
+要把应用自身的 MCP 服务工具直接提供给 Agent，可将工具定义和异步处理函数传给 `McpServerTool::new`。处理函数接收 `CallToolRequestParams` 并返回 `AiResult<CallToolResult>`。Agent 使用工具原名，并可沿用应用审批策略。
+
 ### Agent 技能 {#agent-skills}
 
 用 `Skill::from_directory` 打开包含 `SKILL.md` 的目录。YAML 元数据声明技能名称和描述，Markdown 正文提供说明。也可用 `Skill::new` 在 Rust 中定义技能，通过 `files` 提供内联资源。

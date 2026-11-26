@@ -586,6 +586,8 @@ let assistant = agent("").with_tools(vec![Arc::new(tool)]);
 
 Use `with_approval` to apply an application policy to the tool call. `annotations()` returns the hints published by the MCP server.
 
+To expose an application-owned MCP server tool directly to an Agent, pass its definition and async handler to `McpServerTool::new`. The handler receives `CallToolRequestParams` and returns `AiResult<CallToolResult>`. The Agent uses the tool’s declared name and can apply the same approval policy.
+
 ### Skills {#agent-skills}
 
 Use `Skill::from_directory` to open a directory with `SKILL.md`. YAML metadata supplies the skill name and description, and the Markdown body supplies the instructions. Use `Skill::new` to define a skill in Rust and add any inline resources to its `files`.

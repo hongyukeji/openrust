@@ -111,7 +111,7 @@ pub use image::{
 };
 pub use load_skill::LoadSkill;
 pub use manager::AiManager;
-pub use mcp_tool::McpTool;
+pub use mcp_tool::{McpServerTool, McpTool};
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};

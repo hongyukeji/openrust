@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use openrust::{
     http::HttpFuture,
     json_schema::{JsonSchema, JsonSchemaTypeFactory, types::ObjectType},
@@ -12,10 +14,13 @@ use serde_json::Value;
 use crate::{AiError, AiResult, Approval, Tool, ToolRequest, localization};
 
 type ApprovalPolicy = Box<dyn Fn(&ToolRequest<'_>) -> Option<Approval> + Send + Sync>;
+type Call = Box<
+    dyn Fn(CallToolRequestParams) -> HttpFuture<'static, AiResult<CallToolResult>> + Send + Sync,
+>;
 
 /// 将应用已连接的 MCP 客户端工具注册为 Agent 工具。
 pub struct McpTool {
-    client: Peer<RoleClient>,
+    call: Call,
     definition: rmcp::model::Tool,
     name: String,
     schema: ObjectType,
@@ -25,11 +30,31 @@ pub struct McpTool {
 impl McpTool {
     pub fn new(client: Peer<RoleClient>, definition: rmcp::model::Tool) -> AiResult<Self> {
         let name = format!("mcp_tools_{}", definition.name);
+        Self::from_definition(name, definition, move |params| {
+            let client = client.clone();
+            async move {
+                client
+                    .call_tool(params)
+                    .await
+                    .map_err(|_| AiError::McpToolCallFailed)
+            }
+        })
+    }
+
+    fn from_definition<F, Fut>(
+        name: String,
+        definition: rmcp::model::Tool,
+        call: F,
+    ) -> AiResult<Self>
+    where
+        F: Fn(CallToolRequestParams) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = AiResult<CallToolResult>> + Send + 'static,
+    {
         let schema = JsonSchema::from_array(Value::Object((*definition.input_schema).clone()))
             .and_then(ObjectType::try_from)
             .map_err(|_| AiError::InvalidSchema)?;
         Ok(Self {
-            client,
+            call: Box::new(move |request| Box::pin(call(request))),
             definition,
             name,
             schema,
@@ -75,13 +100,55 @@ impl Tool for McpTool {
         Box::pin(async move {
             let params = CallToolRequestParams::new(self.definition.name.clone())
                 .with_arguments(request.arguments().clone());
-            let result = self
-                .client
-                .call_tool(params)
-                .await
-                .map_err(|_| AiError::McpToolCallFailed)?;
+            let result = (self.call)(params).await?;
             Ok(normalize_result(result))
         })
+    }
+}
+
+/// 直接调用应用声明的 MCP 服务工具处理函数。
+pub struct McpServerTool(McpTool);
+
+impl McpServerTool {
+    pub fn new<F, Fut>(definition: rmcp::model::Tool, call: F) -> AiResult<Self>
+    where
+        F: Fn(CallToolRequestParams) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = AiResult<CallToolResult>> + Send + 'static,
+    {
+        McpTool::from_definition(definition.name.to_string(), definition, call).map(Self)
+    }
+
+    pub fn annotations(&self) -> Option<&ToolAnnotations> {
+        self.0.annotations()
+    }
+
+    pub fn with_approval(
+        self,
+        policy: impl Fn(&ToolRequest<'_>) -> Option<Approval> + Send + Sync + 'static,
+    ) -> Self {
+        Self(self.0.with_approval(policy))
+    }
+}
+
+impl Tool for McpServerTool {
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+
+    fn description(&self) -> &str {
+        self.0.description()
+    }
+
+    fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
+        self.0.schema(schema)
+    }
+
+    fn should_request_approval(&self, request: &ToolRequest<'_>) -> Option<Approval> {
+        self.0.should_request_approval(request)
+    }
+
+    fn handle<'a>(&'a self, request: ToolRequest<'a>) -> HttpFuture<'a, AiResult<String>> {
+        self.0.handle(request)
     }
 }
 
