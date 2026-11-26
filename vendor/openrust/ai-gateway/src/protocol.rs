@@ -951,6 +951,9 @@ async fn request_upstream(
     protocol: Protocol,
     call: &mut Call,
 ) -> Result<client::Response, UpstreamFailure> {
+    if !call.begin_dispatch().await {
+        return Err(usage_storage_failure(protocol, call));
+    }
     let dispatched = match uploads {
         Some(parts) => target.provider.relay_multipart(endpoint, data, parts).await,
         None => target.provider.relay(endpoint, data).await,
@@ -986,8 +989,15 @@ async fn request_upstream(
     };
     let status = upstream.status();
     call.status(status);
+    call.observe_headers(upstream.headers());
+    if !call.persist_observation().await {
+        return Err(usage_storage_failure(protocol, call));
+    }
     if status.is_success() {
         return Ok(upstream);
+    }
+    if let Ok(data) = upstream.json::<Value>() {
+        call.observe_usage(&data);
     }
     call.outcome("upstream_error");
     let retryable = status.is_server_error()
@@ -1017,6 +1027,19 @@ async fn request_upstream(
         pause_until,
         response,
     })
+}
+
+fn usage_storage_failure(protocol: Protocol, call: &mut Call) -> UpstreamFailure {
+    call.outcome("usage_storage_error");
+    UpstreamFailure {
+        retryable: false,
+        pause_until: None,
+        response: protocol.error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "usage_unavailable",
+            "AI 网关无法持久化上游调用的用量证据",
+        ),
+    }
 }
 
 async fn respond(
@@ -1179,17 +1202,22 @@ async fn stream(
                 terminal |= data["candidates"][0]["finishReason"].as_str().is_some_and(|reason| reason != "FINISH_REASON_UNSPECIFIED")
                     || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");
             }
-            call.observe_usage(&data);
+            let mut observed = call.observe_usage(&data);
             rename_model(&mut data, &name);
             for field in ["response", "message"] {
                 if let Some(response) = data.get_mut(field) {
-                    call.observe_usage(response);
+                    observed |= call.observe_usage(response);
                     rename_model(response, &name);
                 }
             }
             let final_usage = ended || (matches!(protocol, Protocol::Gemini)
                 && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());
             if final_usage && !call.complete().await {
+                yield Ok(protocol.stream_error());
+                return;
+            }
+            if !final_usage && observed && !call.persist_observation().await {
+                call.outcome("usage_storage_error");
                 yield Ok(protocol.stream_error());
                 return;
             }
@@ -1240,6 +1268,7 @@ fn bridged_stream(
                 yield Ok(protocol.stream_error());
                 return;
             }
+            let mut observed = false;
             let converted = if event.data == "[DONE]" {
                 state.finish()
             } else {
@@ -1249,9 +1278,9 @@ fn bridged_stream(
                     yield Ok(protocol.stream_error());
                     return;
                 };
-                call.observe_usage(&data);
-                call.observe_usage(&data["message"]);
-                call.observe_usage(&data["response"]);
+                observed |= call.observe_usage(&data);
+                observed |= call.observe_usage(&data["message"]);
+                observed |= call.observe_usage(&data["response"]);
                 state.convert(&data)
             };
             let Some((frames, terminal)) = converted else {
@@ -1261,6 +1290,11 @@ fn bridged_stream(
                 return;
             };
             if terminal && !call.complete().await {
+                yield Ok(protocol.stream_error());
+                return;
+            }
+            if !terminal && observed && !call.persist_observation().await {
+                call.outcome("usage_storage_error");
                 yield Ok(protocol.stream_error());
                 return;
             }

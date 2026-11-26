@@ -220,3 +220,9 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 独立 HTTP 网关通过本地 TCP 分别读取四种协议的最终帧，上游仍保持连接。独立 Artisan 立即读到已结算用量。杀掉并重启网关后 SQLite 与原生 PostgreSQL 18.7 的记录一致。SQLite 隔离故障样本在首帧后使账本不可用，网关返回协议错误。包测试、严格 Clippy 与三语文档验收通过。用量证据状态、晚到补录和冲突对账另行验收。
 
 - [OpenAI Chat 流用量](https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events) · [OpenAI Responses 流式事件](https://developers.openai.com/api/reference/resources/responses/streaming-events) · [Anthropic Messages 流](https://platform.claude.com/docs/en/build-with-claude/streaming)
+
+## GW-04 出站用量证据状态
+
+尝试记录在网络调用前保存出站标记。该标记表示网关开始发送流程，上游是否收到或处理由后续证据确认。Artisan 用 `usage_state` 区分未出站、未知、部分、最终和旧记录，明确零值保留。响应头的上游请求 ID 和响应体报告的模型在有可信字段时写入；外部请求的同名字段不作为供应商证据。流式新计数在转发前保存，进程异常退出后保留最近逐字段合并的部分用量。最终结果仍在同一尝试内只结算一次。
+
+独立 SQLite 与 PostgreSQL 18.7 上使用真实 HTTP 和 Artisan，检查出站记录、四协议的终值、零值、没有计数的完成响应、上游 ID 与报告模型、终帧前退出并重启，以及迁移保留的历史计数。SQLite 故障注入在出站标记失败时验证上游无请求。包测试、严格 Clippy 与三语文档通过。晚到或冲突证据的追加、价格快照和货币结算仍待验收。

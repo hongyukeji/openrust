@@ -16,7 +16,7 @@ use crate::{
 };
 
 const TABLE: &str = "ai_gateway_usage";
-const COLUMNS: [&str; 19] = [
+const COLUMNS: [&str; 23] = [
     "id",
     "request_id",
     "key_id",
@@ -36,6 +36,10 @@ const COLUMNS: [&str; 19] = [
     "reasoning_tokens",
     "started_at",
     "finished_at",
+    "usage_state",
+    "dispatch_started_at",
+    "upstream_request_id",
+    "reported_model",
 ];
 
 pub(crate) const DAY: i64 = 86_400;
@@ -112,31 +116,100 @@ pub(crate) struct UsageAttempt {
     quota: Option<QuotaReservation>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Settlement {
     outcome: &'static str,
+    state: &'static str,
     status: Option<i64>,
     input_tokens: Option<i64>,
     output_tokens: Option<i64>,
     cached_input_tokens: Option<i64>,
     cache_write_input_tokens: Option<i64>,
     reasoning_tokens: Option<i64>,
+    upstream_request_id: Option<String>,
+    reported_model: Option<String>,
     finished_at: i64,
 }
 
 impl Settlement {
-    pub(crate) fn from_context(outcome: &'static str, context: &LogContext) -> Self {
+    pub(crate) fn from_context(
+        outcome: &'static str,
+        context: &LogContext,
+        dispatch_started: bool,
+    ) -> Self {
         let count = |key: &str| context.get(key).and_then(serde_json::Value::as_i64);
+        let text = |key: &str| {
+            context
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        };
+        let input = count("input_tokens");
+        let output = count("output_tokens");
+        let cache_read = count("cached_input_tokens");
+        let cache_written = count("cache_write_input_tokens");
+        let reasoning = count("reasoning_tokens");
+        let input_only = matches!(
+            context
+                .get("upstream_endpoint")
+                .and_then(serde_json::Value::as_str),
+            Some("embeddings" | "embedContent" | "batchEmbedContents")
+        );
+        let state = if !dispatch_started {
+            "not_dispatched"
+        } else if outcome == "completed" && input.is_some() && (input_only || output.is_some()) {
+            "final"
+        } else if [input, output, cache_read, cache_written, reasoning]
+            .into_iter()
+            .any(|counter| counter.is_some())
+        {
+            "partial"
+        } else {
+            "unknown"
+        };
         Self {
             outcome,
+            state,
             status: count("status"),
-            input_tokens: count("input_tokens"),
-            output_tokens: count("output_tokens"),
-            cached_input_tokens: count("cached_input_tokens"),
-            cache_write_input_tokens: count("cache_write_input_tokens"),
-            reasoning_tokens: count("reasoning_tokens"),
+            input_tokens: input,
+            output_tokens: output,
+            cached_input_tokens: cache_read,
+            cache_write_input_tokens: cache_written,
+            reasoning_tokens: reasoning,
+            upstream_request_id: text("upstream_request_id"),
+            reported_model: text("reported_model"),
             finished_at: now(),
         }
+    }
+
+    fn observation(&self) -> Record {
+        Record::from([
+            ("usage_state".into(), self.state.into()),
+            ("status".into(), nullable(self.status)),
+            ("input_tokens".into(), nullable(self.input_tokens)),
+            ("output_tokens".into(), nullable(self.output_tokens)),
+            (
+                "cached_input_tokens".into(),
+                nullable(self.cached_input_tokens),
+            ),
+            (
+                "cache_write_input_tokens".into(),
+                nullable(self.cache_write_input_tokens),
+            ),
+            ("reasoning_tokens".into(), nullable(self.reasoning_tokens)),
+            (
+                "upstream_request_id".into(),
+                self.upstream_request_id
+                    .as_deref()
+                    .map_or(Value::Null, Into::into),
+            ),
+            (
+                "reported_model".into(),
+                self.reported_model
+                    .as_deref()
+                    .map_or(Value::Null, Into::into),
+            ),
+        ])
     }
 }
 
@@ -161,6 +234,10 @@ pub(crate) struct UsageRecord {
     reasoning_tokens: Option<i64>,
     started_at: i64,
     finished_at: Option<i64>,
+    usage_state: String,
+    dispatch_started_at: Option<i64>,
+    upstream_request_id: Option<String>,
+    reported_model: Option<String>,
 }
 
 impl UsageStore {
@@ -193,6 +270,7 @@ impl UsageStore {
             ("endpoint".into(), field("endpoint")),
             ("upstream_endpoint".into(), field("upstream_endpoint")),
             ("outcome".into(), "pending".into()),
+            ("usage_state".into(), "not_dispatched".into()),
             ("started_at".into(), now().into()),
         ]);
         if let UsageOwner::Static(scope) = owner {
@@ -344,6 +422,37 @@ impl UsageStore {
 }
 
 impl UsageAttempt {
+    pub(crate) async fn begin_dispatch(&self) -> DatabaseResult<()> {
+        let changed = self
+            .store
+            .connection
+            .table(TABLE)
+            .r#where("id", "=", self.id.as_str())
+            .where_null("finished_at")
+            .where_null("dispatch_started_at")
+            .update(Record::from([
+                ("dispatch_started_at".into(), now().into()),
+                ("usage_state".into(), "unknown".into()),
+            ]))
+            .await?;
+        if changed == 1 {
+            Ok(())
+        } else {
+            Err(DatabaseError::InvalidQuery("AI 网关出站尝试的状态无效"))
+        }
+    }
+
+    pub(crate) async fn observe(&self, settlement: &Settlement) -> DatabaseResult<()> {
+        self.store
+            .connection
+            .table(TABLE)
+            .r#where("id", "=", self.id.as_str())
+            .where_null("finished_at")
+            .update(settlement.observation())
+            .await?;
+        Ok(())
+    }
+
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
         let changed = if let Some(reservation) = &self.quota {
             let reservation = reservation.clone();
@@ -354,9 +463,10 @@ impl UsageAttempt {
                     move |transaction| {
                         let reservation = reservation.clone();
                         let id = id.clone();
+                        let settlement = settlement.clone();
                         Box::pin(async move {
                             let changed =
-                                finish_usage(transaction.table(TABLE), &id, settlement).await?;
+                                finish_usage(transaction.table(TABLE), &id, &settlement).await?;
                             if changed == 1 && settlement.outcome == "completed" {
                                 reservation
                                     .settle(transaction, settlement.output_tokens)
@@ -369,7 +479,7 @@ impl UsageAttempt {
                 )
                 .await?
         } else {
-            finish_usage(self.store.connection.table(TABLE), &self.id, settlement).await?
+            finish_usage(self.store.connection.table(TABLE), &self.id, &settlement).await?
         };
         if changed == 0 {
             let query = self
@@ -398,29 +508,18 @@ async fn insert_usage(query: Builder<'_>, record: Record) -> DatabaseResult<()> 
     Ok(())
 }
 
-async fn finish_usage(query: Builder<'_>, id: &str, settlement: Settlement) -> DatabaseResult<u64> {
+async fn finish_usage(
+    query: Builder<'_>,
+    id: &str,
+    settlement: &Settlement,
+) -> DatabaseResult<u64> {
+    let mut fields = settlement.observation();
+    fields.insert("outcome".into(), settlement.outcome.into());
+    fields.insert("finished_at".into(), settlement.finished_at.into());
     query
         .r#where("id", "=", id)
         .where_null("finished_at")
-        .update(Record::from([
-            ("outcome".into(), settlement.outcome.into()),
-            ("status".into(), nullable(settlement.status)),
-            ("input_tokens".into(), nullable(settlement.input_tokens)),
-            ("output_tokens".into(), nullable(settlement.output_tokens)),
-            (
-                "cached_input_tokens".into(),
-                nullable(settlement.cached_input_tokens),
-            ),
-            (
-                "cache_write_input_tokens".into(),
-                nullable(settlement.cache_write_input_tokens),
-            ),
-            (
-                "reasoning_tokens".into(),
-                nullable(settlement.reasoning_tokens),
-            ),
-            ("finished_at".into(), settlement.finished_at.into()),
-        ]))
+        .update(fields)
         .await
 }
 
@@ -452,6 +551,10 @@ fn decode(row: Row) -> DatabaseResult<UsageRecord> {
         reasoning_tokens: integer("reasoning_tokens")?,
         started_at: integer("started_at")?.ok_or(DatabaseError::InvalidScalar)?,
         finished_at: integer("finished_at")?,
+        usage_state: text("usage_state")?,
+        dispatch_started_at: integer("dispatch_started_at")?,
+        upstream_request_id: optional_text("upstream_request_id")?,
+        reported_model: optional_text("reported_model")?,
     })
 }
 

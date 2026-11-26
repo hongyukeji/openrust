@@ -582,6 +582,7 @@ impl Gateway {
             context,
             attempt,
             outcome: "cancelled",
+            dispatch_started: false,
             affinity: None,
             lease,
         })
@@ -598,6 +599,7 @@ pub(crate) struct Call {
     context: openrust::log::LogContext,
     attempt: Option<UsageAttempt>,
     outcome: &'static str,
+    dispatch_started: bool,
     affinity: Option<(SessionAffinity, String)>,
     lease: Option<ConcurrencyLease>,
 }
@@ -605,6 +607,28 @@ pub(crate) struct Call {
 impl Call {
     pub(crate) fn bind_affinity(&mut self, affinity: SessionAffinity, target: String) {
         self.affinity = Some((affinity, target));
+    }
+
+    pub(crate) async fn begin_dispatch(&mut self) -> bool {
+        if let Some(attempt) = &self.attempt
+            && attempt.begin_dispatch().await.is_err()
+        {
+            return false;
+        }
+        self.dispatch_started = true;
+        true
+    }
+
+    pub(crate) async fn persist_observation(&mut self) -> bool {
+        if let Some(attempt) = &self.attempt {
+            attempt.observe(&self.settlement()).await.is_ok()
+        } else {
+            true
+        }
+    }
+
+    fn settlement(&self) -> Settlement {
+        Settlement::from_context(self.outcome, &self.context, self.dispatch_started)
     }
 
     pub(crate) async fn complete(&mut self) -> bool {
@@ -620,11 +644,7 @@ impl Call {
 
     pub(crate) async fn settle(&mut self) -> bool {
         if let Some(attempt) = &self.attempt {
-            if attempt
-                .finish(Settlement::from_context(self.outcome, &self.context))
-                .await
-                .is_err()
-            {
+            if attempt.finish(self.settlement()).await.is_err() {
                 return false;
             }
             self.attempt = None;
@@ -648,9 +668,32 @@ impl Call {
         self.context.insert("status".into(), json!(status.as_u16()));
     }
 
-    pub(crate) fn observe_usage(&mut self, payload: &Value) {
+    pub(crate) fn observe_headers(&mut self, headers: &http::HeaderMap) {
+        for name in ["x-request-id", "request-id", "x-goog-request-id"] {
+            let mut values = headers.get_all(name).iter();
+            if let Some(id) = values.next().and_then(|header| header.to_str().ok())
+                && values.next().is_none()
+                && valid_reported_identifier(id)
+            {
+                self.context.insert("upstream_request_id".into(), json!(id));
+                break;
+            }
+        }
+    }
+
+    pub(crate) fn observe_usage(&mut self, payload: &Value) -> bool {
         if self.outcome == "completed" {
-            return;
+            return false;
+        }
+        let mut changed = false;
+        for field in ["model", "modelVersion"] {
+            if let Some(model) = payload[field]
+                .as_str()
+                .filter(|model| valid_reported_identifier(model))
+            {
+                changed |= self.observe_field("reported_model", json!(model));
+                break;
+            }
         }
         let usage = &payload["usage"];
         let google = &payload["usageMetadata"];
@@ -696,16 +739,30 @@ impl Call {
                 [
                     &usage["output_tokens_details"]["reasoning_tokens"],
                     &usage["completion_tokens_details"]["reasoning_tokens"],
+                    &usage["output_tokens_details"]["thinking_tokens"],
                     &google["thoughtsTokenCount"],
-                    &Value::Null,
                 ],
             ),
         ] {
             if let Some(count) = candidates.into_iter().find_map(Value::as_u64) {
-                self.context.insert(metric.into(), json!(count));
+                changed |= self.observe_field(metric, json!(count));
             }
         }
+        changed
     }
+
+    fn observe_field(&mut self, field: &str, value: Value) -> bool {
+        if self.context.get(field) == Some(&value) {
+            false
+        } else {
+            self.context.insert(field.into(), value);
+            true
+        }
+    }
+}
+
+fn valid_reported_identifier(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 255 && id.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 impl Drop for Call {
@@ -713,7 +770,7 @@ impl Drop for Call {
         if let Some(attempt) = self.attempt.take()
             && let Ok(runtime) = tokio::runtime::Handle::try_current()
         {
-            let settle = Settlement::from_context(self.outcome, &self.context);
+            let settle = self.settlement();
             let logger = self.logger.clone();
             runtime.spawn(async move {
                 if attempt.finish(settle).await.is_err() {
