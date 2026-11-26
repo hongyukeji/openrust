@@ -26,6 +26,25 @@ fn php_pcre_groups_retry_empty_matches_and_preserve_replacement_escaping() {
 }
 
 #[test]
+fn inline_utf_grouping_checks_multibyte_start_offsets() {
+    for (pattern, subject, expected) in [
+        (r"/(*UTF)(?=)/", "a", "XaX"),
+        (r"/(*UTF)é/", "é", "X"),
+        (r"/(*UTF)(?=)/u", "é", "XéX"),
+    ] {
+        assert_eq!(
+            group(&json!([[pattern, "X"]]), subject).unwrap(),
+            expected,
+            "{pattern:?}"
+        );
+    }
+    assert!(matches!(
+        group(&json!([[r"/(*UTF)(?=)/", "X"]]), "é"),
+        Err(openrust_pulse::Error::InvalidConfiguration(_))
+    ));
+}
+
+#[test]
 fn php_pcre_modifiers_preserve_compilation_and_matching_options() {
     for (pattern, subject, expected) in [
         (r"/(*UTF)foo/A", "foo", true),

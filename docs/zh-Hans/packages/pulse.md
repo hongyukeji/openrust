@@ -60,6 +60,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 缓存分组的字节模式可能产生非法 UTF-8。Pulse 在 Redis 和 SQLite 中保留原始字节，Cache 卡片仅在显示时使用替换字符。PostgreSQL 和严格模式 MySQL 在存储时拒绝非法键，非严格模式 MySQL 按数据库的文本规则转换。旧版 Redis 消费进程会把字节键载荷留在队列中，启用可能产生此类键的规则前请先完成消费进程升级。
 
+分组模式仅使用 `(*UTF)` 时，零宽匹配后若从 UTF-8 码点内部继续，会返回 PCRE2 起始偏移错误。可添加 `u` 修饰符，让替换按完整 Unicode 字符推进。
+
 用 `Pulse::graph_bytes` 按原始字节读取图表序列，即使显示标签相同也能区分不同序列。文本版 `Pulse::graph` 要求键为有效 UTF-8。
 
 用 `Pulse::set_bytes` 写入带原始字节键的仪表值，用 `Pulse::values_bytes` 按原始字节筛选。SQLite 保留无效 UTF-8 键并以数据库 `Value::Bytes` 返回。PostgreSQL 和 MySQL 依照列编码与 SQL 模式处理。通过 Redis 发送带字节键的仪表值前，请先更新所有 `pulse:work` 消费者。穷举匹配 `Item` 的自定义过滤器与存储需要处理 `Item::ByteValue`。

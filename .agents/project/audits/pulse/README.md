@@ -100,7 +100,9 @@ macOS 真实 HTTP 文件缓存、SQLite、PostgreSQL 18.7 及 MySQL 8.4.13 专�
 
 Linux 7.0.14 ARM64 使用 Rust 1.94.0 与相同源码通过 SQLite、真实 Redis 8.10.3 写入后再消费及独立失败保留／重试三项。证据为 `target/tmp/observability-parity/pulse-byte-key-storage-linux.log`。
 
-仅写 `(*UTF)` 的模式仍受 PCRE2 安全起始偏移约束。该变体、完整 Livewire 请求对照及本批目标平台 Release 继续验收。
+仅写 `(*UTF)` 的零宽分组存在明确的匹配边界。固定 PHP 8.5.12 与 PCRE2 10.44 对 `é` 按字节推进，返回 `58c358a958`。该步骤会在 UTF-8 码点中间继续匹配。PCRE2 的受检接口要求偏移落在码点首字节或字符串末尾。Rust 保留该检查，遇到码点内偏移时返回配置错误。ASCII、消耗完整多字节字符的模式及显式 `u` 按对应规则工作。PHP 和 Rust 均对带 `u` 的用例得到 `XéX`。macOS 的五项规则测试、相关严格 Clippy、全仓格式、三语站点构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-inline-utf-boundary-{upstream,macos,docs}.log`。 [固定 PHP 替换循环](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L1757-L1819) [PCRE2 受检起始偏移](https://www.pcre.org/current/doc/html/pcre2api.html#SEC25)
+
+完整 Livewire 请求对照及目标平台 Release 继续验收。
 
 #### 含字节键的通用 Graph 与 Value
 

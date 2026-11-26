@@ -60,6 +60,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 快取分組的位元組模式可能產生非法 UTF-8。Pulse 在 Redis 和 SQLite 中保留原始位元組，Cache 卡片僅在顯示時使用替代字元。PostgreSQL 和嚴格模式 MySQL 在儲存時拒絕非法鍵，非嚴格模式 MySQL 按資料庫的文字規則轉換。舊版 Redis 消費程序會將位元組鍵負載保留在佇列中，啟用可能產生此類鍵的規則前請先完成消費程序升級。
 
+分組模式僅使用 `(*UTF)` 時，零寬比對後若從 UTF-8 碼點內部繼續，會傳回 PCRE2 起始位移錯誤。可新增 `u` 修飾符，讓取代依完整 Unicode 字元推進。
+
 用 `Pulse::graph_bytes` 按原始位元組讀取圖表序列，即使顯示標籤相同也能分辨不同序列。文字版 `Pulse::graph` 要求鍵為有效 UTF-8。
 
 用 `Pulse::set_bytes` 寫入帶原始位元組鍵的儀表值，用 `Pulse::values_bytes` 按原始位元組篩選。SQLite 保留無效 UTF-8 鍵並以資料庫 `Value::Bytes` 傳回。PostgreSQL 和 MySQL 依照欄位編碼與 SQL 模式處理。透過 Redis 傳送帶位元組鍵的儀表值前，請先更新所有 `pulse:work` 消費者。窮舉比對 `Item` 的自訂篩選器與儲存需要處理 `Item::ByteValue`。

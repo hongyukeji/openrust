@@ -752,4 +752,4 @@ Windows 11 ARM64 虚机的 Parallels 共享目录在 Rust 写归档时返回错�
 
 Pulse 补齐字节键仪表值与同批 PHP 宽松去重，Telescope 补齐出站响应的 JSON 形状、空内容判定与小数大小限制，Horizon 补齐 Windows 快速重启中 Supervisor 已退出但旧 Worker 仍持有输出管道的情形。各项固定参考、实际消费者、平台及剩余边界以[Pulse](pulse/README.md#含字节键的通用-graph-与-value)、[Telescope](telescope/README.md#出站响应内容形状与大小限制)及[Horizon](horizon/README.md#master-公开重启)记录为准。
 
-三个扩展仍按固定上游逐项对齐。后续继续核对 Telescope 的异步来源链和剩余响应边界、Pulse 的内联 `(*UTF)` 与完整 Livewire 生命周期，以及 Horizon 在目标服务管理器、物理 x86_64 和实际故障转移端点上的运行。最终生产矩阵仍需锁定拟交付提交，按实际部署组合验证迁移、升级、关停、恢复和容量。 [发布条件](../todo.md#平台与发布条件)
+Pulse 的 [PCRE2 起始偏移边界](pulse/README.md#缓存分组字节键进入原生消费者) 已与固定 PHP 核对并写入三语文档。三个扩展仍按固定上游逐项对齐。后续继续核对 Telescope 的异步来源链和剩余响应边界、Pulse 的完整 Livewire 生命周期和其余 Recorder 契约，以及 Horizon 在目标服务管理器、物理 x86_64 和实际故障转移端点上的运行。最终生产矩阵仍需锁定拟交付提交，按实际部署组合验证迁移、升级、关停、恢复和容量。 [发布条件](../todo.md#平台与发布条件)

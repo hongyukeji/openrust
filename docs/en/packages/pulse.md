@@ -60,6 +60,8 @@ Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `
 
 Cache grouping in byte mode can produce a key that contains invalid UTF-8. Pulse retains the original bytes through Redis and SQLite. The Cache card renders replacement characters only for display. PostgreSQL and strict MySQL reject invalid keys during storage. MySQL in non-strict mode applies its own text conversion. Older Redis ingest workers leave binary-key payloads queued, so complete the worker upgrade before enabling rules that can produce them.
 
+When a grouping pattern uses `(*UTF)`, a zero-width match followed by a byte offset inside a UTF-8 character returns a PCRE2 offset error. Add the `u` modifier to advance by whole Unicode characters.
+
 Use `Pulse::graph_bytes` to read graph series keyed by their original bytes. This keeps distinct series separate even if their labels look identical. The textual `Pulse::graph` API requires UTF-8 keys.
 
 Use `Pulse::set_bytes` to record a value with an original byte key and `Pulse::values_bytes` to filter by those bytes. SQLite preserves keys with invalid UTF-8 and returns them as database `Value::Bytes`. PostgreSQL and MySQL apply their column encoding and SQL mode. Update all `pulse:work` consumers before producers begin sending byte-keyed values through Redis. Custom filters and storage implementations that match every `Item` variant must handle `Item::ByteValue`.
