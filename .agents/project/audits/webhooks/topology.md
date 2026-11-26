@@ -74,3 +74,12 @@
 - 此轮 FIFO 覆盖真实 Job 路由及重投递。FIFO 分组排序及去重窗口的专项结果见[原生队列验收](../06-03/sqs.md)。托管 AWS 的 IAM、STS、KMS、真实配额与跨物理节点发布组合仍需隔离 AWS 环境。四组本机容器、网络和临时数据库卷已清理，原始日志见 `target/tmp/webhook-sqs-topology/`。
 
 工作区格式检查通过。冻结源码的 Webhook 验收入口使用 Linux ARM64 Clippy 0.1.94、`-D warnings` 和仅元数据输出完成严格检查。三语接收指南补充 SQS 可见性超时设置，内容检查及根路径和 `/docs/` 的六项真实浏览器检查通过。
+
+## Nginx HTTPS 回调入口 {#nginx-https-ingress}
+
+使用前一批 `e6e512b3e` 的 Linux ARM64 验收制品。它由 `ed8b63c7` 的冻结源码叠加 SQS 验收夹具构建，使用 Rust 1.94.0，两包运行时代码与本批仓库版本一致。两个独立应用容器共用 PostgreSQL 18.7、database 队列和缓存，各自通过 Artisan 生成配置及路由缓存后重启。Nginx 1.30.7 官方 ARM64 镜像固定为 `sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3`。仅在宿主回环发布 HTTPS 端口，私有测试 CA 签发两个同名证书。回调客户端保留 SNI 和证书校验，Nginx 在同一隔离网络中通过 HTTP 转发至应用。 [Nginx HTTP Proxy Module](https://nginx.org/en/docs/http/ngx_http_proxy_module.html) · [固定 Spatie 默认验签](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/src/SignatureValidator/DefaultSignatureValidator.php)
+
+- **接收与切换。** 未信任测试 CA 时 curl 拒绝握手。已信任 CA 时，篡改正文和超出五分钟时间窗的签名均被默认控制器拒绝，返回该入口既有的 HTTP 500，库内无接收记录。节点 0 确认有效的 Standard Webhooks 请求后，重新加载 Nginx，将证书序列号从 01 切到 02，并切换至节点 1，停止节点 0。同一个签名请求重发仍返回 200，只有原接收 ID 和一条任务。独立 Artisan Worker 读回含原有空白、CRLF 和中文的 UTF-8 正文。单独用默认 HMAC 验证器接收带 NUL 与非 UTF-8 字节的正文，Worker 按字节读回。
+- **双包往返。** 通过 HTTPS 登记两条出站投递，命令 `webhook-server:send --queue` 派发，独立 `queue:work` 执行。未配置测试 CA 的一次尝试无法到达接收应用，发送记录保留 `unknown`。授权目标和测试 CA 均配置时，经 Nginx 的 HTTPS 回调真实到达接收包，返回 200，发送状态为 `succeeded`，接收 Worker 按字节处理原始载荷并写入完成时间。
+
+本轮测试为同主机双容器和手动切换，覆盖证书轮换及 HTTPS 回调，使用私有 CA 与固定目标。物理节点、正式 CA、DNS、目标入口与后端链路 TLS 按发布环境验收。临时证书、容器、网络和应用目录已回收。数据库运行在 tmpfs，Docker 数据卷清单保持一致。原始日志见 `target/tmp/webhook-nginx-tls/acceptance.log`。三语指南的内容检查及根路径、`/docs/` 下的六项浏览器检查通过，本批使用 VitePress 开发服务验证文案，未重建静态站点。

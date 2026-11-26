@@ -5,7 +5,7 @@
 | 顺序 | 本地实现及证据 | 发布条件 |
 | --- | --- | --- |
 | 2 自定义存储与短信 | `4d45b5609` 提供存储驱动扩展及独立短信消费者，覆盖三语文档与三库／双队列。[待办记录](../todo.md) | 正式环境用计划选定的存储和短信测试身份复测 |
-| 3 Webhook | 两个可选包的安装、HTTP 收发、队列／恢复、重放、工厂扩展与运维入口已有 [逐类型验收](webhooks/contracts.json)。[单机与双节点](webhooks/topology.md) 复跑五种本地拓扑，[Worker 时钟偏差](webhooks/topology.md#clock-skew)覆盖共享 PostgreSQL／MySQL，[SQS Standard／FIFO](webhooks/topology.md#sqs-queue)已通过本机 ElasticMQ 实测，[目标平台](webhooks/artifact-licenses.md) 核对五组许可依赖图及 ARM64 原生和 amd64 仿真运行镜像，补齐静态 PCRE2、SLJIT 和 AWS-LC 原文 | 真实跨主机、目标队列／对象存储、外部代理和公开 TLS 回调。物理 x86_64 及其他静态依赖和发布渠道保留制品复核 |
+| 3 Webhook | 两个可选包的安装、HTTP 收发、队列／恢复、重放、工厂扩展与运维入口已有 [逐类型验收](webhooks/contracts.json)。[单机与双节点](webhooks/topology.md) 复跑五种本地拓扑，[Worker 时钟偏差](webhooks/topology.md#clock-skew)覆盖共享 PostgreSQL／MySQL，[SQS Standard／FIFO](webhooks/topology.md#sqs-queue)已通过本机 ElasticMQ 实测，[Nginx HTTPS 回调](webhooks/topology.md#nginx-https-ingress)已覆盖证书轮换及节点切换，[目标平台](webhooks/artifact-licenses.md) 核对五组许可依赖图及 ARM64 原生和 amd64 仿真运行镜像，补齐静态 PCRE2、SLJIT 和 AWS-LC 原文 | 真实跨主机、目标队列／对象存储、外部代理和公开 TLS 回调。物理 x86_64 及其他静态依赖和发布渠道保留制品复核 |
 | 4 机器翻译 | `07b4ed8d3` 提供七个内置驱动及自定义驱动。[拆分与验收](localization-and-text-translation/README.md) | 真实地区、模型、配额及供应商测试身份 |
 | 5 Pay 自定义驱动 | `ea3a39c04` 提供应用级注册及三库可信通知消费 | 隔离商户测试账号、回调及所需验权。真实资金操作需另有授权 |
 | 6 Lang Loader | `07b4ed8d3` 提供容器注册、自定义资源、显式刷新及配置缓存。[拆分与验收](localization-and-text-translation/README.md) | 无独立供应商条件 |

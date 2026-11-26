@@ -26,6 +26,8 @@ When an application uses both packages, register the receive dispatcher and busi
 
 Apply the configured body limit while reading the HTTP stream, before creating `WebhookRequest`. Preserve the original body bytes and header values. The default validator uses HMAC-SHA256 and requires the exact lowercase hexadecimal signature. It does not sign the URL or timestamp and supplies no replay window. Duplicate signature headers are rejected.
 
+When a reverse proxy terminates HTTPS, forward the request body and signature headers unchanged. Keep the proxy’s request size limit at least as large as the largest payload your application accepts.
+
 The default body limit is 1 MiB; `with_max_body_bytes` accepts up to 16 MiB. A snapshot permits at most 128 header values and 64 KiB of combined header names and values. Configuration sources permit at most 128 profiles; names and revision labels are limited to 128 bytes and individual secrets to 8192 bytes. The HTTP transport may enforce lower limits.
 
 Custom validators that sign the request target should attach the original `Request::uri()` with `WebhookRequest::with_uri`; query encoding is preserved.
