@@ -167,6 +167,8 @@ Artisan 注册表新增启动事件后，Telescope 的通配事件监听器会�
 
 macOS 开发构建的三扩展默认 159 项和全目标严格 Clippy 通过。隔离 PostgreSQL 18.7 和 MySQL 8.4.13 每个 Provider 用例使用各自数据库，两库各 36 项通过，隔离 Redis 8.10.3 专项 1 项通过。最初并行共用数据库引发迁移冲突。重新隔离后发现 PostgreSQL 按插入顺序返回邮件标签，固定上游和原生查询均无排序约束，改为核对标签成员。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-{storage-diagnosis,artisan-lifecycle-final,artisan-lifecycle-clippy,artisan-lifecycle-postgres-final,artisan-lifecycle-mysql-final,artisan-lifecycle-redis}.log`。
 
+固定上游同时读取历史键 `telescope.ignoreCommands` 和现行键 `telescope.ignore_commands`。原生前态实际执行历史键列出的命令时仍调用仓储。当前两种键共同生效，命令都实际执行并保留退出状态，监控标签加载、写入及终止计数均为零。普通命令和初始化命令继续通过。macOS 自定义仓储 4 项、Pulse Provider 33 项、Telescope Provider 36 项及严格 Clippy 通过，独立 Redis 用例按条件跳过。证据为 `target/tmp/observability-parity/horizon-cluster-reference/telescope-legacy-ignore-commands{,-baseline}.log`。 [固定命令过滤契约](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Telescope.php#L174-L194)
+
 ### 手动调度试跑的记录范围
 
 固定 PHP 8.5.12 调用实际 `ScheduleWatcher::recordCommand`。`schedule:run` 和 `schedule:finish` 各登记一个完成回调，`schedule:test` 不登记。原生前态的手动试跑生成调度条目。原生调度器沿用公开完成事件，通过派发上下文携带启动命令。Telescope 跳过 `schedule:test` 的调度条目，同时保留 CommandWatcher 的命令条目。 [固定 ScheduleWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ScheduleWatcher.php)

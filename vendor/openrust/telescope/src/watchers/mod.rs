@@ -365,13 +365,14 @@ impl NativeWatcher {
                     "telescope:show"
                 ]),
                 &event.command,
-            ) || matches(
-                &self
-                    .config
-                    .get("telescope.ignore_commands")
-                    .unwrap_or(json!([])),
-                &event.command,
-            ) {
+            ) || ["telescope.ignoreCommands", "telescope.ignore_commands"]
+                .into_iter()
+                .any(|key| {
+                    self.config
+                        .get(key)
+                        .is_some_and(|patterns| matches(&patterns, &event.command))
+                })
+            {
                 telescope.flush_entries();
                 telescope.stop_recording();
             }

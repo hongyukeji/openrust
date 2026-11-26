@@ -226,23 +226,36 @@ async fn management_commands_use_their_independently_bound_repositories() {
 
 #[tokio::test]
 async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage() {
-    for (arguments, ignored, fail) in [
-        (vec!["init", "--dry-run"], true, false),
-        (vec!["init:resources", "--extensions", "api"], true, false),
-        (vec!["install:full", "--dry-run"], true, false),
-        (vec!["diagnostic:probe"], false, false),
-        (vec!["diagnostic:probe"], false, true),
+    for (arguments, ignored, fail, status) in [
+        (vec!["init", "--dry-run"], true, false, 1),
+        (
+            vec!["init:resources", "--extensions", "api"],
+            true,
+            false,
+            1,
+        ),
+        (vec!["install:full", "--dry-run"], true, false, 1),
+        (vec!["diagnostic:ignored-legacy"], true, false, 0),
+        (vec!["diagnostic:ignored-modern"], true, false, 0),
+        (vec!["diagnostic:probe"], false, false, 0),
+        (vec!["diagnostic:probe"], false, true, 0),
     ] {
         let root = tempfile::tempdir().unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
             .with_providers(vec![Box::new(TelescopeServiceProvider)])
             .with_commands(|artisan| {
                 artisan.command("diagnostic:probe", |_| {})?;
+                artisan.command("diagnostic:ignored-legacy", |_| {})?;
+                artisan.command("diagnostic:ignored-modern", |_| {})?;
                 Ok(())
             })
             .with_config(|base, _| {
                 Ok(std::collections::BTreeMap::from([
-                    ("telescope".into(), serde_json::json!({"driver":"custom"})),
+                    ("telescope".into(), serde_json::json!({
+                        "driver":"custom",
+                        "ignoreCommands":["diagnostic:ignored-legacy"],
+                        "ignore_commands":["diagnostic:ignored-modern"]
+                    })),
                     ("logging".into(), serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":base.join("app.log"),"level":"debug"}}})),
                     ("cache".into(), serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}})),
                 ]))
@@ -259,6 +272,7 @@ async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage()
             .bind::<dyn EntriesRepository, _>(move |_| Ok(storage.clone()))
             .unwrap();
 
+        let command = arguments[0];
         // 不完整的应用会由命令自身报错，诊断采集不得抢先访问存储。
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(2),
@@ -266,16 +280,19 @@ async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage()
         )
         .await
         .expect("初始化命令不应等待诊断存储");
+        assert_eq!(result.unwrap(), status, "{command}");
         if ignored {
-            assert_ne!(result.unwrap(), 0);
-            assert_eq!(store.initializations.load(Ordering::Relaxed), 0);
-            assert_eq!(store.writes.load(Ordering::Relaxed), 0);
-            assert_eq!(store.terminations.load(Ordering::Relaxed), 0);
+            assert_eq!(
+                store.initializations.load(Ordering::Relaxed),
+                0,
+                "{command}"
+            );
+            assert_eq!(store.writes.load(Ordering::Relaxed), 0, "{command}");
+            assert_eq!(store.terminations.load(Ordering::Relaxed), 0, "{command}");
         } else {
             assert_eq!(store.initializations.load(Ordering::Relaxed), 1);
             assert!(store.writes.load(Ordering::Relaxed) > 0);
             assert_eq!(store.terminations.load(Ordering::Relaxed), 1);
-            assert_eq!(result.unwrap(), 0);
         }
     }
 }
