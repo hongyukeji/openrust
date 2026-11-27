@@ -28,6 +28,7 @@ type HttpResult = Result<Response, HttpError>;
 
 mod embedding_batch;
 mod gemini_batches;
+mod gemini_caches;
 mod image_upload;
 mod resources;
 mod usage_summary;
@@ -56,7 +57,8 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.get("/models", gemini_models)?;
         router.get("/models/{model}", gemini_model)?;
         router.post("/models/{model}", gemini_operation)?;
-        gemini_batches::routes(router)
+        gemini_batches::routes(router)?;
+        gemini_caches::routes(router)
     })
 }
 
@@ -673,16 +675,19 @@ async fn relay(
             "此端点仅支持无状态请求及内联附件",
         );
     }
+    let gemini_cache = if matches!(protocol, Protocol::Gemini) {
+        match gemini_caches::resolve(&gateway, key, &name, endpoint, &mut data).await {
+            Ok(cache) => cache,
+            Err(error) => return error,
+        }
+    } else {
+        None
+    };
     if matches!(protocol, Protocol::Gemini)
         && ((!endpoint.is_gemini_embedding() && resources::present_field(&data, "model"))
-            || [
-                "cachedContent",
-                "cached_content",
-                "generateContentRequest",
-                "generate_content_request",
-            ]
-            .iter()
-            .any(|field| resources::present_field(&data, field))
+            || ["generateContentRequest", "generate_content_request"]
+                .iter()
+                .any(|field| resources::present_field(&data, field))
             || resources::gemini_file_references(&data))
     {
         return protocol.error(
@@ -722,6 +727,7 @@ async fn relay(
                     .any(|message| message.get(openrust_ai::CHAT_REASONING_REPLAY).is_some())
             });
     let may_replay = !endpoint.is_image()
+        && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
         && data
@@ -762,15 +768,21 @@ async fn relay(
     let mut targets: Vec<_> = model
         .targets_for(endpoint, key)
         .filter(|(target, upstream)| {
-            (!sealed_responses
-                || (*upstream == TextEndpoint::ChatCompletions
-                    && target.provider.supports_chat_reasoning_replay()))
+            gemini_cache
+                .as_ref()
+                .is_none_or(|cache| gemini_caches::cache_matches(cache, target))
+                && (!sealed_responses
+                    || (*upstream == TextEndpoint::ChatCompletions
+                        && target.provider.supports_chat_reasoning_replay()))
                 && (!native_responses_only || *upstream == endpoint)
                 && server_tools
                     .iter()
                     .all(|kind| target.provider.supports_responses_server_tool(kind))
         })
         .collect();
+    if gemini_cache.is_some() && targets.is_empty() {
+        return gemini_caches::not_found();
+    }
     if native_responses_only && targets.is_empty() {
         return protocol.error(
             StatusCode::BAD_REQUEST,
@@ -798,6 +810,9 @@ async fn relay(
             std::mem::take(&mut data)
         };
         payload.insert("model".into(), json!(target.upstream_model));
+        if let Some(cache) = &gemini_cache {
+            payload.insert("cachedContent".into(), json!(cache.upstream_name));
+        }
         let signed_reasoning = endpoint == TextEndpoint::Responses
             && upstream_endpoint == TextEndpoint::ChatCompletions
             && target.provider.supports_chat_reasoning_replay();

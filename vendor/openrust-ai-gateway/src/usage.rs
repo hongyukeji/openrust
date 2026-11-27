@@ -22,6 +22,7 @@ use crate::{
 mod batch_recovery;
 pub(crate) mod gemini_batch_files;
 pub(crate) mod gemini_batches;
+pub(crate) mod gemini_caches;
 
 const TABLE: &str = "ai_gateway_usage";
 const COLUMNS: [&str; 27] = [

@@ -101,3 +101,21 @@ pub(super) fn gemini_embedding_model_matches(
 fn present(value: &Value) -> bool {
     !value.is_null()
 }
+
+pub(super) fn gemini_function_tools(tools: Option<&Value>) -> bool {
+    tools.filter(|tools| !tools.is_null()).is_none_or(|tools| {
+        tools.as_array().is_some_and(|tools| {
+            tools.iter().all(|tool| {
+                tool.as_object().is_some_and(|tool| {
+                    tool.len() == 1
+                        && tool.keys().all(|name| {
+                            matches!(
+                                name.as_str(),
+                                "functionDeclarations" | "function_declarations"
+                            )
+                        })
+                })
+            })
+        })
+    })
+}

@@ -317,21 +317,7 @@ fn validate_inline(body: &Value, model: &str, endpoint: TextEndpoint) -> Result<
         {
             return Err("批任务仅支持当前请求中的资源");
         }
-        if let Some(tools) = request.get("tools").filter(|tools| !tools.is_null())
-            && tools.as_array().is_none_or(|tools| {
-                tools.iter().any(|tool| {
-                    tool.as_object().is_none_or(|tool| {
-                        tool.len() != 1
-                            || tool.keys().any(|name| {
-                                !matches!(
-                                    name.as_str(),
-                                    "functionDeclarations" | "function_declarations"
-                                )
-                            })
-                    })
-                })
-            })
-        {
+        if !resources::gemini_function_tools(request.get("tools")) {
             return Err("批任务只支持客户端函数工具");
         }
         let contents = if endpoint.is_embedding() {

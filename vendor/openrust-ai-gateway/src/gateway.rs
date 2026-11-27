@@ -57,6 +57,8 @@ struct ModelConfiguration {
     endpoints: Option<Vec<String>>,
     codex: Option<CodexMetadata>,
     #[serde(default)]
+    gemini_cached_contents: bool,
+    #[serde(default)]
     server_tools: HashSet<ResponsesServerTool>,
     #[serde(default)]
     file_search_collections: HashSet<String>,
@@ -243,6 +245,7 @@ pub(crate) struct Target {
 
 pub(crate) struct Model {
     pub(crate) codex: Option<CodexMetadata>,
+    pub(crate) gemini_cached_contents: bool,
     server_tools: HashSet<ResponsesServerTool>,
     file_search_collections: HashSet<String>,
     targets: Vec<Target>,
@@ -460,6 +463,24 @@ impl Gateway {
                 {
                     return Err(invalid("Gemini 批任务需要启用持久化用量"));
                 }
+                if model.gemini_cached_contents
+                    && (usage_store.is_none()
+                        || ![
+                            TextEndpoint::GeminiGenerateContent,
+                            TextEndpoint::GeminiStreamGenerateContent,
+                        ]
+                        .into_iter()
+                        .any(|endpoint| {
+                            endpoints.contains(&endpoint)
+                                && targets.iter().any(|target| {
+                                    target.provider.gemini_cache_gateway().is_some()
+                                        && resolve_endpoint(target.provider.as_ref(), endpoint)
+                                            .is_some()
+                                })
+                        }))
+                {
+                    return Err(invalid("Gemini 缓存需要持久化用量和 Gemini 生成端点"));
+                }
                 if model.server_tools.iter().any(|tool| {
                     !endpoints.contains(&TextEndpoint::Responses)
                         || !targets.iter().any(|target| {
@@ -487,6 +508,7 @@ impl Gateway {
                         targets,
                         endpoints,
                         codex: model.codex,
+                        gemini_cached_contents: model.gemini_cached_contents,
                         server_tools: model.server_tools,
                         file_search_collections: model.file_search_collections,
                     },

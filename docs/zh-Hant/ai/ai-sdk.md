@@ -161,6 +161,10 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 預設以 JSON 陣列串流回傳。可用 `?alt=json` 明確選擇 JSON，或用 `?alt=sse` 選擇 SSE。陣列中的每一項是一個 Gemini 回應區塊。串流開始後若發生錯誤，陣列末尾會提供 Gemini 錯誤物件。
 
+發佈 Gemini 上下文快取時，啟用閘道用量儲存，執行閘道遷移，並在 Gemini 生成模型上設定 `"gemini_cached_contents": true`。向 `POST /v1beta/cachedContents` 提交快取內容，`model` 填公開模型名稱，例如 `models/support-chat`，在 `x-goog-api-key` 中傳入閘道 Key。用 `GET /v1beta/cachedContents` 列出目前 Key 的快取，支援 `pageSize` 和 `pageToken`。透過 `/v1beta/{name}` 的 GET、PATCH 和 DELETE 管理單個快取，PATCH 可更新 `ttl` 或 `expireTime`。
+
+在 `:generateContent` 或 `:streamGenerateContent` 中，將閘道回傳的 `name` 作為 `cachedContent`，沿用同一個 Key 和公開模型。閘道會將請求送到建立快取的連線。建立時可使用內嵌內容和用戶端函式定義。生成用量依設定的快取輸入費率結算，快取建立和儲存費用仍需供應商帳單證據。群組或帳號預算要求拒絕上限未知的費用時，閘道會在送出請求前拒絕建立和修改有效期。
+
 要發佈 Gemini 非同步批次工作，請啟用閘道用量儲存、發佈並執行 `ai-gateway-migrations`，再將 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公開模型的 `endpoints`。將批次工作提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用閘道回傳的 `batches/…` 名稱查詢、取消或刪除工作。`GET /v1beta/batches` 列出目前 Key 的工作，支援 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
 請依批次工作的價格設定具名連線與公開模型費率。閘道只登記一次提交，取得最終項目用量後結算。啟用硬預算時，為上游模型設定可信的單項輸入上限 `input_token_limit`，向量批次也依此上限預留。啟用硬預算或輸出配額的生成批次支援文字輸出。閘道採用最嚴格的設定上限，依每項的候選數換算 `maxOutputTokens`，保留呼叫端較小的上限和原有推理設定。候選輸出與推理 Token 均計入配額。用量無法確認時保留配額預留。Gemini 回傳結果檔案時，閘道在 `response.responsesFile` 中回傳目前 Key 有權存取的檔名。使用 `GeminiBatches::download`，或持同一 Key 請求 `GET /download/v1beta/{responsesFile}:download?alt=media`。結果以 JSONL 串流回傳，單行上限為 64 MiB。下載中斷後從頭重試。
