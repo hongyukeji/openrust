@@ -80,6 +80,7 @@ pub(super) struct Transport<'a> {
     pub body_limit: usize,
     pub sink: Option<&'a super::Sink>,
     pub stream: bool,
+    pub upgrade: Option<&'a super::websocket::Upgrade>,
 }
 
 impl Transport<'_> {
@@ -162,6 +163,16 @@ impl Transport<'_> {
                             remaining,
                             distinguish_setup,
                             |incoming| async {
+                                if let Some(upgrade) = self.upgrade
+                                    && incoming.status() == StatusCode::SWITCHING_PROTOCOLS
+                                {
+                                    return match incoming {
+                                        Incoming::Network(response) => {
+                                            upgrade.accept(response).await
+                                        }
+                                        Incoming::Fake(_) => Err(Error::InvalidWebSocketUpgrade),
+                                    };
+                                }
                                 // Redirect/authentication bodies remain unbuffered, as in the original transport.
                                 let following = (incoming.status() == StatusCode::UNAUTHORIZED
                                     && replay

@@ -18,6 +18,7 @@ mod sink;
 pub mod tencent_rpc;
 mod transport;
 mod uri_template;
+mod websocket;
 
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use body::ResponseResource;
@@ -34,6 +35,7 @@ pub use reqwest::{Certificate as TlsCertificate, Identity as TlsIdentity, Reques
 pub use response::{Response, ResponseStream, TransferStats};
 pub use retry_after::RetryAfter;
 pub use sink::Sink;
+pub use websocket::{WebSocket, WebSocketConfig, WebSocketMessage};
 
 use std::fmt;
 
@@ -47,6 +49,7 @@ pub enum Error {
     InvalidRequest,
     DestinationMismatch,
     InvalidUriTemplate,
+    InvalidWebSocketUpgrade,
     Connection,
     ConnectionNotEstablished,
     Timeout,
@@ -75,6 +78,7 @@ impl fmt::Display for Error {
                 formatter.write_str("invalid HTTP URI template or parameter")
             }
             Self::Connection => formatter.write_str("outgoing HTTP connection failed"),
+            Self::InvalidWebSocketUpgrade => formatter.write_str("出站 WebSocket 握手无效"),
             Self::ConnectionNotEstablished => formatter.write_str("出站 HTTP 连接未能建立"),
             Self::Timeout => formatter.write_str("outgoing HTTP request timed out"),
             Self::BodyTooLarge => {

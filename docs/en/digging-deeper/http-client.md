@@ -224,3 +224,18 @@ while let Some(chunk) = chunks.next().await {
 ```
 
 A live stream can be consumed once. Failed HTTP responses keep their buffered body for error handling. Use either `stream()` or `sink()` on a request.
+
+## Outbound WebSocket connections {#outbound-websocket}
+
+Call `PendingRequest::connect_websocket` with a URL and `http::client::WebSocketConfig`. The HTTP/1.1 handshake uses the HTTP client's authorization, middleware, destination rules and TLS settings. It validates the server's handshake and disables redirects and retries. The request timeout applies to the handshake. Set frame and message limits in `WebSocketConfig` and apply application timeouts while exchanging frames. The client negotiates neither WebSocket subprotocols nor extensions.
+
+```rust
+use openrust::http::client::{Http, WebSocketConfig};
+
+let config = WebSocketConfig::default()
+    .max_frame_size(Some(64 * 1024))
+    .max_message_size(Some(256 * 1024));
+let socket = Http::with_token(service_token)?
+    .connect_websocket("wss://service.example/control", config)
+    .await?;
+```

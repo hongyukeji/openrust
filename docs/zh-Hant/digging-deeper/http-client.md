@@ -224,3 +224,18 @@ while let Some(chunk) = chunks.next().await {
 ```
 
 網路串流只能消費一次。非成功回應仍保留緩衝本文供錯誤處理。同一個請求可選擇 `stream()` 或 `sink()`。
+
+## 出站 WebSocket 連線 {#outbound-websocket}
+
+呼叫 `PendingRequest::connect_websocket`，傳入 URL 和 `http::client::WebSocketConfig`。HTTP/1.1 握手沿用 HTTP 用戶端的驗證、中介軟體、目標位址規則和 TLS 設定。用戶端驗證伺服器握手，並停用重新導向及重試。請求逾時僅涵蓋握手。在 `WebSocketConfig` 中設定訊息和訊框大小限制，收發時限由應用程式控制。目前不協商 WebSocket 子協定和擴充。
+
+```rust
+use openrust::http::client::{Http, WebSocketConfig};
+
+let config = WebSocketConfig::default()
+    .max_frame_size(Some(64 * 1024))
+    .max_message_size(Some(256 * 1024));
+let socket = Http::with_token(service_token)?
+    .connect_websocket("wss://service.example/control", config)
+    .await?;
+```

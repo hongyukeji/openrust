@@ -628,6 +628,30 @@ impl PendingRequest {
         self.execute(method, url, None::<&()>).await
     }
 
+    /// 以现有出站策略建立 HTTP/1.1 WebSocket。握手禁止重定向与重试。
+    pub async fn connect_websocket(
+        mut self,
+        url: &str,
+        config: super::WebSocketConfig,
+    ) -> Result<super::WebSocket> {
+        if self.digest.is_some()
+            || self.sink.is_some()
+            || !matches!(self.payload, Payload::Json)
+            || config.max_write_buffer_size <= config.write_buffer_size
+        {
+            return Err(Error::Configuration);
+        }
+        let upgrade = super::websocket::Upgrade::new();
+        upgrade.request_headers(&mut self.headers);
+        self.redirects = None;
+        self.retry = Retry::default();
+        self.stream = false;
+        let response = self
+            .execute_with_upgrade(Method::GET, url, None::<&()>, Some(&upgrade))
+            .await?;
+        upgrade.open(response, config).await
+    }
+
     pub async fn pool<'a>(
         &self,
         concurrency: NonZeroUsize,
@@ -649,6 +673,16 @@ impl PendingRequest {
         method: Method,
         url: &str,
         data: Option<&(impl Serialize + ?Sized)>,
+    ) -> Result<Response> {
+        self.execute_with_upgrade(method, url, data, None).await
+    }
+
+    async fn execute_with_upgrade(
+        self,
+        method: Method,
+        url: &str,
+        data: Option<&(impl Serialize + ?Sized)>,
+        upgrade: Option<&super::websocket::Upgrade>,
     ) -> Result<Response> {
         if self.invalid_header {
             return Err(Error::InvalidRequest);
@@ -702,7 +736,7 @@ impl PendingRequest {
         };
         let target = uri_template::expand(self.base_url.as_deref(), url, &self.uri_parameters)?;
         let base = self.base_url.as_deref().map(uri_template::escape_braces);
-        let mut url = parse_url(base.as_deref(), &target)?;
+        let mut url = parse_url(base.as_deref(), &target, upgrade.is_some())?;
         if let Some(destination) = &self.destination {
             destination.check_url(&url)?;
         }
@@ -724,6 +758,9 @@ impl PendingRequest {
             }
         }
         let mut request = client.request(method, url).headers(self.headers);
+        if upgrade.is_some() {
+            request = request.version(http::Version::HTTP_11);
+        }
         let mut multipart = None;
         let mut diagnostic_source = None;
         request = match (self.payload, data) {
@@ -841,6 +878,7 @@ impl PendingRequest {
             body_limit: self.body_limit,
             sink: self.sink.as_ref(),
             stream: self.stream,
+            upgrade,
         };
         let mut request = request;
         loop {
@@ -931,8 +969,8 @@ fn form_fields(captured: &serde_save::Save<'static>) -> Option<Arc<serde_json::V
     Some(Arc::new(value))
 }
 
-fn parse_url(base: Option<&str>, url: &str) -> Result<url::Url> {
-    let url = match (url::Url::parse(url), base) {
+fn parse_url(base: Option<&str>, url: &str, websocket: bool) -> Result<url::Url> {
+    let mut url = match (url::Url::parse(url), base) {
         (Ok(url), _) => url,
         (Err(url::ParseError::RelativeUrlWithoutBase), Some(base)) => url::Url::parse(&format!(
             "{}/{}",
@@ -942,6 +980,11 @@ fn parse_url(base: Option<&str>, url: &str) -> Result<url::Url> {
         .map_err(|_| Error::InvalidRequest)?,
         _ => return Err(Error::InvalidRequest),
     };
+    match (websocket, url.scheme()) {
+        (true, "ws") => url.set_scheme("http").map_err(|_| Error::InvalidRequest)?,
+        (true, "wss") => url.set_scheme("https").map_err(|_| Error::InvalidRequest)?,
+        _ => {}
+    }
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
         return Err(Error::InvalidRequest);
     }
