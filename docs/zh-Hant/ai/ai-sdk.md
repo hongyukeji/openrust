@@ -259,9 +259,9 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 `POST /v1/images/generations` 接收 JSON，`POST /v1/images/edits` 接收 JSON 或 multipart。表單可傳單個 `image` 或有序 `image[]`，以及選用的 `mask`。JSON 參照可用連結或內嵌資料，共享閘道憑證下無法參照供應商檔案 ID。`stream: true` 透過 SSE 回傳局部及最終圖片。閘道記錄上游回報的用量，每個圖片呼叫只向上游傳送一次。設定了文字輸出 Token 配額的群組須透過另一個群組使用圖片模型。
 
-發佈 Bedrock 文字生圖模型時，只列出 `images/generations`。回應透過 `data[].b64_json` 傳回 Base64 PNG。Nova Canvas 和 Titan 單次 AWS 呼叫最多生成五張圖，直式和橫式分別對應 Bedrock 的 `768x1152` 和 `1152x768`。Stability Stable Image 使用長寬比和模型預設品質，每次生成一張。Bedrock 生成使用一般 JSON 回應。
+發佈 Bedrock 文字生圖模型時，只列出 `images/generations`。回應透過 `data[].b64_json` 傳回 Base64 PNG。Titan Image Generator 單次 AWS 呼叫最多生成五張圖，直式和橫式分別對應 Bedrock 的 `768x1152` 和 `1152x768`。Stability Stable Image 使用長寬比和模型預設品質，每次生成一張。Bedrock 生成使用一般 JSON 回應。
 
-啟用 Bedrock 圖片計費前，發佈並執行最新的 `ai-gateway-migrations`。在上游和下游費率中設定 `image`，用十進位字串表示對應幣別的每圖單價，例如 `"image": "0.04"`。這是依模型設定的固定費率。只依圖片計費時將 `input` 和 `output` 設為 `"0"`。閘道依請求的 `n` 預留，再依實際傳回且通過驗證的圖片數結算。已知數量會顯示於用量帳本及 `/v1/usage` 的 `output_images`。未知供應商費用保留待核對，可用 AWS 帳單對帳。
+啟用 Bedrock 圖片計費前，發佈並執行最新的 `ai-gateway-migrations`。在上游和下游費率中設定 `image`，用十進位字串表示對應幣別的每圖單價，例如 `"image": "0.04"`。依尺寸和品質分級時，設定 `image_tiers`，例如 `{"768x1152/premium": "0.08"}`。閘道依實際送往 Bedrock 的參數選擇費率，Stability 使用 `3:2/default` 這類鍵。未命中時使用 `image` 固定費率。兩項都缺少時，該方向金額保留待核對，硬預算也無法依該方向預留。帳本會儲存選中的 `image_tier` 和單價。只依圖片計費時將 `input` 和 `output` 設為 `"0"`。閘道依請求的 `n` 預留，再依實際傳回且通過驗證的圖片數結算。已知數量會顯示於用量帳本及 `/v1/usage` 的 `output_images`。未知供應商費用保留待核對，可用 AWS 帳單對帳。
 
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
@@ -868,7 +868,7 @@ Bedrock 的一般及串流呼叫均支援 `with_schema`。SDK 透過專用工具
 
 使用 Bedrock 重新排序時，設定 `AI_RERANKING_PROVIDER=bedrock` 和 `BEDROCK_RERANKING_MODEL=cohere.rerank-v3-5:0`，再呼叫 `Reranking::of(documents)?.limit(3).rerank(query).await?`。結果依上游傳回的順序提供從零開始的原文索引與相關性分數。需要依排名傳回原始項目時，在 `Collection` 上使用 `Reranks`。
 
-使用 Bedrock 文字生圖時，設定 `AI_IMAGE_PROVIDER=bedrock` 和 `BEDROCK_IMAGE_MODEL=amazon.nova-canvas-v1:0`，再呼叫 `Image::of(prompt)?.portrait().generate().await?`。驅動支援 Nova Canvas、Titan Image Generator，以及使用 Bedrock `images` 回應的 Stability Stable Image 模型。透過 `square`、`portrait` 或 `landscape` 選擇長寬比，再用 `store` 或 `store_as` 存到已設定的磁碟。需要使用參考圖編輯時，請選擇支援圖片附件的驅動。
+使用 Bedrock 文字生圖時，設定 `AI_IMAGE_PROVIDER=bedrock` 和 `BEDROCK_IMAGE_MODEL=stability.stable-image-core-v1:1`，再呼叫 `Image::of(prompt)?.portrait().generate().await?`。驅動支援 Titan Image Generator，以及使用 Bedrock `images` 回應的 Stability Stable Image 模型。AWS 已於 2026 年 9 月 30 日退役 Nova Canvas，驅動保留其相容後端的請求映射。透過 `square`、`portrait` 或 `landscape` 選擇長寬比，再用 `store` 或 `store_as` 存到已設定的磁碟。需要使用參考圖編輯時，請選擇支援圖片附件的驅動。
 
 執行 `./artisan ai:models bedrock` 可探索目前區域的基礎模型與有效推論設定檔。目錄使用已設定的 Bedrock Bearer Key 或 AWS IAM 憑證鏈。憑證需允許 `bedrock:ListFoundationModels` 和 `bedrock:ListInferenceProfiles`。需要覆寫控制平面基礎位址時，設定 `BEDROCK_CATALOG_URL`。其中一個清單呼叫失敗時，指令仍顯示另一個清單的結果、已設定的文字模型 ID 與探索錯誤。預設模型仍由應用程式選擇。
 

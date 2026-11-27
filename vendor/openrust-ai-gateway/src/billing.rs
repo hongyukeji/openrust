@@ -125,6 +125,10 @@ struct Tariff {
     reasoning: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     image: Option<Amount>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    image_tiers: BTreeMap<String, Amount>,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    image_tier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     input_token_limit: Option<i64>,
     #[serde(
@@ -186,6 +190,18 @@ impl PriceBook {
         {
             return Err(invalid("计费输入 Token 上限须为正整数"));
         }
+        if self
+            .upstream
+            .values()
+            .flatten()
+            .map(|(_, tariff)| tariff)
+            .chain(self.downstream.values())
+            .any(|tariff| tariff.image_tiers.keys().any(|key| !valid_image_tier(key)))
+        {
+            return Err(invalid(
+                "图片价格档须使用尺寸或宽高比以及质量，例如 1152x768/standard",
+            ));
+        }
         Ok(Some(self))
     }
 
@@ -196,23 +212,53 @@ impl PriceBook {
         model: &str,
         multiplier: Option<Amount>,
         by_image: bool,
+        image_tier: Option<&str>,
     ) -> ChargePlan {
         let mut downstream = self.downstream.get(model).cloned();
         if let Some(tariff) = &mut downstream {
             tariff.multiplier = multiplier;
         }
+        let upstream = self
+            .upstream
+            .get(provider)
+            .and_then(|models| models.get(upstream_model))
+            .cloned();
+        let selected = |tariff: Option<Tariff>| {
+            tariff.map(|mut tariff| {
+                if by_image {
+                    tariff.image = image_tier
+                        .and_then(|tier| tariff.image_tiers.get(tier).copied())
+                        .or(tariff.image);
+                    tariff.image_tier = image_tier.map(str::to_owned);
+                }
+                tariff.image_tiers.clear();
+                tariff
+            })
+        };
         ChargePlan {
             version: self.version.clone(),
             by_image,
             upstream_model: upstream_model.to_owned(),
-            upstream: self
-                .upstream
-                .get(provider)
-                .and_then(|models| models.get(upstream_model))
-                .cloned(),
-            downstream,
+            upstream: selected(upstream),
+            downstream: selected(downstream),
         }
     }
+}
+
+fn valid_image_tier(key: &str) -> bool {
+    let Some((size, quality)) = key.split_once('/') else {
+        return false;
+    };
+    let dimensions = match quality {
+        "standard" | "premium" => size.split_once('x'),
+        "default" => size.split_once(':'),
+        _ => None,
+    };
+    dimensions.is_some_and(|(width, height)| {
+        [width, height]
+            .into_iter()
+            .all(|value| value.parse::<u32>().is_ok_and(|value| value > 0))
+    })
 }
 
 fn invalid(message: &str) -> io::Error {

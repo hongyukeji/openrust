@@ -306,6 +306,10 @@ pub trait TextProvider: Send + Sync {
         false
     }
 
+    fn relay_image_price_tier(&self, _body: &Value) -> Option<String> {
+        None
+    }
+
     /// 在预占和记录出站尝试前检查协议转换能否保留调用语义。
     fn relay_request_error(&self, _endpoint: TextEndpoint, _body: &Value) -> Option<&'static str> {
         None

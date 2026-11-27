@@ -18,7 +18,7 @@ use crate::{
     accounts::Admission,
     codex_catalog,
     compatibility::{Bridge, Translation},
-    gateway::{Call, Gateway, Key, Target, UsageAdmission},
+    gateway::{AttemptAdmission, Call, Gateway, Key, Target, UsageAdmission},
     invocation::{CallIdentity, ClientInvocation},
     localization,
     session_affinity::SessionAffinity,
@@ -736,12 +736,13 @@ async fn relay(
             conversion_error = Some(message);
             continue;
         }
+        let charges = gateway.charge_plan(key, &name, target, upstream_endpoint, &payload);
         let budget = match gateway.budget_reservations(
             key,
-            &name,
             target,
             upstream_endpoint,
             &mut payload,
+            charges.as_ref(),
         ) {
             Ok(reservation) => reservation,
             Err(message) => {
@@ -798,12 +799,13 @@ async fn relay(
                     request_id: &request_id,
                     invocation: invocation.as_ref(),
                 },
-                (
+                AttemptAdmission {
                     lease,
-                    reservation,
+                    quota: reservation,
                     budget,
-                    batch.as_ref().map_or(1, Vec::len),
-                ),
+                    charges,
+                    count: batch.as_ref().map_or(1, Vec::len),
+                },
             )
             .await
         {

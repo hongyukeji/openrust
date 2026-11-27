@@ -632,15 +632,16 @@ impl Gateway {
         target: &Target,
         endpoints: (TextEndpoint, TextEndpoint),
         identity: CallIdentity<'_>,
-        admission: (
-            Option<ConcurrencyLease>,
-            Option<QuotaReservation>,
-            BudgetReservations,
-            usize,
-        ),
+        admission: AttemptAdmission,
     ) -> Result<Vec<Call>, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
-        let (mut lease, reservation, budget, count) = admission;
+        let AttemptAdmission {
+            mut lease,
+            quota: reservation,
+            budget,
+            count,
+            charges,
+        } = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
             ("key_id".into(), json!(key.managed_id)),
@@ -679,7 +680,6 @@ impl Gateway {
                 if let Some(reservation) = &reservation {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
-                let charges = self.charge_plan(key, name, target, upstream_endpoint);
                 store
                     .begin_many(
                         &context,
@@ -735,10 +735,10 @@ impl Gateway {
     pub(crate) fn budget_reservations(
         &self,
         key: &Key,
-        model: &str,
         target: &Target,
         endpoint: TextEndpoint,
         payload: &mut Value,
+        charges: Option<&ChargePlan>,
     ) -> Result<BudgetReservations, &'static str> {
         let group = key.group.as_ref().and_then(|group| {
             group
@@ -762,17 +762,11 @@ impl Gateway {
             .chain(group.map(|(_, budget)| budget.max_output_tokens))
             .chain(account.map(|(_, budget)| budget.max_output_tokens))
             .min();
-        let charges = self.charge_plan(key, model, target, endpoint);
         let native_openai = target.provider.supports_endpoint(TextEndpoint::Responses);
         let mut prepare = |setting: Option<(BudgetScope<'_>, &Budget)>| match setting {
-            Some((scope, budget)) => budget.prepare(
-                scope,
-                endpoint,
-                native_openai,
-                payload,
-                charges.as_ref(),
-                cap,
-            ),
+            Some((scope, budget)) => {
+                budget.prepare(scope, endpoint, native_openai, payload, charges, cap)
+            }
             None => Ok(None),
         };
         Ok(BudgetReservations {
@@ -781,12 +775,13 @@ impl Gateway {
         })
     }
 
-    fn charge_plan(
+    pub(crate) fn charge_plan(
         &self,
         key: &Key,
         name: &str,
         target: &Target,
         endpoint: TextEndpoint,
+        payload: &Value,
     ) -> Option<ChargePlan> {
         let by_image = target.provider.relay_meters_images(endpoint);
         let billable = by_image
@@ -800,15 +795,27 @@ impl Gateway {
                     | TextEndpoint::GeminiStreamGenerateContent
             );
         self.billing.as_ref().filter(|_| billable).map(|prices| {
+            let tier = by_image
+                .then(|| target.provider.relay_image_price_tier(payload))
+                .flatten();
             prices.select(
                 &target.provider_name,
                 &target.upstream_model,
                 name,
                 key.rate_multiplier(),
                 by_image,
+                tier.as_deref(),
             )
         })
     }
+}
+
+pub(crate) struct AttemptAdmission {
+    pub(crate) lease: Option<ConcurrencyLease>,
+    pub(crate) quota: Option<QuotaReservation>,
+    pub(crate) budget: BudgetReservations,
+    pub(crate) count: usize,
+    pub(crate) charges: Option<ChargePlan>,
 }
 
 pub(crate) enum UsageAdmission {

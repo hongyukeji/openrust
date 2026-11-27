@@ -266,6 +266,19 @@ impl TextProvider for BedrockProvider {
         endpoint == crate::TextEndpoint::ImagesGenerations
     }
 
+    fn relay_image_price_tier(&self, body: &Value) -> Option<String> {
+        let (_, _, native) = image::relay_image_request(body).ok()?;
+        if let Some(config) = native.get("imageGenerationConfig") {
+            let width = config["width"].as_u64()?;
+            let height = config["height"].as_u64()?;
+            let quality = config["quality"].as_str()?;
+            Some(format!("{width}x{height}/{quality}"))
+        } else {
+            let ratio = native["aspect_ratio"].as_str().unwrap_or("1:1");
+            Some(format!("{ratio}/default"))
+        }
+    }
+
     fn relay_request_error(
         &self,
         endpoint: crate::TextEndpoint,

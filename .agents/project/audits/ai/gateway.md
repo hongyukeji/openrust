@@ -225,7 +225,13 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 迁移新增可空的 `output_images`，普通 Bedrock 图片响应只登记上游返回且通过驱动验证的图片数。Artisan 计费页和当前 Key 的 `/v1/usage` 显示已知图片数量，历史行及未确认数量保留未知。每图费率由部署者按模型配置并保存快照，使用现有分组倍率、账务精度及预算事务。预占按请求 `n`，结算按实际数量。失败尝试不产生下游应收，已出站但无可信数量的上游成本仍待核对。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过实际 HTTP、独立 Artisan 和本地 AWS 协议服务验收迁移发布、图片数量、费率快照、并发预占及 Key 用量汇总。模拟费率下，Titan 双图成本 0.06 USD、应收 0.14 USD。分组倍率 0.5 的样例请求两张并先预占 0.12 USD，实际返回一张后应收 0.06 USD。无效或被拒响应保留成本待核对。复验 Titan 批量向量、网关进程强制终止后的资金恢复、SDK 图片及网关回归。正式 AWS 账户、供应商各尺寸及质量档费率对账仍待验收。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过实际 HTTP、独立 Artisan 和本地 AWS 协议服务验收迁移发布、图片数量、费率快照、并发预占及 Key 用量汇总。模拟费率下，Titan 双图成本 0.06 USD、应收 0.14 USD。分组倍率 0.5 的样例请求两张并先预占 0.12 USD，实际返回一张后应收 0.06 USD。无效或被拒响应保留成本待核对。复验 Titan 批量向量、网关进程强制终止后的资金恢复、SDK 图片及网关回归。
+
+图片费率按实际 Bedrock 参数查找 `image_tiers`。Nova Canvas／Titan 使用尺寸和质量，Stability 使用宽高比与默认质量。预占和结算共用选定的费率，持久保存价格版本、`image_tier` 和每图单价。没有匹配档位时回退至 `image`，无回退时保留待定金额，无法按该方向预占的硬预算拒绝出站。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的本地协议样例验证 OpenAI 竖图请求使用 `768x1152/premium`，Titan 横图使用 `1152x768/standard`，Stability 使用 `3:2/default`。模拟费率下，Titan 双图上游成本为 0.07 USD。分组倍率样例预占 0.10 USD，实际返回一张后扣减 0.05 USD。还复验了 SDK 图片、向量批量、并发预算、中断恢复、网关回归、严格 Clippy 和三语站点。真实 AWS 账户的账单对账待验。Nova Canvas 的历史协议样例来自本地服务，现行 AWS 模型卡标记其已退役，公开示例改用 Stable Image Core。
+
+- [AWS Titan 输出计价档位](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-image-models.html) · [Nova Canvas 生命周期](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-canvas.html) · [Stable Image Core 模型卡](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-stability-ai-stable-image-core-1-0.html)
 
 ## GW-03 Gemini 原生向量网关
 
