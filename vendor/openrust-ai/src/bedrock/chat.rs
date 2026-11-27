@@ -143,7 +143,10 @@ impl<'a> ChatRequest<'a> {
                     } else {
                         chat_tools.history_calls(&message["tool_calls"])?
                     };
-                    let parts = if !calls.is_empty() && message["content"].is_null() {
+                    let parts = if (!calls.is_empty()
+                        || message.get(CHAT_REASONING_REPLAY).is_some())
+                        && message["content"].is_null()
+                    {
                         Vec::new()
                     } else {
                         text_parts(&message["content"])?
@@ -339,14 +342,11 @@ impl BedrockProvider {
         let timeout = aws_sdk_bedrockruntime::config::Builder::new()
             .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build());
         let system = (!request.system.is_empty()).then_some(request.system);
-        let history = replay
-            .as_ref()
-            .filter(|_| tool_config.is_some())
-            .and_then(|_| {
-                body["messages"]
-                    .as_array()
-                    .map(|messages| chat_replay::history(messages))
-            });
+        let history = replay.as_ref().and_then(|_| {
+            body["messages"]
+                .as_array()
+                .map(|messages| chat_replay::history(messages))
+        });
         let identity = ChatIdentity::new(body["stream_options"]["include_usage"] == true);
         if request.stream {
             let deadline = tokio::time::Instant::now() + duration;
@@ -377,7 +377,13 @@ impl BedrockProvider {
                 }
             };
             let headers = relay_headers("text/event-stream", stream.request_id());
-            let mut events = stream_events(stream, deadline, allow_tools, OutputMode::Text);
+            let mut events = stream_events(
+                stream,
+                deadline,
+                allow_tools,
+                OutputMode::Text,
+                replay.is_some(),
+            );
             let stream = async_stream::stream! {
                 yield Ok(identity.frame(json!([{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]), None));
                 while let Some(event) = events.next().await {
@@ -494,7 +500,9 @@ impl BedrockProvider {
         if !chat_tools.accepts(reason, &calls) || !valid_chat_json(structured, reason, &text) {
             return invalid();
         }
-        let token = if signed && !calls.is_empty() {
+        let token = if signed
+            && (!calls.is_empty() || (replay.is_some() && reason == FinishReason::Stop))
+        {
             let Ok(blocks) = tools::read_output(message.content()) else {
                 return invalid();
             };

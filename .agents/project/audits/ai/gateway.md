@@ -231,11 +231,19 @@ Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Conve
 
 ## GW-03 Bedrock Chat 签名工具回放
 
-普通助手消息及 SSE 增量可携带 `openrust_reasoning_replay`。使用应用加密服务保存原始 AWS 助手内容块，可见推理仍通过 `reasoning_content` 发出。状态绑定实际下游凭证、公开名、上游目标和显式 AWS 凭证，校验原始历史和助手文本及工具调用，有效期一小时。回放在预占和出站前验证，随后按原顺序恢复签名推理、脱敏块和工具调用。SDK 工具步骤自动保留此字段，跨进程共享应用密钥即可恢复。该批覆盖直接 Chat Completions 工具回放。Responses、仅文本推理及 AWS 默认凭证链仍待相应验收。
+普通助手消息及 SSE 增量可携带 `openrust_reasoning_replay`。使用应用加密服务保存原始 AWS 助手内容块，可见推理仍通过 `reasoning_content` 发出。状态绑定实际下游凭证、公开名、上游目标和显式 AWS 凭证，校验原始历史和助手文本及工具调用，有效期一小时。回放在预占和出站前验证，随后按原顺序恢复签名推理、脱敏块和工具调用。SDK 工具步骤自动保留此字段，跨进程共享应用密钥即可恢复。该批覆盖直接 Chat Completions 工具回放。Responses 和纯文本轮次见下节。AWS 默认凭证链仍待验收。
 
 独立 Artisan 验证 SDK 原生直连，以及 SDK 经网关的普通和流式两轮工具调用。外部 HTTP 通过本地 AWS 协议服务验证原始签名和脱敏字节回送，两轮运用原始调用 ID。SSE 取回的状态可由另一工作进程接续。过期状态、修改密文、历史、助手文本、换下游 Key、轮换 Key、换公开别名或换 AWS 凭证均在出站前拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对八次签名网关尝试的用量及成本。31 项回归、严格 Clippy 和三语站点通过。正式 AWS 账户验收继续单列。
 
 - [AWS 签名推理回放](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ReasoningTextBlock.html) · [Converse 会话要求](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
+
+## GW-03 Bedrock Responses 签名回放
+
+无状态 Responses 使用标准 `reasoning.encrypted_content` 保存已完成轮次的加密状态，普通响应和 SSE 输出推理条目。SSE 维持消息、推理项与函数项的索引和完成顺序。支持携带 `include: ["reasoning.encrypted_content"]`。客户端依次回送此前输入、输出、工具结果或下一条用户消息。Chat Completions 也可为正常结束的纯文本签名轮次返回原有加密字段。复用应用加密、时效、历史摘要和凭证绑定，加上入站协议隔离。包含 Bedrock 加密状态的 Responses 请求只会匹配支持该状态的 Bedrock 目标，携带状态的续轮不触发故障重放。
+
+用本地 AWS 协议服务、独立 Artisan 和真实 HTTP 验证 Responses SDK 与外部客户端的普通及流式工具续轮，覆盖带可见文本的工具步骤、原始 `stock:one` 调用 ID、原始签名及脱敏块、纯文本续聊和跨进程恢复。更换 Key、别名、供应商或入站协议在出站前被拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对新增的八次工具及四次文本尝试。模拟费率下每笔用量为 17 输入和 4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 和三语站点通过。AWS 默认凭证链及正式账户实测仍待验收。
+
+- [OpenAI 无状态推理回放](https://developers.openai.com/api/docs/guides/reasoning#preserve-reasoning-without-stored-responses) · [AWS Converse 签名要求](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
 
 ## GW-03 Bedrock 网关结构化输出
 

@@ -20,7 +20,7 @@ pub(crate) fn request(mut request: Map<String, Value>) -> Result<Value, &'static
     let Value::Object(request) = messages::to_responses(request)? else {
         return Err("无法构造 Chat Completions 请求");
     };
-    let mut chat = chat::from_responses(request)?;
+    let mut chat = chat::from_responses(request, false)?;
     if let Some(stop) = stop.filter(|stops| stops.as_array().is_some_and(|stops| !stops.is_empty()))
     {
         chat["stop"] = stop;
@@ -29,7 +29,7 @@ pub(crate) fn request(mut request: Map<String, Value>) -> Result<Value, &'static
 }
 
 pub(crate) fn response(model: String, allows_tools: bool, data: &Value) -> Option<Value> {
-    let response = chat::response(model.clone(), None, allows_tools, data)?;
+    let response = chat::response(model.clone(), None, allows_tools, false, data)?;
     messages::Message::new(model, allows_tools).buffered(&response)
 }
 
@@ -44,7 +44,7 @@ pub(crate) struct StreamState {
 impl StreamState {
     pub(crate) fn new(model: String, allows_tools: bool) -> Self {
         Self {
-            upstream: chat::StreamState::new(model.clone(), None, allows_tools),
+            upstream: chat::StreamState::new(model.clone(), None, allows_tools, false),
             message: messages::Message::new(model, allows_tools),
             downstream: messages::StreamState::default(),
             next_output: 0,

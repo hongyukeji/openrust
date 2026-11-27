@@ -9,6 +9,8 @@ mod tools;
 use openrust_ai::TextEndpoint;
 use serde_json::{Map, Value};
 
+pub(super) const BEDROCK_REASONING_PREFIX: &str = "openrust-bedrock-v1.";
+
 #[derive(Clone, Copy)]
 pub(super) enum Bridge {
     ResponsesToMessages,
@@ -41,6 +43,7 @@ impl Bridge {
     pub(super) fn request(
         self,
         data: Map<String, Value>,
+        signed_reasoning: bool,
     ) -> Result<(Value, Translation), &'static str> {
         let allows_tools = data
             .get("tools")
@@ -75,7 +78,7 @@ impl Bridge {
             matches!(self, Self::ChatToMessages) && chat_messages::include_usage(&data)?;
         let request = match self {
             Self::ResponsesToMessages => responses::to_messages(data)?,
-            Self::ResponsesToChat => chat::from_responses(data)?,
+            Self::ResponsesToChat => chat::from_responses(data, signed_reasoning)?,
             Self::ChatToMessages => chat_messages::to_messages(data)?,
             Self::MessagesToResponses => messages::to_responses(data)?,
             Self::MessagesToChat => messages_chat::request(data)?,
@@ -111,6 +114,7 @@ impl Bridge {
                 response_fields: (!response_fields.is_empty()).then_some(response_fields),
                 allows_tools,
                 include_usage,
+                signed_reasoning,
             },
         ))
     }
@@ -121,6 +125,7 @@ pub(super) struct Translation {
     response_fields: Option<Map<String, Value>>,
     allows_tools: bool,
     include_usage: bool,
+    signed_reasoning: bool,
 }
 
 impl Translation {
@@ -129,9 +134,13 @@ impl Translation {
             Bridge::ResponsesToMessages => {
                 responses::Response::new(name, self.response_fields).buffered(data)
             }
-            Bridge::ResponsesToChat => {
-                chat::response(name, self.response_fields, self.allows_tools, data)
-            }
+            Bridge::ResponsesToChat => chat::response(
+                name,
+                self.response_fields,
+                self.allows_tools,
+                self.signed_reasoning,
+                data,
+            ),
             Bridge::ChatToMessages => chat_messages::Completion::new(name, self.include_usage)
                 .buffered(data, self.allows_tools),
             Bridge::MessagesToResponses => {
@@ -154,6 +163,7 @@ impl Translation {
                 name,
                 self.response_fields,
                 self.allows_tools,
+                self.signed_reasoning,
             ))),
             Bridge::ChatToMessages => Stream::ChatClient(Box::new(
                 chat_messages::StreamState::new(name, self.include_usage, self.allows_tools),

@@ -310,6 +310,10 @@ pub trait TextProvider: Send + Sync {
         false
     }
 
+    fn supports_chat_reasoning_replay(&self) -> bool {
+        false
+    }
+
     /// 此普通 JSON 路径以已验证的 data 图片条目作为计量证据。
     fn relay_meters_images(&self, _endpoint: TextEndpoint) -> bool {
         false

@@ -111,7 +111,10 @@ pub(super) fn read_output(blocks: &[ContentBlock]) -> AiResult<Vec<ReplayBlock>>
         .collect()
 }
 
-pub(super) fn output_state(blocks: &[ReplayBlock]) -> AiResult<(Vec<ToolCall>, Option<Value>)> {
+pub(super) fn output_state(
+    blocks: &[ReplayBlock],
+    capture_signed_text: bool,
+) -> AiResult<(Vec<ToolCall>, Option<Value>)> {
     let calls: Vec<_> = blocks
         .iter()
         .filter_map(|block| match block {
@@ -119,7 +122,14 @@ pub(super) fn output_state(blocks: &[ReplayBlock]) -> AiResult<(Vec<ToolCall>, O
             _ => None,
         })
         .collect();
-    let replay = if calls.is_empty() {
+    let signed = capture_signed_text
+        && blocks.iter().any(|block| {
+            matches!(
+                block,
+                ReplayBlock::SignedReasoning { .. } | ReplayBlock::RedactedReasoning(_)
+            )
+        });
+    let replay = if calls.is_empty() && !signed {
         None
     } else {
         Some(

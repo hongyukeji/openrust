@@ -1,3 +1,4 @@
+use openrust_ai::CHAT_REASONING_REPLAY;
 use serde_json::{Map, Value, json};
 
 use super::responses::Frame;
@@ -66,8 +67,39 @@ impl<'a> History<'a> {
         &mut self,
         item: &'a Value,
         messages: &mut Vec<Value>,
+        signed_reasoning: bool,
     ) -> Result<bool, &'static str> {
         match item["type"].as_str() {
+            Some("reasoning") if signed_reasoning && !self.tools.has_pending() => {
+                if !allowed_fields(
+                    item,
+                    &["type", "id", "summary", "status", "encrypted_content"],
+                ) || !(item["status"].is_null() || item["status"] == "completed")
+                    || !(item["summary"].is_null()
+                        || item["summary"].as_array().is_some_and(Vec::is_empty))
+                {
+                    return Err("Bedrock 签名推理条目格式无效");
+                }
+                let token = item["encrypted_content"]
+                    .as_str()
+                    .and_then(|token| token.strip_prefix(super::BEDROCK_REASONING_PREFIX))
+                    .filter(|token| !token.is_empty())
+                    .ok_or("Bedrock 签名推理缺少有效的加密状态")?;
+                if let Some(message) = messages
+                    .last_mut()
+                    .filter(|message| message["role"] == "assistant")
+                {
+                    if message.get(CHAT_REASONING_REPLAY).is_some() {
+                        return Err("一条 Bedrock 助手消息只接收一个签名推理条目");
+                    }
+                    message[CHAT_REASONING_REPLAY] = token.into();
+                } else {
+                    messages.push(
+                        json!({"role":"assistant","content":null,CHAT_REASONING_REPLAY:token}),
+                    );
+                }
+                Ok(true)
+            }
             Some("function_call") => {
                 if self.reading_results
                     || !allowed_fields(
@@ -78,7 +110,8 @@ impl<'a> History<'a> {
                 {
                     return Err("工具调用必须在本组工具结果之前完成");
                 }
-                let id = tool_id(&item["call_id"]).ok_or("缺少有效的工具调用 ID")?;
+                let id = chat_call_id(&item["call_id"], signed_reasoning)
+                    .ok_or("缺少有效的工具调用 ID")?;
                 let name = tool_name(&item["name"]).ok_or("工具名称无效")?;
                 arguments(&item["arguments"]).ok_or("工具参数必须是 JSON 对象")?;
                 self.tools.call(id)?;
@@ -105,7 +138,8 @@ impl<'a> History<'a> {
                 {
                     return Err("工具结果字段或状态不受协议转换支持");
                 }
-                let id = tool_id(&item["call_id"]).ok_or("缺少有效的工具调用 ID")?;
+                let id = chat_call_id(&item["call_id"], signed_reasoning)
+                    .ok_or("缺少有效的工具调用 ID")?;
                 let output = item["output"].as_str().ok_or("工具结果必须是文本")?;
                 self.tools.result(id)?;
                 self.reading_results = self.tools.has_pending();
@@ -128,7 +162,20 @@ pub(super) struct Call<'a> {
     pub arguments: &'a str,
 }
 
-pub(super) fn buffered(value: &Value) -> Option<Vec<Call<'_>>> {
+fn chat_call_id(value: &Value, bedrock: bool) -> Option<&str> {
+    if !bedrock {
+        return tool_id(value);
+    }
+    value.as_str().filter(|id| {
+        !id.is_empty()
+            && id.len() <= 64
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"_.:-".contains(&byte))
+    })
+}
+
+pub(super) fn buffered(value: &Value, bedrock: bool) -> Option<Vec<Call<'_>>> {
     let mut seen = std::collections::HashSet::new();
     value
         .as_array()?
@@ -138,7 +185,7 @@ pub(super) fn buffered(value: &Value) -> Option<Vec<Call<'_>>> {
                 return None;
             }
             let function = &call["function"];
-            let id = tool_id(&call["id"])?;
+            let id = chat_call_id(&call["id"], bedrock)?;
             let name = tool_name(&function["name"])?;
             arguments(&function["arguments"])?;
             if !seen.insert(id) {
@@ -175,6 +222,7 @@ impl StreamTools {
         response: &mut super::responses::Response,
         calls: &Value,
         offset: usize,
+        bedrock: bool,
     ) -> Option<Vec<Frame>> {
         let mut frames = Vec::new();
         let calls = calls.as_array()?;
@@ -186,7 +234,7 @@ impl StreamTools {
                 return None;
             }
             if index == self.outputs.len() {
-                let call_id = tool_id(&call["id"])?;
+                let call_id = chat_call_id(&call["id"], bedrock)?;
                 let name = tool_name(&function["name"])?;
                 if self.outputs.iter().any(|tool| tool.call_id == call_id) {
                     return None;

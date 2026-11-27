@@ -1,3 +1,4 @@
+use openrust_ai::CHAT_REASONING_REPLAY;
 use serde_json::{Map, Value, json};
 
 use super::{
@@ -7,7 +8,10 @@ use super::{
 };
 
 /// 将 Responses 的无状态请求发送到 Chat Completions。
-pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'static str> {
+pub(crate) fn from_responses(
+    request: Map<String, Value>,
+    signed_reasoning: bool,
+) -> Result<Value, &'static str> {
     let mut target = Map::new();
     target.insert("model".into(), request["model"].clone());
     for (key, value) in &request {
@@ -28,6 +32,13 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
                     target.insert("response_format".into(), format);
                 }
             }
+            "include"
+                if signed_reasoning
+                    && value.as_array().is_some_and(|items| {
+                        items
+                            .iter()
+                            .all(|item| item == "reasoning.encrypted_content")
+                    }) => {}
             "tools" | "tool_choice" | "parallel_tool_calls" => {}
             _ if value.is_null() => {}
             _ => return Err("当前 Responses 到 Chat Completions 转换不支持该请求字段"),
@@ -47,12 +58,13 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
         let items = input.as_array().ok_or("input 必须是文本或消息数组")?;
         let mut history = History::default();
         for item in items {
-            if history.append(item, &mut messages)? {
+            if history.append(item, &mut messages, signed_reasoning)? {
                 continue;
             }
-            if !allowed_fields(item, &["type", "role", "content", "status"])
+            if !allowed_fields(item, &["type", "role", "content", "status", "id"])
                 || !(item["type"].is_null() || item["type"] == "message")
                 || !(item["status"].is_null() || item["status"] == "completed")
+                || !(item["id"].is_null() || item["role"] == "assistant" && item["id"].is_string())
             {
                 return Err("当前 Chat Completions 转换只支持已完成的文本消息");
             }
@@ -80,6 +92,24 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
 }
 
 fn chat_content(content: &Value, role: &str) -> Result<Value, &'static str> {
+    if role == "assistant"
+        && let Some(parts) = content.as_array()
+    {
+        let mut text = String::new();
+        for part in parts {
+            let plain = part["type"] == "input_text" && allowed_fields(part, &["type", "text"]);
+            let output = part["type"] == "output_text"
+                && allowed_fields(part, &["type", "text", "annotations", "logprobs"])
+                && ["annotations", "logprobs"].iter().all(|field| {
+                    part[*field].is_null() || part[*field].as_array().is_some_and(Vec::is_empty)
+                });
+            if !plain && !output {
+                return Err("助手消息含有当前 Chat 转换不支持的文本块");
+            }
+            text.push_str(part["text"].as_str().ok_or("文本块缺少 text")?);
+        }
+        return Ok(text.into());
+    }
     let Some(parts) = content.as_array().filter(|parts| {
         role == "user"
             && parts
@@ -149,6 +179,7 @@ pub(crate) fn response(
     model: String,
     response_fields: Option<Map<String, Value>>,
     allows_tools: bool,
+    signed_reasoning: bool,
     data: &Value,
 ) -> Option<Value> {
     let [choice] = data["choices"].as_array()?.as_slice() else {
@@ -173,10 +204,13 @@ pub(crate) fn response(
     } else if matches!(finish, Finish::Complete) {
         return None;
     }
+    if signed_reasoning && let Some(token) = message[CHAT_REASONING_REPLAY].as_str() {
+        response.push_reasoning(token);
+    }
     let calls = if message["tool_calls"].is_null() {
         Vec::new()
     } else {
-        chat_tools::buffered(&message["tool_calls"])?
+        chat_tools::buffered(&message["tool_calls"], signed_reasoning)?
     };
     if (!calls.is_empty() && !allows_tools)
         || (matches!(finish, Finish::ToolUse) == calls.is_empty())
@@ -196,6 +230,9 @@ pub(crate) struct StreamState {
     finish: Option<Finish>,
     refused: bool,
     allows_tools: bool,
+    signed_reasoning: bool,
+    reasoning_sent: bool,
+    text_completed: bool,
     tools: StreamTools,
 }
 
@@ -204,6 +241,7 @@ impl StreamState {
         model: String,
         response_fields: Option<Map<String, Value>>,
         allows_tools: bool,
+        signed_reasoning: bool,
     ) -> Self {
         Self {
             response: Response::new(model, response_fields),
@@ -212,6 +250,9 @@ impl StreamState {
             finish: None,
             refused: false,
             allows_tools,
+            signed_reasoning,
+            reasoning_sent: false,
+            text_completed: false,
             tools: StreamTools::default(),
         }
     }
@@ -243,7 +284,7 @@ impl StreamState {
             self.refused = true;
         }
         if let Some(content) = delta["content"].as_str().filter(|text| !text.is_empty()) {
-            if self.text.is_none() && !self.tools.is_empty() {
+            if self.reasoning_sent || self.text.is_none() && !self.tools.is_empty() {
                 return None;
             }
             let text = self.text.get_or_insert_with(|| {
@@ -254,14 +295,29 @@ impl StreamState {
             text.text.push_str(content);
             frames.push(self.response.text_delta(&text.id, content));
         }
+        if self.signed_reasoning
+            && let Some(token) = delta[CHAT_REASONING_REPLAY].as_str()
+        {
+            if self.reasoning_sent || !self.tools.is_empty() {
+                return None;
+            }
+            if let Some(text) = self.text.take() {
+                frames.extend(self.response.end_text(text, Finish::Complete));
+                self.text_completed = true;
+            }
+            frames.extend(self.response.emit_reasoning(token));
+            self.reasoning_sent = true;
+        }
         if !delta["tool_calls"].is_null() {
             if !self.allows_tools && !delta["tool_calls"].as_array().is_some_and(Vec::is_empty) {
                 return None;
             }
+            let offset = self.response.output_count() + usize::from(self.text.is_some());
             frames.extend(self.tools.delta(
                 &mut self.response,
                 &delta["tool_calls"],
-                usize::from(self.text.is_some()),
+                offset,
+                self.signed_reasoning,
             )?);
         }
         if !choice["finish_reason"].is_null() {
@@ -277,7 +333,7 @@ impl StreamState {
     pub(super) fn finish(&mut self) -> Option<(Vec<Frame>, bool)> {
         let finish = self.finish.take()?;
         if (matches!(finish, Finish::ToolUse) == self.tools.is_empty())
-            || (self.text.is_none() && matches!(finish, Finish::Complete))
+            || (self.text.is_none() && !self.text_completed && matches!(finish, Finish::Complete))
         {
             return None;
         }

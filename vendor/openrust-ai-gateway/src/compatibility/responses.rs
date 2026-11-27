@@ -325,6 +325,23 @@ impl Response {
         ));
     }
 
+    pub(super) fn output_count(&self) -> usize {
+        self.output.len()
+    }
+
+    pub(super) fn push_reasoning(&mut self, token: &str) {
+        self.output.push(reasoning_item(token));
+    }
+
+    pub(super) fn emit_reasoning(&mut self, token: &str) -> [Frame; 2] {
+        let item = reasoning_item(token);
+        let added = self.frame(
+            "response.output_item.added",
+            json!({"output_index":self.output.len(),"item":{"id":item["id"],"type":"reasoning","summary":[],"status":"in_progress"}}),
+        );
+        [added, self.push_item(item)]
+    }
+
     pub(super) fn start(&mut self) -> [Frame; 2] {
         let body = json!({"response":self.response(None)});
         [
@@ -465,6 +482,16 @@ fn text_part(text: &str) -> Value {
 
 fn output_item(id: &str, status: &str, content: Vec<Value>) -> Value {
     json!({"id":id,"type":"message","role":"assistant","status":status,"content":content})
+}
+
+fn reasoning_item(token: &str) -> Value {
+    json!({
+        "id":format!("rs_{}", Str::ulid()),
+        "type":"reasoning",
+        "summary":[],
+        "status":"completed",
+        "encrypted_content":format!("{}{token}", super::BEDROCK_REASONING_PREFIX),
+    })
 }
 
 #[derive(Clone, Copy)]

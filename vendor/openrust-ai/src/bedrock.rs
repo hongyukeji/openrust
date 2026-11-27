@@ -338,6 +338,10 @@ impl TextProvider for BedrockProvider {
         self.relay_request_error(endpoint, body)
     }
 
+    fn supports_chat_reasoning_replay(&self) -> bool {
+        true
+    }
+
     fn scoped_relay(
         &self,
         endpoint: crate::TextEndpoint,
@@ -483,7 +487,7 @@ impl StepTextGateway for BedrockProvider {
                 }
             }
             let blocks = tools::read_output(message.content())?;
-            let (calls, replay) = tools::output_state(&blocks)?;
+            let (calls, replay) = tools::output_state(&blocks, false)?;
             if !calls.is_empty() && !allow_tools {
                 return Err(AiError::ToolsNotSupported);
             }
@@ -539,7 +543,13 @@ impl StepTextGateway for BedrockProvider {
                 .send()
                 .await
                 .map_err(converse_error)?;
-            Ok(stream_events(response, deadline, allow_tools, input.mode))
+            Ok(stream_events(
+                response,
+                deadline,
+                allow_tools,
+                input.mode,
+                false,
+            ))
         })
     }
 }
@@ -649,6 +659,7 @@ fn stream_events(
     deadline: tokio::time::Instant,
     allow_tools: bool,
     mode: structured::OutputMode,
+    capture_signed_text: bool,
 ) -> StepEventStream {
     Box::pin(async_stream::try_stream! {
         let mut started = false;
@@ -731,7 +742,7 @@ fn stream_events(
                     let reasoning = blocks.values().map(|block| block.reasoning.as_str())
                         .filter(|text| !text.is_empty()).collect::<Vec<_>>().join("\n\n");
                     let replay = blocks.into_values().filter_map(stream_block).collect::<AiResult<Vec<_>>>()?;
-                    let (calls, replay) = tools::output_state(&replay)?;
+                    let (calls, replay) = tools::output_state(&replay, capture_signed_text && reason == FinishReason::Stop)?;
                     validate_tool_stop(reason, &calls)?;
                     let response = mode.finish(StepResponse {
                         model: None,

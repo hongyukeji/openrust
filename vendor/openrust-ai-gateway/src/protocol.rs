@@ -639,7 +639,30 @@ async fn relay(
             "嵌入请求的模型须与路径中的公开模型一致",
         );
     }
+    let sealed_responses = endpoint == TextEndpoint::Responses
+        && data
+            .get("input")
+            .and_then(Value::as_array)
+            .is_some_and(|items| {
+                items.iter().any(|item| {
+                    item["type"] == "reasoning"
+                        && item["encrypted_content"].as_str().is_some_and(|token| {
+                            token.starts_with(crate::compatibility::BEDROCK_REASONING_PREFIX)
+                        })
+                })
+            });
+    let sealed_chat = endpoint == TextEndpoint::ChatCompletions
+        && data
+            .get("messages")
+            .and_then(Value::as_array)
+            .is_some_and(|messages| {
+                messages
+                    .iter()
+                    .any(|message| message.get(openrust_ai::CHAT_REASONING_REPLAY).is_some())
+            });
     let may_replay = !endpoint.is_image()
+        && !sealed_responses
+        && !sealed_chat
         && data
             .get("tools")
             .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
@@ -678,7 +701,10 @@ async fn relay(
     let mut targets: Vec<_> = model
         .targets_for(endpoint, key)
         .filter(|(target, upstream)| {
-            (!native_responses_only || *upstream == endpoint)
+            (!sealed_responses
+                || (*upstream == TextEndpoint::ChatCompletions
+                    && target.provider.supports_chat_reasoning_replay()))
+                && (!native_responses_only || *upstream == endpoint)
                 && server_tools
                     .iter()
                     .all(|kind| target.provider.supports_responses_server_tool(kind))
@@ -689,6 +715,13 @@ async fn relay(
             StatusCode::BAD_REQUEST,
             "unsupported_endpoint",
             "所选工具要求当前凭证可访问原生 Responses 上游",
+        );
+    }
+    if sealed_responses && targets.is_empty() {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "当前连接无法回放 Bedrock 签名推理",
         );
     }
     if let Some(affinity) = &affinity
@@ -704,9 +737,12 @@ async fn relay(
             std::mem::take(&mut data)
         };
         payload.insert("model".into(), json!(target.upstream_model));
+        let signed_reasoning = endpoint == TextEndpoint::Responses
+            && upstream_endpoint == TextEndpoint::ChatCompletions
+            && target.provider.supports_chat_reasoning_replay();
         let (mut payload, bridge) =
             if let Some(bridge) = Bridge::between(endpoint, upstream_endpoint) {
-                match bridge.request(payload) {
+                match bridge.request(payload, signed_reasoning) {
                     Ok((payload, translation)) => (payload, Some(translation)),
                     Err(message) => {
                         conversion_error = Some(message);
@@ -727,9 +763,16 @@ async fn relay(
         } else {
             None
         };
-        let relay_scope = (endpoint == TextEndpoint::ChatCompletions
-            && upstream_endpoint == endpoint)
-            .then(|| key.relay_scope(&name, target));
+        let relay_scope = if signed_reasoning {
+            Some(crate::session_affinity::key(&[
+                &key.relay_scope(&name, target),
+                endpoint.path(),
+            ]))
+        } else if endpoint == TextEndpoint::ChatCompletions && upstream_endpoint == endpoint {
+            Some(key.relay_scope(&name, target))
+        } else {
+            None
+        };
         if let Some(message) = batch
             .as_deref()
             .unwrap_or(std::slice::from_ref(&payload))
