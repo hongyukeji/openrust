@@ -254,6 +254,8 @@ Keep the full returned `output` array and use it as the next Responses input, fo
 
 Compaction is synchronous and records upstream-reported usage. Use the inline context for this route. Requests requiring upstream stored response IDs, background execution, or shared upstream resource references are rejected.
 
+For server-side compaction in a normal Responses call, set `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`, or place one `{"type": "compaction_trigger"}` item at the end of the input to compact immediately. Use a model published for both Responses and Compact. The gateway applies the same protection to completed compaction items in JSON, SSE, and WebSocket responses. Continue by supplying the returned items inline.
+
 ### Responses over WebSocket {#responses-websocket}
 
 Connect to `wss://your-app.example/v1/responses` with the same Bearer Key as the HTTP endpoint. With `unversioned_paths` enabled you can also connect to `/responses`. Send a `response.create` JSON text frame and read the Responses events until `response.completed` or `response.incomplete`.

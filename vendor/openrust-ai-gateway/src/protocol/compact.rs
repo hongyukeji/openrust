@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use openrust::{encryption::Encrypter, support::facades::Crypt};
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
+use sha2::{Digest, Sha256};
 
 use super::{
     Call, Facade as _, HttpFuture, HttpResult, Key, Protocol, Request, Response, StatusCode,
@@ -26,9 +27,40 @@ fn is_compaction(item: &Value) -> bool {
     item["type"] == "compaction"
 }
 
+pub(super) fn automatic_request(data: &Map<String, Value>) -> Result<bool, &'static str> {
+    let settings = match data.get("context_management") {
+        None | Some(Value::Null) => false,
+        Some(Value::Array(items)) if items.is_empty() => false,
+        Some(Value::Array(items))
+            if items.len() == 1
+                && items[0]["type"] == "compaction"
+                && items[0]["compact_threshold"]
+                    .as_u64()
+                    .is_some_and(|value| value > 0) =>
+        {
+            true
+        }
+        _ => return Err("context_management 须声明一个有效的压缩阈值"),
+    };
+    let Some(input) = data.get("input").and_then(Value::as_array) else {
+        return Ok(settings);
+    };
+    if let Some(index) = input
+        .iter()
+        .position(|item| item["type"] == "compaction_trigger")
+    {
+        if index + 1 != input.len() {
+            return Err("压缩触发项须位于输入末尾且仅出现一次");
+        }
+        return Ok(true);
+    }
+    Ok(settings)
+}
+
 pub(super) struct Context {
     crypt: Arc<Encrypter>,
     scope: String,
+    tokens: HashMap<[u8; 32], String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -53,6 +85,7 @@ impl Context {
         Some(Self {
             scope,
             crypt: Crypt::get_facade_root().ok()?,
+            tokens: HashMap::new(),
         })
     }
 
@@ -80,7 +113,7 @@ impl Context {
         (payload.scope == self.scope && payload.id == item["id"]).then_some(payload.token)
     }
 
-    fn wrap(&self, item: &Value) -> Option<String> {
+    fn wrap(&mut self, item: &Value) -> Option<String> {
         let token = item["encrypted_content"].as_str()?;
         if token.trim().is_empty() {
             return None;
@@ -91,11 +124,17 @@ impl Context {
             token: token.into(),
         })
         .ok()?;
+        let digest = Sha256::digest(&data).into();
+        if let Some(token) = self.tokens.get(&digest) {
+            return Some(token.clone());
+        }
         let token = self.crypt.encrypt_string(&data).ok()?;
-        Some(format!("{PREFIX}{token}"))
+        let token = format!("{PREFIX}{token}");
+        self.tokens.insert(digest, token.clone());
+        Some(token)
     }
 
-    fn protect(&self, response: &mut Value) -> bool {
+    fn protect(&mut self, response: &mut Value) -> bool {
         if response["object"] != "response.compaction" {
             return false;
         }
@@ -114,10 +153,55 @@ impl Context {
     }
 }
 
+pub(super) fn protect_output(
+    response: &mut Value,
+    mut context: Option<&mut Context>,
+    complete: bool,
+) -> bool {
+    let Some(output) = response.get_mut("output").and_then(Value::as_array_mut) else {
+        return true;
+    };
+    output
+        .iter_mut()
+        .all(|item| protect_item(item, context.as_deref_mut(), complete))
+}
+
+pub(super) fn protect_event(data: &mut Value, mut context: Option<&mut Context>) -> bool {
+    let item_done = data["type"] == "response.output_item.done";
+    if let Some(item) = data.get_mut("item")
+        && !protect_item(item, context.as_deref_mut(), item_done)
+    {
+        return false;
+    }
+    let complete = matches!(
+        data["type"].as_str(),
+        Some("response.completed" | "response.incomplete")
+    );
+    data.get_mut("response")
+        .is_none_or(|response| protect_output(response, context, complete))
+}
+
+fn protect_item(item: &mut Value, context: Option<&mut Context>, complete: bool) -> bool {
+    if !is_compaction(item) {
+        return true;
+    }
+    if !complete {
+        if let Some(fields) = item.as_object_mut() {
+            fields.remove("encrypted_content");
+        }
+        return true;
+    }
+    let Some(token) = context.and_then(|context| context.wrap(item)) else {
+        return false;
+    };
+    item["encrypted_content"] = token.into();
+    true
+}
+
 pub(super) async fn respond(
     upstream: client::Response,
     model: &str,
-    context: Context,
+    mut context: Context,
     mut call: Call,
 ) -> HttpResult {
     let status = upstream.status();

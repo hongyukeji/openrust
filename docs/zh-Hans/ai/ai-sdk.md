@@ -254,6 +254,8 @@ Schedule::configure(|schedule| {
 
 压缩同步返回并记录上游报告的用量。该路由使用内联上下文，拒绝上游存储的响应 ID、后台调用和共享上游资源引用。
 
+普通 Responses 请求可设置 `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`，也可在输入末尾追加一个 `{"type": "compaction_trigger"}` 立即触发压缩。模型须同时发布 Responses 和 Compact。网关对 JSON、SSE 和 WebSocket 中完成的压缩项使用同一归属保护。下一次请求可内联传回这些项。
+
 ### Responses WebSocket {#responses-websocket}
 
 使用 HTTP 端点同一 Bearer Key 连接 `wss://your-app.example/v1/responses`。启用 `unversioned_paths` 时也可使用 `/responses`。发送 `response.create` JSON 文本帧，读取 Responses 事件直至 `response.completed` 或 `response.incomplete`。

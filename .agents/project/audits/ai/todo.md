@@ -42,6 +42,7 @@
 - [ ] **G03 Gemini 跨协议裁决**。按适用入站协议核对文本流、工具及签名关联、结构化输出和用量。
 - [ ] **G04 Responses 持久状态与子路径**。分别核对 `store`、`previous_response_id`、`background` 和外部资源引用的准入及跨租户拒绝。
   - [x] [独立 Compact 暴露、归属与回放](gateway.md#responses-独立压缩与归属校验)已通过本地三库。
+  - [x] [服务端压缩阈值、主动触发、三种响应传输与内联回放](gateway.md#responses-服务端压缩)已在本地三库验收。
 - [ ] **G05 Responses 上游 WebSocket**。验证上游握手、复用、断线、取消、续接和终态。
 - [ ] **G06 WebSocket 预热**。核对适用上游、出站与用量归属，以及失败后的连接状态。
 - [ ] **G07 WebSocket 实时转向**。验证生成中转向、旧分支状态、并行隔离和回合终态。

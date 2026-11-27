@@ -531,11 +531,22 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前�
 
 压缩项由应用 Encrypter 封装，并验证下游 Key、公开模型、上游连接身份与凭证指纹及原上游压缩项 ID。后续 HTTP 或 WebSocket Responses 和二次压缩只会把校验通过的原始项送回同一连接。网关无需为这些压缩项另建数据库表。同一应用密钥的进程可继续回放，跨 Key、公开别名、凭证变更和篡改均在出站前拒绝。压缩与携带压缩项的请求派发后均不自动跨账号重放。
 
-SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立 HTTP、WebSocket 及上游夹具验收版本化、Codex、无版本路径、路由缓存、进程重启、授权及篡改拒绝、24／6 Token、无效上游结果和 Artisan 按请求查询。另通过 SQLite 全部 23 条别名精确核对、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。上游正式模型权限、Responses 持久状态和服务端自动压缩继续按 G04 与实机矩阵核对。
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立 HTTP、WebSocket 及上游夹具验收版本化、Codex、无版本路径、路由缓存、进程重启、授权及篡改拒绝、24／6 Token、无效上游结果和 Artisan 按请求查询。另通过 SQLite 全部 23 条别名精确核对、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。服务端自动压缩见下一节。上游正式模型权限和 Responses 持久状态继续按 G04 与实机矩阵核对。
 
 - [固定 Sub2API Responses 路径](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L241)
 - [OpenAI 独立压缩契约](https://developers.openai.com/api/reference/resources/responses/methods/compact)
 - [OpenAI 压缩上下文回放](https://developers.openai.com/api/docs/guides/compaction)
+
+### Responses 服务端压缩
+
+普通 Responses 的发布模型同时允许 `responses` 和 `responses/compact` 时，可向原生 OpenAI 连接发送 `context_management` 的正整数压缩阈值，或在输入末尾声明一个 `compaction_trigger`。沿用 `store: false` 以及对共享资源引用的现有约束。输入内声明的新工具与顶层工具使用相同的审批条件和供应商能力判断。
+
+缓冲 JSON 和流式终态均保护完整的压缩项。SSE 及转发到 WebSocket 的中间项去除未完成的密文，完成项和最终 `output` 对同一上游项复用同一个受保护的值。压缩事件、普通输出和最终用量共用原请求 ID。上游意外返回的压缩项或缺少完成所需密文时，返回脱敏错误并保留已观测用量。之后的内联回放复用独立压缩的 Key、模型和连接绑定。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立进程和 OpenAI 协议夹具验收缓冲 JSON、SSE 中间及完成事件、WebSocket 显式触发、进程重启后的 HTTP 回放、跨 Key 拒绝、阈值和触发顺序错误、模型能力门控、嵌入工具授权、异常事件脱敏和 75／9 Token。通过 Artisan 检查路由缓存与请求用量。另通过 SQLite 独立 Compact 回归、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。真实上游模型权限与持久状态仍待验收。
+
+- [OpenAI 自动压缩与触发项](https://developers.openai.com/api/docs/guides/compaction)
+- [OpenAI SSE 压缩事件契约](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 
 ### xAI 自定义音色
 

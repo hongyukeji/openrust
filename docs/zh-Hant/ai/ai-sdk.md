@@ -254,6 +254,8 @@ Schedule::configure(|schedule| {
 
 壓縮同步回傳並記錄上游回報的用量。該路由使用內嵌上下文，拒絕上游儲存的回應 ID、背景呼叫和共用上游資源參照。
 
+一般 Responses 請求可設定 `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`，也可在輸入末尾附加一個 `{"type": "compaction_trigger"}` 立即觸發壓縮。模型須同時發佈 Responses 與 Compact。閘道對 JSON、SSE 和 WebSocket 中完成的壓縮項目使用相同的歸屬保護。下次請求可內嵌傳回這些項目。
+
 ### Responses WebSocket {#responses-websocket}
 
 使用 HTTP 端點相同的 Bearer Key 連線到 `wss://your-app.example/v1/responses`。啟用 `unversioned_paths` 時也可使用 `/responses`。傳送 `response.create` JSON 文字訊框，讀取 Responses 事件直到 `response.completed` 或 `response.incomplete`。

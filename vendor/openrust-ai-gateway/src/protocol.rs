@@ -691,6 +691,17 @@ async fn relay(
     }
     let compact_response = endpoint == TextEndpoint::CompactResponses;
     let replays_compaction = compact::has_input(&data);
+    let automatic_compaction = if endpoint == TextEndpoint::Responses {
+        match compact::automatic_request(&data) {
+            Ok(enabled) => enabled,
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        false
+    };
+    let uses_compaction = replays_compaction || automatic_compaction;
     if compact_response
         && data
             .get("stream")
@@ -702,7 +713,7 @@ async fn relay(
             "独立压缩仅支持同步响应",
         );
     }
-    if replays_compaction
+    if uses_compaction
         && (!matches!(
             endpoint,
             TextEndpoint::Responses | TextEndpoint::CompactResponses
@@ -802,8 +813,8 @@ async fn relay(
             }
         }
     };
-    let stream_options = stream_format.map(|format| StreamOptions {
-        format,
+    let response_options = ResponseOptions {
+        stream: stream_format,
         gemini_candidates: (endpoint == TextEndpoint::GeminiStreamGenerateContent).then(|| {
             data.get("generationConfig")
                 .or_else(|| data.get("generation_config"))
@@ -816,7 +827,8 @@ async fn relay(
                 .filter(|count| *count != 0)
                 .unwrap_or(1)
         }),
-    });
+        compaction: None,
+    };
     let mut native_responses_only = false;
     let mut server_tools = Vec::new();
     if matches!(
@@ -850,19 +862,28 @@ async fn relay(
                 "此端点仅支持无状态请求和获准的工具",
             );
         }
-        (native_responses_only, server_tools) =
-            match responses_tools(data.get("tools"), |kind, tool| {
+        let inline_tool_lists = data
+            .get("input")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|item| {
+                item["type"] == "additional_tools" || item["type"] == "configuration_update"
+            })
+            .filter_map(|item| item.get("tools"));
+        for tools in data.get("tools").into_iter().chain(inline_tool_lists) {
+            let Some((native, declared)) = responses_tools(Some(tools), |kind, tool| {
                 endpoint == TextEndpoint::Responses && model.allows_server_tool(kind, tool)
-            }) {
-                Some(requirements) => requirements,
-                None => {
-                    return protocol.error(
-                        StatusCode::BAD_REQUEST,
-                        "unsupported_state",
-                        "当前模型不支持所请求的 Responses 工具",
-                    );
-                }
+            }) else {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "unsupported_state",
+                    "当前模型不支持所请求的 Responses 工具",
+                );
             };
+            native_responses_only |= native;
+            server_tools.extend(declared);
+        }
         if endpoint == TextEndpoint::CountResponseTokens
             && data
                 .get("input")
@@ -987,10 +1008,11 @@ async fn relay(
         && endpoint != TextEndpoint::SystemOne
         && endpoint != TextEndpoint::AlphaSearch
         && !compact_response
-        && !replays_compaction
+        && !uses_compaction
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
+        && server_tools.is_empty()
         && data
             .get("tools")
             .is_none_or(|tools| tools.is_null() || tools.as_array().is_some_and(Vec::is_empty))
@@ -1039,7 +1061,7 @@ async fn relay(
                     || (*upstream == TextEndpoint::ChatCompletions
                         && target.provider.supports_chat_reasoning_replay()))
                 && (!native_responses_only || *upstream == endpoint)
-                && (!replays_compaction
+                && (!uses_compaction
                     || (*upstream == endpoint
                         && target
                             .provider
@@ -1094,7 +1116,7 @@ async fn relay(
             )]);
         }
         payload.insert("model".into(), json!(target.upstream_model));
-        let compact_context = if compact_response || replays_compaction {
+        let compact_context = if compact_response || uses_compaction {
             let Some(context) = compact::Context::new(key, &name, target) else {
                 conversion_error = Some("当前连接无法保护压缩上下文");
                 continue;
@@ -1342,7 +1364,10 @@ async fn relay(
                     upstream,
                     name,
                     endpoint,
-                    stream_options,
+                    ResponseOptions {
+                        compaction: compact_context,
+                        ..response_options
+                    },
                     protocol,
                     bridge,
                     call,
@@ -1667,12 +1692,12 @@ async fn respond(
     upstream: client::Response,
     name: String,
     endpoint: TextEndpoint,
-    stream_options: Option<StreamOptions>,
+    mut options: ResponseOptions,
     protocol: Protocol,
     bridge: Option<Translation>,
     mut call: Call,
 ) -> HttpResult {
-    if let Some(options) = stream_options {
+    if options.stream.is_some() {
         return stream(upstream, name, call, protocol, bridge, endpoint, options).await;
     }
     let status = upstream.status();
@@ -1728,6 +1753,19 @@ async fn respond(
         call.observe_final_cost(&data);
         call.observe_buffered_images(&data);
     }
+    if endpoint == TextEndpoint::Responses
+        && !compact::protect_output(&mut data, options.compaction.as_mut(), true)
+    {
+        call.outcome("invalid_upstream_response");
+        if !call.settle().await {
+            return usage_storage_failure(protocol, &mut call).response;
+        }
+        return protocol.error(
+            StatusCode::BAD_GATEWAY,
+            "invalid_upstream_response",
+            "上游压缩项无法校验或保护",
+        );
+    }
     if let Some(bridge) = bridge {
         let Some(response) = bridge.response(name.clone(), &data) else {
             call.outcome("invalid_upstream_response");
@@ -1757,9 +1795,10 @@ async fn respond(
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
 
-struct StreamOptions {
-    format: StreamFormat,
+struct ResponseOptions {
+    stream: Option<StreamFormat>,
     gemini_candidates: Option<u64>,
+    compaction: Option<compact::Context>,
 }
 
 fn gemini_finished(data: &Value, candidates: u64, finished: &mut HashSet<u64>) -> bool {
@@ -1850,9 +1889,9 @@ async fn stream(
     protocol: Protocol,
     bridge: Option<Translation>,
     endpoint: TextEndpoint,
-    options: StreamOptions,
+    mut options: ResponseOptions,
 ) -> HttpResult {
-    let mut format = options.format;
+    let mut format = options.stream.take().expect("已选择响应流格式");
     let status = upstream.status();
     let mut headers = downstream_headers(upstream.headers());
     let is_sse = upstream
@@ -1962,6 +2001,14 @@ async fn stream(
             }
             if ended && endpoint == TextEndpoint::Responses {
                 call.observe_final_cost(&data["response"]);
+            }
+            if endpoint == TextEndpoint::Responses
+                && !compact::protect_event(&mut data, options.compaction.as_mut())
+            {
+                call.outcome("invalid_upstream_response");
+                call.settle().await;
+                yield Ok(format.error(&error));
+                return;
             }
             let final_usage = ended || (matches!(protocol, Protocol::Gemini)
                 && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());
