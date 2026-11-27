@@ -572,6 +572,8 @@ SDK Agent 透過自有閘道使用 xAI 原生工具時，在 `ai.providers` 新�
 
 供應商依連線與幣別提供彙總時，透過同一匯入指令提交 `totals`。將供應商原始帳期換算為 UTC 時間戳記。Token 費用使用 `category: "tokens"`，其他費用分類保留原金額。
 
+對帳 DeepSeek 時，從開放平台匯出用量。用成本 CSV 核對供應商金額，用用量 CSV 核對請求次數、快取命中、未命中及輸出 Token，並將原始帳期轉換為 UTC。尚未結束的帳期以 `complete: false` 匯入，帳期結束後重新匯出。彙總項目應與相同帳號、相同帳期的本機連線帳目比較。CSV 沒有請求 ID 時，保留報表原有的彙總粒度。
+
 ```json
 {
   "source": "daily-provider-costs",

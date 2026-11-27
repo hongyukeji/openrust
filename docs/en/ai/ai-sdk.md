@@ -572,6 +572,8 @@ Use `complete: false` for a partial statement. For a corrected statement, keep i
 
 For a statement grouped by upstream connection and currency, supply `totals` to the same import command. Convert the provider’s original statement window to UTC timestamps. Use `category: "tokens"` for token charges. Other categories are retained with their original amounts.
 
+For DeepSeek, export usage from the platform. Use the cost CSV for the reported amount and the usage CSV to cross-check request count, cache hits, cache misses, and output tokens. Convert the export's interval to UTC. Import an open interval as `complete: false` and re-export it after it closes. Compare the total only with a connection covering the same account and interval. Retain supplier totals at the exported granularity when the CSV omits request IDs.
+
 ```json
 {
   "source": "daily-provider-costs",

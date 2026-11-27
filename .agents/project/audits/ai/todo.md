@@ -90,12 +90,13 @@
 - [ ] **B08 其他异步端点账务**。沿用已验收 Gemini 批次的验收口径，逐端点核对预占、完成、取消、复原和账单归属。
 - [ ] **B09 账期净额复算**。验证期初调整、跨日账单窗口、分币种净额，启用折算的场景验证汇率来源和版本。
 - [ ] **B10 正式供应商报表接入**。可授权获取的报表验证获取、调度、断点恢复和更正，其余继续沿用 Artisan 导入。权限与正式账单条件随供应商实机记录。
+  - [x] DeepSeek [官方用量与成本文件人工导入](gateway.md#gw-04-deepseek-正式用量与小时账单)通过，按报表原有小时粒度核对。
 
 ## 供应商实机与外部条件
 
 - [ ] **E01 Sub2API Embeddings**。已有尝试返回 `503`，待可用路由和模型，验证成功向量与用量。
 - [ ] **E02 Sub2API 图片生成**。已有尝试因分组未启用返回 `403`，待已授权分组，实测生成和用量。
-- [ ] **E03 DeepSeek Anthropic Messages**。待独立 Messages 连接和可用模型，实测文本、流及工具。保留已验收的 Chat 和 Responses 证据。
+- [x] **E03 DeepSeek Anthropic Messages**。独立连接实测 `deepseek-flash` 的文本、SSE、工具调用和结果回传，通过[正式用量与小时账单核对](gateway.md#gw-04-deepseek-正式用量与小时账单)。Chat 和 Responses 的已验链路保留在 SDK 账本。
 - [ ] **E04 阿里云百炼按量服务**。旧 Token Plan 交互返回 `403 AccessDenied.Unpurchased`，待合适的按量端点、工作空间及权限。
 - [ ] **E05 腾讯云 TokenHub**。待对应模型权限，分别实测 Chat Completions、Responses 和 Messages。
 - [ ] **E06 百度千帆**。待获准模型，验证鉴权、普通与流式 Chat、工具和结构化输出。

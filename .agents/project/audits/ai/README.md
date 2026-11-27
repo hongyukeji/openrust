@@ -1094,6 +1094,8 @@ DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和
 
 Chat 思考模式的具名工具选项触发上游 400。使用自动选择并在实际工具续轮回传 `reasoning_content` 后通过，缓冲与分片流分别验证工具历史，测试确认 UI 流不展示保留的推理片段。Chat 工具总量为 695 输入、60 输出 Token，Responses 工具总量为 692 输入、57 输出 Token。它们是上游回报的用量。本次未验证供应商账单、Embeddings 或媒体。
 
+2026-11-27 以另一个具名 `anthropic` 连接经实际网关完成 DeepSeek Messages 普通响应、SSE 和工具调用及续轮。四次用量与正式导出对齐，见[DeepSeek 小时账单验收](gateway.md#gw-04-deepseek-正式用量与小时账单)。DeepSeek 的公开 Responses 接口为无状态接口，不能用于 G04 的持久响应、续接和后台实测。[DeepSeek Responses 参数支持](https://api-docs.deepseek.com/guides/responses_api/#compatibility-details)
+
 阿里云使用官方文档指定的 Token Plan Responses 地址及隔离的 Codex 0.170.0 交互会话。上游返回 HTTP 403，代码 `AccessDenied.Unpurchased`。本次无成功生成记录。该凭证按官方规定用于兼容 AI 工具的交互链路，百炼按量付费后端另行验收。所有凭证从运行时环境读取，仓库只记录协议、状态和汇总数据。
 
 - [DeepSeek 思考模式](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/) · [Chat Completions API](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion/) · [Responses API](https://api-docs.deepseek.com/zh-cn/api/create-response/)
