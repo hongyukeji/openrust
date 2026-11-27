@@ -453,7 +453,7 @@ impl<A: Agent> PendingConversation<'_, A> {
             return Err(AiError::ApprovalNotFound);
         }
         let provider = manager.text_provider(Some(&checkpoint.provider))?;
-        checkpoint.verify_connection(provider.as_ref())?;
+        checkpoint.verify_connection(provider.as_ref()).await?;
         if let Some(message) = &checkpoint.history_message_id
             && !store
                 .as_database()

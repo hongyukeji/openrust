@@ -139,9 +139,15 @@ pub(super) fn output_state(
     Ok((calls, replay))
 }
 
-pub(super) fn messages(history: &[ToolStep]) -> AiResult<Vec<BedrockMessage>> {
+pub(super) fn messages(
+    history: &[ToolStep],
+    authentication: &super::identity::ReplayAuthentication,
+) -> AiResult<Vec<BedrockMessage>> {
     let mut messages = Vec::with_capacity(history.len() * 2);
     for step in history {
+        if !authentication.allows(step.provider_content.as_ref()) {
+            return Err(AiError::InvalidResponse);
+        }
         let replay = step
             .provider_content
             .as_ref()

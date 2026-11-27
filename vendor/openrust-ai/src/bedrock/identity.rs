@@ -18,22 +18,86 @@ use super::BedrockProvider;
 pub(super) struct ReplayPrincipal(Mutex<Option<([u8; 32], String)>>);
 
 #[derive(Default)]
-pub(super) struct ChatAuthentication {
+pub(super) struct ReplayAuthentication {
     pub(super) scope: Option<String>,
-    pub(super) credential: Option<Credentials>,
+    credential: Option<Credentials>,
+}
+
+const BINDING: &str = "bedrock_replay_binding";
+
+pub(super) enum ReplayBinding {
+    Scope(String),
+    Credential(String),
+}
+
+impl ReplayBinding {
+    pub(super) fn record(self, content: &mut Option<Value>) {
+        if let Some(Value::Object(content)) = content {
+            let value = match self {
+                Self::Scope(scope) => json!({"scope":scope}),
+                Self::Credential(credential) => json!({"credential":credential}),
+            };
+            content.insert(BINDING.into(), value);
+        }
+    }
+}
+
+pub(super) fn step_scope(content: Option<&Value>) -> Option<&str> {
+    content?.get(BINDING)?.get("scope")?.as_str()
+}
+
+impl ReplayAuthentication {
+    pub(super) fn pin(
+        &self,
+        config: aws_sdk_bedrockruntime::config::Builder,
+    ) -> aws_sdk_bedrockruntime::config::Builder {
+        match &self.credential {
+            // 身份核对和推理使用同一份凭证，避免签名历史漂移到其他调用者。
+            Some(credential) => config
+                .credentials_provider(credential.clone())
+                .identity_cache(IdentityCache::no_cache()),
+            None => config,
+        }
+    }
+
+    pub(super) fn binding(&self) -> Option<ReplayBinding> {
+        if let Some(scope) = &self.scope {
+            return Some(ReplayBinding::Scope(scope.clone()));
+        }
+        self.credential_binding().map(ReplayBinding::Credential)
+    }
+
+    fn credential_binding(&self) -> Option<String> {
+        self.credential
+            .as_ref()
+            .map(|credential| format!("{:x}", Sha256::digest(credential_fingerprint(credential))))
+    }
+
+    pub(super) fn allows(&self, content: Option<&Value>) -> bool {
+        let Some(binding) = content.and_then(|content| content.get(BINDING)) else {
+            // 旧审批快照使用独立的显式凭证范围，由恢复入口验证。
+            return content.is_none() || (self.credential.is_none() && self.scope.is_some());
+        };
+        if let Some(scope) = binding["scope"].as_str() {
+            return self.scope.as_deref() == Some(scope);
+        }
+        binding["credential"]
+            .as_str()
+            .is_some_and(|value| self.credential_binding().as_deref() == Some(value))
+    }
 }
 
 impl BedrockProvider {
-    pub(super) async fn chat_authentication(
+    pub(super) async fn replay_authentication(
         &self,
-        downstream_scope: Option<&str>,
-    ) -> AiResult<ChatAuthentication> {
-        if downstream_scope.is_none() {
-            return Ok(ChatAuthentication::default());
+        enabled: bool,
+    ) -> AiResult<ReplayAuthentication> {
+        if !enabled {
+            return Ok(ReplayAuthentication::default());
         }
         if let Some(scope) = self.approval_replay_scope()? {
             // 显式凭证沿用原有作用域，已签发的回放状态可继续使用。
-            return Ok(ChatAuthentication {
+            return Ok(ReplayAuthentication {
                 scope: Some(scope),
                 credential: None,
             });
@@ -83,7 +147,7 @@ impl BedrockProvider {
             *cached = scope.as_ref().map(|scope| (fingerprint, scope.clone()));
             scope
         };
-        Ok(ChatAuthentication {
+        Ok(ReplayAuthentication {
             scope,
             credential: Some(credential),
         })

@@ -874,6 +874,8 @@ Bedrock 的已完成轮次含签名推理时，Chat Completions 会在助手消�
 
 Bedrock 的 Converse 和 ConverseStream 均可通过 `with_tools` 调用本地函数。SDK 保留原始工具 ID，在下一回合随结果回送供应商签名推理。仅在模型支持相应 Bedrock 工具选择时使用 `ToolChoice::Required` 或 `ToolChoice::tool`。流式工具等到消息结束和用量事件完整到达后才执行。
 
+使用 AWS 默认凭证链时，SDK 通过 STS `GetCallerIdentity` 确认调用者。另一个应用进程可以用同一 Bedrock 连接、模型和 IAM 角色批准待执行的工具，也可以在继续会话时回放已保存的签名工具步骤。同一角色刷新临时凭证后仍可继续。恢复待审批工具时，身份变更或无法确认会在执行工具前拒绝请求。签名和脱敏推理保留在内部回放状态中。显式 Bearer 或 SigV4 凭证继续使用原有回放规则。
+
 Bedrock 的普通和流式调用均支持 `with_schema`。SDK 通过专用工具定义发送 Schema，并将该工具的参数作为最终 JSON 响应。与本地函数混用时，前面的回合可以调用本地函数，最后一轮选择结构化工具。对于固定 Laravel 基线中拒绝强制选工具的模型，SDK 把 Schema 加入系统指令，并检查最终文本能否解码为 JSON 对象。
 
 使用 Bedrock 文本向量时，设置 `AI_EMBEDDINGS_PROVIDER=bedrock` 和 `BEDROCK_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0`，然后调用 `Embeddings::r#for`。Titan 每次请求发送一条输入，默认 1024 维。向量索引需要其他维数时，Titan V2 支持 `.dimensions(256)` 和 `.dimensions(512)`。Cohere Embed 模型用 `search_document` 一次发送整批输入，维数由模型决定。

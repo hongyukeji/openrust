@@ -367,7 +367,7 @@ impl TextProvider for BedrockProvider {
                 return self.relay_request_error(endpoint, body).map_or(Ok(()), Err);
             }
             let authentication = self
-                .chat_authentication(scope)
+                .replay_authentication(scope.is_some())
                 .await
                 .map_err(|_| "无法核对 Bedrock 回放所需的 AWS 身份")?;
             let replay = chat_replay::ChatReplay::new(
@@ -472,6 +472,22 @@ impl StepTextGateway for BedrockProvider {
         Ok(Some(format!("{:x}", Sha256::digest(scope))))
     }
 
+    fn step_replay_scope(&self, provider_content: Option<&Value>) -> AiResult<Option<String>> {
+        if let Some(scope) = identity::step_scope(provider_content) {
+            return Ok(Some(scope.to_owned()));
+        }
+        self.approval_replay_scope()
+    }
+
+    fn verify_approval_replay_scope<'a>(
+        &'a self,
+        expected: &'a str,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        Box::pin(async move {
+            Ok(self.replay_authentication(true).await?.scope.as_deref() == Some(expected))
+        })
+    }
+
     fn generate_text_step<'a>(
         &'a self,
         prompt: &'a AgentPrompt<'a>,
@@ -489,9 +505,18 @@ impl StepTextGateway for BedrockProvider {
         final_step: bool,
     ) -> HttpFuture<'a, AiResult<StepResponse>> {
         Box::pin(async move {
-            let scope = self.approval_replay_scope()?;
+            let authentication = self
+                .replay_authentication(
+                    !definitions.is_empty()
+                        || !history.is_empty()
+                        || prompt
+                            .messages
+                            .iter()
+                            .any(|message| message.provider_replay.is_some()),
+                )
+                .await?;
             let input =
-                ConverseInput::prepare(prompt, definitions, history, scope.as_deref(), final_step)?;
+                ConverseInput::prepare(prompt, definitions, history, &authentication, final_step)?;
             let allow_tools = input.tool_config.is_some();
             let request = self
                 .client()
@@ -504,7 +529,7 @@ impl StepTextGateway for BedrockProvider {
                 .set_tool_config(input.tool_config);
             let response = request
                 .customize()
-                .config_override(input.timeout)
+                .config_override(authentication.pin(input.timeout))
                 .send()
                 .await
                 .map_err(converse_error)?;
@@ -524,7 +549,10 @@ impl StepTextGateway for BedrockProvider {
                 }
             }
             let blocks = tools::read_output(message.content())?;
-            let (calls, replay) = tools::output_state(&blocks, false)?;
+            let (calls, mut replay) = tools::output_state(&blocks, false)?;
+            if let Some(binding) = authentication.binding() {
+                binding.record(&mut replay);
+            }
             if !calls.is_empty() && !allow_tools {
                 return Err(AiError::ToolsNotSupported);
             }
@@ -560,9 +588,18 @@ impl StepTextGateway for BedrockProvider {
         final_step: bool,
     ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
-            let scope = self.approval_replay_scope()?;
+            let authentication = self
+                .replay_authentication(
+                    !definitions.is_empty()
+                        || !history.is_empty()
+                        || prompt
+                            .messages
+                            .iter()
+                            .any(|message| message.provider_replay.is_some()),
+                )
+                .await?;
             let input =
-                ConverseInput::prepare(prompt, definitions, history, scope.as_deref(), final_step)?;
+                ConverseInput::prepare(prompt, definitions, history, &authentication, final_step)?;
             let allow_tools = input.tool_config.is_some();
             let client = self.client().await?;
             let deadline = tokio::time::Instant::now()
@@ -576,7 +613,7 @@ impl StepTextGateway for BedrockProvider {
                 .set_inference_config(input.inference)
                 .set_tool_config(input.tool_config)
                 .customize()
-                .config_override(input.timeout)
+                .config_override(authentication.pin(input.timeout))
                 .send()
                 .await
                 .map_err(converse_error)?;
@@ -586,6 +623,7 @@ impl StepTextGateway for BedrockProvider {
                 allow_tools,
                 input.mode,
                 false,
+                authentication.binding(),
             ))
         })
     }
@@ -606,7 +644,7 @@ impl ConverseInput {
         prompt: &AgentPrompt<'_>,
         definitions: &[ToolDefinition],
         history: &[ToolStep],
-        scope: Option<&str>,
+        authentication: &identity::ReplayAuthentication,
         final_step: bool,
     ) -> AiResult<Self> {
         if prompt
@@ -615,6 +653,7 @@ impl ConverseInput {
         {
             return Err(AiError::ProviderOptionsNotSupported);
         }
+        let scope = authentication.scope.as_deref();
         let mut messages = Vec::with_capacity(prompt.messages.len() + 1);
         for message in prompt.messages {
             messages.push(match message.role {
@@ -643,7 +682,7 @@ impl ConverseInput {
             prompt.text.prompt,
             prompt.attachments,
         )?);
-        messages.extend(tools::messages(history)?);
+        messages.extend(tools::messages(history, authentication)?);
         let output = structured::prepare(prompt, definitions, final_step)?;
         let options = prompt.options;
         let max_tokens = options
@@ -697,6 +736,7 @@ fn stream_events(
     allow_tools: bool,
     mode: structured::OutputMode,
     capture_signed_text: bool,
+    replay_binding: Option<identity::ReplayBinding>,
 ) -> StepEventStream {
     Box::pin(async_stream::try_stream! {
         let mut started = false;
@@ -779,7 +819,10 @@ fn stream_events(
                     let reasoning = blocks.values().map(|block| block.reasoning.as_str())
                         .filter(|text| !text.is_empty()).collect::<Vec<_>>().join("\n\n");
                     let replay = blocks.into_values().filter_map(stream_block).collect::<AiResult<Vec<_>>>()?;
-                    let (calls, replay) = tools::output_state(&replay, capture_signed_text && reason == FinishReason::Stop)?;
+                    let (calls, mut replay) = tools::output_state(&replay, capture_signed_text && reason == FinishReason::Stop)?;
+                    if let Some(binding) = replay_binding {
+                        binding.record(&mut replay);
+                    }
                     validate_tool_stop(reason, &calls)?;
                     let response = mode.finish(StepResponse {
                         model: None,

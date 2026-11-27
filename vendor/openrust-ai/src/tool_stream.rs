@@ -146,9 +146,6 @@ fn events(
         agent,
     } = prepared;
     let invocation_id = run.invocation_id.clone();
-    let replay_scope = provider
-        .step_text_gateway()
-        .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
     let observed = metadata.clone();
     let stream = async_stream::try_stream! {
         let mut seen: HashSet<_> = run.history.iter().flat_map(|step| step.calls.iter().map(|call| call.id.clone())).collect();
@@ -256,6 +253,9 @@ fn events(
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
+            let replay_scope = provider.step_text_gateway().and_then(|gateway| {
+                gateway.step_replay_scope(completed.provider_content.as_ref()).ok().flatten()
+            });
             let replay = crate::provider_replay::ProviderReplay::capture(
                 replay_scope.as_deref(), &model,
                 completed.provider_content.as_ref().filter(|_| !completed.tool_calls.is_empty()),

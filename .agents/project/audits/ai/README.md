@@ -702,11 +702,19 @@ Bedrock `Agent::stream` 走 ConverseStream，复用 Converse 的请求映射与�
 
 - [AWS ConverseStream API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html) · [AWS Converse 原生响应事件](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
 
-Bedrock 普通与流式请求接入 `StepTextGateway`。本地函数映射为 AWS 工具定义，工具名称、JSON 参数和原始调用 ID 沿用既有 SDK。工具结果通过下一轮用户消息发送。AWS 支持的模型可用自动、至少一个或指定工具选择。两种调用都按块保留并回送签名或脱敏推理，本地流处理只在完整停止与用量事件后交付可执行的工具调用。历史回放的作用域绑定显式凭证、连接配置及模型。默认凭证链支持同次 Agent 内的续步，其跨进程审批恢复及历史持久化仍待验收。
+Bedrock 普通与流式请求接入 `StepTextGateway`。本地函数映射为 AWS 工具定义，工具名称、JSON 参数和原始调用 ID 沿用既有 SDK。工具结果通过下一轮用户消息发送。AWS 支持的模型可用自动、至少一个或指定工具选择。两种调用都按块保留并回送签名或脱敏推理，本地流处理只在完整停止与用量事件后交付可执行的工具调用。显式凭证的审批与历史回放沿用原有范围。默认凭证链见下文。
 
 独立 Artisan 与 HTTP 通过本地 AWS 协议服务验证两个模型回合、指定工具和续步自动选择、JSON 与二进制流参数、原始工具 ID、签名与不透明字节的顺序回放、缓存用量及公开 SSE 隔离。缺用量终帧时未执行本地函数。普通和流式 Converse 前批用例同步复验，19 项 SDK 回归、严格 Clippy 和三语站点通过。
 
 - [AWS Bedrock 客户端工具](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html) · [AWS Converse 签名推理与事件](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
+
+#### 默认凭证链的审批与历史回放
+
+SDK 复用网关的 STS 身份核对和凭证快照，用同一份 SigV4 凭证查询身份与签署 Bedrock 请求。在生成步骤时记录经过核对的调用者范围，审批领取及工具执行前重新核对。AWS 账户和唯一角色 ID 与连接及区域组成范围，同一角色更换临时凭证后可恢复。保存的签名工具步骤继续按请求模型匹配。STS 无法确认身份时，新步骤不能签发可跨进程恢复的审批。此时收到的签名只可在同一次 Agent 运行中用原凭证续步。显式 Bearer 或 SigV4 使用原范围。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用独立 Artisan 发起普通与流式审批，独立 HTTP 进程在换发凭证后恢复，再由另一个进程接续已保存的会话。模拟 STS 和 Bedrock 校验实际 SigV4 HMAC、原始工具 ID、签名块、脱敏字节及私有 Storage 的 PDF。两步共计 34 输入、8 输出 Token。跨参与者、同名不同 ID 角色、其他账户和 STS 故障的请求不得执行工具。重复审批、显式 Bearer 恢复及 HTTP／SSE 的私有状态隔离也通过。SQLite 额外复验旧格式的显式凭证快照。SDK 与网关共 33 项回归、严格 Clippy 和三语站点通过。正式 AWS 账户仍待验收。
+
+- [AWS STS GetCallerIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html) · [AWS Rust SDK 凭证链](https://docs.aws.amazon.com/sdk-for-rust/latest/dg/credproviders.html)
 
 普通与流式 `with_schema` 按固定 Laravel 将嵌套封闭 Schema 映射成 `structured_output`。前置回合允许本地函数，末步选择结构化工具并公开其 JSON 对象。指定业务工具的前置回合只发送业务工具定义。固定基线识别的 Claude 模型使用系统 JSON 指令，终帧检查完整 JSON 对象。同一个响应同时提交业务调用与结构化结果时拒绝该响应，避免执行不完整的工具轮。
 

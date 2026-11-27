@@ -1,6 +1,5 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use aws_config::identity::IdentityCache;
 use aws_sdk_bedrockruntime::{
     operation::RequestId,
     types::{
@@ -331,7 +330,7 @@ fn inference(body: &Value) -> Result<Option<InferenceConfiguration>, &'static st
 
 impl BedrockProvider {
     pub(super) async fn relay_chat(&self, body: Value, scope: Option<&str>) -> AiResult<Response> {
-        let authentication = self.chat_authentication(scope).await?;
+        let authentication = self.replay_authentication(scope.is_some()).await?;
         let replay = ChatReplay::new(
             authentication.scope.as_deref(),
             scope,
@@ -345,14 +344,10 @@ impl BedrockProvider {
         let structured = request.output.is_some();
         // AWS 首次编译新 Schema 约需 90 秒，结构化调用须为编译与生成保留时间。
         let duration = Duration::from_secs(if structured { 120 } else { 60 });
-        let mut timeout = aws_sdk_bedrockruntime::config::Builder::new()
-            .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build());
-        if let Some(credential) = authentication.credential {
-            // 两个 AWS 请求使用同一份凭证快照，避免身份核对后刷新到另一调用者。
-            timeout = timeout
-                .credentials_provider(credential)
-                .identity_cache(IdentityCache::no_cache());
-        }
+        let timeout = authentication.pin(
+            aws_sdk_bedrockruntime::config::Builder::new()
+                .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build()),
+        );
         let system = (!request.system.is_empty()).then_some(request.system);
         let history = replay.as_ref().and_then(|_| {
             body["messages"]
@@ -395,6 +390,7 @@ impl BedrockProvider {
                 allow_tools,
                 OutputMode::Text,
                 replay.is_some(),
+                None,
             );
             let stream = async_stream::stream! {
                 yield Ok(identity.frame(json!([{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]), None));

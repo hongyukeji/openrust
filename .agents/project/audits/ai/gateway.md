@@ -249,7 +249,7 @@ Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Conve
 
 默认凭证链用同一份 SigV4 凭证快照执行 STS `GetCallerIdentity` 和 Bedrock 推理。凭证指纹相同时复用连接内的身份结果。角色范围包含 AWS 分区、账户、角色名和 IAM 角色唯一 ID，临时会话名变化不改变作用域。身份不可核实时拒绝带签名状态的续轮，普通无状态文本继续按该凭证发出。显式 Bearer 与 SigV4 沿用已有回放范围。配置为空的 Bearer 环境变量时，IAM 路径优先使用 SigV4，推理和目录采用相同选择规则。
 
-真实 HTTP 与本地 STS／Bedrock 协议服务核对两次 AWS 签名使用的凭证。模拟共享 AWS 配置的 `credential_process`，在同一网关进程内换发临时凭证。Responses 签名工具回放和 Chat 纯文本回放均接续同一角色的新会话。同名但唯一 ID 不同的角色、其他账户及 STS 故障在 Bedrock 出站前拒绝续轮。独立 Artisan 验证两个目录调用使用 SigV4。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对五次新增推理尝试的用量和账务。模拟费率下每笔 17 输入、4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 与三语站点通过。正式 AWS 账户及 SDK 跨进程审批回放仍待验。
+真实 HTTP 与本地 STS／Bedrock 协议服务核对两次 AWS 签名使用的凭证。模拟共享 AWS 配置的 `credential_process`，在同一网关进程内换发临时凭证。Responses 签名工具回放和 Chat 纯文本回放均接续同一角色的新会话。同名但唯一 ID 不同的角色、其他账户及 STS 故障在 Bedrock 出站前拒绝续轮。独立 Artisan 验证两个目录调用使用 SigV4。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对五次新增推理尝试的用量和账务。模拟费率下每笔 17 输入、4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 与三语站点通过。正式 AWS 账户仍待验。SDK 独立进程的审批与历史回放见[默认凭证链的审批与历史回放](README.md#默认凭证链的审批与历史回放)。
 
 - [AWS STS GetCallerIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html) · [AWS IAM 角色唯一 ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html) · [AWS Rust 凭证链](https://docs.aws.amazon.com/sdk-for-rust/latest/dg/credproviders.html)
 

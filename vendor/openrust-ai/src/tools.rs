@@ -263,6 +263,19 @@ pub trait StepTextGateway: Send + Sync {
         Ok(None)
     }
 
+    /// 使用模型实际返回该步骤时记下的连接范围。
+    fn step_replay_scope(&self, _provider_content: Option<&Value>) -> AiResult<Option<String>> {
+        self.approval_replay_scope()
+    }
+
+    /// 在领取审批和执行工具前重新核对连接范围。
+    fn verify_approval_replay_scope<'a>(
+        &'a self,
+        expected: &'a str,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        Box::pin(async move { Ok(self.approval_replay_scope()?.as_deref() == Some(expected)) })
+    }
+
     fn generate_text_step<'a>(
         &'a self,
         prompt: &'a AgentPrompt<'a>,
@@ -343,12 +356,13 @@ impl ApprovalCheckpoint {
         &self.run.invocation_id
     }
 
-    pub(crate) fn verify_connection(&self, provider: &dyn TextProvider) -> AiResult<()> {
-        let replay_scope = provider
+    pub(crate) async fn verify_connection(&self, provider: &dyn TextProvider) -> AiResult<()> {
+        let matches = provider
             .step_text_gateway()
             .ok_or(AiError::ApprovalNotFound)?
-            .approval_replay_scope()?;
-        if replay_scope.as_deref() != Some(&self.replay_scope) {
+            .verify_approval_replay_scope(&self.replay_scope)
+            .await?;
+        if !matches {
             return Err(AiError::ApprovalNotFound);
         }
         Ok(())
@@ -601,7 +615,7 @@ impl ToolRun {
         let Some(replay_scope) = provider
             .step_text_gateway()
             .ok_or(AiError::ToolsNotSupported)?
-            .approval_replay_scope()?
+            .step_replay_scope(step.response.provider_content.as_ref())?
         else {
             return Err(AiError::ApprovalNotResumable {
                 pending: plan.pending,
@@ -739,9 +753,7 @@ impl ToolRun {
         provider: &dyn TextProvider,
         fallback_model: &str,
     ) -> AiResult<AgentResponse> {
-        let replay_scope = provider
-            .step_text_gateway()
-            .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
+        let gateway = provider.step_text_gateway();
         let steps: Vec<_> = std::mem::take(&mut self.history)
             .into_iter()
             .enumerate()
@@ -752,6 +764,9 @@ impl ToolRun {
                     .get(index)
                     .and_then(Option::as_deref)
                     .and_then(|requested_model| {
+                        let replay_scope = gateway?
+                            .step_replay_scope(step.provider_content.as_ref())
+                            .ok()?;
                         crate::provider_replay::ProviderReplay::capture(
                             replay_scope.as_deref(),
                             requested_model,
