@@ -111,7 +111,11 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `Response::json(status, result)` 将 `ApiResult` 作为统一业务 JSON 返回。`ApiResult` 保存正文数据，HTTP 状态由 `Response::json` 接收。
 
-框架将 API 路由及配置的 API 前缀下的异常渲染为失败的 `ApiResult`。`API_PREFIX` 为空时，已匹配的 API 路由仍返回 JSON，包括使用会话的验证异常。验证异常还包含字段 `errors`。普通 API 资源使用 `ApiResult`，保留顶层的 `links`、`meta` 等元数据。JSON:API 资源沿用协议规定的文档格式。
+默认异常处理器将 API 路由及配置的 API 前缀下的异常渲染为失败的 `ApiResult`。`API_PREFIX` 为空时，已匹配的 API 路由仍返回 JSON，包括使用会话的验证异常。验证异常还包含字段 `errors`。普通 API 资源使用 `ApiResult`，保留顶层的 `links`、`meta` 等元数据。JSON:API 资源沿用协议规定的文档格式。
+
+- 在 API 路由中直接返回 `Model`、集合、`serde_json::Value` 或 `Vec`，仍按原生 JSON 结构输出。刚创建的模型仍返回 HTTP 201。
+- 需要密码确认时，通用 `password.confirm` 中间件对 JSON 请求返回 HTTP 423，正文包含 `message` 字段。HTML 请求仍跳转到确认页。见[密码确认](../security/authentication.md#password-confirmation)。
+- Horizon、Telescope 和 Pulse 的面板 API 保留现有响应字段、状态码和空正文行为。
 
 相关机制见[API 资源](../eloquent/resources.md)和[异常处理](./errors.md)。
 

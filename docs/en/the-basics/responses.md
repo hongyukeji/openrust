@@ -111,7 +111,11 @@ Both `Response` and `RedirectResponse` support `with_cookie(&cookie, request)` a
 
 Pass an `ApiResult` to `Response::json(status, result)` to return the business format. `ApiResult` carries the JSON data and `Response::json` takes the HTTP status.
 
-The framework renders exceptions on API routes and under the configured API prefix as failed `ApiResult` bodies. A matched API route still returns JSON when `API_PREFIX` is empty, including session-backed validation failures, which include field `errors`. Ordinary API resources use `ApiResult` and retain top-level `links`, `meta` and other resource metadata. JSON:API resources retain their protocol document format.
+The default exception handler renders exceptions on API routes and under the configured API prefix as failed `ApiResult` bodies. A matched API route still returns JSON when `API_PREFIX` is empty, including session-backed validation failures, which include field `errors`. Ordinary API resources use `ApiResult` and retain top-level `links`, `meta` and other resource metadata. JSON:API resources retain their protocol document format.
+
+- Direct returns of a `Model`, collection, `serde_json::Value` or `Vec` keep their native JSON shape on API routes. A newly created model still returns HTTP 201.
+- The standard `password.confirm` middleware returns HTTP 423 with a `message` field for JSON requests that require confirmation. HTML requests still redirect to the confirmation page. See [Password confirmation](../security/authentication.md#password-confirmation).
+- The Horizon, Telescope and Pulse dashboard APIs keep their existing response fields, status codes and empty responses.
 
 See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
 
