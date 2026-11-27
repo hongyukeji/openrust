@@ -167,6 +167,20 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 檔案型工作可用 `Files::put` 上傳 JSONL，也可用 Gemini 的 `POST /upload/v1beta/files` 啟動上傳，再一次送出 `upload, finalize`。持同一 Key 將回傳的 `files/input-…` 填入 `batch.inputConfig.fileName`。每個檔案最多 8 MiB，暫存在私有 `local` 磁碟，多程序部署時共用該磁碟。透過 `/v1beta/{fileName}` 讀取中繼資料或刪除暫存檔案。閘道逐行驗證並套用設定的限額，再上傳至選定連線。批次工作受理後即可刪除暫存檔案。
 
+上傳工作階段與暫存檔案各保留 48 小時，暫存檔案從上傳完成起計時。用 `./artisan ai:gateway:batch-files:prune --pretend` 預覽清理，移除 `--pretend` 即可分批清理到期檔案和中繼資料。在 `routes/console.rs` 登記同一命令即可定時清理。
+
+```rust
+Schedule::configure(|schedule| {
+    schedule
+        .command("ai:gateway:batch-files:prune", [])
+        .cron("0 * * * *")?
+        .without_overlapping();
+    Ok(())
+})?;
+```
+
+執行[工作排程器](../digging-deeper/scheduling.md)的程序應與閘道共用私有磁碟和用量資料庫。
+
 公開模型對應可設定 `fallbacks`，依序嘗試備用連線。每項填寫 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。無狀態請求遇到上游 429、5xx 等可重試錯誤時，閘道會嘗試備用連線。用戶端仍使用同一個公開名稱，每次嘗試使用同一個請求 ID 記錄。帶有工具、要求儲存輸出或已開始回傳的串流不會重送。
 
 可在 `config/ai_gateway.rs` 中設定 `accounts.deepseek.cooldown_seconds = 30`，讓具名上游連線在回傳 HTTP 429、503 或 529 後進入冷卻。上游有效的 `Retry-After` 優先，最長 24 小時。使用同一連線的所有公開模型共用冷卻狀態。可用連線都在冷卻時，閘道回傳 HTTP 503 及 `Retry-After`。多程序部署可將 `account_cache_store` 指向共用快取，例如 `redis`。

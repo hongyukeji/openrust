@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Listar chaves gerenciadas do gateway"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Limpar arquivos de lote expirados",
+      "arguments": {
+        "pretend": "Contar apenas os arquivos que podem ser limpos"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Listar tentativas de uso do gateway"
     },

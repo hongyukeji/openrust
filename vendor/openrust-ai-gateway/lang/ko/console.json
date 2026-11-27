@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "관리형 게이트웨이 키 목록 표시"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "만료된 배치 파일 정리",
+      "arguments": {
+        "pretend": "정리 대상 파일 수만 표시"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "게이트웨이 사용 시도 목록 표시"
     },

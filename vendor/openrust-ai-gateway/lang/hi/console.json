@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "प्रबंधित गेटवे कुंजियाँ सूचीबद्ध करें"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "समय-सीमा पार कर चुकी बैच फ़ाइलें हटाएँ",
+      "arguments": {
+        "pretend": "केवल हटाई जाने वाली फ़ाइलों की संख्या दिखाएँ"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "गेटवे उपयोग के प्रयास सूचीबद्ध करें"
     },

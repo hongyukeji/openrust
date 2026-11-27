@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Yönetilen ağ geçidi anahtarlarını listele"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Süresi dolan toplu iş dosyalarını temizle",
+      "arguments": {
+        "pretend": "Yalnızca temizlenecek dosyaları say"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Ağ geçidi kullanım denemelerini listele"
     },

@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Вывести список управляемых ключей шлюза"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Очистить просроченные файлы пакетных заданий",
+      "arguments": {
+        "pretend": "Показать только число файлов для очистки"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Вывести список попыток использования шлюза"
     },

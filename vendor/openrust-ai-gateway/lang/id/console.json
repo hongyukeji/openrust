@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Daftar kunci gateway terkelola"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Bersihkan berkas batch yang kedaluwarsa",
+      "arguments": {
+        "pretend": "Hitung berkas yang dapat dibersihkan"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Daftar percobaan penggunaan gateway"
     },

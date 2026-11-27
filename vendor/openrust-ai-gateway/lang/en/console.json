@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "List managed gateway keys"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Prune expired batch files",
+      "arguments": {
+        "pretend": "Count eligible files without removing them"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "List gateway usage attempts"
     },

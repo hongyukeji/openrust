@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "แสดงรายการคีย์เกตเวย์ที่จัดการ"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "ล้างไฟล์งานแบตช์ที่หมดอายุ",
+      "arguments": {
+        "pretend": "นับเฉพาะไฟล์ที่รอล้าง"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "แสดงรายการความพยายามใช้งานเกตเวย์"
     },

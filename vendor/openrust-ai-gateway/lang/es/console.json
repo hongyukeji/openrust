@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Listar las claves administradas de la puerta de enlace"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Limpiar los archivos de lotes caducados",
+      "arguments": {
+        "pretend": "Contar los archivos pendientes de limpieza"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Listar los intentos de uso de la puerta de enlace"
     },

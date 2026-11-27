@@ -39,6 +39,29 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         }))?;
     }
     Artisan::command_with(
+        "ai:gateway:batch-files:prune {--limit= : 每批最多清理条数，默认 100} {--pretend : 只统计待清理文件}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let gateway = Gateway::get_facade_root()
+                    .map_err(|_| ConsoleError::new("请启用 AI 网关"))?;
+                let store = gateway.usage_store.as_ref()
+                    .ok_or_else(|| ConsoleError::new("未启用网关用量记录"))?;
+                let limit = positive(input, "limit")?.unwrap_or(100);
+                if limit > 500 {
+                    return Err(ConsoleError::new("每批最多清理 500 个批文件"));
+                }
+                let report = store.prune_gemini_batch_files(
+                    limit as u64,
+                    input.matches().get_flag("pretend"),
+                ).await.map_err(|_| ConsoleError::new("无法清理已过期的批文件"))?;
+                write_json(output, json!({
+                    "candidates":report.candidates, "removed":report.removed, "failed":report.failed
+                }))?;
+                Ok(i32::from(report.failed != 0))
+            })
+        }),
+    )?.with_help_namespace(NAMESPACE)?;
+    Artisan::command_with(
         "ai:gateway:usage:list {--request-id= : 请求 ID} {--key-id= : 托管 Key ID} {--before= : 用量记录游标} {--limit= : 返回条数，默认 50} {--billing : 附加计费快照与金额} {--invocation-id= : SDK 调用 ID} {--invocation-scope= : 调用方作用域}",
         AsyncCommandCallback::new(|_, input, output| {
             Box::pin(async move {

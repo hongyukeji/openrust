@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "列出网关托管 Key"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "清理已过期的批任务文件",
+      "arguments": {
+        "pretend": "只统计待清理文件"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "列出网关用量尝试"
     },

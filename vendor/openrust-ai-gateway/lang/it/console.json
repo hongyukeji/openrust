@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Elencare le chiavi gestite del gateway"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Elimina i file batch scaduti",
+      "arguments": {
+        "pretend": "Conta i file da rimuovere"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Elencare i tentativi di utilizzo del gateway"
     },

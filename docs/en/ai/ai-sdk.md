@@ -167,6 +167,20 @@ Set tariffs for the named batch connection and public model to the appropriate b
 
 When a batch uses a file, upload the JSONL with `Files::put` or Gemini's `POST /upload/v1beta/files` resumable start followed by one `upload, finalize` request. Use the returned `files/input-…` as `batch.inputConfig.fileName` with the same Key. The gateway stages up to 8 MiB per file on the private `local` disk. Share that disk between gateway processes. Read metadata or remove the staged file at `/v1beta/{fileName}`. The gateway validates each row and applies configured limits before uploading it to the selected connection. The staged file can be removed after the gateway accepts the batch.
 
+Upload sessions and staged files expire after 48 hours. The file retention window starts when the upload finishes. Run `./artisan ai:gateway:batch-files:prune --pretend` to preview cleanup. Run the same command without `--pretend` to remove expired files and metadata in bounded batches. Schedule it from `routes/console.rs` for automatic cleanup.
+
+```rust
+Schedule::configure(|schedule| {
+    schedule
+        .command("ai:gateway:batch-files:prune", [])
+        .cron("0 * * * *")?
+        .without_overlapping();
+    Ok(())
+})?;
+```
+
+Run [the scheduler](../digging-deeper/scheduling.md) on a process that shares the gateway’s private disk and usage database.
+
 Add `fallbacks` to a public model mapping to try backup connections in order. Each entry specifies `provider` and `model`, for example `[{"provider":"openai","model":"backup-model"}]`. The gateway can retry stateless requests after eligible upstream failures, including 429 and 5xx responses. It keeps the same public model and records each attempt under one request ID. Requests with tools or stored output, and streams already sent to the client, are excluded from replay.
 
 Use `accounts.deepseek.cooldown_seconds = 30` in `config/ai_gateway.rs` to pause a named upstream connection after HTTP 429, 503, or 529. A valid upstream `Retry-After` takes precedence, up to 24 hours. The pause applies to every published model using that connection. When all eligible connections are cooling down, the gateway returns HTTP 503 with `Retry-After`. Set `account_cache_store` to a shared store such as `redis` to coordinate across gateway processes.

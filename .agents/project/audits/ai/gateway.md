@@ -322,9 +322,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 HTTP、Artisan 和本地 
 
 新增 Gemini JSONL 暂存上传，支持原生 resumable 会话启动、状态查询和单次完整文件提交。输入字节保存到私有 `local` 磁盘，数据库持有 Key 归属、对象路径、字节长度及 SHA-256。提交按同一 Key 查找本地文件，校验内容和每行的模型与资源，沿用内联批次的预算及输出配额处理，再将改写的 JSONL 上传到实际连接。客户端收到的任务、文件和上游凭证范围继续隔离。重复提交相同上传内容返回原文件，不同内容返回冲突。删除先标记本地文件不可再用，再清理文件对象，清理失败可重试。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan SDK 上传、HTTP 文件型提交和本地 Gemini 协议服务验证文件仅存私有磁盘、跨 Key 拒绝、跨进程提交、上传重试和冲突、摘要不符拒绝、文件删除以及结果下载与结算。带硬预算和输出配额的两项样例在原生上传的 JSONL 中各限制 10 个输出 Token，应收预占 0.12 USD。本入口受框架上传上限约束，每个文件最多 8 MiB，使用单次 `upload, finalize`。多片续传、更大文件、暂存文件自动清理及正式 Gemini 账号实测继续单列。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan SDK 上传、HTTP 文件型提交和本地 Gemini 协议服务验证文件仅存私有磁盘、跨 Key 拒绝、跨进程提交、上传重试和冲突、摘要不符拒绝、文件删除以及结果下载与结算。带硬预算和输出配额的两项样例在原生上传的 JSONL 中各限制 10 个输出 Token，应收预占 0.12 USD。本入口受框架上传上限约束，每个文件最多 8 MiB，使用单次 `upload, finalize`。多片续传、更大文件和正式 Gemini 账号实测继续单列。
 
 - [Gemini 批任务 JSONL 文件上传](https://aistudio.google.com/docs/batch-api#input-file)
+
+### Gemini 暂存批文件清理
+
+上传会话自启动起保留 48 小时，已完成文件自首次确认上传起重新计时。到期后禁止查询、完成上传及提交批任务，升级前存在的文件从迁移起保留一个完整窗口。沿用网关用量连接的 Artisan 命令 `ai:gateway:batch-files:prune` 按过期索引有界选取候选，额外留 5 分钟收尾。该命令清理所属私有目录后删除对应记录，同一目录内未发布的文件一并清理。存储清理失败保留记录并返回非零退出码，`--pretend` 只统计。部署者可将命令登记到现有调度器。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数据、过期拒绝、活跃文件保留、已完成和未完成会话清理、孤立暂存对象、清理失败重试及实际 `schedule:run`。Artisan 帮助通过现有语言资源覆盖 18 种运行时语言。三语开发文档给出调度用法。
+
+- [Gemini 文件保留时限](https://aistudio.google.com/docs/files) · [Laravel 调度 Artisan 命令](https://laravel.com/framework/docs/12.x/scheduling#scheduling-artisan-commands)
 
 ## GW-03 Gemini JSON 数组与 SSE
 

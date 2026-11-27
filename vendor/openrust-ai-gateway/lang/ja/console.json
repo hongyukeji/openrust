@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "管理対象のゲートウェイキーを一覧表示する"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "期限切れのバッチファイルを整理する",
+      "arguments": {
+        "pretend": "削除候補の件数だけを表示する"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "ゲートウェイの利用試行を一覧表示する"
     },

@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Beheerde gatewaysleutels weergeven"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Verlopen batchbestanden opruimen",
+      "arguments": {
+        "pretend": "Tel alleen de bestanden die kunnen worden opgeruimd"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Gebruikspogingen van de gateway weergeven"
     },

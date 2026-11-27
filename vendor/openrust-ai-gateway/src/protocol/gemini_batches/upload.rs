@@ -4,10 +4,9 @@ use openrust::filesystem::{Storage, Visibility, WriteOptions};
 use sha2::{Digest, Sha256};
 
 use super::*;
-use crate::usage::gemini_batch_files::BatchFile;
+use crate::usage::gemini_batch_files::{BatchFile, DISK, directory, valid_id};
 
 const LIMIT: usize = 8 * 1024 * 1024;
-const DISK: &str = "local";
 
 pub(in crate::protocol) fn upload_route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
@@ -44,16 +43,9 @@ pub(in crate::protocol) fn upload_route(request: &mut Request) -> HttpFuture<'_,
     })
 }
 
-fn id(value: &str) -> bool {
-    let Some(value) = value.strip_prefix("input-") else {
-        return false;
-    };
-    !value.bytes().any(|byte| byte.is_ascii_uppercase()) && valid_id(&value.to_ascii_uppercase())
-}
-
 fn upload_id(request: &Request) -> Option<String> {
     match request.query(Some("upload_id")) {
-        Ok(Some(Value::String(id))) if self::id(&id) => Some(id),
+        Ok(Some(Value::String(id))) if valid_id(&id) => Some(id),
         _ => None,
     }
 }
@@ -127,7 +119,7 @@ async fn lookup(
     id: &str,
     include_deleted: bool,
 ) -> Result<BatchFile, HttpResult> {
-    if !self::id(id) {
+    if !valid_id(id) {
         return Err(not_found());
     }
     match store
@@ -166,7 +158,7 @@ async fn finish(request: &mut Request, store: &UsageStore, key: &Key) -> HttpRes
     let Ok(disk) = Storage::disk(Some(DISK)) else {
         return storage_error();
     };
-    let path = format!("ai/gateway/gemini/batch-files/{}/{}", file.id, Str::ulid());
+    let path = format!("{}/{}", directory(&file.id), Str::ulid());
     if !matches!(
         disk.put_with_options(
             &path,
@@ -350,7 +342,7 @@ pub(super) async fn resolve_source(
     };
     let name = file
         .as_str()
-        .filter(|name| name.strip_prefix("files/").is_some_and(self::id))
+        .filter(|name| name.strip_prefix("files/").is_some_and(valid_id))
         .filter(|_| config.len() == 1)
         .ok_or_else(|| invalid("批文件输入须使用网关文件名"))?;
     let bytes = contents(store, key, name).await?;

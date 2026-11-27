@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Liệt kê khóa cổng được quản lý"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Dọn dẹp tệp lô đã hết hạn",
+      "arguments": {
+        "pretend": "Chỉ đếm các tệp đủ điều kiện dọn dẹp"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Liệt kê các lần sử dụng cổng"
     },

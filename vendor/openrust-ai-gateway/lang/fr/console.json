@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Lister les clés de passerelle gérées"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Nettoyer les fichiers de lots expirés",
+      "arguments": {
+        "pretend": "Compter les fichiers à nettoyer"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Lister les tentatives d’utilisation de la passerelle"
     },

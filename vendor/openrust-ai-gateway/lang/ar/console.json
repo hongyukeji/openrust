@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "عرض مفاتيح البوابة المُدارة"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "تنظيف ملفات الدُفعات منتهية الصلاحية",
+      "arguments": {
+        "pretend": "عرض عدد الملفات المؤهلة فقط"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "عرض محاولات استخدام البوابة"
     },

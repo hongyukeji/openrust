@@ -12,6 +12,12 @@
     "ai:gateway:key:list": {
       "description": "Verwaltete Gateway-Schlüssel auflisten"
     },
+    "ai:gateway:batch-files:prune": {
+      "description": "Abgelaufene Batchdateien bereinigen",
+      "arguments": {
+        "pretend": "Nur die Anzahl der zu bereinigenden Dateien anzeigen"
+      }
+    },
     "ai:gateway:usage:list": {
       "description": "Nutzungsversuche des Gateways auflisten"
     },
