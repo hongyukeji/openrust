@@ -1077,6 +1077,8 @@ Gemini 透過原生 Interactions API 合成語音和轉錄音訊。合成設定 
 
 使用 ElevenLabs 時，設定 `ELEVENLABS_API_KEY`，透過 `AI_AUDIO_PROVIDER` 或 `AI_TRANSCRIPTION_PROVIDER` 選用 `eleven`，再用 `ELEVENLABS_AUDIO_MODEL` 或 `ELEVENLABS_TRANSCRIPTION_MODEL` 選擇模型。預設位址是 `https://api.elevenlabs.io/v1`，可用 `ELEVENLABS_URL` 覆寫。執行 `./artisan ai:models eleven` 查看模型。合成支援 MP3、WAV、Opus 和 PCM，可用 `voice()` 指定 ElevenLabs 音色 ID。啟用說話者區分後，轉錄回傳含時間戳記的詞及上游回報的說話者 ID。
 
+使用 xAI 語音合成時，設定 `AI_AUDIO_PROVIDER=xai` 和 `XAI_API_KEY`，再呼叫 `Audio::of(text)?.generate().await?`。原生 `/v1/tts` 介面沒有模型參數，SDK 在 `AudioResponse::model` 中用 `tts` 標識這個操作。預設輸出 MP3，也支援 WAV 和 PCM。預設音色為 `eve`，`male()` 使用 `rex`，`female()` 使用 `ara`，可用 `voice()` 指定音色 ID。語言由上游自動偵測。表達風格可在正文中使用 `<whisper>…</whisper>` 等受支援的標籤。[xAI 語音合成](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
+
 使用 xAI 語音轉錄時，設定 `AI_TRANSCRIPTION_PROVIDER=xai` 和 `XAI_API_KEY`。SDK 呼叫原生 `/v1/stt`。設定 `XAI_TRANSCRIPTION_MODEL=grok-voice-transcribe-2.0`，或透過 `generate_with` 指定本次呼叫的模型。可用 `XAI_URL` 覆寫基礎位址。詞級時間戳位於 `segments`。啟用 `diarize(true)` 後，數字說話者編號以字串回傳，例如 `"0"`。供應商回報的音訊時長位於 `usage.seconds`。[xAI 語音轉錄](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
 
 在應用測試作用域內呼叫 `Audio::fake([])?` 或 `Transcription::fake(["測試轉錄".into()])?`。用 `fake_with` 依請求產生替身回應。預設語音替身傳回佔位位元組。測試需要播放或轉錄該音訊時，透過 `AudioResponse::from_bytes` 提供有效的音訊樣本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 檢查呼叫。對傳回的替身呼叫 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在回應序列耗盡時回報錯誤。

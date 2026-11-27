@@ -50,7 +50,7 @@ use crate::{
     stores::StoreProvider,
     transcription::{HttpTranscriptionProvider, TranscriptionProtocol, TranscriptionProvider},
     usage::OpenAiUsage,
-    xai::{self, XaiImageProvider},
+    xai::{self, XaiAudioProvider, XaiImageProvider},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -904,6 +904,9 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn audio_provider(&self) -> Option<Arc<dyn AudioProvider>> {
+        if matches!(self.protocol, OpenAiProtocol::Xai) {
+            return Some(Arc::new(XaiAudioProvider(self.connection.clone())));
+        }
         if matches!(self.protocol, OpenAiProtocol::Mistral) {
             return Some(Arc::new(MistralAudioProvider(self.connection.clone())));
         }

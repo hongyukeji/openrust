@@ -28,7 +28,7 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
     let upstream = TcpListener::bind("127.0.0.1:0").await?;
     let address = upstream.local_addr()?;
     let fixture = tokio::spawn(async move {
-        for phase in ["speech", "text", "diarize", "invalid", "xai"] {
+        for phase in ["speech", "text", "diarize", "invalid", "xai", "xai-speech"] {
             let (socket, _) = timeout(Duration::from_secs(5), upstream.accept())
                 .await
                 .unwrap()
@@ -39,6 +39,7 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
             let path = match phase {
                 "speech" => "/v1/audio/speech",
                 "xai" => "/v1/stt",
+                "xai-speech" => "/v1/tts",
                 _ => "/v1/audio/transcriptions",
             };
             assert_eq!(line.trim_end(), format!("POST {path} HTTP/1.1"));
@@ -68,6 +69,17 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
                 assert_eq!(
                     body,
                     json!({"model":"tts-default","input":"Read the notice","voice":"nova","response_format":"wav","instructions":"Speak clearly"})
+                );
+                ("audio/wav", wav())
+            } else if phase == "xai-speech" {
+                let body: Value = serde_json::from_slice(&payload).unwrap();
+                assert_eq!(content_type, "application/json");
+                assert_eq!(
+                    body,
+                    json!({
+                        "text": "听见", "voice_id": "rex", "language": "auto",
+                        "output_format": {"codec": "wav"}
+                    })
                 );
                 ("audio/wav", wav())
             } else {
@@ -185,6 +197,15 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
                     assert_eq!(transcript.language.as_deref(), Some("en"));
                     assert_eq!(transcript.segments[0].speaker.as_deref(), Some("0"));
                     assert_eq!(transcript.usage.seconds, Some(1.2));
+                    let speech = Audio::of("听见")
+                        .unwrap()
+                        .male()
+                        .format(AudioFormat::Wav)
+                        .generate_with(Some("xai"), None)
+                        .await
+                        .unwrap();
+                    assert_eq!(speech.content(), wav());
+                    assert_eq!(speech.model, "tts");
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;
                 Ok(())

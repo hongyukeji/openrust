@@ -790,6 +790,14 @@ xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上�
 
 SDK 直连、外部 Responses 和 SDK 经网关的原生 xAI 组合证据见 [GW-04 xAI 原生 Responses 三条链路](gateway.md#xai-原生-responses-三条链路)。
 
+### xAI 原生语音合成
+
+固定 Laravel 的 xAI 供应商公开文本和图像能力。按固定 Sub2API 的 Grok 语音路由和 xAI 原生协议，为 SDK 的 `Audio` 补齐二进制合成。固定基线的 `Audio` 门面、配置、返回类型和 Storage 调用方式继续使用。原生 `/v1/tts` 由上游选择模型，SDK 的模型字段保存操作标识 `tts`，不向供应商发送模型字段。按原生语音类型请求 MP3、WAV 或 PCM，语言使用 `auto`。独立风格指令、其他 SDK 输出格式和不适用的显式模型在出站前拒绝。上游音频按 MIME 与字节内容校验。
+
+本地 xAI 协议服务使用独立 Artisan 验证 MP3 及私有 Storage 写入，独立 HTTP 回读同一文件并逐字节核对。另验 WAV、PCM、四种音色映射、非 ASCII 文本、代理路径、伪装 PCM 的 JSON、MIME 与音频格式不符、上游 404 和四类前置拒绝。同步复验 xAI 原生转录，十项 SDK 回归、严格 Clippy 和三语文档站点通过。自托管语音入口、原生时间戳或流式响应、电话音频格式及正式账号仍待对应验收。
+
+- [固定 Laravel XaiProvider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/XaiProvider.php) · [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L299-L309) · [xAI Text to Speech](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
+
 ### xAI 原生转录
 
 固定 Laravel 的 xAI 供应商公开文本和图像能力。E07 为 Grok 语音入口补充 SDK 直连，沿用 `Transcription` 和同一个命名连接。原生 `/v1/stt` 先发模型、语言和说话人参数，再发按实际格式识别的上传文件。模型由应用配置或在调用时显式指定，示例使用 xAI 文档中的 `grok-voice-transcribe-2.0`。词级时间戳映射到 `segments`，数字说话人编号保留原值并转换为 SDK 的字符串类型。上游报告时长单独保留，未报告的 Token 保持未知。
