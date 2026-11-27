@@ -204,7 +204,7 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 
 ## GW-05 Codex 专用前缀
 
-`/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。固定版 Realtime Calls 的结果见[原版 Codex WebRTC 信令](#原版-codex-webrtc-信令)，独立搜索仍待 G21 验收。
+`/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。固定版 Realtime Calls 与独立搜索分别见[原版 Codex WebRTC 信令](#原版-codex-webrtc-信令)和[原版 Codex 独立搜索](#原版-codex-独立搜索)。
 
 - [Sub2API 固定基线路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L408)
 
@@ -469,7 +469,7 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 TypeSafe 协议夹具的 SDK �
 
 返回 Codex 可读的 `output`、可选加密输出与结构化结果，保留结果 DTO 中的扩展字段，公开模型名覆盖出站模型。限制成功响应为 4 MiB，验证形状后才记录 `resource_usage.search_requests: 1`。有报告的 Token 写入独立用量。429、无效正文和超限响应保留上游请求 ID 和终态，异常不会重放到备用连接或计为成功搜索。要求已知费用上限的预算在出站前拒绝当前原生搜索。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过独立 HTTP 和 Artisan。验证三条路径、无版本开关及路由缓存、Key、工具和模型权限、出站鉴权与剔除的连接头、重复查询参数、加密输出及扩展结果、429、超限响应和 14／5 Token。11 项 HTTP 与回退回归、两个 AI 包的严格库级 Clippy 和三语构建通过。PAT 连接行为见下节。官方 Codex 进程触发完整搜索及正式上游权限在 G21，按次及供应商工具单位的计费在 B05。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过独立 HTTP 和 Artisan。验证三条路径、无版本开关及路由缓存、Key、工具和模型权限、出站鉴权与剔除的连接头、重复查询参数、加密输出及扩展结果、429、超限响应和 14／5 Token。11 项 HTTP 与回退回归、两个 AI 包的严格库级 Clippy 和三语构建通过。PAT 连接行为见下节。官方客户端本地证据见[原版 Codex 独立搜索](#原版-codex-独立搜索)。正式上游权限在 G21，按次及供应商工具单位的计费在 B05。
 
 - [固定 Sub2API Alpha Search 出站处理](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_alpha_search.go)
 - [固定 Codex SearchClient](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/codex-api/src/endpoint/search.rs)
@@ -481,10 +481,19 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过�
 
 SSE 的 `response.completed` 是成功依据。成功后返回文本和去重引用，引用保留可读标题和对应 `ref_id`。未完成、错误或超限时回传脱敏错误，已经观察到的用量可供核对。只有完整终态才记录成功搜索次数。用量标识保留入站 `alpha/search` 和实际出站 `responses`，以及上游报告的 Token 与请求 ID。工具调用费用见 B05。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用协议夹具通过三条 HTTP 路径、路由缓存、工具和模型授权、上游鉴权、同一 ID 跨 Key 隔离、分段 SSE、文本增量及终帧、重复和无效引用、失败限流和半截用量、4 MiB 正文上限及 Artisan 查询。另通过 SQLite 原生 Alpha Search 回归、11 项 Rust HTTP 与回退测试、两个 AI 包严格库级 Clippy 和三语文档构建。正式 PAT 凭证、上游权限与固定 Codex 客户端见 G21。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用协议夹具通过三条 HTTP 路径、路由缓存、工具和模型授权、上游鉴权、同一 ID 跨 Key 隔离、分段 SSE、文本增量及终帧、重复和无效引用、失败限流和半截用量、4 MiB 正文上限及 Artisan 查询。另通过 SQLite 原生 Alpha Search 回归、11 项 Rust HTTP 与回退测试、两个 AI 包严格库级 Clippy 和三语文档构建。固定客户端本地证据见下节。正式 PAT 凭证和上游权限在 G21。
 
 - [固定 Sub2API 的 PAT 转换](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_alpha_search.go#L140)
 - [OpenAI Responses 网页搜索](https://developers.openai.com/api/docs/guides/tools-web-search)
+
+### 原版 Codex 独立搜索
+
+使用 SHA-256 核对后的 macOS ARM64 原版 Codex 0.170.0，在隔离客户端目录运行 `codex exec --json`。自定义 Responses 连接指向 OpenRust 的 `/backend-api/codex`，使用环境变量中的测试网关 Key。启用固定版的独立搜索 feature 与提供商能力开关，通过真实 HTTP 调用普通 Responses、`alpha/search` 与后续 Responses。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各执行原生 Alpha Search、PAT 转 Responses 和 Key 授权反例。模拟模型先发出命名空间 `web` 下的 `run`，原版客户端发出独立搜索，输出包含 URL、标题与 `ref_id` 的 `web_search` 完成事件，再将结果文本以同一 `call_id` 的 `function_call_output` 回送并完成回合。只有普通 Responses 模型权限的客户端收到 `unsupported_endpoint`，上游没有收到独立搜索。三库均按搜索路径分别查得一条成功记录，PAT 转换记录 18／4 Token。Artisan 路由缓存和逐请求用量查询通过。三语文档记录固定版配置。正式 Codex PAT、账号权限、Realtime attestation 和媒体链路继续保留为 G21 实机项。
+
+- [固定 Codex 独立搜索与工具回送测试](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/app-server/tests/suite/v2/web_search.rs)
+- [Codex 0.170.0 发布资产](https://github.com/openai/codex/releases/tag/rust-v0.170.0)
 
 ### xAI 自定义音色
 

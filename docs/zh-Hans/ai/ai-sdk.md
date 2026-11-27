@@ -433,6 +433,8 @@ X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 已获准通过 Responses 使用托管网页搜索的 Codex PAT，可在该连接的 `driver`、`url`、`key_env` 旁配置 `"alpha_search": "responses"`。客户端仍使用原有 Alpha Search 路径和公开模型名。网关访问连接的 `responses` 路径，确认收到成功完成事件后将文本和引用转换成 Alpha Search JSON。连接模式默认为 `native`。
 
+Codex 0.170.0 使用自定义 Responses 提供商时，将基础 URL 设为以 `/backend-api/codex` 结尾，配置 `supports_standalone_web_search = true` 和引用网关 Key 的 `env_key`。启用 `features.standalone_web_search`，将 `web_search` 设为 `cached` 或 `live`。Codex 使用同一连接生成模型响应和执行 `web.run`，公开模型的 `endpoints` 也须包含 `responses`。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

@@ -433,6 +433,8 @@ The gateway preserves search results and encrypted output from the upstream. It 
 
 For a provisioned Codex PAT connection that supports hosted web search through Responses, set `"alpha_search": "responses"` in that provider’s configuration alongside `driver`, `url`, and `key_env`. The incoming Alpha Search paths and public model alias stay the same. The gateway uses the provider’s `responses` path, waits for a successful completion event, and returns the text and citations as Alpha Search JSON. The default provider mode is `native`.
 
+For Codex 0.170.0, configure a custom Responses provider with a base URL ending in `/backend-api/codex`, `supports_standalone_web_search = true`, and an `env_key` that references the gateway Key. Enable `features.standalone_web_search` and set `web_search` to `cached` or `live`. Codex uses that connection for both model responses and the `web.run` search, so the public alias must also list `responses` in `endpoints`.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.
