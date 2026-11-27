@@ -259,6 +259,8 @@ Publish an image model in `ai_gateway.models` with explicit `images/generations`
 
 Use `POST /v1/images/generations` with JSON and `POST /v1/images/edits` with JSON or multipart. Multipart accepts `image` or an ordered `image[]` list and an optional `mask`. Use inline URLs or data for JSON references. Provider file IDs are unavailable through shared gateway credentials. `stream: true` relays partial and completed SSE images. The gateway records upstream-reported usage and sends each image request upstream once. Groups with text output-token quotas need a separate group for images.
 
+For a Bedrock text-to-image model, publish only `images/generations`. The response contains Base64 PNG in `data[].b64_json`. Nova Canvas and Titan generate up to five images in one AWS call. Portrait and landscape requests map to the Bedrock presets `768x1152` and `1152x768`. Stability Stable Image uses the aspect ratio and default quality, with one image per request. Bedrock generation uses a buffered JSON response.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

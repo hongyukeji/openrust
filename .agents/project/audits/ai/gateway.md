@@ -21,7 +21,7 @@
 
 | 固定基线路由 | 鉴权和行为 | OpenRust 裁决 |
 |---|---|---|
-| `POST /v1/images/generations`、`POST /v1/images/edits` | 网关 Key，平台适配生成／编辑、JSON 或 multipart | GW-03 已验收 OpenAI 同协议的 JSON 生成与编辑、multipart 编辑、SSE、模型映射、分组及用量。其他原生上游及任务接口分别验收。 |
+| `POST /v1/images/generations`、`POST /v1/images/edits` | 网关 Key，平台适配生成／编辑、JSON 或 multipart | GW-03 已验收 OpenAI 同协议的 JSON 生成与编辑、multipart 编辑、SSE、模型映射、分组及用量，以及 Bedrock 普通 JSON 文生图。其他原生上游及任务接口分别验收。 |
 | `POST /v1/images/{generations,edits}/async`、`GET /v1/images/tasks/{id}` | 网关 Key，异步任务写入及读取 | GW-03／04 待验证任务所有权、失效及结果读取。 |
 | `GET/POST /v1/images/batches`、`GET /v1/images/batches/models`、`GET/DELETE /v1/images/batches/{id}` | 网关 Key，批量任务增删查与模型目录 | GW-03／04 待按批次、租户持久化能力裁决。 |
 | `GET /v1/images/batches/{id}/items`、`GET /v1/images/batches/{id}/items/{custom_id}/content`、`GET /v1/images/batches/{id}/download`、`POST /v1/images/batches/{id}/cancel`、`DELETE /v1/images/batches/{id}/outputs` | 网关 Key，任务项、结果、取消与删除 | GW-03／04 待验证资源所属、二进制结果、部分失败和可重试性。 |
@@ -212,6 +212,14 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 实际 Artisan 用 SDK 经 OpenRust 网关完成生成与编辑。独立 HTTP 验证相同图片原始字节、多图顺序、遮罩、SSE 完成与截断、否定鉴权、共享文件引用、公开模型名、503 后不自动重放及 SQLite 用量。异步图片任务、批量任务、其他媒体与供应商实机仍待对应批次。
 
 - [固定 Sub2API 图片处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_images.go) · [OpenAI 图片生成](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI 图片编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
+
+## GW-03 Bedrock 文生图兼容入口
+
+通过 `images/generations` 发布 Bedrock 文生图模型。Nova Canvas 和 Titan 的尺寸、质量复用 SDK 映射，在一次 AWS `InvokeModel` 中请求一至五张图片。Stability 按比例调用单图。入口返回 Base64 PNG，出站前拒绝 SSE、编辑、URL 或其他无等价映射的参数。网关账本保留实际上游模型、操作及 AWS 请求 ID。Token 缺失时保持未知，图片计费单位与真实 AWS 账户仍待验收。
+
+本地 AWS 协议服务通过 SDK 直连和独立 Artisan 经网关生成同一 PNG 并从私有 Storage 逐字节回读。外部 HTTP 验证 Nova 的公开模型授权、Titan 双图与对应尺寸、Stability 模型 ARN 路径编码、无效响应、返回图片超出请求数量及供应商拒绝。SQLite 核对六次网关尝试的请求 ID 和状态，前置拒绝未出站。SDK 图片与八项网关回归、严格 Clippy 和三语站点通过。
+
+- [OpenAI 图片生成](https://developers.openai.com/api/reference/resources/images/methods/generate) · [Nova Canvas 参数](https://docs.aws.amazon.com/nova/latest/userguide/image-gen-req-resp-structure.html) · [Titan Image Generator 参数](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-image.html)
 
 ## GW-03 Gemini 原生向量网关
 

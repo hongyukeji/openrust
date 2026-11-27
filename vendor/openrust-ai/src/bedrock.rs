@@ -247,12 +247,17 @@ impl TextProvider for BedrockProvider {
     }
 
     fn supports_endpoint(&self, endpoint: crate::TextEndpoint) -> bool {
-        endpoint == crate::TextEndpoint::Embeddings
+        matches!(
+            endpoint,
+            crate::TextEndpoint::Embeddings | crate::TextEndpoint::ImagesGenerations
+        )
     }
 
     fn relay_endpoint_name(&self, endpoint: crate::TextEndpoint) -> &'static str {
         match endpoint {
-            crate::TextEndpoint::Embeddings => "model/{modelId}/invoke",
+            crate::TextEndpoint::Embeddings | crate::TextEndpoint::ImagesGenerations => {
+                "model/{modelId}/invoke"
+            }
             _ => endpoint.path(),
         }
     }
@@ -262,10 +267,10 @@ impl TextProvider for BedrockProvider {
         endpoint: crate::TextEndpoint,
         body: &Value,
     ) -> Option<&'static str> {
-        if endpoint == crate::TextEndpoint::Embeddings {
-            relay::EmbeddingRequest::parse(body).err()
-        } else {
-            None
+        match endpoint {
+            crate::TextEndpoint::Embeddings => relay::EmbeddingRequest::parse(body).err(),
+            crate::TextEndpoint::ImagesGenerations => image::relay_image_request(body).err(),
+            _ => None,
         }
     }
 
@@ -275,10 +280,11 @@ impl TextProvider for BedrockProvider {
         body: Value,
     ) -> HttpFuture<'_, AiResult<openrust::http::client::Response>> {
         Box::pin(async move {
-            if !self.supports_endpoint(endpoint) {
-                return Err(AiError::EndpointNotSupported);
+            match endpoint {
+                crate::TextEndpoint::Embeddings => self.relay_embeddings(body).await,
+                crate::TextEndpoint::ImagesGenerations => self.relay_image(body).await,
+                _ => Err(AiError::EndpointNotSupported),
             }
-            self.relay_embeddings(body).await
         })
     }
 

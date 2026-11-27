@@ -179,7 +179,7 @@ impl BedrockProvider {
     }
 }
 
-fn error_response(failure: InvokeFailure) -> AiResult<Response> {
+pub(super) fn error_response(failure: InvokeFailure) -> AiResult<Response> {
     let status = match failure.error {
         AiError::ProviderStatus(status)
         | AiError::ProviderOverloaded(status)
@@ -192,7 +192,7 @@ fn error_response(failure: InvokeFailure) -> AiResult<Response> {
     relay_response(status, &json!({}), failure.request_id.as_deref())
 }
 
-fn relay_response(
+pub(super) fn relay_response(
     status: StatusCode,
     body: &Value,
     request_id: Option<&str>,

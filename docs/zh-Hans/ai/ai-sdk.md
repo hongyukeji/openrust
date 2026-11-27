@@ -259,6 +259,8 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 `POST /v1/images/generations` 接收 JSON，`POST /v1/images/edits` 接收 JSON 或 multipart。表单可传单个 `image` 或有序 `image[]`，以及可选的 `mask`。JSON 引用可用链接或内联数据，共享网关凭证下无法引用供应商文件 ID。`stream: true` 通过 SSE 返回局部和最终图片。网关记录上游报告的用量，每个图片调用只向上游发送一次。配置了文本输出 Token 配额的分组需通过单独分组使用图片模型。
 
+发布 Bedrock 文生图模型时，只列出 `images/generations`。响应通过 `data[].b64_json` 返回 Base64 PNG。Nova Canvas 和 Titan 单次 AWS 调用最多生成五张图，竖图和横图分别映射到 Bedrock 的 `768x1152` 和 `1152x768`。Stability Stable Image 使用宽高比和模型默认质量，每次生成一张。Bedrock 生成使用普通 JSON 响应。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。
