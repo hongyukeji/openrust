@@ -320,6 +320,70 @@ fn reject_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async { Err(HttpError::AuthorizationDenied("拒绝".into())) })
 }
 
+fn streaming_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use futures_util::StreamExt as _;
+
+    Box::pin(async move {
+        let input = request.take_streaming_body()?;
+        futures_util::pin_mut!(input);
+        let mut bytes = Vec::new();
+        while let Some(chunk) = input.next().await {
+            bytes.extend_from_slice(&chunk?);
+        }
+        assert!(request.take_streaming_body().is_err());
+        Response::json(
+            StatusCode::OK,
+            json!({"body": String::from_utf8(bytes).unwrap()}),
+        )
+    })
+}
+
+#[tokio::test]
+async fn streaming_body_is_opt_in_bounded_and_skips_form_method_override() {
+    let mut app = TestApp::create(|builder| {
+        builder.with_routing(Routing::default().api(|| {
+            Route::group(openrust::routing::RouteGroup::new(), |router| {
+                router
+                    .post("/streaming-input", streaming_input)?
+                    .streaming_body(20);
+                router.delete("/ordinary-input", || async {
+                    Response::empty(StatusCode::NO_CONTENT)
+                })?;
+                Ok(())
+            })
+        }))
+    })
+    .unwrap();
+    let form = "_method=DELETE&k=+a+";
+    for path in ["streaming-input", "ordinary-input"] {
+        let response = app
+            .call(
+                http::Request::post(format!("http://example.test/api/{path}"))
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .body(Body::from(form))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        if path == "streaming-input" {
+            response.assert_ok().assert_json_path("body", &json!(form));
+        } else {
+            response.assert_status(StatusCode::NO_CONTENT);
+        }
+    }
+    let content = "123456789012345678901";
+    for declared in [false, true] {
+        let mut request = http::Request::post("http://example.test/api/streaming-input");
+        if declared {
+            request = request.header("content-length", content.len());
+        }
+        app.call(request.body(Body::from(content)).unwrap())
+            .await
+            .unwrap()
+            .assert_status(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+}
+
 fn scoped_view() -> openrust::view::View {
     openrust::support::facades::View::share("shared", "request").unwrap();
     openrust::view::view("row")

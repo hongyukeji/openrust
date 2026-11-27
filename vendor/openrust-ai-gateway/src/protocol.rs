@@ -77,7 +77,9 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/images/generations", images_generations)?;
     router.post("/images/edits", images_edits)?;
     router.post("/tts", xai_speech)?;
-    router.post("/stt", xai_transcription)?;
+    router
+        .post("/stt", xai_transcription)?
+        .streaming_body(xai_transcription::MAX_BODY_BYTES);
     router.post("/messages/count_tokens", count_message_tokens)?;
     responses_routes(router)
 }
@@ -482,9 +484,16 @@ async fn relay(
     };
     let key = key.as_ref();
     let (mut data, mut uploads) = if endpoint == TextEndpoint::XaiSpeechToText {
-        match xai_transcription::parse(request).await {
+        match xai_transcription::parse(request, &gateway.upload_directory).await {
             Ok((data, parts)) => (data, Some(parts)),
             Err(HttpError::PayloadTooLarge) => return request_too_large(protocol),
+            Err(HttpError::Internal { .. }) => {
+                return protocol.error(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "upload_unavailable",
+                    "语音上传暂存失败",
+                );
+            }
             Err(_) => {
                 return protocol.error(
                     StatusCode::BAD_REQUEST,

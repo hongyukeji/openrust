@@ -372,13 +372,21 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过本地协议服务及独立 HTTP
 
 ## GW-03 xAI 网关语音转录
 
-通过 `models.<name>.endpoints = ["stt"]` 开放 `POST /v1/stt` 和可选的 `POST /stt`。调用方只有一个可用别名时可省略模型，网关将公开模型替换为上游模型。共享网关仅接受本次上传的单文件，含 multipart 头在内的请求体沿用框架的 8 MiB 上限。拒绝远程 URL、重复单值字段及多文件。保留重复的 `keyterm` 与 `redact` 并将文件放在最后。容器音频按内容识别，原始 PCM、μ-law 和 A-law 按显式格式和采样率转发。响应保留转录、词级时间、说话人和音频时长，并屏蔽上游内部字段。
+通过 `models.<name>.endpoints = ["stt"]` 开放 `POST /v1/stt` 和可选的 `POST /stt`。调用方只有一个可用别名时可省略模型，网关将公开模型替换为上游模型。共享网关仅接受本次上传的单文件，初版含 multipart 头在内的请求体沿用框架的 8 MiB 上限，现行大文件入口见下文。拒绝远程 URL、重复单值字段及多文件。保留重复的 `keyterm` 与 `redact` 并将文件放在最后。容器音频按内容识别，原始 PCM、μ-law 和 A-law 按显式格式和采样率转发。响应保留转录、词级时间、说话人和音频时长，并屏蔽上游内部字段。
 
 网关复用现有分组、上游账号、预算和用量登记。拒绝未知费用的硬预算在出站前拦截，已出站失败不自动重放。转录尝试的 Token 保持未知，按时长计费与对账见下一节。
 
-本地 xAI 协议服务验证独立 Artisan SDK 直连、SDK 经网关和独立 HTTP。核对 WAV、原始 PCM、μ-law、A-law、原始字节与 MIME、重复字段、文件最后上传、模型和账号切换、跨 Key 拒绝、大小超限 413、恶意上游错误脱敏、无自动重放、异常时间戳及 SQLite 持久化。八次网关出站尝试含六次成功、一次上游 503 和一次无效时间戳，所有尝试的 Token 留空，结算未产生计费行。13 项 SDK 和网关回归、严格 Clippy 与三语文档站点通过。正式 xAI 账户和更大文件的流式接收仍待验收。
+本地 xAI 协议服务验证独立 Artisan SDK 直连、SDK 经网关和独立 HTTP。核对 WAV、原始 PCM、μ-law、A-law、原始字节与 MIME、重复字段、文件最后上传、模型和账号切换、跨 Key 拒绝、大小超限 413、恶意上游错误脱敏、无自动重放、异常时间戳及 SQLite 持久化。八次网关出站尝试含六次成功、一次上游 503 和一次无效时间戳，所有尝试的 Token 留空，结算未产生计费行。13 项 SDK 和网关回归、严格 Clippy 与三语文档站点通过。大文件流式接收见下文，正式 xAI 账户仍待验收。
 
 - [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L296-L309) · [xAI Speech to Text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+
+### xAI 大文件语音转录
+
+`POST /v1/stt` 及其可选无版本别名显式启用路由字节流。按 xAI 公布的 500 MB 限制校验单文件，另限定 multipart 总量为 500 MB 加 256 KiB。框架在全局中间件前确认获准路由，保留默认路由的 8 MiB 上限、常规表单处理及方法覆写。网关先校验 Key，再用受限缓冲分块写入应用私有存储中的匿名临时文件。完整解析、授权和校验后通过同一文件句柄向上游发送。失败、取消及结束均通过文件句柄关闭释放暂存。文件内容不进数据库和日志，转录仍按上游报告的时长记账。
+
+独立 HTTP 和 Artisan 验证路由缓存、声明长度和 HTTP 分块上传、上传中断未出站、超限 413、过长未解析区段、字节哈希和结算。SQLite 分块实测 500 MB 成功并拒绝超过单文件限制的样本，观察进程 RSS 比上传前高 448 KiB。PostgreSQL 18.7 与 MySQL 8.4.13 复验 10／12 MiB 文件、断流、用量和计费。另用 SQLite 复验 SDK 直连、SDK 经网关和外部 HTTP 的原有小文件链路。18 项框架和网关回归、网关严格 Clippy 及三语站点测试通过。框架完整 HTTP 测试的异常响应断言 `explicit_exception_policy_overrides_json_preference_after_middleware_replacement` 在改动前的 `9e2d4cb71` 复现，框架严格 Clippy 另有四处既有 lint。真实 xAI 账号留在 E09。
+
+- [xAI 语音转录文件上限](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text#limits)
 
 ## GW-04 xAI 转录时长计量、计费与对账
 

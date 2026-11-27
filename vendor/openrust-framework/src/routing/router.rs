@@ -62,6 +62,7 @@ pub struct Router {
     bindings: HashMap<String, Resolver>,
     static_mounts: Vec<StaticMount>,
     has_domains: bool,
+    has_streaming_routes: Option<bool>,
     route_cache: Option<super::route_cache::RouteCache>,
     locale_middleware: Vec<Arc<dyn crate::contracts::http::Middleware>>,
     group_middleware: HashMap<String, Vec<MiddlewareEntry>>,
@@ -480,6 +481,11 @@ impl Router {
         let registry = self.middleware_registry(registry);
         let groups = registry.resolve_groups()?;
         let active_routes: HashSet<_> = self.by_method.values().flatten().copied().collect();
+        self.has_streaming_routes = Some(
+            active_routes
+                .iter()
+                .any(|&index| self.routes[index].streaming_body_limit.is_some()),
+        );
         for index in active_routes {
             let route = &mut self.routes[index];
             let mut stack = registry.resolve_stack(
@@ -565,6 +571,7 @@ impl Router {
     }
 
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
+        self.prepare_streaming_body(request);
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
         request.extensions_mut().remove::<super::RouteMetadata>();
@@ -618,6 +625,36 @@ impl Router {
                 .run(request)
                 .await,
         )
+    }
+
+    pub(crate) fn prepare_streaming_body(&self, request: &mut Request) {
+        request.streaming_body_limit = self.streaming_limit(request);
+    }
+
+    fn streaming_limit(&self, request: &Request) -> Option<usize> {
+        if !self.has_streaming_routes.unwrap_or_else(|| {
+            self.routes
+                .iter()
+                .any(|route| route.streaming_body_limit.is_some())
+        }) {
+            return None;
+        }
+        let raw = request.uri().path().trim_end_matches('/');
+        let path = percent_decode_str(if raw.is_empty() { "/" } else { raw })
+            .decode_utf8()
+            .ok()?;
+        let authority = (self.has_domains && request.uri().host().is_none())
+            .then(|| request.headers().get(::http::header::HOST))
+            .flatten()
+            .and_then(|header| header.to_str().ok())
+            .and_then(|host| host.parse::<::http::uri::Authority>().ok());
+        let host = request
+            .uri()
+            .host()
+            .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
+            .unwrap_or_default();
+        self.matched(request.method(), host, &path)?
+            .streaming_body_limit
     }
 
     /// 使用当前请求重新绑定命名路由，并运行目标路由的中间件与处理器。

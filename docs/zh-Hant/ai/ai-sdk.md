@@ -313,7 +313,7 @@ Schedule::configure(|schedule| {
 
 ### 閘道語音轉錄 {#gateway-transcription}
 
-在 `config/ai_gateway.rs` 為 `xai` 連線設定上游轉錄模型與 `"endpoints": ["stt"]`，並向閘道 Key 授權公開別名。`POST /v1/stt` 接收 Bearer Key 和一個 multipart `file`。包含 multipart 標頭在內的整個請求本文上限為 8 MiB。Key 只有一個轉錄別名時可以省略 `model`。有多個時，在 multipart 的 `model` 欄位指定公開別名。啟用 `unversioned_paths` 後也可呼叫 `POST /stt`。
+在 `config/ai_gateway.rs` 為 `xai` 連線設定上游轉錄模型與 `"endpoints": ["stt"]`，並向閘道 Key 授權公開別名。`POST /v1/stt` 接收 Bearer Key 和一個 multipart `file`。音訊檔案最大為 500 MB（500,000,000 位元組），multipart 本文總上限為 500 MB 加 256 KiB。支援宣告長度的請求和 HTTP 分塊上傳。錄音暫存在應用程式私人儲存空間，請求成功、失敗或斷線後關閉暫存檔。Key 只有一個轉錄別名時可以省略 `model`。有多個時，在 multipart 的 `model` 欄位指定公開別名。啟用 `unversioned_paths` 後也可呼叫 `POST /stt`。
 
 閘道保留重複的 `keyterm` 和 `redact` 欄位，將音訊檔案放在最後上傳。原始 PCM、μ-law 和 A-law 須指定 `audio_format` 和受支援的 `sample_rate`。回應保留上游的時間戳記、說話者編號和音訊時長。啟用持久化用量後，Artisan 和呼叫端的 `/v1/usage` 可查詢上游回報的 `audio_duration_ms`。拒絕未知費用的硬預算會在送出前攔截請求。
 

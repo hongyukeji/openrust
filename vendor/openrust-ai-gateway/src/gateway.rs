@@ -338,6 +338,7 @@ pub(crate) struct Gateway {
     keys: Vec<Arc<Key>>,
     pub(crate) managed_keys: Option<KeyStore>,
     pub(crate) usage_store: Option<UsageStore>,
+    pub(crate) upload_directory: std::path::PathBuf,
     billing: Option<PriceBook>,
     logger: Arc<Logger>,
 }
@@ -358,6 +359,7 @@ impl Gateway {
         logger: Arc<Logger>,
         managed_keys: Option<KeyStore>,
         usage_store: Option<UsageStore>,
+        upload_directory: std::path::PathBuf,
     ) -> Result<Option<Self>, io::Error> {
         let config = config.unwrap_or_else(|| json!({}));
         // 关闭时允许保留待启用的配置，启动时不会解析连接或 Key。
@@ -624,6 +626,7 @@ impl Gateway {
             managed_keys,
             billing,
             usage_store,
+            upload_directory,
             logger,
         }))
     }

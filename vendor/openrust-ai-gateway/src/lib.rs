@@ -403,9 +403,15 @@ impl ServiceProvider for AiGatewayServiceProvider {
                 } else {
                     None
                 };
-                if let Some(gateway) =
-                    Gateway::configure(config, &environment, &ai, logger, store, usage_store)?
-                {
+                if let Some(gateway) = Gateway::configure(
+                    config,
+                    &environment,
+                    &ai,
+                    logger,
+                    store,
+                    usage_store,
+                    app.storage_path("framework"),
+                )? {
                     let unversioned_paths = gateway.unversioned_paths;
                     app.container().instance(Arc::new(gateway))?;
                     self.load_routes_from(app, protocol::routes)?;

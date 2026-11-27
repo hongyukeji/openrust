@@ -174,6 +174,7 @@ impl Request {
             .cloned()
             .unwrap_or_default();
         if self.method() != Method::POST
+            || self.streaming_body_limit.is_some()
             || policy.allowed().is_some_and(|methods| methods.is_empty())
         {
             return Ok(());
@@ -751,7 +752,31 @@ impl Request {
     }
 
     pub(crate) fn declared_body_exceeds_limit(&self) -> bool {
-        self.declared_body_exceeds(MAX_BODY_BYTES)
+        self.declared_body_exceeds(self.streaming_body_limit.unwrap_or(MAX_BODY_BYTES))
+    }
+
+    /// 读取路由已显式启用的一次性字节流，并对实际读取字节执行上限。
+    pub fn take_streaming_body(
+        &mut self,
+    ) -> Result<impl futures_util::Stream<Item = Result<Bytes, HttpError>> + Send + use<>, HttpError>
+    {
+        let limit = self.streaming_body_limit.ok_or(HttpError::InvalidRequest)?;
+        if self.declared_body_exceeds(limit) {
+            return Err(HttpError::PayloadTooLarge);
+        }
+        if !matches!(self.raw_input, RawBody::Unread) {
+            return Err(HttpError::InvalidRequest);
+        }
+        self.raw_input = RawBody::Failed(InputFailure::Invalid);
+        let mut body = self.take_body().into_data_stream();
+        Ok(async_stream::try_stream! {
+            let mut remaining = limit;
+            while let Some(chunk) = futures_util::StreamExt::next(&mut body).await {
+                let chunk = chunk.map_err(|_| HttpError::InvalidRequest)?;
+                remaining = remaining.checked_sub(chunk.len()).ok_or(HttpError::PayloadTooLarge)?;
+                yield chunk;
+            }
+        })
     }
     fn declared_body_exceeds(&self, limit: usize) -> bool {
         self.headers()
@@ -804,7 +829,7 @@ impl Request {
         let source = self.input_source()?;
         let mut query = self.query_values()?.clone();
         transform(&mut query)?;
-        if !matches!(source, InputSource::Query) {
+        if self.streaming_body_limit.is_none() && !matches!(source, InputSource::Query) {
             let mut body = self.source_values(source).await?.clone();
             transform(&mut body)?;
             match source {

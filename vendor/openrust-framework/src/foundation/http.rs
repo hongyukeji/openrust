@@ -418,6 +418,9 @@ impl http::Kernel for Kernel {
                 let previous_exceptions = request
                     .exceptions
                     .replace(Arc::downgrade(&self.application.container_handle()));
+                if let Some(router) = &self.routes {
+                    router.prepare_streaming_body(request);
+                }
                 let previous_views = request.parts_mut().extensions.insert(
                     self.views
                         .as_ref()

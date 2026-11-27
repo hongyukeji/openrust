@@ -313,7 +313,7 @@ Schedule::configure(|schedule| {
 
 ### 网关语音转录 {#gateway-transcription}
 
-在 `config/ai_gateway.rs` 为 `xai` 连接配置上游转录模型和 `"endpoints": ["stt"]`，并向网关 Key 授权公开别名。`POST /v1/stt` 接收 Bearer Key 和一个 multipart `file`。含 multipart 头在内的整个请求体上限为 8 MiB。Key 只有一个转录别名时可以省略 `model`。有多个时，在 multipart 的 `model` 字段指定公开别名。启用 `unversioned_paths` 后也可调用 `POST /stt`。
+在 `config/ai_gateway.rs` 为 `xai` 连接配置上游转录模型和 `"endpoints": ["stt"]`，并向网关 Key 授权公开别名。`POST /v1/stt` 接收 Bearer Key 和一个 multipart `file`。音频文件最大为 500 MB（500,000,000 字节），multipart 正文总上限为 500 MB 加 256 KiB。支持带声明长度的请求和 HTTP 分块上传。录音在应用私有存储中暂存，请求成功、失败或断开后关闭临时文件。Key 只有一个转录别名时可以省略 `model`。有多个时，在 multipart 的 `model` 字段指定公开别名。启用 `unversioned_paths` 后也可调用 `POST /stt`。
 
 网关保留重复的 `keyterm` 和 `redact` 字段，将音频文件放在最后上传。原始 PCM、μ-law 和 A-law 须指定 `audio_format` 和受支持的 `sample_rate`。响应保留上游的时间戳、说话人编号和音频时长。启用持久化用量后，Artisan 和调用方的 `/v1/usage` 可查询上游报告的 `audio_duration_ms`。拒绝未知费用的硬预算会在出站前拦截请求。
 

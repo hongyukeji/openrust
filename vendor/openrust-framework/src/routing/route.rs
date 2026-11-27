@@ -31,6 +31,7 @@ pub struct Route {
     pub(super) name: String,
     pub(super) domain: Option<String>,
     pub(super) public_files_first: bool,
+    pub(super) streaming_body_limit: Option<usize>,
     pub(super) action: &'static str,
     pub(super) controller_action: Option<String>,
     pub(super) definition: &'static Location<'static>,
@@ -70,6 +71,7 @@ impl Route {
             name: String::new(),
             domain,
             public_files_first: false,
+            streaming_body_limit: None,
             action: "Closure",
             controller_action: handler.controller_action().map(str::to_owned),
             definition: Location::caller(),
@@ -93,6 +95,12 @@ impl Route {
         self.pattern
             .uri_without_binding_fields()
             .unwrap_or(&self.uri)
+    }
+
+    /// 为直接消费字节流的路由设置正文上限。框架不会预先解析该正文。
+    pub fn streaming_body(&mut self, max_bytes: usize) -> &mut Self {
+        self.streaming_body_limit = Some(max_bytes);
+        self
     }
 
     pub(super) fn url_pattern(&self) -> super::RouteUrlGenerator {
