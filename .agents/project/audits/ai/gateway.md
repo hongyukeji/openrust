@@ -213,6 +213,14 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 - [固定 Sub2API 图片处理器](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_images.go) · [OpenAI 图片生成](https://developers.openai.com/api/reference/resources/images/methods/generate) · [OpenAI 图片编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)
 
+## GW-03 Bedrock Chat Completions
+
+`chat/completions` 发布端点将普通文本映射到 AWS Converse，SSE 映射到 ConverseStream。复用 SDK 的 AWS 凭证链、原生事件解码及用量换算。保留前置 system／developer 和消息内的文本顺序，映射最大输出 Token、temperature、top-p 与停止字符串。返回公开模型名及可见推理。跳过供应商签名与不透明推理。网关在用量帧及 `[DONE]` 发出前保存最终用量。明确请求 `stream_options.include_usage` 时输出末尾用量帧，并在此前各数据帧中将 `usage` 设为 null。
+
+独立 Artisan 实测 SDK 直连与 SDK 经网关。外部 HTTP 通过本地 AWS 原生协议服务验证 JSON、首段文本早于终帧、流式结束原因、三种用量选项、身份隔离、结构化及工具请求出站前拒绝、AWS 403 和截断无 `[DONE]`。SQLite 核对七次网关尝试的原生操作与 AWS 请求 ID。成功样例按 12 个基础输入、2 个缓存读取、3 个缓存写入和 4 个输出 Token 记录，隐藏用量帧时仍保存最终状态。以独立缓存费率复算，每个成功样例的上游成本为 0.03 USD、下游应收为 0.06 USD。截断和 403 的成本待核对，应收为零。31 项 SDK 与网关回归、严格 Clippy、三语站点和根路径及 /docs/ 导航通过。网关工具、媒体、结构化输出和真实 AWS 账户的验收继续单列。
+
+- [AWS Converse 与 ConverseStream](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) · [AWS 推理参数](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html) · [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat)
+
 ## GW-03 Bedrock 文生图兼容入口
 
 通过 `images/generations` 发布 Bedrock 文生图模型。Nova Canvas 和 Titan 的尺寸、质量复用 SDK 映射，在一次 AWS `InvokeModel` 中请求一至五张图片。Stability 按比例调用单图。入口返回 Base64 PNG，出站前拒绝 SSE、编辑、URL 或其他无等价映射的参数。网关账本保留实际上游模型、操作及 AWS 请求 ID。Token 缺失时保持未知，按图计费见下节。

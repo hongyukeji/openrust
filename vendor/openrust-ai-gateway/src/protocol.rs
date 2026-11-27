@@ -805,6 +805,10 @@ async fn relay(
                     budget,
                     charges,
                     count: batch.as_ref().map_or(1, Vec::len),
+                    operation: target.provider.relay_operation(upstream_endpoint, &payload),
+                    hide_chat_usage: endpoint == TextEndpoint::ChatCompletions
+                        && upstream_endpoint == endpoint
+                        && target.provider.hide_chat_relay_usage(&payload),
                 },
             )
             .await
@@ -1336,6 +1340,9 @@ async fn stream(
                 call.outcome("usage_storage_error");
                 yield Ok(error_frame);
                 return;
+            }
+            if ended && endpoint == TextEndpoint::ChatCompletions && call.hide_chat_usage {
+                continue;
             }
             let mut frame = String::new();
             if event.event != "message" {

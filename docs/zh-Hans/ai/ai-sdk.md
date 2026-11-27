@@ -860,6 +860,8 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 用 `Agent::stream` 调用 Bedrock ConverseStream。SDK 读取 AWS 原生事件流，并通过 SSE 返回增量文本和可见推理。结束原因和 Token 用量随最终元数据返回。流截断或 AWS 事件无效会产生流式错误，请求超时也适用于读取事件。
 
+要通过网关发布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。客户端用公开模型名调用 `POST /v1/chat/completions`。普通 JSON 和 SSE 都支持前置 system 或 developer 指令、文本历史、最大输出 Token、temperature、top-p 和最多四个停止字符串。设置 `stream_options.include_usage` 为 `true` 可收到末尾用量帧。省略该帧时网关仍记录用量。此入口目前接受纯文本。工具、媒体和结构化输出可通过下文的 SDK 接口使用。
+
 Bedrock 的 Converse 和 ConverseStream 均可通过 `with_tools` 调用本地函数。SDK 保留原始工具 ID，在下一回合随结果回送供应商签名推理。仅在模型支持相应 Bedrock 工具选择时使用 `ToolChoice::Required` 或 `ToolChoice::tool`。流式工具等到消息结束和用量事件完整到达后才执行。
 
 Bedrock 的普通和流式调用均支持 `with_schema`。SDK 通过专用工具定义发送 Schema，并将该工具的参数作为最终 JSON 响应。与本地函数混用时，前面的回合可以调用本地函数，最后一轮选择结构化工具。对于固定 Laravel 基线中拒绝强制选工具的模型，SDK 把 Schema 加入系统指令，并检查最终文本能否解码为 JSON 对象。

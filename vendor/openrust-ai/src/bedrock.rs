@@ -1,4 +1,5 @@
 mod catalog;
+mod chat;
 mod embeddings;
 mod image;
 mod invoke;
@@ -249,17 +250,31 @@ impl TextProvider for BedrockProvider {
     fn supports_endpoint(&self, endpoint: crate::TextEndpoint) -> bool {
         matches!(
             endpoint,
-            crate::TextEndpoint::Embeddings | crate::TextEndpoint::ImagesGenerations
+            crate::TextEndpoint::Embeddings
+                | crate::TextEndpoint::ImagesGenerations
+                | crate::TextEndpoint::ChatCompletions
         )
+    }
+
+    fn relay_operation(&self, endpoint: crate::TextEndpoint, body: &Value) -> &'static str {
+        if endpoint == crate::TextEndpoint::ChatCompletions && body["stream"] == true {
+            return "model/{modelId}/converse-stream";
+        }
+        self.relay_endpoint_name(endpoint)
     }
 
     fn relay_endpoint_name(&self, endpoint: crate::TextEndpoint) -> &'static str {
         match endpoint {
+            crate::TextEndpoint::ChatCompletions => "model/{modelId}/converse",
             crate::TextEndpoint::Embeddings | crate::TextEndpoint::ImagesGenerations => {
                 "model/{modelId}/invoke"
             }
             _ => endpoint.path(),
         }
+    }
+
+    fn hide_chat_relay_usage(&self, body: &Value) -> bool {
+        body["stream_options"]["include_usage"] != true
     }
 
     fn relay_meters_images(&self, endpoint: crate::TextEndpoint) -> bool {
@@ -287,6 +302,7 @@ impl TextProvider for BedrockProvider {
         match endpoint {
             crate::TextEndpoint::Embeddings => relay::EmbeddingRequest::parse(body).err(),
             crate::TextEndpoint::ImagesGenerations => image::relay_image_request(body).err(),
+            crate::TextEndpoint::ChatCompletions => chat::ChatRequest::parse(body).err(),
             _ => None,
         }
     }
@@ -300,6 +316,7 @@ impl TextProvider for BedrockProvider {
             match endpoint {
                 crate::TextEndpoint::Embeddings => self.relay_embeddings(body).await,
                 crate::TextEndpoint::ImagesGenerations => self.relay_image(body).await,
+                crate::TextEndpoint::ChatCompletions => self.relay_chat(body).await,
                 _ => Err(AiError::EndpointNotSupported),
             }
         })

@@ -301,6 +301,15 @@ pub trait TextProvider: Send + Sync {
         endpoint.path()
     }
 
+    fn relay_operation(&self, endpoint: TextEndpoint, _body: &Value) -> &'static str {
+        self.relay_endpoint_name(endpoint)
+    }
+
+    /// 返回网关是否应隐藏驱动为内部计量生成的 Chat 用量帧。
+    fn hide_chat_relay_usage(&self, _body: &Value) -> bool {
+        false
+    }
+
     /// 此普通 JSON 路径以已验证的 data 图片条目作为计量证据。
     fn relay_meters_images(&self, _endpoint: TextEndpoint) -> bool {
         false

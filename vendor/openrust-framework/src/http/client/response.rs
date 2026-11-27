@@ -50,6 +50,15 @@ impl std::fmt::Debug for Response {
 }
 
 impl Response {
+    pub fn new_stream(status: StatusCode, headers: HeaderMap, stream: ResponseStream) -> Self {
+        Self {
+            transfer_stats: None,
+            status,
+            headers,
+            body: super::body::Body::stream(stream),
+        }
+    }
+
     pub fn new(status: StatusCode, headers: HeaderMap, body: impl Into<Vec<u8>>) -> Self {
         Self {
             transfer_stats: None,

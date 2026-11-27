@@ -641,6 +641,8 @@ impl Gateway {
             budget,
             count,
             charges,
+            operation,
+            hide_chat_usage,
         } = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
@@ -654,10 +656,7 @@ impl Gateway {
             ("upstream_model".into(), json!(target.upstream_model)),
             ("provider".into(), json!(target.provider_name)),
             ("endpoint".into(), json!(endpoint.path())),
-            (
-                "upstream_endpoint".into(),
-                json!(target.provider.relay_endpoint_name(upstream_endpoint)),
-            ),
+            ("upstream_endpoint".into(), json!(operation)),
             ("input_tokens".into(), Value::Null),
             ("output_tokens".into(), Value::Null),
             (
@@ -725,6 +724,7 @@ impl Gateway {
                     attempt,
                     outcome: "cancelled",
                     dispatch_started: false,
+                    hide_chat_usage,
                     affinity: None,
                     lease: lease.take(),
                 }
@@ -816,6 +816,8 @@ pub(crate) struct AttemptAdmission {
     pub(crate) budget: BudgetReservations,
     pub(crate) count: usize,
     pub(crate) charges: Option<ChargePlan>,
+    pub(crate) operation: &'static str,
+    pub(crate) hide_chat_usage: bool,
 }
 
 pub(crate) enum UsageAdmission {
@@ -833,6 +835,7 @@ pub(crate) struct Call {
     attempt: Option<UsageAttempt>,
     outcome: &'static str,
     dispatch_started: bool,
+    pub(crate) hide_chat_usage: bool,
     affinity: Option<(SessionAffinity, String)>,
     lease: Option<ConcurrencyLease>,
 }
@@ -1017,8 +1020,8 @@ impl Call {
                 "cache_write_input_tokens",
                 [
                     &usage["input_tokens_details"]["cache_write_tokens"],
+                    &usage["prompt_tokens_details"]["cache_write_tokens"],
                     &usage["cache_creation_input_tokens"],
-                    &Value::Null,
                     &Value::Null,
                 ],
             ),

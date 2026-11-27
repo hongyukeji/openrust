@@ -197,11 +197,16 @@ pub(super) fn relay_response(
     body: &Value,
     request_id: Option<&str>,
 ) -> AiResult<Response> {
+    let headers = relay_headers("application/json", request_id);
+    let body = serde_json::to_vec(body).map_err(|_| AiError::InvalidResponse)?;
+    Ok(Response::new(status, headers, body))
+}
+
+pub(super) fn relay_headers(content_type: &'static str, request_id: Option<&str>) -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
     if let Some(id) = request_id.and_then(|id| HeaderValue::from_str(id).ok()) {
         headers.insert("x-request-id", id);
     }
-    let body = serde_json::to_vec(body).map_err(|_| AiError::InvalidResponse)?;
-    Ok(Response::new(status, headers, body))
+    headers
 }
