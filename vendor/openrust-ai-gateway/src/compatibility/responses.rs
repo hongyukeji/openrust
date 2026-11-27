@@ -303,8 +303,13 @@ impl Response {
                 .as_u64()
                 .or_else(|| usage["prompt_cache_hit_tokens"].as_u64())
                 .filter(|cached| *cached <= input);
-            self.input_tokens = Some(input - cached.unwrap_or_default());
+            let uncached = input - cached.unwrap_or_default();
+            let created = usage["prompt_tokens_details"]["cache_write_tokens"]
+                .as_u64()
+                .filter(|created| *created <= uncached);
+            self.input_tokens = Some(uncached - created.unwrap_or_default());
             self.cache_read_tokens = cached;
+            self.cache_creation_tokens = created;
         }
         self.output_tokens = usage["completion_tokens"].as_u64().or(self.output_tokens);
         self.reasoning_tokens = usage["completion_tokens_details"]["reasoning_tokens"]

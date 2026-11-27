@@ -16,9 +16,16 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     let upstream = TcpListener::bind("127.0.0.1:0").await?;
     let address = upstream.local_addr()?;
+    let schema_format = json!({
+        "type":"json_schema","name":"result","description":"Completion status","strict":true,
+        "schema":{"type":"object","properties":{"done":{"type":"boolean"}},
+        "required":["done"],"additionalProperties":false},
+    });
+    let upstream_schema = schema_format.clone();
     let relay = tokio::spawn(async move {
         for stage in [
             "json",
+            "schema",
             "stream",
             "cut",
             "json_tool",
@@ -82,6 +89,19 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
                 ("application/json",json!({"choices":[{"message":{"content":"{\"done\":true}"},"finish_reason":"stop"}],
                     "usage":{"prompt_tokens":10,"completion_tokens":4,"prompt_cache_hit_tokens":3,
                     "completion_tokens_details":{"reasoning_tokens":1}}}).to_string())
+            } else if stage == "schema" {
+                let mut definition = upstream_schema.as_object().unwrap().clone();
+                definition.remove("type");
+                assert_eq!(
+                    payload["response_format"],
+                    json!({"type":"json_schema","json_schema":definition})
+                );
+                (
+                    "application/json",
+                    json!({"choices":[{"message":{"content":"{\"done\":true}"},"finish_reason":"stop"}],
+                        "usage":{"prompt_tokens":10,"completion_tokens":4,
+                        "prompt_tokens_details":{"cached_tokens":3,"cache_write_tokens":2}}}).to_string(),
+                )
             } else if stage == "json_tool" {
                 ("application/json",json!({"choices":[{"message":{"content":null,"tool_calls":[
                     {"id":"call_one","type":"function","function":{"name":"lookup","arguments":"{\"sku\":1}"}}
@@ -185,6 +205,17 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
         1
     );
     assert_eq!(value["usage"]["total_tokens"], 14);
+
+    let mut structured = payload.clone();
+    structured["text"]["format"] = schema_format.clone();
+    let response = app.call(request(&structured)?).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let value = response.json::<Value>()?;
+    assert_eq!(value["text"]["format"], schema_format);
+    assert_eq!(value["output"][0]["content"][0]["text"], "{\"done\":true}");
+    assert_eq!(value["usage"]["input_tokens"], 10);
+    assert_eq!(value["usage"]["input_tokens_details"]["cached_tokens"], 3);
+    assert_eq!(value["usage"]["cache_creation_input_tokens"], 2);
 
     let mut unsupported = payload.clone();
     unsupported["tools"] = json!([{"type":"web_search"}]);

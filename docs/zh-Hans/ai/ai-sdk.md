@@ -862,7 +862,9 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 要通过网关发布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。客户端用公开模型名调用 `POST /v1/chat/completions`。普通 JSON 和 SSE 都支持前置 system 或 developer 指令、文本历史、最大输出 Token、temperature、top-p 和最多四个停止字符串。设置 `stream_options.include_usage` 为 `true` 可收到末尾用量帧。省略该帧时网关仍记录用量。
 
-此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。需要回放签名推理的工具步骤、媒体输入或结构化响应可用原生 SDK。
+此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。需要回放签名推理的工具步骤或媒体输入可用原生 SDK。
+
+需要结构化输出时，将 `response_format.type` 设为 `json_schema`，并在 `response_format.json_schema` 中提供 `name`、对象 `schema` 和可选的 `description`。同时发布 `responses` 时，可将这些字段与 `type: "json_schema"` 一起放在 `text.format`。普通 JSON 和 SSE 均使用 Bedrock 原生约束。请选择支持结构化输出的模型，并在 Schema 的每个对象上明确设置 `additionalProperties: false`。该入口需要明确的 Schema，Bedrock 会拒绝不支持的定义。网关为此模式提供 120 秒，包含首次编译 Schema 的时间。
 
 Bedrock 的 Converse 和 ConverseStream 均可通过 `with_tools` 调用本地函数。SDK 保留原始工具 ID，在下一回合随结果回送供应商签名推理。仅在模型支持相应 Bedrock 工具选择时使用 `ToolChoice::Required` 或 `ToolChoice::tool`。流式工具等到消息结束和用量事件完整到达后才执行。
 

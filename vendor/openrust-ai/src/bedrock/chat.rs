@@ -1,6 +1,11 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use aws_sdk_bedrockruntime::operation::RequestId;
+use aws_sdk_bedrockruntime::{
+    operation::RequestId,
+    types::{
+        JsonSchemaDefinition, OutputConfig, OutputFormat, OutputFormatStructure, OutputFormatType,
+    },
+};
 use futures_util::StreamExt;
 use openrust::{
     http::{StatusCode, client::Response},
@@ -26,6 +31,7 @@ pub(super) struct ChatRequest<'a> {
     messages: Vec<BedrockMessage>,
     system: Vec<SystemContentBlock>,
     inference: Option<InferenceConfiguration>,
+    output: Option<OutputConfig>,
     stream: bool,
     tools: ChatTools,
 }
@@ -51,6 +57,7 @@ impl<'a> ChatRequest<'a> {
                         | "tools"
                         | "tool_choice"
                         | "parallel_tool_calls"
+                        | "response_format"
                 )
         }) {
             return Err("Bedrock Chat 请求包含未支持的字段");
@@ -155,10 +162,67 @@ impl<'a> ChatRequest<'a> {
             messages,
             system,
             inference: inference(body)?,
+            output: output_config(&body["response_format"])?,
             stream,
             tools: chat_tools,
         })
     }
+}
+
+fn output_config(format: &Value) -> Result<Option<OutputConfig>, &'static str> {
+    if format.is_null() || has_only(format, &["type"]) && format["type"] == "text" {
+        return Ok(None);
+    }
+    if format["type"] != "json_schema" || !has_only(format, &["type", "json_schema"]) {
+        return Err("Bedrock Chat 结构化输出需要 json_schema 格式");
+    }
+    let definition = &format["json_schema"];
+    if !has_only(definition, &["name", "description", "schema", "strict"])
+        || !(definition["strict"].is_null() || definition["strict"].is_boolean())
+    {
+        return Err("Bedrock Chat json_schema 定义无效");
+    }
+    let name = definition["name"]
+        .as_str()
+        .filter(|name| {
+            !name.is_empty()
+                && name.len() <= 64
+                && name
+                    .bytes()
+                    .all(|value| value.is_ascii_alphanumeric() || b"_-".contains(&value))
+        })
+        .ok_or("json_schema.name 须为长度 1 至 64 的字母、数字、下划线或短横线")?;
+    let description = match &definition["description"] {
+        Value::Null => None,
+        value => Some(
+            value
+                .as_str()
+                .ok_or("json_schema.description 须为文本")?
+                .to_owned(),
+        ),
+    };
+    let schema = &definition["schema"];
+    if !schema.is_object() || schema["type"] != "object" {
+        return Err("json_schema.schema 须声明根对象");
+    }
+    let definition = JsonSchemaDefinition::builder()
+        .name(name)
+        .set_description(description)
+        .schema(schema.to_string())
+        .build()
+        .map_err(|_| "无法构造 Bedrock JSON Schema 定义")?;
+    let format = OutputFormat::builder()
+        .r#type(OutputFormatType::JsonSchema)
+        .structure(OutputFormatStructure::JsonSchema(definition))
+        .build()
+        .map_err(|_| "无法构造 Bedrock 输出格式")?;
+    Ok(Some(OutputConfig::builder().text_format(format).build()))
+}
+
+fn valid_chat_json(structured: bool, reason: FinishReason, text: &str) -> bool {
+    !structured
+        || reason != FinishReason::Stop
+        || serde_json::from_str::<serde_json::Map<String, Value>>(text).is_ok()
 }
 
 pub(super) fn text_parts(body: &Value) -> Result<Vec<&str>, &'static str> {
@@ -236,7 +300,9 @@ impl BedrockProvider {
         let mut chat_tools = request.tools;
         let tool_config = chat_tools.config.take();
         let client = self.client().await?;
-        let duration = Duration::from_secs(60);
+        let structured = request.output.is_some();
+        // AWS 首次编译新 Schema 约需 90 秒，结构化调用须为编译与生成保留时间。
+        let duration = Duration::from_secs(if structured { 120 } else { 60 });
         let timeout = aws_sdk_bedrockruntime::config::Builder::new()
             .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build());
         let system = (!request.system.is_empty()).then_some(request.system);
@@ -251,6 +317,7 @@ impl BedrockProvider {
                 .set_system(system)
                 .set_inference_config(request.inference)
                 .set_tool_config(tool_config)
+                .set_output_config(request.output)
                 .customize()
                 .config_override(timeout)
                 .send()
@@ -277,6 +344,7 @@ impl BedrockProvider {
                         Ok(StepEvent::TextPartDelta {delta, ..} | StepEvent::TextDelta(delta)) => json!({"content":delta}),
                         Ok(StepEvent::Reasoning(ReasoningPart::Delta {delta,..})) => json!({"reasoning_content":delta}),
                         Ok(StepEvent::Finished {response,..}) if chat_tools.accepts(response.finish_reason, &response.tool_calls)
+                            && valid_chat_json(structured, response.finish_reason, response.text.as_deref().unwrap_or_default())
                             && !private_tool_replay(response.provider_content.as_ref()) => {
                             if !response.tool_calls.is_empty() {
                                 let calls = response.tool_calls.iter().enumerate().map(|(index, call)| {
@@ -292,7 +360,7 @@ impl BedrockProvider {
                             return;
                         }
                         Ok(StepEvent::Finished {response,..}) => {
-                            let failure = json!({"error":{"message":"Bedrock Chat 工具响应无法转换"},
+                            let failure = json!({"error":{"message":"Bedrock Chat 响应无法转换"},
                                 "usage":usage_json(&response.usage)});
                             yield Ok(format!("data: {failure}\n\n").into());
                             return;
@@ -319,6 +387,7 @@ impl BedrockProvider {
             .set_system(system)
             .set_inference_config(request.inference)
             .set_tool_config(tool_config)
+            .set_output_config(request.output)
             .customize()
             .config_override(timeout)
             .send()
@@ -376,7 +445,10 @@ impl BedrockProvider {
                 _ => return invalid(),
             }
         }
-        if !chat_tools.accepts(reason, &calls) || (!calls.is_empty() && signed) {
+        if !chat_tools.accepts(reason, &calls)
+            || !valid_chat_json(structured, reason, &text)
+            || (!calls.is_empty() && signed)
+        {
             return invalid();
         }
         let content = if text.is_empty() && !calls.is_empty() {

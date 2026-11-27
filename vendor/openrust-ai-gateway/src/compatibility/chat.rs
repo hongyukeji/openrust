@@ -24,14 +24,8 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
                 target.insert("max_tokens".into(), count.into());
             }
             "text" if allowed_fields(value, &["format"]) => {
-                let format = &value["format"];
-                if !allowed_fields(format, &["type"])
-                    || !matches!(format["type"].as_str(), Some("text" | "json_object"))
-                {
-                    return Err("当前 Chat Completions 转换只支持文本或 JSON 对象输出");
-                }
-                if format["type"] == "json_object" {
-                    target.insert("response_format".into(), format.clone());
+                if let Some(format) = chat_format(&value["format"])? {
+                    target.insert("response_format".into(), format);
                 }
             }
             "tools" | "tool_choice" | "parallel_tool_calls" => {}
@@ -84,6 +78,25 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
         target.insert("stream_options".into(), json!({"include_usage":true}));
     }
     Ok(target.into())
+}
+
+fn chat_format(format: &Value) -> Result<Option<Value>, &'static str> {
+    match format["type"].as_str() {
+        Some("text") if allowed_fields(format, &["type"]) => Ok(None),
+        Some("json_object") if allowed_fields(format, &["type"]) => Ok(Some(format.clone())),
+        Some("json_schema")
+            if allowed_fields(format, &["type", "name", "description", "schema", "strict"])
+                && format["name"].as_str().is_some_and(|name| !name.is_empty())
+                && format["schema"].is_object()
+                && (format["description"].is_null() || format["description"].is_string())
+                && (format["strict"].is_null() || format["strict"].is_boolean()) =>
+        {
+            let mut schema = format.as_object().expect("format 通过对象检查").clone();
+            schema.remove("type");
+            Ok(Some(json!({"type":"json_schema","json_schema":schema})))
+        }
+        _ => Err("Responses 的 text.format 无法转换为 Chat Completions 输出格式"),
+    }
 }
 
 fn finish(reason: &Value) -> Option<Finish> {
