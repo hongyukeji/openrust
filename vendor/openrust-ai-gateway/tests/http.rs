@@ -120,6 +120,62 @@ async fn disabled_routes_are_unavailable() -> TestResult {
 }
 
 #[tokio::test]
+async fn antigravity_paths_keep_unmarked_accounts_and_models_out_of_the_pool() -> TestResult {
+    let mut app = TestApp::create(|builder| {
+        let mut providers = openrust_ai::openrust_providers();
+        providers.extend(openrust_ai_gateway::openrust_providers());
+        builder.with_providers(providers).with_config(|base, env| {
+            let mut configuration = config(base, env)?;
+            let gateway = configuration.get_mut("ai_gateway").unwrap();
+            gateway["models"]["public-special"] = json!({
+                "provider":"anthropic", "model":"private-special", "endpoints":["messages"]
+            });
+            gateway["accounts"] = json!({"anthropic":{"platform":"antigravity"}});
+            gateway["keys"]["general"]["models"] =
+                json!(["public-chat", "public-responses", "public-special"]);
+            Ok(configuration)
+        })
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        "AI_GATEWAY_ENABLED=true\nCALLER_GENERAL=caller-fixture\nCALLER_LIMITED=caller-limited\n",
+    )?;
+    let general = Some("Bearer caller-fixture");
+    let ordinary = send(&mut app, "/v1/models", general, None)
+        .await?
+        .json::<Value>()?;
+    assert!(
+        ordinary["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["id"] != "public-special")
+    );
+    let dedicated = send(&mut app, "/antigravity/models", general, None)
+        .await?
+        .json::<Value>()?;
+    assert_eq!(dedicated["object"], "list");
+    assert_eq!(dedicated["data"].as_array().unwrap().len(), 1);
+    assert_eq!(dedicated["data"][0]["id"], "public-special");
+    let other = send(
+        &mut app,
+        "/antigravity/v1/models",
+        Some("Bearer caller-limited"),
+        None,
+    )
+    .await?;
+    assert_eq!(other.json::<Value>()?["data"], json!([]));
+    let unauthorized = send(
+        &mut app,
+        "/antigravity/v1/messages",
+        general,
+        Some(json!({"model":"public-responses","max_tokens":4,"messages":[{"role":"user","content":"hello"}]})),
+    ).await?;
+    assert_eq!(unauthorized.status(), StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+#[tokio::test]
 async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let upstream = listener.local_addr()?;

@@ -97,6 +97,15 @@ struct AccountConfiguration {
     cooldown_seconds: Option<i64>,
     max_concurrent_requests: Option<usize>,
     budget: Option<Budget>,
+    platform: Option<AccountPlatform>,
+    #[serde(default)]
+    mixed_scheduling: bool,
+}
+
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum AccountPlatform {
+    Antigravity,
 }
 
 #[derive(Deserialize)]
@@ -125,6 +134,7 @@ struct KeyConfiguration {
     requests_per_minute: Option<u64>,
 }
 
+#[derive(Clone)]
 pub(crate) struct Key {
     pub(crate) name: String,
     managed_id: Option<String>,
@@ -132,9 +142,17 @@ pub(crate) struct Key {
     group: Option<Arc<Group>>,
     models: Option<HashSet<String>>,
     pub(crate) requests_per_minute: Option<u64>,
+    antigravity_only: bool,
 }
 
 impl Key {
+    pub(crate) fn for_antigravity(&self) -> Self {
+        Self {
+            antigravity_only: true,
+            ..self.clone()
+        }
+    }
+
     pub(crate) fn rate_multiplier(&self) -> Option<Amount> {
         self.group.as_ref().and_then(|group| group.rate_multiplier)
     }
@@ -222,10 +240,18 @@ impl Key {
     }
 
     fn allows_target(&self, target: &Target) -> bool {
-        self.group
-            .as_ref()
-            .and_then(|group| group.providers.as_ref())
-            .is_none_or(|providers| providers.contains(&target.provider_name))
+        let allowed_platform = match &target.account {
+            Some(account) if account.antigravity => {
+                self.antigravity_only || account.mixed_scheduling
+            }
+            _ => !self.antigravity_only,
+        };
+        allowed_platform
+            && self
+                .group
+                .as_ref()
+                .and_then(|group| group.providers.as_ref())
+                .is_none_or(|providers| providers.contains(&target.provider_name))
     }
 }
 
@@ -416,10 +442,12 @@ impl Gateway {
         let billing = config.billing.enabled(usage_store.is_some())?;
         let mut accounts = BTreeMap::new();
         for (name, policy) in config.accounts {
+            let antigravity = policy.platform == Some(AccountPlatform::Antigravity);
             if policy
                 .cooldown_seconds
                 .is_some_and(|seconds| !(1..=MAX_SECONDS).contains(&seconds))
                 || policy.max_concurrent_requests == Some(0)
+                || (policy.mixed_scheduling && !antigravity)
                 || policy
                     .budget
                     .as_ref()
@@ -435,6 +463,8 @@ impl Gateway {
                     policy.cooldown_seconds,
                     policy.max_concurrent_requests,
                     policy.budget,
+                    antigravity,
+                    policy.mixed_scheduling,
                 )),
             );
         }
@@ -671,6 +701,7 @@ impl Gateway {
                 models: key.models,
                 group,
                 requests_per_minute: key.requests_per_minute,
+                antigravity_only: false,
             }));
         }
         Ok(Some(Self {
@@ -691,6 +722,10 @@ impl Gateway {
 
     pub(crate) fn has_group(&self, name: &str) -> bool {
         self.groups.contains_key(name)
+    }
+
+    pub(crate) fn has_antigravity_accounts(&self) -> bool {
+        self.accounts.values().any(|account| account.antigravity)
     }
 
     pub(crate) fn group_budget(&self, name: &str) -> Option<&Budget> {
@@ -734,6 +769,7 @@ impl Gateway {
             requests_per_minute: record
                 .requests_per_minute
                 .and_then(|limit| u64::try_from(limit).ok()),
+            antigravity_only: false,
         })))
     }
 

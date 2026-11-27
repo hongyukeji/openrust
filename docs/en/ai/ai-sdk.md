@@ -435,6 +435,16 @@ For a provisioned Codex PAT connection that supports hosted web search through R
 
 For Codex 0.170.0, configure a custom Responses provider with a base URL ending in `/backend-api/codex`, `supports_standalone_web_search = true`, and an `env_key` that references the gateway Key. Enable `features.standalone_web_search` and set `web_search` to `cached` or `live`. Codex uses that connection for both model responses and the `web.run` search, so the public alias must also list `responses` in `endpoints`.
 
+### Antigravity gateway paths {#gateway-antigravity}
+
+Configure authorized Anthropic and Gemini protocol connections to an Antigravity-compatible upstream. In `config/ai_gateway.rs`, mark each connection under `accounts` with `"platform": "antigravity"`, then publish model aliases for those connections.
+
+The dedicated routes use only marked connections. A marked account can also serve ordinary gateway routes if you set `"mixed_scheduling": true` on that account. Key and group model and provider permissions apply in both cases.
+
+Use `GET /antigravity/models` or `GET /antigravity/v1/models` for the authorized catalog, and `POST /antigravity/v1/messages` and `POST /antigravity/v1/messages/count_tokens` for Anthropic calls. `GET /antigravity/v1/usage` returns usage for the same gateway Key. Use the Anthropic authentication headers on these paths.
+
+Google clients use the `/antigravity/v1beta/models` catalog and individual model routes with the `x-goog-api-key` header. The supported actions are `generateContent`, `streamGenerateContent`, and `countTokens`. Rebuild any route cache after enabling the dedicated paths.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

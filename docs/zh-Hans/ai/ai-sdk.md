@@ -435,6 +435,16 @@ X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 Codex 0.170.0 使用自定义 Responses 提供商时，将基础 URL 设为以 `/backend-api/codex` 结尾，配置 `supports_standalone_web_search = true` 和引用网关 Key 的 `env_key`。启用 `features.standalone_web_search`，将 `web_search` 设为 `cached` 或 `live`。Codex 使用同一连接生成模型响应和执行 `web.run`，公开模型的 `endpoints` 也须包含 `responses`。
 
+### Antigravity 网关路径 {#gateway-antigravity}
+
+配置获准访问 Antigravity 兼容上游的 Anthropic 和 Gemini 协议连接，在 `config/ai_gateway.rs` 的 `accounts` 中为对应连接设定 `"platform": "antigravity"`，再发布使用这些连接的模型别名。
+
+专用路径仅调度已标记的账号。账号设置 `"mixed_scheduling": true` 后，也可供普通网关路径使用。两种路径都遵循 Key 和分组的模型及连接授权。
+
+使用 `GET /antigravity/models` 或 `GET /antigravity/v1/models` 查询获准模型。Anthropic 调用使用 `POST /antigravity/v1/messages` 和 `POST /antigravity/v1/messages/count_tokens`。`GET /antigravity/v1/usage` 返回当前网关 Key 的用量。这些路径使用 Anthropic 鉴权头。
+
+Google 客户端使用 `x-goog-api-key` 访问 `/antigravity/v1beta/models` 及单模型路径。支持 `generateContent`、`streamGenerateContent` 及 `countTokens`。启用专用入口后重新生成路由缓存。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

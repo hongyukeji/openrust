@@ -458,10 +458,14 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     app.storage_path("framework"),
                 )? {
                     let unversioned_paths = gateway.unversioned_paths;
+                    let antigravity = gateway.has_antigravity_accounts();
                     app.container().instance(Arc::new(gateway))?;
                     self.load_routes_from(app, protocol::routes)?;
                     if unversioned_paths {
                         self.load_routes_from(app, protocol::unversioned_routes)?;
+                    }
+                    if antigravity {
+                        self.load_routes_from(app, protocol::antigravity::routes)?;
                     }
                 }
             }

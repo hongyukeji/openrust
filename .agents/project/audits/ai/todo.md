@@ -67,7 +67,7 @@
   - [ ] 正式 Codex 搜索和 Realtime 的账号权限、服务端 attestation 与媒体实机。
 - [ ] **G22 剩余兼容路径**。按端点通过 `route:list` 和真实 HTTP 核对启用条件、授权及账号隔离。
   - [ ] 其余无版本别名。
-  - [ ] Antigravity 专用入口。
+  - [x] Antigravity [专用路径与账号隔离](gateway.md#antigravity-专用路径与账号隔离)已通过本地三库。实际原生账号与凭证见 B01、E11。
 
 ## GW-04 账号运营与账务
 

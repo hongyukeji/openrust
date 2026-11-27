@@ -435,6 +435,16 @@ X Search 可設定 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 Codex 0.170.0 使用自訂 Responses 供應商時，將基礎 URL 設為以 `/backend-api/codex` 結尾，設定 `supports_standalone_web_search = true` 和參照閘道 Key 的 `env_key`。啟用 `features.standalone_web_search`，將 `web_search` 設為 `cached` 或 `live`。Codex 使用同一連線產生模型回應及執行 `web.run`，公開模型的 `endpoints` 也須包含 `responses`。
 
+### Antigravity 閘道路徑 {#gateway-antigravity}
+
+設定獲准存取 Antigravity 相容上游的 Anthropic 和 Gemini 協定連線，在 `config/ai_gateway.rs` 的 `accounts` 中為對應連線設定 `"platform": "antigravity"`，再發佈使用這些連線的模型別名。
+
+專用路徑只調度已標記的帳號。帳號設定 `"mixed_scheduling": true` 後，也可供一般閘道路徑使用。兩種路徑都遵循 Key 和群組的模型及連線授權。
+
+使用 `GET /antigravity/models` 或 `GET /antigravity/v1/models` 查詢獲准模型。Anthropic 呼叫使用 `POST /antigravity/v1/messages` 和 `POST /antigravity/v1/messages/count_tokens`。`GET /antigravity/v1/usage` 回傳目前閘道 Key 的用量。這些路徑使用 Anthropic 驗證標頭。
+
+Google 用戶端以 `x-goog-api-key` 存取 `/antigravity/v1beta/models` 及單模型路徑。支援 `generateContent`、`streamGenerateContent` 及 `countTokens`。啟用專用路徑後重新產生路由快取。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

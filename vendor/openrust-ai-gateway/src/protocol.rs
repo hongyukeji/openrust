@@ -27,6 +27,7 @@ use crate::{
 type HttpResult = Result<Response, HttpError>;
 
 mod alpha_search;
+pub(crate) mod antigravity;
 mod embedding_batch;
 mod gemini_batches;
 mod gemini_caches;
@@ -111,7 +112,15 @@ fn responses_routes(router: &mut Router) -> Result<(), RoutingError> {
 }
 
 fn gemini_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(async move { catalog(Protocol::Gemini.token(request), None, Protocol::Gemini).await })
+    Box::pin(async move {
+        catalog(
+            Protocol::Gemini.token(request),
+            None,
+            Protocol::Gemini,
+            antigravity::selected(request),
+        )
+        .await
+    })
 }
 
 fn gemini_model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -120,6 +129,7 @@ fn gemini_model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             Protocol::Gemini.token(request),
             request.route("model"),
             Protocol::Gemini,
+            antigravity::selected(request),
         )
         .await
     })
@@ -143,7 +153,9 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             "countTokens" => TextEndpoint::GeminiCountTokens,
             "embedContent" => TextEndpoint::GeminiEmbedContent,
             "batchEmbedContents" => TextEndpoint::GeminiBatchEmbedContents,
-            "batchGenerateContent" | "asyncBatchEmbedContent" => {
+            "batchGenerateContent" | "asyncBatchEmbedContent"
+                if !antigravity::selected(request) =>
+            {
                 let model = model.to_owned();
                 let endpoint = if action == "batchGenerateContent" {
                     TextEndpoint::GeminiBatchGenerateContent
@@ -160,6 +172,13 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
                 );
             }
         };
+        if antigravity::selected(request) && !antigravity::gemini_supports(endpoint) {
+            return Protocol::Gemini.error(
+                StatusCode::NOT_FOUND,
+                "unsupported_endpoint",
+                "此专用入口不支持该模型操作",
+            );
+        }
         relay(request, endpoint, Some(model.to_owned())).await
     })
 }
@@ -180,7 +199,7 @@ fn models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
                 }
             }
         }
-        catalog(protocol.token(request), None, protocol).await
+        catalog(protocol.token(request), None, protocol, false).await
     })
 }
 
@@ -199,7 +218,13 @@ fn codex_models(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 fn model(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
         let protocol = catalog_protocol(request);
-        catalog(protocol.token(request), request.route("model"), protocol).await
+        catalog(
+            protocol.token(request),
+            request.route("model"),
+            protocol,
+            false,
+        )
+        .await
     })
 }
 
@@ -221,13 +246,21 @@ const GEMINI_MODEL_OPERATIONS: [TextEndpoint; 7] = [
     TextEndpoint::GeminiAsyncBatchEmbedContent,
 ];
 
-async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> HttpResult {
+async fn catalog(
+    token: Option<&str>,
+    id: Option<&str>,
+    protocol: Protocol,
+    dedicated: bool,
+) -> HttpResult {
     let gateway = Gateway::get_facade_root()?;
-    let key = match authorize(&gateway, token, protocol).await {
+    let key = match authorize_for_route(&gateway, token, protocol, dedicated).await {
         Ok(key) => key,
         Err(response) => return response,
     };
     let key = key.as_ref();
+    let gemini_endpoints = GEMINI_MODEL_OPERATIONS
+        .into_iter()
+        .filter(|endpoint| !dedicated || antigravity::gemini_supports(*endpoint));
     let mut accessible = gateway.models.iter().filter(|(name, model)| {
         key.allows_model(name)
             && match protocol {
@@ -250,9 +283,13 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                 Protocol::Anthropic => {
                     model.supports_for(TextEndpoint::Messages, key)
                         || model.supports_for(TextEndpoint::CountMessageTokens, key)
+                        || dedicated
+                            && gemini_endpoints
+                                .clone()
+                                .any(|endpoint| model.supports_for(endpoint, key))
                 }
-                Protocol::Gemini => GEMINI_MODEL_OPERATIONS
-                    .into_iter()
+                Protocol::Gemini => gemini_endpoints
+                    .clone()
                     .any(|endpoint| model.supports_for(endpoint, key)),
             }
     });
@@ -264,8 +301,8 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
             json!({"id": name, "type": "model", "display_name": name, "created_at": "1970-01-01T00:00:00Z"})
         }
         Protocol::Gemini => {
-            let methods = GEMINI_MODEL_OPERATIONS
-                .into_iter()
+            let methods = gemini_endpoints
+                .clone()
                 .filter(|endpoint| model.supports_for(*endpoint, key))
                 .map(TextEndpoint::path)
                 .collect::<Vec<_>>();
@@ -284,6 +321,7 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
         match protocol {
             Protocol::OpenAi => json!({"object": "list", "data": data}),
             Protocol::Gemini => json!({"models":data}),
+            Protocol::Anthropic if dedicated => json!({"object":"list","data": data}),
             Protocol::Anthropic => json!({
                 "first_id": data.first().and_then(|item| item.get("id")),
                 "last_id": data.last().and_then(|item| item.get("id")),
@@ -484,6 +522,19 @@ async fn authorize(
     }
 }
 
+async fn authorize_for_route(
+    gateway: &Gateway,
+    token: Option<&str>,
+    protocol: Protocol,
+    dedicated: bool,
+) -> Result<std::sync::Arc<Key>, HttpResult> {
+    let key = authorize(gateway, token, protocol).await?;
+    if dedicated {
+        return Ok(std::sync::Arc::new(key.for_antigravity()));
+    }
+    Ok(key)
+}
+
 fn implicit_model<'a>(
     gateway: &'a Gateway,
     key: &Key,
@@ -523,7 +574,14 @@ async fn relay(
         | TextEndpoint::GeminiAsyncBatchEmbedContent => Protocol::Gemini,
         _ => Protocol::OpenAi,
     };
-    let key = match authorize(&gateway, protocol.token(request), protocol).await {
+    let key = match authorize_for_route(
+        &gateway,
+        protocol.token(request),
+        protocol,
+        antigravity::selected(request),
+    )
+    .await
+    {
         Ok(key) => key,
         Err(response) => return response,
     };

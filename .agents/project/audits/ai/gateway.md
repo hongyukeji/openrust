@@ -41,7 +41,7 @@
 |---|---|
 | 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 通过 `unversioned_paths` 可选启用目录、Chat、Responses、`input_tokens`、Embeddings 与 Messages 计数的 HTTP 别名，实测共用授权及限流，并验证 `GET /responses` WebSocket 别名。其他无版本操作待验收。 |
 | `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 已实测专用模型目录、Responses 生成与输入计数、WebSocket。搜索与实时会话待验收，专用账号归 GW-04。 |
-| `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | GW-04／05 待结合对应账号和平台能力裁决与验收，保留专用路由的账号隔离。 |
+| `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | G22 的[专用路径与账号隔离](#antigravity-专用路径与账号隔离)已通过本地三库。实际上游账号与原生凭证生命周期见 B01、E11。 |
 | 上游 API Key、OAuth／订阅、平台专用连接与组合分组 | API Key 已通过 SDK 与自托管网关验证。同名模型按端点、原生／转换支持和账号可用性选路。OAuth 刷新、订阅限制、会话黏性、分组模型白名单和跨账号失败回退归 GW-04；管理与发布入口验收归 GW-05。 |
 
 ## GW-04 上游账号冷却
@@ -494,6 +494,18 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各执行原生 Alpha Search、PAT 转
 
 - [固定 Codex 独立搜索与工具回送测试](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/app-server/tests/suite/v2/web_search.rs)
 - [Codex 0.170.0 发布资产](https://github.com/openai/codex/releases/tag/rust-v0.170.0)
+
+### Antigravity 专用路径与账号隔离
+
+固定 Sub2API 路由将已授权的 Antigravity 账号用于专用路径，并支持账号显式参与普通调度。OpenRust 在 `ai_gateway.accounts` 的具名连接上配置 `platform: "antigravity"` 才注册该路径族。默认把该账号从普通路由的候选集中排除，`mixed_scheduling: true` 允许它参与普通调度。专用路径的候选与备援均限于标记账号，并继续校验 Key、模型及分组连接权限。不存在获准的候选时不出站。目录只展示获准的已发布别名。按固定基线，专用用量入口返回该 Key 的聚合结果。
+
+复用现有 Anthropic Messages 和 Gemini 协议连接，连接 URL 指向部署者获准使用的 Antigravity 兼容上游。Gemini 专用动作按固定原生分支开放 `generateContent`、`streamGenerateContent` 和 `countTokens`。账户原生 OAuth 生命周期归 B01，正式账号和上游权限归 E11。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关和上游协议夹具，完成 `route:list`、路由缓存、未配置账号时路径关闭、目录和单模型、Anthropic 消息与计数、Gemini 普通及 SSE 生成与计数、独立上游凭证、Key 归属、混合调度开关、503 备援隔离和用量核对。12 项 Rust 回归含新增目录与账号隔离测试，两个 AI 包严格库级 Clippy 及三语文档构建通过。
+
+- [固定 Sub2API Antigravity 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L511)
+- [固定 Sub2API 原生 Gemini 动作](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/antigravity_gateway_gemini.go)
+- [Google Antigravity 官方认证方式](https://antigravity.google/docs/install/)
 
 ### xAI 自定义音色
 
