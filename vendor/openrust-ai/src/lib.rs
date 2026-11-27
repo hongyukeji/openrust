@@ -45,6 +45,7 @@ mod fake_media;
 mod fake_reranking_gateway;
 mod files;
 mod gemini;
+mod gemini_batches;
 mod generation_options;
 mod image;
 mod load_skill;
@@ -120,6 +121,9 @@ pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, Reco
 pub use files::{
     FakeFileGateway, FileInfo, FilePage, FileProvider, FileResponse, FileUpload, Files,
     ProviderFilePage, RecordedFileDeletion, RecordedFileUpload,
+};
+pub use gemini_batches::{
+    GeminiBatch, GeminiBatchGateway, GeminiBatchPage, GeminiBatchRequest, GeminiBatches,
 };
 pub use generation_options::TextGenerationOptions;
 pub use image::{

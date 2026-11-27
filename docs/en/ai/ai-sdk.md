@@ -1138,6 +1138,27 @@ When calling the shared gateway, send inline attachments using the endpoint’s 
 
 In tests, call `Files::fake([])?` for in-memory uploads, lookups, and deletes. Pass a sequence of byte responses or use `fake_with` to generate bytes from the requested ID. Enable `prevent_stray_operations(true)` on the fake to reject unconfigured lookups. Use `assert_stored`, `assert_not_stored`, `assert_deleted`, and `assert_not_deleted` to check operations. `Files::fake_id("policy.txt")` returns the deterministic test ID.
 
+## Gemini batch jobs {#gemini-batches}
+
+Use `GeminiBatches::for_connection("gemini")` with a named Gemini Developer API connection. Pass the model ID and the contents of Google's `batch` object to `generate(model, &batch)` or `embed(model, &batch)`. The batch can reference a Gemini input file or include requests inline.
+
+```rust
+use openrust_ai::GeminiBatches;
+use serde_json::json;
+
+let batches = GeminiBatches::for_connection("gemini")?;
+let job = batches.generate("your-model", &json!({
+    "displayName": "inventory",
+    "inputConfig": { "requests": { "requests": [{
+        "request": { "contents": [{ "parts": [{ "text": "Summarize the inventory." }] }] },
+        "metadata": { "key": "inventory-1" }
+    }] } }
+})).await?;
+let latest = batches.get(&job.name).await?;
+```
+
+Store the returned `batches/…` name to check it later from a worker. `state()`, `done`, `response`, and `error` expose Google's status and results, including individual item failures. Use `download(&job.name)` to stream a completed job's JSONL result file. Pass the `next_page_token` from `list(limit, cursor)` back unchanged. `cancel` and `delete` use the selected Gemini account's permissions. These SDK calls connect directly to Gemini. [Google Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+
 ## Vector stores {#vector-stores}
 
 Set `AI_STORE_PROVIDER` to the named connection for vector stores, or use the default AI connection. OpenAI, Azure OpenAI, and Gemini File Search support them directly. Set `stores: true` for a custom OpenAI-compatible vector stores endpoint and `files: true` when that same connection also accepts file uploads.

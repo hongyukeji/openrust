@@ -26,6 +26,7 @@ use crate::{
 };
 
 mod audio;
+mod batches;
 mod embeddings;
 mod image;
 mod interactions;
@@ -251,6 +252,10 @@ impl GeminiTextProvider {
 }
 
 impl TextProvider for GeminiTextProvider {
+    fn gemini_batch_gateway(&self) -> Option<&dyn crate::GeminiBatchGateway> {
+        Some(self)
+    }
+
     fn name(&self) -> &str {
         self.0.name()
     }

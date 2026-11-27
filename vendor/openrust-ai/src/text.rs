@@ -293,6 +293,10 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    fn gemini_batch_gateway(&self) -> Option<&dyn crate::GeminiBatchGateway> {
+        None
+    }
+
     fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
         false
     }

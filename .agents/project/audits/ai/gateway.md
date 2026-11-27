@@ -297,6 +297,12 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的本地协议样例验证 OpenAI 竖
 
 - [AWS Titan 输出计价档位](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-image-models.html) · [Nova Canvas 生命周期](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-canvas.html) · [Stable Image Core 模型卡](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-stability-ai-stable-image-core-1-0.html)
 
+## GW-03／GW-04 Gemini 异步批任务
+
+原生连接已提供批量生成、异步向量及任务生命周期，见 [Gemini 异步批任务 SDK](README.md#gemini-异步批任务-sdk)。网关外部接口待实现。创建需登记出站尝试与下游 Key、公开模型、上游连接和实际任务 ID，返回本地任务名。列表从本地归属查询。读取、取消、删除和结果下载使用原连接及认证范围，不向备用账号转发已有任务。验证使用同名上游任务的两个账号、Key 轮换、撤销、进程重启、重复查询及未获授权的文件引用。
+
+请求受理时保存批次费率及预占，结果可用后依据上游结果逐项核对，区分失败、零和未知。轮询和重启不得产生第二笔生成账目。取消、删除、迟到结果及不确定是否创建成功均须保留对账证据。文件型输入与下载需复用私有 Storage 和网关文件归属，在权限和用量可验证后开放。
+
 ## GW-03 Gemini JSON 数组与 SSE
 
 `streamGenerateContent` 使用 Google 的 `alt` 协商，缺省或 `json` 逐项返回 JSON 数组，`sse` 返回 SSE。复用原生 Gemini SSE 上游、模型授权、用量观察和结算。输出保留候选、函数调用及思考签名，将模型版本改为公开名。多候选流按索引确认全部结束或收到提示词拦截，待最终用量持久化后交付带终值的响应。缺少终态、传输中断或格式错误时按协商格式交付脱敏错误。

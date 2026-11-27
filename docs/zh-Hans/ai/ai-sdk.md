@@ -1138,6 +1138,27 @@ Gemini 返回类似 `files/policy` 的资源名。`Files::get` 和 `Files::delet
 
 测试中用 `Files::fake([])?` 在内存中上传、查询和删除文件。可以传入字节响应序列，也可以用 `fake_with` 根据请求 ID 生成内容。在替身上启用 `prevent_stray_operations(true)`，拒绝未配置的查询。可用 `assert_stored`、`assert_not_stored`、`assert_deleted` 和 `assert_not_deleted` 断言操作。`Files::fake_id("policy.txt")` 返回确定的测试 ID。
 
+## Gemini 批任务 {#gemini-batches}
+
+使用 `GeminiBatches::for_connection("gemini")` 选择具名 Gemini Developer API 连接。将模型 ID 和 Google 的 `batch` 对象内容传给 `generate(model, &batch)` 或 `embed(model, &batch)`。批任务支持内联请求和 Gemini 输入文件。
+
+```rust
+use openrust_ai::GeminiBatches;
+use serde_json::json;
+
+let batches = GeminiBatches::for_connection("gemini")?;
+let job = batches.generate("your-model", &json!({
+    "displayName": "inventory",
+    "inputConfig": { "requests": { "requests": [{
+        "request": { "contents": [{ "parts": [{ "text": "汇总库存。" }] }] },
+        "metadata": { "key": "inventory-1" }
+    }] } }
+})).await?;
+let latest = batches.get(&job.name).await?;
+```
+
+保存返回的 `batches/…` 名称，后续可在 Worker 中查询。`state()`、`done`、`response` 和 `error` 提供 Google 返回的状态、结果和单项失败。使用 `download(&job.name)` 流式读取已完成任务的 JSONL 结果文件。分页时把 `list(limit, cursor)` 返回的 `next_page_token` 原样传回。`cancel` 与 `delete` 采用所选 Gemini 账号的权限。以上 SDK 调用直连 Gemini。[Google Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+
 ## 向量仓库 {#vector-stores}
 
 用 `AI_STORE_PROVIDER` 选择向量仓库的具名连接，也可沿用 AI 默认连接。OpenAI、Azure OpenAI 与 Gemini File Search 原生支持。自定义 OpenAI 兼容端点可设置 `stores: true`，同一连接支持文件上传时再启用 `files: true`。

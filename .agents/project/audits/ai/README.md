@@ -436,6 +436,14 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 
 - [固定 Laravel Anthropic File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicFileGateway.php) · [固定 Laravel OpenRouter File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenRouter/OpenRouterFileGateway.php) · [Anthropic Files API](https://platform.claude.com/docs/en/build-with-claude/files) · [OpenRouter Files API](https://openrouter.ai/docs/api/api-reference/files/list-files)
 
+## Gemini 异步批任务 SDK
+
+固定 Laravel Gemini Provider 没有异步批任务契约。OpenRust 以 `GeminiBatches::for_connection` 使用已配置的 Gemini Developer API 连接，提供 `generate`、`embed`、`get`、`list`、`cancel`、`delete` 和结果文件 `download`。生成和向量分别使用 `batchGenerateContent`、`asyncBatchEmbedContent`。任务状态、单项结果和失败沿用上游 JSON，提交成功只表示任务已受理。创建请求发出一次。读取仅接受规范 `batches/{id}`，下载从同一任务的明确结果引用派生同源路径并使用原具名连接，不跟随重定向。凭证、基础地址和自定义请求头组成上游请求范围，供共享网关绑定任务。
+
+独立 Artisan 与 HTTP 在不同应用进程中通过本地 Gemini 协议服务验收两类创建、内联与文件来源、分页令牌转义、错误状态、取消与删除。模拟生成任务有一项成功和一项失败。文件型任务的 JSONL 下载先交付首行，再由上游发送末行。错配任务 ID、非 Gemini 连接、非法模型和分页参数均验证。SDK 与网关共 17 项回归、严格 Clippy 与三语站点通过。正式 Gemini 账户以及共享网关的任务账务待验。
+
+- [Google 批任务指南](https://ai.google.dev/gemini-api/docs/batch-api) · [Google JavaScript SDK 的原生批任务方法](https://github.com/googleapis/js-genai/blob/main/src/batches.ts)
+
 ## AI-06 Gemini 文件
 
 `Files` 支持 Gemini 原生上传、元数据、状态刷新、分页和删除。上传依据 Google 的 resumable 协议创建会话，然后在同源的上传端点发送文件字节。拒绝其他来源、路径重写及跳转。资源支持 `files/` 前缀及短 ID，列表使用不透明令牌。上传文件的内容读取返回 `FileNotDownloadable`。供应商自定义认证头标记为敏感，由框架 HTTP 诊断快照过滤。
