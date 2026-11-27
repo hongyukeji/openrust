@@ -1,3 +1,6 @@
+mod download;
+
+use futures_util::StreamExt;
 use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     log::LogContext,
@@ -24,6 +27,10 @@ pub(super) fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/batches/{id}", cancel_route)?;
     router.delete("/batches/{id}", delete_route)?;
     Ok(())
+}
+
+pub(super) fn download_route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(download::serve(request))
 }
 
 fn list_route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -397,7 +404,22 @@ async fn manage(request: &mut Request, action: Action) -> HttpResult {
         }
         Action::Delete => {
             // 完成任务先收集结果证据，再执行可能移除该证据的上游操作。
-            if let Err(error) = read(store, &batch, target).await {
+            let job = match fetch(&batch, target).await {
+                Ok(job) => job,
+                Err(error) => return error,
+            };
+            if let Some(file) = download::upstream_file(&job) {
+                let stream = match download::result_stream(store, &batch, target, file).await {
+                    Ok(stream) => stream,
+                    Err(error) => return error,
+                };
+                futures_util::pin_mut!(stream);
+                while let Some(chunk) = stream.next().await {
+                    if chunk.is_err() {
+                        return malformed();
+                    }
+                }
+            } else if let Err(error) = present(store, &batch, job).await {
                 return error;
             }
             let upstream = match provider
@@ -478,6 +500,10 @@ async fn list(request: &mut Request) -> HttpResult {
 }
 
 async fn read(store: &UsageStore, batch: &Batch, target: &Target) -> Result<Value, HttpResult> {
+    present(store, batch, fetch(batch, target).await?).await
+}
+
+async fn fetch(batch: &Batch, target: &Target) -> Result<Value, HttpResult> {
     let name = batch
         .upstream_name
         .as_deref()
@@ -497,7 +523,7 @@ async fn read(store: &UsageStore, batch: &Batch, target: &Target) -> Result<Valu
     if upstream_name(&job) != Some(name) {
         return Err(malformed());
     }
-    present(store, batch, job).await
+    Ok(job)
 }
 
 async fn present(store: &UsageStore, batch: &Batch, mut job: Value) -> Result<Value, HttpResult> {
@@ -521,6 +547,7 @@ async fn present(store: &UsageStore, batch: &Batch, mut job: Value) -> Result<Va
             metadata.insert("model".into(), json!(format!("models/{}", batch.model)));
         }
     }
+    let has_file = download::upstream_file(&job).is_some();
     for path in ["/response", "/metadata/output"] {
         if let Some(output) = job.pointer_mut(path).and_then(Value::as_object_mut) {
             output.remove("responsesFile");
@@ -544,6 +571,12 @@ async fn present(store: &UsageStore, batch: &Batch, mut job: Value) -> Result<Va
                 }
             }
         }
+    }
+    if has_file {
+        if !job["response"].is_object() {
+            job["response"] = json!({});
+        }
+        job["response"]["responsesFile"] = json!(download::local_file(batch));
     }
     if let Some(error) = job.get_mut("error").filter(|error| !error.is_null()) {
         redact_error(error);
@@ -578,55 +611,79 @@ fn batch_settlement(batch: &Batch, job: &Value) -> Option<Settlement> {
     // 上游可能先回报终态，结果或最终用量随后才可读。
     let items = batch_items(job)
         .filter(|items| i32::try_from(items.len()).ok() == Some(batch.item_count))?;
-    let mut successes = Vec::with_capacity(items.len());
+    let mut usage = BatchUsage::new();
     for item in items {
         match (item["response"].as_object(), item["error"].as_object()) {
-            (Some(_), None) if item["error"].is_null() => successes.push(&item["response"]),
-            (None, Some(_)) if item["response"].is_null() => {}
+            (Some(_), None) if item["error"].is_null() => usage.observe(batch, &item["response"]),
+            (None, Some(_)) if item["response"].is_null() => usage.partial = true,
             _ => return None,
         }
     }
-    let cost_pending = successes.len() != items.len();
-    for (field, upstream, required) in [
-        ("input_tokens", "promptTokenCount", true),
-        (
-            "output_tokens",
-            "candidatesTokenCount",
-            !batch.endpoint.is_embedding(),
-        ),
-        ("cached_input_tokens", "cachedContentTokenCount", false),
-        ("reasoning_tokens", "thoughtsTokenCount", false),
-    ] {
-        let total = successes.iter().try_fold(0_i64, |sum, item| {
-            sum.checked_add(usage_count(&item["usageMetadata"], upstream)?)
-        });
-        if let Some(count) = total {
-            context.insert(field.into(), json!(count));
-        } else if required {
-            return None;
+    usage.settlement(batch)
+}
+
+const USAGE_FIELDS: [(&str, &str); 4] = [
+    ("input_tokens", "promptTokenCount"),
+    ("output_tokens", "candidatesTokenCount"),
+    ("cached_input_tokens", "cachedContentTokenCount"),
+    ("reasoning_tokens", "thoughtsTokenCount"),
+];
+
+struct BatchUsage {
+    totals: [Option<i64>; USAGE_FIELDS.len()],
+    reported_model: Option<String>,
+    partial: bool,
+}
+
+impl BatchUsage {
+    fn new() -> Self {
+        Self {
+            totals: [Some(0); USAGE_FIELDS.len()],
+            reported_model: None,
+            partial: false,
         }
     }
-    if let Some(model) = successes
-        .iter()
-        .filter_map(|item| item["modelVersion"].as_str())
-        .filter(|model| {
-            !model.is_empty()
-                && model.len() <= 255
-                && model.bytes().all(|byte| byte.is_ascii_graphic())
-        })
-        .find(|model| {
-            model.strip_prefix("models/").unwrap_or(model)
+
+    fn observe(&mut self, batch: &Batch, response: &Value) {
+        for (total, (_, field)) in self.totals.iter_mut().zip(USAGE_FIELDS) {
+            *total = total
+                .zip(usage_count(&response["usageMetadata"], field))
+                .and_then(|(sum, count)| sum.checked_add(count));
+        }
+        if self.reported_model.is_none()
+            && let Some(model) = response["modelVersion"].as_str()
+            && !model.is_empty()
+            && model.len() <= 255
+            && model.bytes().all(|byte| byte.is_ascii_graphic())
+            && model.strip_prefix("models/").unwrap_or(model)
                 != batch
                     .upstream_model
                     .strip_prefix("models/")
                     .unwrap_or(&batch.upstream_model)
-        })
-    {
-        context.insert("reported_model".into(), json!(model));
+        {
+            self.reported_model = Some(model.into());
+        }
     }
-    let mut settlement = Settlement::from_context("completed", &context, true);
-    settlement.cost_pending = cost_pending;
-    Some(settlement)
+
+    fn settlement(self, batch: &Batch) -> Option<Settlement> {
+        let [input, output, ..] = self.totals;
+        if input.is_none() || (output.is_none() && !batch.endpoint.is_embedding()) {
+            return None;
+        }
+        let mut context = LogContext::new();
+        context.insert("upstream_endpoint".into(), json!(batch.endpoint.path()));
+        for (total, (field, _)) in self.totals.into_iter().zip(USAGE_FIELDS) {
+            if let Some(total) = total {
+                context.insert(field.into(), json!(total));
+            }
+        }
+        if let Some(model) = self.reported_model {
+            context.insert("reported_model".into(), json!(model));
+        }
+        let mut settlement = Settlement::from_context("completed", &context, true);
+        settlement.cost_pending = self.partial;
+        Some(settlement)
+    }
 }
 
 fn usage_count(usage: &Value, field: &str) -> Option<i64> {
