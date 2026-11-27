@@ -324,6 +324,14 @@ Schedule::configure(|schedule| {
 
 從 `Location` 取得呼叫 ID，透過 `./artisan ai:gateway:usage:list --request-id=<call-id>` 查詢結果。閘道只記一次終態，閘道觀察到的工作階段時長保存在 `resource_usage.session_duration_ms`。供應商用量和金額仍可能未知。工作階段時長和轉錄音訊時長分別記錄。
 
+### 閘道 xAI Realtime {#gateway-xai-realtime}
+
+在 `config/ai_gateway.rs` 用 `"endpoints": ["realtime"]` 發布 `xai` 連線及上游語音模型，再向閘道 Key 授權公開別名。使用 Bearer Key 將 `GET /v1/realtime?model=<別名>` 升級為 WebSocket。Key 只有一個 Realtime 別名時可省略 `model`。啟用 `unversioned_paths` 後也可使用 `GET /realtime`。
+
+連線內使用 xAI 原生 JSON 事件和音訊訊框，同一連線可完成多輪生成。送出 `response.cancel` 取消目前生成，收到對應的 `response.done` 後可開始下一輪。閘道固定該連線的模型和上游帳號，按授權驗證音色和工具，連線最長一小時。SDK 直連可用 `Ai::text_provider(...).xai_realtime_gateway().connect_xai_realtime(...)` 選擇具名 xAI 連線。
+
+啟用持久化用量後，`ai:gateway:usage:list` 在 `resource_usage.billable_audio_duration_ms` 顯示供應商回報的最大累計計費時長。累計時長增加時即持久化，重複終幀不重複加時。這裡記錄觀察到的用量證據。設定硬預算或輸出配額而需要預占用量時，閘道會拒絕升級。
+
 ### 閘道語音合成 {#gateway-speech}
 
 要開放 `POST /v1/tts`，為 `xai` 連線發布一個模型，並授權呼叫端的閘道 Key。可在 `config/ai_gateway.rs` 的 `models` 下加入以下範例。

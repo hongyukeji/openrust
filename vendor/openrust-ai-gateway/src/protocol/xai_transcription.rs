@@ -228,7 +228,7 @@ pub(super) fn validate_response(value: &mut Value) -> Option<i64> {
     Some(duration_ms)
 }
 
-fn duration_ms(value: &Value) -> Option<i64> {
+pub(super) fn duration_ms(value: &Value) -> Option<i64> {
     let number = value.as_number()?.to_string();
     let (whole, fraction) = number.split_once('.').unwrap_or((&number, ""));
     let whole = whole.parse::<u64>().ok()?;

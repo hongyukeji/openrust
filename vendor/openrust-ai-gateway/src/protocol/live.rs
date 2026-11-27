@@ -461,7 +461,7 @@ async fn terminate_upstream(
     .unwrap_or(false)
 }
 
-async fn close_upstream(socket: &mut Upstream) {
+pub(super) async fn close_upstream(socket: &mut Upstream) {
     let _ = tokio::time::timeout(Duration::from_secs(2), async {
         if socket.close(None).await.is_ok() {
             while let Some(Ok(frame)) = socket.next().await {

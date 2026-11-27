@@ -70,6 +70,7 @@ struct ModelConfiguration {
 #[serde(rename_all = "snake_case")]
 enum ResponsesServerTool {
     WebSearch,
+    XSearch,
     CodeInterpreter,
     FileSearch,
 }
@@ -78,6 +79,7 @@ impl ResponsesServerTool {
     fn kind(self) -> &'static str {
         match self {
             Self::WebSearch => "web_search",
+            Self::XSearch => "x_search",
             Self::CodeInterpreter => "code_interpreter",
             Self::FileSearch => "file_search",
         }
@@ -227,8 +229,9 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 18] = [
+const ENDPOINTS: [TextEndpoint; 19] = [
     TextEndpoint::Live,
+    TextEndpoint::XaiRealtime,
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -275,6 +278,7 @@ impl Model {
     pub(crate) fn allows_server_tool(&self, kind: &str, tool: &Value) -> bool {
         let allowed = match kind {
             "web_search" | "web_search_preview" => ResponsesServerTool::WebSearch,
+            "x_search" => ResponsesServerTool::XSearch,
             "code_interpreter" => ResponsesServerTool::CodeInterpreter,
             "file_search" => ResponsesServerTool::FileSearch,
             _ => return false,
@@ -283,7 +287,7 @@ impl Model {
             return false;
         }
         match allowed {
-            ResponsesServerTool::WebSearch => true,
+            ResponsesServerTool::WebSearch | ResponsesServerTool::XSearch => true,
             // 只允许新沙箱，禁止复用客户端指定的容器。
             ResponsesServerTool::CodeInterpreter => {
                 tool.as_object().is_some_and(|fields| fields.len() == 1)
@@ -510,13 +514,19 @@ impl Gateway {
                     return Err(invalid("Gemini 缓存需要持久化用量和 Gemini 生成端点"));
                 }
                 if model.server_tools.iter().any(|tool| {
-                    !endpoints.contains(&TextEndpoint::Responses)
-                        || !targets.iter().any(|target| {
+                    let responses = endpoints.contains(&TextEndpoint::Responses)
+                        && targets.iter().any(|target| {
                             target.provider.supports_responses_server_tool(tool.kind())
-                        })
+                        });
+                    let realtime = endpoints.contains(&TextEndpoint::XaiRealtime)
+                        && !matches!(tool, ResponsesServerTool::CodeInterpreter)
+                        && targets
+                            .iter()
+                            .any(|target| target.provider.xai_realtime_gateway().is_some());
+                    !responses && !realtime
                 }) {
                     return Err(invalid(format!(
-                        "公开模型 {name} 的服务端工具要求原生 Responses 上游"
+                        "公开模型 {name} 的服务端工具需要支持该工具的原生上游"
                     )));
                 }
                 if model
@@ -1004,6 +1014,13 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) fn observe_realtime_duration(&mut self, milliseconds: i64) {
+        self.context.insert(
+            "resource_usage".into(),
+            json!({"billable_audio_duration_ms":milliseconds}),
+        );
+    }
+
     pub(crate) fn observe_audio_duration(
         &mut self,
         milliseconds: i64,

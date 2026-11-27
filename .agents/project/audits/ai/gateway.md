@@ -29,7 +29,7 @@
 | `POST /v1/videos`、`POST /v1/videos/{generations,edits,extensions}`、`GET /v1/videos/{id}[/content]`、`GET /v1/videos/{generations,edits,extensions}/{id}[/content]` | 网关 Key，依平台支持创建／编辑／扩展、状态与二进制读取 | AI-06／GW-03／04 待按平台验证任务 ID、状态、取消与内容。 |
 | `POST /{api/v3,v3,v1}/contents/generations/tasks`、`GET/DELETE /{api/v3,v3,v1}/contents/generations/tasks/{id}` 及无版本同路径 | 网关 Key，Seedance 任务创建、查询和删除 | GW-03／04 待按国内视频供应商任务及资源所有权验收。 |
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收 `POST /v1/tts` 的 HTTP 音频流和时间戳响应、multipart `POST /v1/stt` 和两条可选无版本别名。自定义音色六个操作和合成引用已通过本地三库验收。双向实时语音及供应商实机仍待验收。 |
-| `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。独立 Realtime 入口见 G19。 |
+| `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。G19 的 xAI Realtime 升级、双向事件、取消和同连接多轮也已完成本地三库。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
@@ -354,7 +354,7 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 `POST /v1/tts` 的原生二进制响应使用框架的出站字节流。通过 MIME 和最短格式前缀校验后，服务器立即交付音频。支持 MP3、WAV、PCM、μ-law 和 A-law。上游传输错误、声明长度未达到的 WAV 和奇数字节的 PCM 终止下载并保留未完成账目。客户端取消会关闭上游流，已经发送的合成不自动重放。正常 EOF 在用量与字符费用结算后交付。
 
-`with_timestamps: true` 使用 xAI 的 JSON 形状，核对 Base64 音频及编码、时长、字符与时间区间数组，保留识别的公开字段。双向语音 WebSocket 在 G19 单独验收。网关沿用连接的 HTTP 请求时限，正式 xAI 账号待 E09 验证。
+`with_timestamps: true` 使用 xAI 的 JSON 形状，核对 Base64 音频及编码、时长、字符与时间区间数组，保留识别的公开字段。xAI 语音对话 WebSocket 见 [G19 xAI Realtime](#xai-realtime-双向会话)。网关沿用连接的 HTTP 请求时限，正式 xAI 账号待 E09 验证。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过本地协议服务及独立 HTTP 和 Artisan，复验 SDK 直连、SDK 经网关、外部 HTTP、五种编码、被切分的 WAV 头、首个音频块早于上游结束、结算早于正常 HTTP 结束、字符时间戳、截断及客户端断开后上游连接关闭。三库各有 14 次网关出站尝试，其中七次正常结算、三次无效上游响应、三次流未完成、一次取消。失败和取消的供应商成本待证，不产生下游应收。13 项 SDK 和网关回归、严格 Clippy 和三语站点检查通过，并复验 SQLite 字符计费。
 
@@ -409,6 +409,18 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关进程和上游�
 一个 Live 呼叫关联一条用量记录。后台或前台在同一个数据库事务内终结用量并移除映射。`resource_usage.session_duration_ms` 保存网关观察时长，供应商未报告的 Token、转录时长和费用保持未知。通过 `ai:gateway:usage:list --request-id=<id>` 查询。更换上游配置前应先结束使用该连接的现有呼叫，保留其原账号作为全生命周期的控制目标。
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证两进程抢占、观察者让权、客户端断开后再接管、模拟进程崩溃与租约到期、无人控制时的 Codex 关闭事件及公开 Live 挂断、暂时性 503 后重试和同期单条终态。另验证旧迁移回退再升级、旧无用量记录回收、Artisan 发布与查询及路由缓存。12 项 Rust 回归、两 AI 包严格库级 Clippy、SQLite 音色 HTTP 回归和三语文档构建通过。正式 Codex DeviceCheck、公开 OpenAI Live 模型权限及真实 WebRTC 媒体仍在 E11。
+
+### xAI Realtime 双向会话
+
+固定基线的 `GET /v1/realtime` 及可选无版本 `GET /realtime` 对接 Grok 语音对话。OpenRust 通过 `endpoints: ["realtime"]` 发布 xAI 模型，复用现有出站 WebSocket 和 Key、模型、账号并发授权。一次连接固定授权模型和目标。握手收到明确拒绝时可尝试获准备援，已经升级的连接保留原账号。JSON 控制、文本与音频事件、原始二进制音频和取消帧按原生方向转发。调用方收到公开模型名。服务端工具按已有允许配置，网关拦截未授权音色、MCP 地址、供应商会话恢复及外部呼叫 ID。单连接上限为一小时。
+
+`response.done` 的 `billable_audio_seconds` 是会话累计值，换算为毫秒后存入 `resource_usage.billable_audio_duration_ms`。新的累计值先保存再交付终帧，重复值与回退值不重复累计。网关保留握手和断开证据。实时费用和硬预算的预占仍在 B07，当前要求这些策略的连接会被拦截。xAI 另有专用文本转语音 WebSocket，固定基线的 `/tts` 路由使用 HTTP POST。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用本地供应商夹具实测 SDK 直连、SDK 经网关和独立客户端。覆盖路由缓存、Key 和模型授权、配额拒绝、双向文本和二进制、允许的搜索工具、音色校验、多轮取消与完成、上游错误脱敏、429 备援和握手关联。Artisan 在第一轮终帧后已读到 1,234 毫秒，第二轮及其重复帧后只记录 2,345 毫秒。14 项 Rust 回归、两 AI 包库级严格 Clippy、SQLite Live 和自定义音色 HTTP 回归及三语文档通过。真实 xAI 账号、模型和正式对账见 E09。
+
+- [Sub2API 固定版 Realtime 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L331)
+- [xAI Speech to Speech 原生协议](https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech)
+- [xAI 累计计费用量示例](https://docs.x.ai/cookbook/examples/live-interpreter)
 
 ### xAI 自定义音色
 

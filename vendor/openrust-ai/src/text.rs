@@ -309,6 +309,10 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    fn xai_realtime_gateway(&self) -> Option<&dyn crate::XaiRealtimeGateway> {
+        None
+    }
+
     fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
         false
     }
@@ -421,6 +425,7 @@ pub enum TextEndpoint {
     ImagesEdits,
     XaiTextToSpeech,
     XaiSpeechToText,
+    XaiRealtime,
     Live,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
@@ -444,6 +449,7 @@ impl TextEndpoint {
             Self::ImagesEdits => "images/edits",
             Self::XaiTextToSpeech => "tts",
             Self::XaiSpeechToText => "stt",
+            Self::XaiRealtime => "realtime",
             Self::Live => "live",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
@@ -486,7 +492,10 @@ impl TextEndpoint {
     }
 
     pub const fn is_xai_voice(self) -> bool {
-        matches!(self, Self::XaiTextToSpeech | Self::XaiSpeechToText)
+        matches!(
+            self,
+            Self::XaiTextToSpeech | Self::XaiSpeechToText | Self::XaiRealtime
+        )
     }
 }
 
@@ -1014,6 +1023,11 @@ impl TextProvider for OpenAiTextProvider {
         let connection = self.connection.as_ref();
         (matches!(self.protocol, OpenAiProtocol::Responses) && connection.live_protocol().is_some())
             .then_some(connection as &dyn crate::LiveGateway)
+    }
+
+    fn xai_realtime_gateway(&self) -> Option<&dyn crate::XaiRealtimeGateway> {
+        matches!(self.protocol, OpenAiProtocol::Xai)
+            .then_some(self.connection.as_ref() as &dyn crate::XaiRealtimeGateway)
     }
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {

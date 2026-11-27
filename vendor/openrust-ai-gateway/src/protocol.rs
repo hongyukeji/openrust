@@ -37,6 +37,7 @@ mod resources;
 mod usage_summary;
 mod websocket;
 mod xai_custom_voices;
+mod xai_realtime;
 mod xai_speech;
 mod xai_transcription;
 
@@ -84,6 +85,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/images/generations", images_generations)?;
     router.post("/images/edits", images_edits)?;
     router.post("/tts", xai_speech)?;
+    router.get("/realtime", xai_realtime::handshake)?;
     router
         .post("/stt", xai_transcription)?
         .streaming_body(xai_transcription::MAX_BODY_BYTES);

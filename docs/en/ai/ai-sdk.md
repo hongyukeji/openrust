@@ -324,6 +324,14 @@ Open the Sideband URL with the same gateway Key. One control connection can use 
 
 Use `./artisan ai:gateway:usage:list --request-id=<call-id>` with the ID from `Location`. The gateway records one terminal outcome and its observed elapsed time in `resource_usage.session_duration_ms`. Supplier usage and money can remain unknown. The session duration is separate from transcription duration.
 
+### Gateway xAI Realtime {#gateway-xai-realtime}
+
+In `config/ai_gateway.rs`, publish an `xai` connection and its upstream voice model with `"endpoints": ["realtime"]`. Grant the alias to the gateway Key. Connect to `GET /v1/realtime?model=<alias>` with a Bearer Key and WebSocket upgrade. A Key with one Realtime alias can omit `model`. With `unversioned_paths` enabled, `GET /realtime` also works.
+
+Use xAI's native JSON events and audio frames on the connection. One connection can carry several generations. Send `response.cancel` to cancel the current generation and wait for its `response.done` before starting the next one. The gateway keeps the original model and upstream account for the connection, allows authorized voices and tools, and limits the connection to one hour. Direct SDK callers can use `Ai::text_provider(...).xai_realtime_gateway().connect_xai_realtime(...)` through the selected xAI connection.
+
+With usage persistence enabled, `ai:gateway:usage:list` reports the largest cumulative provider duration in `resource_usage.billable_audio_duration_ms`. Each valid increase is persisted as it arrives. Repeated terminal events do not add time. This is observed usage evidence. The gateway rejects upgrades when a configured hard budget or output quota requires a reservation.
+
 ### Gateway speech synthesis {#gateway-speech}
 
 To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize it for the caller’s gateway Key. For example, add this entry under `models` in `config/ai_gateway.rs`.

@@ -41,13 +41,21 @@ impl Account {
     }
 
     pub(crate) async fn acquire(&self, store: Option<&str>) -> CacheResult<Admission> {
+        self.acquire_for(store, 120).await
+    }
+
+    pub(crate) async fn acquire_for(
+        &self,
+        store: Option<&str>,
+        seconds: u64,
+    ) -> CacheResult<Admission> {
         let Some((name, maximum)) = &self.concurrency else {
             return Ok(Admission::Allowed(None));
         };
         let lease = Cache::store(store)?
             .funnel(name)?
             .limit(*maximum)
-            .release_after(120)
+            .release_after(seconds)
             .block(0)
             .acquire()
             .await?;

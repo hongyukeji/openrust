@@ -84,6 +84,7 @@ mod transcription;
 mod usage;
 mod xai;
 mod xai_custom_voices;
+mod xai_realtime;
 
 pub use agent::{Agent, AnonymousAgent, PromptOptions, ProviderTarget, agent};
 pub use agent_queue::{AgentQueueCatch, AgentQueueThen, QueueableAgent, QueuedAgentResponse};
@@ -186,6 +187,7 @@ pub use tools::{
 };
 pub use usage::Usage;
 pub use xai_custom_voices::{XaiCustomVoiceGateway, XaiCustomVoiceRequest};
+pub use xai_realtime::XaiRealtimeGateway;
 
 pub use transcription::{
     PendingTranscriptionGeneration, Transcription, TranscriptionAudio, TranscriptionPrompt,

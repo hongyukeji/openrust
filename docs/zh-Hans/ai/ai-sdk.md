@@ -324,6 +324,14 @@ Schedule::configure(|schedule| {
 
 从 `Location` 取得呼叫 ID，通过 `./artisan ai:gateway:usage:list --request-id=<call-id>` 查询结果。网关只记一次终态，网关观察到的会话时长保存在 `resource_usage.session_duration_ms`。供应商用量和金额仍可能未知。会话时长和转录音频时长分别记录。
 
+### 网关 xAI Realtime {#gateway-xai-realtime}
+
+在 `config/ai_gateway.rs` 用 `"endpoints": ["realtime"]` 发布 `xai` 连接及上游语音模型，再向网关 Key 授权公开别名。使用 Bearer Key 升级 `GET /v1/realtime?model=<别名>` 为 WebSocket。Key 只有一个 Realtime 别名时可省略 `model`。启用 `unversioned_paths` 后也可使用 `GET /realtime`。
+
+连接内使用 xAI 原生 JSON 事件和音频帧，同一连接可以完成多轮生成。发出 `response.cancel` 取消当前生成，收到对应的 `response.done` 后可开始下一轮。网关固定该连接的模型和上游账号，按授权校验音色和工具，连接最长一小时。SDK 直连可用 `Ai::text_provider(...).xai_realtime_gateway().connect_xai_realtime(...)` 选择具名 xAI 连接。
+
+启用持久化用量后，`ai:gateway:usage:list` 在 `resource_usage.billable_audio_duration_ms` 显示供应商报告的最大累计计费时长。累计时长增加时即持久化，重复终帧不重复加时。这里记录观察到的用量证据。配置了硬预算或输出配额而需要预占用量时，网关会拒绝升级。
+
 ### 网关语音合成 {#gateway-speech}
 
 要开放 `POST /v1/tts`，为 `xai` 连接发布一个模型，并向调用方的网关 Key 授权。可在 `config/ai_gateway.rs` 的 `models` 下加入以下示例。
