@@ -38,6 +38,7 @@ mod usage_summary;
 mod websocket;
 mod xai_custom_voices;
 mod xai_realtime;
+mod xai_search;
 mod xai_speech;
 mod xai_transcription;
 
@@ -86,6 +87,8 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/images/edits", images_edits)?;
     router.post("/tts", xai_speech)?;
     router.get("/realtime", xai_realtime::handshake)?;
+    router.post("/web_search", xai_search::web)?;
+    router.post("/x_search", xai_search::x)?;
     router
         .post("/stt", xai_transcription)?
         .streaming_body(xai_transcription::MAX_BODY_BYTES);
@@ -231,6 +234,8 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::ImagesEdits,
                     TextEndpoint::XaiTextToSpeech,
                     TextEndpoint::XaiSpeechToText,
+                    TextEndpoint::XaiWebSearch,
+                    TextEndpoint::XaiXSearch,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -471,6 +476,28 @@ async fn authorize(
     }
 }
 
+fn implicit_model<'a>(
+    gateway: &'a Gateway,
+    key: &Key,
+    endpoint: TextEndpoint,
+) -> Result<&'a str, (StatusCode, &'static str, &'static str)> {
+    let mut allowed = gateway
+        .models
+        .iter()
+        .filter(|(name, model)| key.allows_model(name) && model.supports_for(endpoint, key));
+    let Some((name, _)) = allowed.next() else {
+        return Err((StatusCode::NOT_FOUND, "model_not_found", "模型不可用"));
+    };
+    if allowed.next().is_some() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "missing_model",
+            "多个可用模型需要指定公开模型名称",
+        ));
+    }
+    Ok(name)
+}
+
 async fn relay(
     request: &mut Request,
     endpoint: TextEndpoint,
@@ -552,14 +579,15 @@ async fn relay(
     } else {
         None
     };
-    let implicit_model = if endpoint.is_xai_voice() && !data.contains_key("model") {
-        match xai_speech::implicit_model(&gateway, key, endpoint) {
-            Ok(model) => Some(model.to_owned()),
-            Err((status, code, message)) => return protocol.error(status, code, message),
-        }
-    } else {
-        None
-    };
+    let implicit_model =
+        if (endpoint.is_xai_voice() || endpoint.is_xai_search()) && !data.contains_key("model") {
+            match implicit_model(&gateway, key, endpoint) {
+                Ok(model) => Some(model.to_owned()),
+                Err((status, code, message)) => return protocol.error(status, code, message),
+            }
+        } else {
+            None
+        };
     let Some(name) = path_model.or(implicit_model).or_else(|| {
         data.get("model")
             .and_then(Value::as_str)
@@ -582,6 +610,16 @@ async fn relay(
             "该模型不支持此端点",
         );
     }
+    let search = if endpoint.is_xai_search() {
+        match xai_search::prepare(endpoint, &mut data, model) {
+            Ok(search) => Some(search),
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        None
+    };
     let custom_voice = if endpoint == TextEndpoint::XaiTextToSpeech {
         if let Some(id) = data
             .get("voice_id")
@@ -828,6 +866,7 @@ async fn relay(
             });
     let may_replay = !endpoint.is_image()
         && !endpoint.is_xai_voice()
+        && !endpoint.is_xai_search()
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1124,6 +1163,9 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
+                if let Some(search) = search {
+                    return search.respond(upstream, call).await;
+                }
                 if let Some((format, _)) = speech {
                     return xai_speech::respond(upstream, format, call).await;
                 }

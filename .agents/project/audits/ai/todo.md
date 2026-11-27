@@ -57,6 +57,9 @@
 - [x] **G18 Live／Sideband**。本地三库已验收[创建、控制路由和归属](gateway.md#live-会话与控制入口)，以及[后台接管、到期回收和终态归集](gateway.md#live-后台接管与终态归集)。正式 WebRTC 和账号权限见 E11。
 - [x] **G19 Realtime 双向会话**。本地三库已验收[升级、双向事件、取消、同连接多轮及累计用量证据](gateway.md#xai-realtime-双向会话)。金额及预占见 B07，正式账号见 E09。
 - [ ] **G20 独立搜索和平台动作**。逐项裁决 `web_search`、`x_search`、`alpha/search`、`systemone`，验收鉴权、参数、错误和用量。
+  - [x] `web_search`、`x_search` 的[本地三库验收](gateway.md#xai-独立搜索)。正式 xAI 连接见 E09，工具计费见 B05。
+  - [ ] OpenAI／Codex `alpha/search` 的协议和用量。Codex 固定客户端另见 G21。
+  - [ ] TypeSafe `systemone` 的协议和用量。
 - [ ] **G21 Codex 搜索与 Realtime Calls**。用固定客户端验收专用路径、凭证范围和会话归属。
 - [ ] **G22 剩余兼容路径**。按端点通过 `route:list` 和真实 HTTP 核对启用条件、授权及账号隔离。
   - [ ] 其余无版本别名。

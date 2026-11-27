@@ -7,11 +7,11 @@ use openrust::{
     http::{Response, StatusCode, client},
     support::Str,
 };
-use openrust_ai::{AudioFormat, AudioResponse, TextEndpoint};
+use openrust_ai::{AudioFormat, AudioResponse};
 use serde_json::{Map, Value, json};
 
 use super::{HttpResult, Protocol, downstream_headers};
-use crate::gateway::{Call, Gateway, Key};
+use crate::gateway::Call;
 
 const BUILTIN_VOICES: &[&str] = &[
     "ara", "eve", "leo", "rex", "sal", "altair", "atlas", "aurora", "carina", "castor", "celeste",
@@ -23,28 +23,6 @@ pub(super) fn builtin_voice(voice: &str) -> bool {
     BUILTIN_VOICES
         .iter()
         .any(|name| name.eq_ignore_ascii_case(voice))
-}
-
-pub(super) fn implicit_model<'a>(
-    gateway: &'a Gateway,
-    key: &Key,
-    endpoint: TextEndpoint,
-) -> Result<&'a str, (StatusCode, &'static str, &'static str)> {
-    let mut allowed = gateway
-        .models
-        .iter()
-        .filter(|(name, model)| key.allows_model(name) && model.supports_for(endpoint, key));
-    let Some((name, _)) = allowed.next() else {
-        return Err((StatusCode::NOT_FOUND, "model_not_found", "模型不可用"));
-    };
-    if allowed.next().is_some() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "missing_model",
-            "多个可用语音模型需要指定公开模型名称",
-        ));
-    }
-    Ok(name)
 }
 
 #[derive(Clone, Copy)]

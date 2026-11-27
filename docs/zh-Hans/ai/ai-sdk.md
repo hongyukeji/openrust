@@ -365,6 +365,25 @@ Schedule::configure(|schedule| {
 
 在上游和下游费率中分别设置 `audio_per_hour`，即可按上游报告的音频时长结算 xAI 转录。包含 `redact` 字段时，两侧费率还需配置 `audio_redaction_per_hour`。显式填 `"0"` 表示这项附加费用为零。费率使用十进制字符串，单位为所选币种每音频小时。仅供转录的费率可把 `input` 和 `output` 设为 `"0"`。缺少费率或时长时，对应金额保留待核对。导入供应商汇总账单时使用 `category: "speech_to_text"`，即可按转录类别单独对账。
 
+### xAI 独立搜索 {#gateway-xai-search}
+
+将 xAI 连接发布为网关模型，在 `endpoints` 和 `server_tools` 中分别启用要开放的搜索操作。若该模型也提供普通推理，在 `endpoints` 中加入 `responses`。
+
+```json
+{
+  "provider": "xai",
+  "model": "<xAI model ID>",
+  "endpoints": ["web_search", "x_search"],
+  "server_tools": ["web_search", "x_search"]
+}
+```
+
+携带网关 Bearer Key 发送 `POST /v1/web_search` 或 `POST /v1/x_search`，正文示例为 `{"query":"Rust release notes","max_results":5}`。`input` 也可用于提供查询。若当前 Key 可访问多个支持该操作的模型，须填入公开模型名 `model`。结果数量默认 5 条，最多 20 条。无版本别名须启用 `unversioned_paths: true`。
+
+X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`to_date`、`enable_image_understanding` 和 `enable_video_understanding`。两个入口均返回 `query`、`results`、`provider` 和 `max_results`。每项结果包含有来源证据的 HTTP(S) `url`、`title` 和 `snippet`。
+
+开启网关用量后，成功的搜索记录 `resource_usage.search_requests` 及上游报告的 Token 数和费用。要求确认费用上限的分组或账号预算会在出站前拒绝此类请求。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

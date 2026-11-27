@@ -748,6 +748,8 @@ impl TextEndpoint {
             | Self::XaiTextToSpeech
             | Self::XaiSpeechToText
             | Self::XaiRealtime
+            | Self::XaiWebSearch
+            | Self::XaiXSearch
             | Self::Live => Err(AiError::StreamingNotSupported),
         }
     }

@@ -229,9 +229,11 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 19] = [
+const ENDPOINTS: [TextEndpoint; 21] = [
     TextEndpoint::Live,
     TextEndpoint::XaiRealtime,
+    TextEndpoint::XaiWebSearch,
+    TextEndpoint::XaiXSearch,
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -329,6 +331,11 @@ impl Model {
 }
 
 fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+    if endpoint.is_xai_search() {
+        return provider
+            .supports_standalone_search()
+            .then_some(TextEndpoint::Responses);
+    }
     if endpoint == TextEndpoint::Live {
         return provider.live_gateway().map(|_| endpoint);
     }
@@ -471,6 +478,7 @@ impl Gateway {
                         model.endpoints.as_ref().map_or(
                             !endpoint.is_image()
                                 && !endpoint.is_xai_voice()
+                                && !endpoint.is_xai_search()
                                 && !endpoint.is_gemini_embedding()
                                 && !endpoint.is_gemini_batch()
                                 && *endpoint != TextEndpoint::Live,
@@ -523,7 +531,16 @@ impl Gateway {
                         && targets
                             .iter()
                             .any(|target| target.provider.xai_realtime_gateway().is_some());
-                    !responses && !realtime
+                    let standalone_search = match tool {
+                        ResponsesServerTool::WebSearch => {
+                            endpoints.contains(&TextEndpoint::XaiWebSearch)
+                        }
+                        ResponsesServerTool::XSearch => {
+                            endpoints.contains(&TextEndpoint::XaiXSearch)
+                        }
+                        _ => false,
+                    };
+                    !responses && !realtime && !standalone_search
                 }) {
                     return Err(invalid(format!(
                         "公开模型 {name} 的服务端工具需要支持该工具的原生上游"
@@ -1014,6 +1031,11 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) fn observe_standalone_search(&mut self) {
+        self.context
+            .insert("resource_usage".into(), json!({"search_requests": 1}));
+    }
+
     pub(crate) fn observe_realtime_duration(&mut self, milliseconds: i64) {
         self.context.insert(
             "resource_usage".into(),

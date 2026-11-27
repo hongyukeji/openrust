@@ -246,6 +246,11 @@ pub trait TextProvider: Send + Sync {
             && matches!(kind, "web_search" | "web_search_preview")
     }
 
+    /// 是否可以通过原生 Responses 承载独立搜索协议。
+    fn supports_standalone_search(&self) -> bool {
+        false
+    }
+
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
     fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
         None
@@ -426,6 +431,8 @@ pub enum TextEndpoint {
     XaiTextToSpeech,
     XaiSpeechToText,
     XaiRealtime,
+    XaiWebSearch,
+    XaiXSearch,
     Live,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
@@ -450,6 +457,8 @@ impl TextEndpoint {
             Self::XaiTextToSpeech => "tts",
             Self::XaiSpeechToText => "stt",
             Self::XaiRealtime => "realtime",
+            Self::XaiWebSearch => "web_search",
+            Self::XaiXSearch => "x_search",
             Self::Live => "live",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
@@ -496,6 +505,10 @@ impl TextEndpoint {
             self,
             Self::XaiTextToSpeech | Self::XaiSpeechToText | Self::XaiRealtime
         )
+    }
+
+    pub const fn is_xai_search(self) -> bool {
+        matches!(self, Self::XaiWebSearch | Self::XaiXSearch)
     }
 }
 
@@ -911,6 +924,10 @@ impl TextProvider for OpenAiTextProvider {
 
     fn normalize_reported_usage(&self, usage: &Value) -> Option<Usage> {
         matches!(self.protocol, OpenAiProtocol::Xai).then(|| Usage::from_xai_responses(usage))
+    }
+
+    fn supports_standalone_search(&self) -> bool {
+        matches!(self.protocol, OpenAiProtocol::Xai)
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {

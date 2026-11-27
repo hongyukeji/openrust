@@ -365,6 +365,25 @@ The gateway forwards repeated `keyterm` and `redact` fields and uploads the file
 
 Set `audio_per_hour` on both upstream and downstream tariffs to price xAI transcription by reported audio duration. For requests with `redact` fields, configure the additional `audio_redaction_per_hour` on each tariff. An explicit `"0"` specifies a free surcharge. Rates are decimal strings per audio hour in the configured currency. Set `input` and `output` to `"0"` for a transcription-only tariff. Missing rates or missing duration keep the relevant amount pending. Import provider totals with `category: "speech_to_text"` to reconcile transcription costs independently of token totals.
 
+### Standalone xAI search {#gateway-xai-search}
+
+Publish an xAI connection as a gateway model and allow each search operation under both `endpoints` and `server_tools`. For a model that also serves ordinary inference, add `responses` to its endpoints.
+
+```json
+{
+  "provider": "xai",
+  "model": "<xAI model ID>",
+  "endpoints": ["web_search", "x_search"],
+  "server_tools": ["web_search", "x_search"]
+}
+```
+
+Send `POST /v1/web_search` or `POST /v1/x_search` with the gateway Bearer key and a JSON body such as `{"query":"Rust release notes","max_results":5}`. You can use `input` in place of `query`. Include the public `model` alias when the key can access multiple models for the operation. The result limit defaults to 5 and is capped at 20. Unversioned aliases require `unversioned_paths: true`.
+
+X Search accepts `allowed_x_handles`, `excluded_x_handles`, `from_date`, `to_date`, `enable_image_understanding`, and `enable_video_understanding`. Both routes return `query`, `results`, `provider`, and `max_results`. Each result contains a cited HTTP(S) `url`, `title`, and `snippet`.
+
+With gateway usage enabled, a successful search records `resource_usage.search_requests` and any upstream token counts or reported cost. A group or account budget that requires a known cost ceiling rejects these searches before dispatch.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

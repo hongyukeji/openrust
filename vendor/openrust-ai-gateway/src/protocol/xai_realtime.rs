@@ -17,7 +17,8 @@ use serde_json::{Map, Value, json};
 
 use super::{
     Admission, Call, Gateway, HttpResult, Key, Protocol, account_state_unavailable, admit,
-    authorize, live::close_upstream, xai_custom_voices, xai_speech, xai_transcription::duration_ms,
+    authorize, implicit_model, live::close_upstream, xai_custom_voices, xai_speech,
+    xai_transcription::duration_ms,
 };
 use crate::{gateway::AttemptAdmission, invocation::CallIdentity};
 
@@ -50,7 +51,7 @@ async fn connect(request: &mut Request) -> HttpResult {
     };
     let name = match query.get("model") {
         Some(Value::String(name)) if !name.is_empty() => name,
-        None => match xai_speech::implicit_model(&gateway, &key, ENDPOINT) {
+        None => match implicit_model(&gateway, &key, ENDPOINT) {
             Ok(name) => name,
             Err((status, code, message)) => return HTTP.error(status, code, message),
         },

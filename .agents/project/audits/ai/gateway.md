@@ -30,7 +30,8 @@
 | `POST /{api/v3,v3,v1}/contents/generations/tasks`、`GET/DELETE /{api/v3,v3,v1}/contents/generations/tasks/{id}` 及无版本同路径 | 网关 Key，Seedance 任务创建、查询和删除 | GW-03／04 待按国内视频供应商任务及资源所有权验收。 |
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收 `POST /v1/tts` 的 HTTP 音频流和时间戳响应、multipart `POST /v1/stt` 和两条可选无版本别名。自定义音色六个操作和合成引用已通过本地三库验收。双向实时语音及供应商实机仍待验收。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。G19 的 xAI Realtime 升级、双向事件、取消和同连接多轮也已完成本地三库。 |
-| `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
+| `POST /v1/{web_search,x_search}` 和可选无版本别名 | 网关 Key、公开模型和搜索工具授权，转换为 xAI 原生 Responses | G20 已完成[独立搜索的本地三库验收](#xai-独立搜索)。供应商实机见 E09，工具计费见 B05。 |
+| `POST /v1/systemone`、`POST /v1/alpha/search` | 网关 Key，分别要求 TypeSafe System One 与 OpenAI／Codex 连接能力 | G20 待完成两项平台动作。Codex 专属路径与正式客户端另见 G21。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
 ## 兼容路径与账号类型
@@ -421,6 +422,20 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用本地供应商夹具实测 SDK 
 - [Sub2API 固定版 Realtime 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L331)
 - [xAI Speech to Speech 原生协议](https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech)
 - [xAI 累计计费用量示例](https://docs.x.ai/cookbook/examples/live-interpreter)
+
+### xAI 独立搜索
+
+固定 Sub2API 基线将两个独立搜索请求转换成 xAI Responses 服务端工具调用。OpenRust 沿用该协议形状，以 `endpoints`、`server_tools`、Key 和模型授权发布两个入口。无版本别名受 `unversioned_paths` 控制。支持 `query` 或 `input`、5 条默认和 20 条上限、X 用户与日期过滤和媒体理解开关。只有获准的 xAI 连接接收请求，模型由公开别名映射。输出限于供应商返回的工具来源或引用，过滤非 HTTP(S)、带用户信息及重复 URL。JSON 中的摘要只能补充已引用的 URL。
+
+每次请求生成独立用量 ID，并区分入站搜索路由与出站 `responses`。成功终态持久化 `resource_usage.search_requests: 1`、上游请求 ID、报告的 Token 和费用。搜索次数表示独立请求次数。供应商工具调用、页面与帖子等单位计费归 B05。网关向上游应用输出 Token 配额，要求明确成本上限的预算在出站前拒绝。出站错误保留关联证据并脱敏，系统不会自动重放搜索调用。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 HTTP 进程和 xAI 协议夹具验收。覆盖 Key、路由和缓存、公开与上游模型映射、参数、来源去重及伪造引用、预算与配额、重复查询独立计量、429 后无重放、未完成响应证据及 Artisan 查询。在三库分别核对五条成功用量，供应商模拟回报的 123456 ticks 均存为 0.0000123456 USD。两个 AI 包严格库级 Clippy、11 项 HTTP 和回退回归、三语文档通过。正式 xAI 连接、模型与费用留在 E09。
+
+- [Sub2API 固定版独立搜索路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L339)
+- [Sub2API 固定版 Web Search 转换](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_web_search.go#L335)
+- [Sub2API 固定版 X Search 字段](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_x_search.go#L12)
+- [xAI Web Search](https://docs.x.ai/developers/tools/web-search)
+- [xAI X Search](https://docs.x.ai/developers/tools/x-search)
 
 ### xAI 自定义音色
 

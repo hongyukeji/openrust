@@ -12,7 +12,7 @@ use serde_json::{Map, Value, json};
 
 use super::{
     Admission, Gateway, HttpResult, Key, Protocol, Target, account_state_unavailable, admit,
-    authorize, request_too_large, xai_speech,
+    authorize, implicit_model, request_too_large,
     xai_transcription::{self, audio_container, multipart, multipart_error, spool_audio},
 };
 use crate::{session_affinity, usage::xai_custom_voices::Voice};
@@ -85,7 +85,7 @@ async fn create(request: &mut Request) -> HttpResult {
     };
     let name = match request.query(Some("model")) {
         Ok(Some(Value::String(name))) if !name.is_empty() => name,
-        Ok(None) => match xai_speech::implicit_model(&gateway, &key, SPEECH) {
+        Ok(None) => match implicit_model(&gateway, &key, SPEECH) {
             Ok(name) => name.to_owned(),
             Err((status, code, message)) => return PROTOCOL.error(status, code, message),
         },
