@@ -429,6 +429,8 @@ X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 网关保留上游搜索结果及加密输出。启用用量持久化后，记录成功的独立搜索请求及上游报告的 Token。此模式要求上游凭证具有 Alpha Search 权限。
 
+已获准通过 Responses 使用托管网页搜索的 Codex PAT，可在该连接的 `driver`、`url`、`key_env` 旁配置 `"alpha_search": "responses"`。客户端仍使用原有 Alpha Search 路径和公开模型名。网关访问连接的 `responses` 路径，确认收到成功完成事件后将文本和引用转换成 Alpha Search JSON。连接模式默认为 `native`。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

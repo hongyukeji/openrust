@@ -86,6 +86,8 @@ struct Configuration {
     forward_usage_context: bool,
     live: Option<crate::LiveProtocol>,
     #[serde(default)]
+    alpha_search: AlphaSearchProtocol,
+    #[serde(default)]
     models: Models,
     #[serde(default)]
     files: Option<FileConfiguration>,
@@ -96,6 +98,14 @@ struct Configuration {
     store: bool,
     #[serde(default = "anthropic_version")]
     version: String,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum AlphaSearchProtocol {
+    #[default]
+    Native,
+    Responses,
 }
 
 fn default_store() -> bool {
@@ -218,7 +228,9 @@ impl Connection {
         body: &Value,
         query: Option<&str>,
         metadata: Option<HeaderValue>,
+        session: Option<&str>,
     ) -> AiResult<Response> {
+        let endpoint = self.alpha_search_endpoint();
         let mut headers = self.headers.clone();
         for name in [
             "openai-beta",
@@ -236,14 +248,37 @@ impl Connection {
         if let Some(metadata) = metadata {
             headers.entry("x-codex-turn-metadata").or_insert(metadata);
         }
-        let path = TextEndpoint::AlphaSearch.path();
-        let url = query.map_or_else(|| path.to_owned(), |query| format!("{path}?{query}"));
+        let (url, accept) = if endpoint == TextEndpoint::Responses {
+            if let Some(session) = session {
+                let session = HeaderValue::from_str(session).map_err(|_| AiError::InvalidPrompt)?;
+                headers.insert("session_id", session.clone());
+                headers.insert("conversation_id", session);
+            }
+            headers.insert(
+                "openai-beta",
+                HeaderValue::from_static("responses=experimental"),
+            );
+            (endpoint.path().to_owned(), "text/event-stream")
+        } else {
+            let path = endpoint.path();
+            (
+                query.map_or_else(|| path.to_owned(), |query| format!("{path}?{query}")),
+                "application/json",
+            )
+        };
         self.request_with_headers(None, headers)?
-            .accept_json()
+            .accept(HeaderValue::from_static(accept))
             .stream()
             .post(&url, body)
             .await
             .map_err(transport_error)
+    }
+
+    pub(crate) fn alpha_search_endpoint(&self) -> TextEndpoint {
+        match self.config.alpha_search {
+            AlphaSearchProtocol::Native => TextEndpoint::AlphaSearch,
+            AlphaSearchProtocol::Responses => TextEndpoint::Responses,
+        }
     }
 
     fn credential(&self) -> AiResult<Option<&str>> {

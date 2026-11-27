@@ -429,6 +429,8 @@ X Search 可設定 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 閘道保留上游搜尋結果及加密輸出。啟用用量持久化後，記錄成功的獨立搜尋請求及上游回報的 Token。此模式要求上游憑證具有 Alpha Search 權限。
 
+已獲准透過 Responses 使用託管網頁搜尋的 Codex PAT，可在該連線的 `driver`、`url`、`key_env` 旁設定 `"alpha_search": "responses"`。用戶端仍使用原有的 Alpha Search 路徑與公開模型名稱。閘道存取連線的 `responses` 路徑，確認收到成功完成事件後將文字與引用轉成 Alpha Search JSON。連線模式預設為 `native`。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

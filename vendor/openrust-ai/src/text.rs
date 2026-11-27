@@ -257,8 +257,14 @@ pub trait TextProvider: Send + Sync {
         _body: Value,
         _query: Option<String>,
         _metadata: Option<http::HeaderValue>,
+        _session: Option<String>,
     ) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
+    fn alpha_search_endpoint(&self) -> Option<TextEndpoint> {
+        self.supports_endpoint(TextEndpoint::AlphaSearch)
+            .then_some(TextEndpoint::AlphaSearch)
     }
 
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
@@ -949,15 +955,21 @@ impl TextProvider for OpenAiTextProvider {
         body: Value,
         query: Option<String>,
         metadata: Option<http::HeaderValue>,
+        session: Option<String>,
     ) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async move {
-            if !self.supports_endpoint(TextEndpoint::AlphaSearch) {
+            if self.alpha_search_endpoint().is_none() {
                 return Err(AiError::EndpointNotSupported);
             }
             self.connection
-                .alpha_search(&body, query.as_deref(), metadata)
+                .alpha_search(&body, query.as_deref(), metadata, session.as_deref())
                 .await
         })
+    }
+
+    fn alpha_search_endpoint(&self) -> Option<TextEndpoint> {
+        matches!(self.protocol, OpenAiProtocol::Responses)
+            .then(|| self.connection.alpha_search_endpoint())
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
@@ -1093,7 +1105,7 @@ impl TextProvider for OpenAiTextProvider {
                     || self.connection.images_configured()
             }
             TextEndpoint::CountResponseTokens => matches!(self.protocol, OpenAiProtocol::Responses),
-            TextEndpoint::AlphaSearch => matches!(self.protocol, OpenAiProtocol::Responses),
+            TextEndpoint::AlphaSearch => self.alpha_search_endpoint() == Some(endpoint),
             TextEndpoint::ChatCompletions => true,
             _ => self.protocol.endpoint() == endpoint,
         }
@@ -1105,7 +1117,7 @@ impl TextProvider for OpenAiTextProvider {
                 return Err(AiError::EndpointNotSupported);
             }
             if endpoint == TextEndpoint::AlphaSearch {
-                return self.relay_alpha_search(body, None, None).await;
+                return self.relay_alpha_search(body, None, None, None).await;
             }
             if endpoint == TextEndpoint::XaiSpeechToText {
                 return Err(AiError::InvalidPrompt);

@@ -997,6 +997,9 @@ async fn relay(
             )]);
         }
         payload.insert("model".into(), json!(target.upstream_model));
+        if endpoint == TextEndpoint::AlphaSearch && upstream_endpoint == TextEndpoint::Responses {
+            payload = alpha_search::responses_payload(payload);
+        }
         let signed_reasoning = endpoint == TextEndpoint::Responses
             && upstream_endpoint == TextEndpoint::ChatCompletions
             && target.provider.supports_chat_reasoning_replay();
@@ -1181,7 +1184,10 @@ async fn relay(
         }
         let mut call = calls.pop().expect("已登记单次请求");
         let transport = if let Some(search) = &alpha_search {
-            RelayTransport::AlphaSearch(search)
+            let session = (upstream_endpoint == TextEndpoint::Responses)
+                .then(|| search.session(&key.relay_scope(&name, target)))
+                .flatten();
+            RelayTransport::AlphaSearch(search, session)
         } else if let Some(parts) = uploads.take() {
             RelayTransport::Multipart(parts)
         } else {
@@ -1199,6 +1205,9 @@ async fn relay(
         {
             Ok(upstream) => {
                 if endpoint == TextEndpoint::AlphaSearch {
+                    if upstream_endpoint == TextEndpoint::Responses {
+                        return alpha_search::respond_responses(upstream, call).await;
+                    }
                     return alpha_search::respond(upstream, &name, call).await;
                 }
                 if endpoint == TextEndpoint::SystemOne {
@@ -1400,7 +1409,7 @@ struct UpstreamFailure {
 enum RelayTransport<'a> {
     Json(Option<String>),
     Multipart(Vec<(String, client::Part)>),
-    AlphaSearch(&'a alpha_search::RequestOptions),
+    AlphaSearch(&'a alpha_search::RequestOptions, Option<String>),
 }
 
 async fn request_upstream(
@@ -1419,10 +1428,15 @@ async fn request_upstream(
             target.provider.relay_multipart(endpoint, data, parts).await
         }
         RelayTransport::Json(scope) => target.provider.scoped_relay(endpoint, data, scope).await,
-        RelayTransport::AlphaSearch(options) => {
+        RelayTransport::AlphaSearch(options, session) => {
             target
                 .provider
-                .relay_alpha_search(data, options.query.clone(), options.metadata.clone())
+                .relay_alpha_search(
+                    data,
+                    options.query.clone(),
+                    options.metadata.clone(),
+                    session,
+                )
                 .await
         }
     };

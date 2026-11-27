@@ -32,7 +32,7 @@
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。G19 的 xAI Realtime 升级、双向事件、取消和同连接多轮也已完成本地三库。 |
 | `POST /v1/{web_search,x_search}` 和可选无版本别名 | 网关 Key、公开模型和搜索工具授权，转换为 xAI 原生 Responses | G20 已完成[独立搜索的本地三库验收](#xai-独立搜索)。供应商实机见 E09，工具计费见 B05。 |
 | `POST /v1/systemone` | 网关 Key 与已发布的 TypeSafe 模型，原生同步分类 | G20 已通过 [System One 本地三库验收](#typesafe-system-one)。TypeSafe 正式账号和账单见 E11。 |
-| `POST /v1/alpha/search`、`POST /backend-api/codex/alpha/search` 和可选 `POST /alpha/search` | 网关 Key、模型与网页搜索授权，管理端配置具名原生连接 | G20 [原生独立搜索](#codex-原生-alpha-search)已通过本地三库。PAT 转 Responses 和工具费用分别见 G20 与 B05，正式客户端见 G21。 |
+| `POST /v1/alpha/search`、`POST /backend-api/codex/alpha/search` 和可选 `POST /alpha/search` | 网关 Key、模型与网页搜索授权，管理端配置具名原生连接 | G20 [原生独立搜索](#codex-原生-alpha-search)和 [PAT 经 Responses](#codex-pat-经-responses-执行-alpha-search)已通过本地三库。工具费用见 B05，正式客户端见 G21。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
 ## 兼容路径与账号类型
@@ -459,11 +459,22 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 TypeSafe 协议夹具的 SDK �
 
 返回 Codex 可读的 `output`、可选加密输出与结构化结果，保留结果 DTO 中的扩展字段，公开模型名覆盖出站模型。限制成功响应为 4 MiB，验证形状后才记录 `resource_usage.search_requests: 1`。有报告的 Token 写入独立用量。429、无效正文和超限响应保留上游请求 ID 和终态，异常不会重放到备用连接或计为成功搜索。要求已知费用上限的预算在出站前拒绝当前原生搜索。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过独立 HTTP 和 Artisan。验证三条路径、无版本开关及路由缓存、Key、工具和模型权限、出站鉴权与剔除的连接头、重复查询参数、加密输出及扩展结果、429、超限响应和 14／5 Token。11 项 HTTP 与回退回归、两个 AI 包的严格库级 Clippy 和三语构建通过。固定 Sub2API 的 PAT 转 Responses 路径仍在 G20，官方 Codex 进程触发完整搜索及正式上游权限在 G21，按次及供应商工具单位的计费在 B05。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过独立 HTTP 和 Artisan。验证三条路径、无版本开关及路由缓存、Key、工具和模型权限、出站鉴权与剔除的连接头、重复查询参数、加密输出及扩展结果、429、超限响应和 14／5 Token。11 项 HTTP 与回退回归、两个 AI 包的严格库级 Clippy 和三语构建通过。PAT 连接行为见下节。官方 Codex 进程触发完整搜索及正式上游权限在 G21，按次及供应商工具单位的计费在 B05。
 
 - [固定 Sub2API Alpha Search 出站处理](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_alpha_search.go)
 - [固定 Codex SearchClient](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/codex-api/src/endpoint/search.rs)
 - [OpenAI Responses 网页搜索文档](https://developers.openai.com/api/docs/guides/tools-web-search)
+
+### Codex PAT 经 Responses 执行 Alpha Search
+
+固定 Sub2API 对 Codex PAT 使用原生 Responses 托管网页搜索。OpenRust 在具名 OpenAI 连接通过 `alpha_search: "responses"` 显式选择该模式，默认继续使用原生 Alpha Search。部署方按获准连接配置 URL、凭证和身份头，客户端使用相同的三条路径、Key 和公开模型。网关将搜索命令和上下文转为 Responses 输入，传递网页搜索的上下文大小、地点、域名过滤、联网模式和输出 Token 上限。会话标识按下游 Key、模型、出站连接和原请求 ID 隔离。整个调用只派发一次。
+
+SSE 的 `response.completed` 是成功依据。成功后返回文本和去重引用，引用保留可读标题和对应 `ref_id`。未完成、错误或超限时回传脱敏错误，已经观察到的用量可供核对。只有完整终态才记录成功搜索次数。用量标识保留入站 `alpha/search` 和实际出站 `responses`，以及上游报告的 Token 与请求 ID。工具调用费用见 B05。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 用协议夹具通过三条 HTTP 路径、路由缓存、工具和模型授权、上游鉴权、同一 ID 跨 Key 隔离、分段 SSE、文本增量及终帧、重复和无效引用、失败限流和半截用量、4 MiB 正文上限及 Artisan 查询。另通过 SQLite 原生 Alpha Search 回归、11 项 Rust HTTP 与回退测试、两个 AI 包严格库级 Clippy 和三语文档构建。正式 PAT 凭证、上游权限与固定 Codex 客户端见 G21。
+
+- [固定 Sub2API 的 PAT 转换](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_alpha_search.go#L140)
+- [OpenAI Responses 网页搜索](https://developers.openai.com/api/docs/guides/tools-web-search)
 
 ### xAI 自定义音色
 

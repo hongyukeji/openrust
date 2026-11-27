@@ -333,6 +333,9 @@ impl Model {
 }
 
 fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+    if endpoint == TextEndpoint::AlphaSearch {
+        return provider.alpha_search_endpoint();
+    }
     if endpoint.is_xai_search() {
         return provider
             .supports_standalone_search()

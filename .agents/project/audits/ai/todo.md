@@ -56,10 +56,10 @@
 - [x] **G17 自定义音色**。本地三库已验收列表、上传、读取、更新、样本下载、删除、租户与账号归属及合成计量，详见[网关验收记录](gateway.md#xai-自定义音色)。正式权限见 E09。
 - [x] **G18 Live／Sideband**。本地三库已验收[创建、控制路由和归属](gateway.md#live-会话与控制入口)，以及[后台接管、到期回收和终态归集](gateway.md#live-后台接管与终态归集)。正式 WebRTC 和账号权限见 E11。
 - [x] **G19 Realtime 双向会话**。本地三库已验收[升级、双向事件、取消、同连接多轮及累计用量证据](gateway.md#xai-realtime-双向会话)。金额及预占见 B07，正式账号见 E09。
-- [ ] **G20 独立搜索和平台动作**。逐项裁决 `web_search`、`x_search`、`alpha/search`、`systemone`，验收鉴权、参数、错误和用量。
+- [x] **G20 独立搜索和平台动作**。四项端点及适用上游模式已通过本地三库的鉴权、参数、错误和用量验收。
   - [x] `web_search`、`x_search` 的[本地三库验收](gateway.md#xai-独立搜索)。正式 xAI 连接见 E09，工具计费见 B05。
   - [x] OpenAI／Codex 原生 `alpha/search` 的[本地三库验收](gateway.md#codex-原生-alpha-search)。
-  - [ ] 固定基线中 Codex PAT 经原生 Responses 工具执行独立搜索的转换、完成事件和用量。Codex 固定客户端另见 G21。
+  - [x] Codex PAT 经 Responses 执行 Alpha Search 的[本地三库验收](gateway.md#codex-pat-经-responses-执行-alpha-search)。Codex 固定客户端另见 G21。
   - [x] TypeSafe `systemone` 的[本地三库验收](gateway.md#typesafe-system-one)。正式连接与账单见 E11。
 - [ ] **G21 Codex 搜索与 Realtime Calls**。用固定客户端验收专用路径、凭证范围和会话归属。
 - [ ] **G22 剩余兼容路径**。按端点通过 `route:list` 和真实 HTTP 核对启用条件、授权及账号隔离。

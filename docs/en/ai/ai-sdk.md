@@ -429,6 +429,8 @@ Use the gateway Bearer key with `POST /v1/alpha/search` or `POST /backend-api/co
 
 The gateway preserves search results and encrypted output from the upstream. It records a successful standalone request and any reported tokens when usage storage is enabled. This mode requires an upstream credential provisioned for Alpha Search.
 
+For a provisioned Codex PAT connection that supports hosted web search through Responses, set `"alpha_search": "responses"` in that provider’s configuration alongside `driver`, `url`, and `key_env`. The incoming Alpha Search paths and public model alias stay the same. The gateway uses the provider’s `responses` path, waits for a successful completion event, and returns the text and citations as Alpha Search JSON. The default provider mode is `native`.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.
