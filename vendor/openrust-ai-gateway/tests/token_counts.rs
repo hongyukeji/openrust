@@ -13,6 +13,31 @@ use tokio::{
 
 type TestError = Box<dyn Error + Send + Sync>;
 
+const OPTIONAL_PATHS: &[(&str, &str)] = &[
+    ("GET", "/models"),
+    ("GET", "/models/public"),
+    ("POST", "/chat/completions"),
+    ("GET", "/responses"),
+    ("POST", "/responses"),
+    ("POST", "/responses/input_tokens"),
+    ("POST", "/embeddings"),
+    ("POST", "/messages/count_tokens"),
+    ("POST", "/images/generations"),
+    ("POST", "/images/edits"),
+    ("POST", "/tts"),
+    ("POST", "/stt"),
+    ("GET", "/custom-voices"),
+    ("POST", "/custom-voices"),
+    ("GET", "/custom-voices/voice"),
+    ("PATCH", "/custom-voices/voice"),
+    ("DELETE", "/custom-voices/voice"),
+    ("GET", "/custom-voices/voice/audio"),
+    ("GET", "/realtime"),
+    ("POST", "/web_search"),
+    ("POST", "/x_search"),
+    ("POST", "/alpha/search"),
+];
+
 fn app<const ALIASES: bool>() -> Result<TestApp, TestError> {
     TestApp::create(|builder| {
         let mut providers = openrust_ai::openrust_providers();
@@ -37,6 +62,54 @@ fn app<const ALIASES: bool>() -> Result<TestApp, TestError> {
             ].into())
         })
     })
+}
+
+#[tokio::test]
+async fn versionless_paths_follow_the_switch_and_keep_versioned_authentication()
+-> Result<(), TestError> {
+    let mut enabled = app::<true>()?;
+    let mut disabled = app::<false>()?;
+    for context in [&enabled, &disabled] {
+        fs::write(
+            context.root().join(".env.testing"),
+            "AI_GATEWAY_ENABLED=true\nCALLER_KEY=caller-fixture\nBEDROCK_CALLER_KEY=bedrock-fixture\n",
+        )?;
+    }
+    for &(method, path) in OPTIONAL_PATHS {
+        for (aliases, uri, status) in [
+            (true, path.to_owned(), StatusCode::UNAUTHORIZED),
+            (false, path.to_owned(), StatusCode::NOT_FOUND),
+            (false, format!("/v1{path}"), StatusCode::UNAUTHORIZED),
+        ] {
+            let context = if aliases { &mut enabled } else { &mut disabled };
+            let response = context
+                .call(
+                    http::Request::builder()
+                        .method(method)
+                        .uri(&uri)
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), status, "{method} {uri}");
+        }
+    }
+    for (method, path) in [
+        ("POST", "/messages"),
+        ("POST", "/systemone"),
+        ("POST", "/live"),
+        ("GET", "/usage"),
+    ] {
+        let response = enabled
+            .call(
+                http::Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+    Ok(())
 }
 
 #[tokio::test]

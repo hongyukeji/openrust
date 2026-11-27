@@ -168,7 +168,14 @@ let control = live.connect_live_sideband(&call.id).await?;
 
 兩種計數入口也可使用 Bedrock 連線，前提是所選模型和區域支援執行階段的 `CountTokens` 操作。若要同時發佈兩條路徑，在閘道模型的 `endpoints` 中加入 `responses/input_tokens` 和 `messages/count_tokens`。兩種入口都接受文字、系統指令和用戶端函式歷史。Messages 計數亦接受 Bedrock Converse 支援的內嵌 Base64 附件，含文件的訊息必須同時包含文字區塊。閘道記錄對上游的請求，生成用量、計費金額和貨幣預算餘額維持原值。發佈前可確認 AWS 的模型支援情況。[Amazon Bedrock Token 計數](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html)
 
-用戶端需要不含 `/v1` 的路徑時，在 `config/ai_gateway.rs` 將 `unversioned_paths` 設為 `true`。這會新增 `/models`、`/models/{model}`、`/chat/completions`、`/responses`、`/responses/input_tokens`、`/embeddings` 和 `/messages/count_tokens`，並共用原有授權與限流。
+在 `config/ai_gateway.rs` 將 `unversioned_paths` 設為 `true` 即可啟用下列別名。別名與對應的 `/v1` 路由共用授權、限流、模型別名和用量記錄。修改後請重新產生路由快取。
+
+| 能力 | 無版本路徑 |
+| --- | --- |
+| 目錄與推論 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /embeddings`、`POST /messages/count_tokens` |
+| 圖片 | `POST /images/generations`、`POST /images/edits` |
+| xAI 語音 | `POST /tts`、`POST /stt`、`GET /realtime`（WebSocket）、`/custom-voices` 下的[自訂音色操作](#gateway-custom-voices) |
+| 搜尋 | `POST /web_search`、`POST /x_search`、`POST /alpha/search` |
 
 兩個方向的轉換都支援一般 JSON 和 SSE，並向用戶端回傳公開模型名稱。上游回報快取讀寫用量時，閘道會依目標協定回傳相應的計數。
 

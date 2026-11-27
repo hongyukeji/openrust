@@ -168,7 +168,14 @@ Use `POST /v1/responses/input_tokens` to count the input for a published OpenAI 
 
 Both counting endpoints can use a Bedrock connection whose model and region support the runtime `CountTokens` operation. To publish both paths, include `responses/input_tokens` and `messages/count_tokens` in the gateway model's `endpoints`. Both accept text, system instructions and client-side function history. Messages counting also accepts inline Base64 attachments supported by Bedrock Converse. Include a text block in any message with a document. The gateway records the attempt. It leaves generation usage, charges and monetary budget balances unchanged. Check AWS model support before publishing the endpoints. [Amazon Bedrock token counting](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html)
 
-Set `unversioned_paths` to `true` in `config/ai_gateway.rs` when a client needs paths without `/v1`. This adds `/models`, `/models/{model}`, `/chat/completions`, `/responses`, `/responses/input_tokens`, `/embeddings`, and `/messages/count_tokens` with the same authorization and limits.
+Set `unversioned_paths` to `true` in `config/ai_gateway.rs` to enable the following aliases. They share authorization, limits, model aliases, and usage records with the corresponding `/v1` routes. Rebuild the route cache after changing the setting.
+
+| Protocol | Unversioned paths |
+| --- | --- |
+| Catalog and inference | `GET /models`, `GET /models/{model}`, `POST /chat/completions`, `POST /responses`, `GET /responses` (WebSocket), `POST /responses/input_tokens`, `POST /embeddings`, `POST /messages/count_tokens` |
+| Images | `POST /images/generations`, `POST /images/edits` |
+| xAI voice | `POST /tts`, `POST /stt`, `GET /realtime` (WebSocket), [custom voice operations](#gateway-custom-voices) under `/custom-voices` |
+| Search | `POST /web_search`, `POST /x_search`, `POST /alpha/search` |
 
 Both conversion directions support buffered JSON and SSE, and use the published model name in client responses. When upstream reports cache reads or writes, the gateway includes those counts using the destination protocol’s usage fields.
 

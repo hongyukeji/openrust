@@ -168,7 +168,14 @@ let control = live.connect_live_sideband(&call.id).await?;
 
 两种计数入口也可使用 Bedrock 连接，前提是所选模型和区域支持运行时的 `CountTokens` 操作。要同时发布两条路径，在网关模型的 `endpoints` 中加入 `responses/input_tokens` 和 `messages/count_tokens`。两种入口均接收文本、系统指令和客户端函数历史。Messages 计数还接收 Bedrock Converse 支持的内联 Base64 附件，含文档的消息须同时包含文本块。网关记录出站尝试，生成用量、计费金额和货币预算余额保持原值。发布前可核对 AWS 的模型支持情况。[Amazon Bedrock Token 计数](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html)
 
-客户端需要不含 `/v1` 的路径时，在 `config/ai_gateway.rs` 将 `unversioned_paths` 设为 `true`。这会增加 `/models`、`/models/{model}`、`/chat/completions`、`/responses`、`/responses/input_tokens`、`/embeddings` 和 `/messages/count_tokens`，并共用原有授权与限流。
+在 `config/ai_gateway.rs` 将 `unversioned_paths` 设为 `true` 即可启用下列别名。别名与对应的 `/v1` 路由共用授权、限流、模型别名和用量记录。修改后请重新生成路由缓存。
+
+| 能力 | 无版本路径 |
+| --- | --- |
+| 目录与推理 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /embeddings`、`POST /messages/count_tokens` |
+| 图片 | `POST /images/generations`、`POST /images/edits` |
+| xAI 语音 | `POST /tts`、`POST /stt`、`GET /realtime`（WebSocket）、`/custom-voices` 下的[自定义音色操作](#gateway-custom-voices) |
+| 搜索 | `POST /web_search`、`POST /x_search`、`POST /alpha/search` |
 
 两个方向的转换都支持普通 JSON 和 SSE，给客户端返回公开模型名。上游报告缓存读写用量时，网关会按目标协议返回相应计数。
 

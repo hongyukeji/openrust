@@ -39,7 +39,7 @@
 
 | 基线入口 | 裁决 |
 |---|---|
-| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 通过 `unversioned_paths` 可选启用目录、Chat、Responses、`input_tokens`、Embeddings 与 Messages 计数的 HTTP 别名，实测共用授权及限流，并验证 `GET /responses` WebSocket 别名。其他无版本操作待验收。 |
+| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 已通过 [22 条现有可选别名的三库核对](#现有无版本路径核对)。待基础端点开放的 Responses 子路径和媒体别名见同节。 |
 | `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 已实测专用模型目录、Responses 生成与输入计数、WebSocket。搜索与实时会话待验收，专用账号归 GW-04。 |
 | `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | G22 的[专用路径与账号隔离](#antigravity-专用路径与账号隔离)已通过本地三库。实际上游账号与原生凭证生命周期见 B01、E11。 |
 | 上游 API Key、OAuth／订阅、平台专用连接与组合分组 | API Key 已通过 SDK 与自托管网关验证。同名模型按端点、原生／转换支持和账号可用性选路。OAuth 刷新、订阅限制、会话黏性、分组模型白名单和跨账号失败回退归 GW-04；管理与发布入口验收归 GW-05。 |
@@ -506,6 +506,24 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关和上游协议�
 - [固定 Sub2API Antigravity 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L511)
 - [固定 Sub2API 原生 Gemini 动作](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/antigravity_gateway_gemini.go)
 - [Google Antigravity 官方认证方式](https://antigravity.google/docs/install/)
+
+### 现有无版本路径核对
+
+`unversioned_paths` 默认为关闭。开启后明确注册 22 条 GET／POST／PATCH／DELETE 路由（另有 GET 自动提供的 HEAD），与 `/v1` 共用 handler、Key、模型授权、账号选择及用量。包括目录和单模型、Chat、HTTP 与 WebSocket Responses、输入计数、Embeddings、Messages 计数、图片生成与编辑、TTS、STT、自定义音色六个操作、xAI 实时及三个独立搜索入口。固定基线没有根路径 Messages、System One、Live 或用量入口。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前后的 `route:list` 精确增量，重建两套缓存后逐路由发送 HTTP 请求。验证关闭时根路径 404、对应版本化路径继续要求认证，开启后两条路径均返回相同的未认证响应。另验收目录和单模型、Responses、原生计数和 Alpha Search 的授权、越权拒绝、相同上游路径及同一账目口径。新增 Rust 回归覆盖全部 22 条路径，四项计数测试与 12 项 HTTP／回退回归通过。计数测试的严格 Clippy 及三语文档通过。其他端点的成功请求及协议限制保留各节证据。
+
+| 仍缺基础操作的固定基线路由族 | 关联任务 |
+|---|---|
+| `POST /responses/compact` 及其他适用的 Responses 子路径 | G04 的资源范围与重放，连同 `/v1`、Codex 及无版本路径验收 |
+| `POST /images/{generations,edits}/async` 和 `GET /images/tasks/{id}` | G09 与 G10 的任务归属与读取 |
+| `/videos`、`/videos/{generations,edits,extensions}` 及其状态和内容路由 | G13 的视频任务与下载 |
+| `/contents/generations/tasks` 及任务查询和删除 | G14 的 Seedance 路径族及所有权 |
+
+上表当前 HTTP 返回 404。G22 在这些基础操作及对应别名验收后闭合。
+
+- [固定 Sub2API 无版本路由注册](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L381)
+- [OpenAI Responses Compact 公开契约](https://developers.openai.com/api/reference/resources/responses/methods/compact)
 
 ### xAI 自定义音色
 
