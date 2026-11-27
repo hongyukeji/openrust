@@ -62,8 +62,7 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
                 Some("assistant") => "assistant",
                 _ => return Err("消息 role 不受支持"),
             };
-            let text = text_parts(&item["content"], role)?.concat();
-            messages.push(json!({"role":role,"content":text}));
+            messages.push(json!({"role":role,"content":chat_content(&item["content"], role)?}));
         }
         history.finish()?;
     }
@@ -78,6 +77,43 @@ pub(crate) fn from_responses(request: Map<String, Value>) -> Result<Value, &'sta
         target.insert("stream_options".into(), json!({"include_usage":true}));
     }
     Ok(target.into())
+}
+
+fn chat_content(content: &Value, role: &str) -> Result<Value, &'static str> {
+    let Some(parts) = content.as_array().filter(|parts| {
+        role == "user"
+            && parts
+                .iter()
+                .any(|part| matches!(part["type"].as_str(), Some("input_image" | "input_file")))
+    }) else {
+        return Ok(text_parts(content, role)?.concat().into());
+    };
+    let parts = parts.iter().map(|part| {
+        match part["type"].as_str() {
+            Some("input_text") if allowed_fields(part, &["type", "text"]) && part["text"].is_string() => {
+                Ok(json!({"type":"text","text":part["text"]}))
+            }
+            Some("input_image") if allowed_fields(part, &["type", "image_url", "detail", "file_id"])
+                && part["file_id"].is_null()
+                && part["image_url"].as_str().is_some_and(|url| url.starts_with("data:"))
+                && (part["detail"].is_null() || part["detail"].is_string()) =>
+            {
+                let mut image = json!({"url":part["image_url"]});
+                if !part["detail"].is_null() {
+                    image["detail"] = part["detail"].clone();
+                }
+                Ok(json!({"type":"image_url","image_url":image}))
+            }
+            Some("input_file") if allowed_fields(part, &["type", "filename", "file_data", "file_id", "file_url"])
+                && part["file_url"].is_null() && part["file_id"].is_null()
+                && part["filename"].is_string() && part["file_data"].is_string() =>
+            {
+                Ok(json!({"type":"file","file":{"filename":part["filename"],"file_data":part["file_data"]}}))
+            }
+            _ => Err("Responses 到 Chat Completions 仅转换文本和内联图片或文档"),
+        }
+    }).collect::<Result<Vec<_>, _>>()?;
+    Ok(Value::Array(parts))
 }
 
 fn chat_format(format: &Value) -> Result<Option<Value>, &'static str> {

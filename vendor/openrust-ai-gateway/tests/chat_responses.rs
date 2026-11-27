@@ -26,6 +26,7 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
         for stage in [
             "json",
             "schema",
+            "inline_media",
             "stream",
             "cut",
             "json_tool",
@@ -65,7 +66,8 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
             assert_eq!(payload["max_tokens"], 64);
             assert!(payload.get("store").is_none());
             assert_eq!(
-                &payload["messages"].as_array().unwrap()[..4],
+                &payload["messages"].as_array().unwrap()
+                    [..if stage == "inline_media" { 3 } else { 4 }],
                 json!([
                     {"role":"system","content":"Be concise"},
                     {"role":"user","content":"Hello world"},
@@ -73,6 +75,7 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
                     {"role":"user","content":"Next?"},
                 ])
                 .as_array()
+                .map(|messages| &messages[..if stage == "inline_media" { 3 } else { 4 }])
                 .unwrap()
             );
             if matches!(stage, "json_tool" | "history" | "tool_stream" | "bad_tool") {
@@ -101,6 +104,20 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
                     json!({"choices":[{"message":{"content":"{\"done\":true}"},"finish_reason":"stop"}],
                         "usage":{"prompt_tokens":10,"completion_tokens":4,
                         "prompt_tokens_details":{"cached_tokens":3,"cache_write_tokens":2}}}).to_string(),
+                )
+            } else if stage == "inline_media" {
+                assert_eq!(
+                    payload["messages"][3]["content"],
+                    json!([
+                        {"type":"text","text":"Next?"},
+                        {"type":"image_url","image_url":{"url":"data:image/png;base64,AA==","detail":"auto"}},
+                        {"type":"file","file":{"filename":"fixture.pdf","file_data":"JVBERi0="}},
+                    ])
+                );
+                (
+                    "application/json",
+                    json!({"choices":[{"message":{"content":"media"},"finish_reason":"stop"}]})
+                        .to_string(),
                 )
             } else if stage == "json_tool" {
                 ("application/json",json!({"choices":[{"message":{"content":null,"tool_calls":[
@@ -216,6 +233,24 @@ async fn responses_relay_to_chat_only_connections_in_json_and_sse()
     assert_eq!(value["usage"]["input_tokens"], 10);
     assert_eq!(value["usage"]["input_tokens_details"]["cached_tokens"], 3);
     assert_eq!(value["usage"]["cache_creation_input_tokens"], 2);
+
+    let mut media = payload.clone();
+    media["input"][2]["content"] = json!([
+        {"type":"input_text","text":"Next?"},
+        {"type":"input_image","image_url":"https://example.invalid/input.png","detail":"auto"},
+        {"type":"input_file","filename":"fixture.pdf","file_data":"JVBERi0="},
+    ]);
+    assert_eq!(
+        app.call(request(&media)?).await?.status(),
+        StatusCode::BAD_REQUEST
+    );
+    media["input"][2]["content"][1]["image_url"] = "data:image/png;base64,AA==".into();
+    let response = app.call(request(&media)?).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.json::<Value>()?["output"][0]["content"][0]["text"],
+        "media"
+    );
 
     let mut unsupported = payload.clone();
     unsupported["tools"] = json!([{"type":"web_search"}]);

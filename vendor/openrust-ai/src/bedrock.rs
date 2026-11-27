@@ -1,5 +1,6 @@
 mod catalog;
 mod chat;
+mod chat_media;
 mod chat_tools;
 mod embeddings;
 mod image;
@@ -779,42 +780,10 @@ fn message_content(
         blocks.push(ContentBlock::Text(text.into()));
     }
     for attachment in attachments {
-        blocks.push(match attachment {
-            Attachment::Image(image) => {
-                let format = match image.mime() {
-                    "image/jpeg" => ImageFormat::Jpeg,
-                    "image/png" => ImageFormat::Png,
-                    "image/webp" => ImageFormat::Webp,
-                    _ => return Err(AiError::InvalidImage),
-                };
-                ContentBlock::Image(
-                    ImageBlock::builder()
-                        .format(format)
-                        .source(ImageSource::Bytes(Blob::new(image.content())))
-                        .build()
-                        .map_err(|_| AiError::InvalidImage)?,
-                )
-            }
-            Attachment::Document(document) => {
-                if text.trim().is_empty() {
-                    return Err(AiError::InvalidPrompt);
-                }
-                let format = match document.mime() {
-                    "application/pdf" => DocumentFormat::Pdf,
-                    "text/plain" => DocumentFormat::Txt,
-                    "text/markdown" => DocumentFormat::Md,
-                    _ => return Err(AiError::InvalidDocument),
-                };
-                ContentBlock::Document(
-                    DocumentBlock::builder()
-                        .format(format)
-                        .name(document_name(document.filename()))
-                        .source(DocumentSource::Bytes(Blob::new(document.content())))
-                        .build()
-                        .map_err(|_| AiError::InvalidDocument)?,
-                )
-            }
-        });
+        if matches!(attachment, Attachment::Document(_)) && text.trim().is_empty() {
+            return Err(AiError::InvalidPrompt);
+        }
+        blocks.push(attachment_block(attachment)?);
     }
     if blocks.is_empty() {
         return Err(AiError::InvalidPrompt);
@@ -826,6 +795,42 @@ fn message_content(
         .map_err(|_| AiError::InvalidPrompt)
 }
 
+fn attachment_block(attachment: &Attachment) -> AiResult<ContentBlock> {
+    Ok(match attachment {
+        Attachment::Image(image) => {
+            let format = match image.mime() {
+                "image/jpeg" => ImageFormat::Jpeg,
+                "image/png" => ImageFormat::Png,
+                "image/webp" => ImageFormat::Webp,
+                _ => return Err(AiError::InvalidImage),
+            };
+            ContentBlock::Image(
+                ImageBlock::builder()
+                    .format(format)
+                    .source(ImageSource::Bytes(Blob::new(image.content())))
+                    .build()
+                    .map_err(|_| AiError::InvalidImage)?,
+            )
+        }
+        Attachment::Document(document) => {
+            let format = match document.mime() {
+                "application/pdf" => DocumentFormat::Pdf,
+                "text/plain" => DocumentFormat::Txt,
+                "text/markdown" => DocumentFormat::Md,
+                _ => return Err(AiError::InvalidDocument),
+            };
+            ContentBlock::Document(
+                DocumentBlock::builder()
+                    .format(format)
+                    .name(document_name(document.filename()))
+                    .source(DocumentSource::Bytes(Blob::new(document.content())))
+                    .build()
+                    .map_err(|_| AiError::InvalidDocument)?,
+            )
+        }
+    })
+}
+
 fn document_name(filename: &str) -> String {
     let stem = Path::new(filename)
         .file_stem()
@@ -833,7 +838,7 @@ fn document_name(filename: &str) -> String {
         .unwrap_or(filename);
     let name = stem.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut safe = String::with_capacity(name.len());
-    for character in name.chars() {
+    for character in name.chars().take(200) {
         if character.is_ascii_alphanumeric()
             || matches!(character, '-' | '(' | ')' | '[' | ']' | ' ')
         {

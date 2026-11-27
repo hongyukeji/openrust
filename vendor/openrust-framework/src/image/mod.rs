@@ -182,7 +182,7 @@ impl std::error::Error for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub(crate) use codecs::encoded_dimensions;
+pub use codecs::encoded_dimensions;
 
 impl From<crate::contracts::container::BindingResolutionError> for Error {
     fn from(source: crate::contracts::container::BindingResolutionError) -> Self {

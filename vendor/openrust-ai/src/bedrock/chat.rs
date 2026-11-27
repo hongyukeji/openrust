@@ -18,6 +18,7 @@ use crate::{AiError, AiResult, FinishReason, ReasoningPart, StepEvent, Usage};
 use super::{
     BedrockMessage, BedrockProvider, ContentBlock, ConversationRole, InferenceConfiguration,
     ReasoningContentBlock, SystemContentBlock, TimeoutConfig,
+    chat_media::ChatMedia,
     chat_tools::{ChatTools, ToolHistory, has_only, wire_call},
     converse_error, finish_reason,
     relay::{error_response, relay_headers, relay_response},
@@ -88,6 +89,7 @@ impl<'a> ChatRequest<'a> {
         let mut messages = Vec::new();
         let mut chat_tools = ChatTools::parse(body)?;
         let mut tool_history = ToolHistory::default();
+        let mut media = ChatMedia::default();
         for message in body["messages"]
             .as_array()
             .ok_or("Bedrock Chat 缺少消息列表")?
@@ -114,12 +116,16 @@ impl<'a> ChatRequest<'a> {
                             .map(|part| SystemContentBlock::Text(part.into())),
                     );
                 }
-                Some("user" | "assistant") => {
-                    let role = if message["role"] == "user" {
-                        ConversationRole::User
-                    } else {
-                        ConversationRole::Assistant
-                    };
+                Some("user") => {
+                    messages.push(
+                        BedrockMessage::builder()
+                            .role(ConversationRole::User)
+                            .set_content(Some(media.user_content(&message["content"])?))
+                            .build()
+                            .map_err(|_| "无法构造 Bedrock Chat 用户消息")?,
+                    );
+                }
+                Some("assistant") => {
                     let calls = if message["tool_calls"].is_null() {
                         Vec::new()
                     } else {
@@ -140,7 +146,7 @@ impl<'a> ChatRequest<'a> {
                         );
                     }
                     let native = BedrockMessage::builder()
-                        .role(role)
+                        .role(ConversationRole::Assistant)
                         .set_content(Some(content))
                         .build()
                         .map_err(|_| "无法构造 Bedrock Chat 消息")?;
@@ -155,7 +161,7 @@ impl<'a> ChatRequest<'a> {
             .last()
             .is_none_or(|message| message.role() != &ConversationRole::User)
         {
-            return Err("Bedrock Chat 的最后一条消息须为 user 文本");
+            return Err("Bedrock Chat 的最后一条消息须为 user");
         }
         Ok(Self {
             model,

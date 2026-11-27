@@ -217,7 +217,7 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 `chat/completions` 发布端点将普通文本映射到 AWS Converse，SSE 映射到 ConverseStream。复用 SDK 的 AWS 凭证链、原生事件解码及用量换算。保留前置 system／developer 和消息内的文本顺序，映射最大输出 Token、temperature、top-p 与停止字符串。返回公开模型名及可见推理。跳过供应商签名与不透明推理。网关在用量帧及 `[DONE]` 发出前保存最终用量。明确请求 `stream_options.include_usage` 时输出末尾用量帧，并在此前各数据帧中将 `usage` 设为 null。
 
-独立 Artisan 实测 SDK 直连与 SDK 经网关。外部 HTTP 通过本地 AWS 原生协议服务验证 JSON、首段文本早于终帧、流式结束原因、三种用量选项、身份隔离、结构化及工具请求出站前拒绝、AWS 403 和截断无 `[DONE]`。SQLite 核对七次网关尝试的原生操作与 AWS 请求 ID。成功样例按 12 个基础输入、2 个缓存读取、3 个缓存写入和 4 个输出 Token 记录，隐藏用量帧时仍保存最终状态。以独立缓存费率复算，每个成功样例的上游成本为 0.03 USD、下游应收为 0.06 USD。截断和 403 的成本待核对，应收为零。31 项 SDK 与网关回归、严格 Clippy、三语站点和根路径及 /docs/ 导航通过。客户端函数和原生 JSON Schema 见下两节。媒体与真实 AWS 账户验收继续单列。
+独立 Artisan 实测 SDK 直连与 SDK 经网关。外部 HTTP 通过本地 AWS 原生协议服务验证 JSON、首段文本早于终帧、流式结束原因、三种用量选项、身份隔离、结构化及工具请求出站前拒绝、AWS 403 和截断无 `[DONE]`。SQLite 核对七次网关尝试的原生操作与 AWS 请求 ID。成功样例按 12 个基础输入、2 个缓存读取、3 个缓存写入和 4 个输出 Token 记录，隐藏用量帧时仍保存最终状态。以独立缓存费率复算，每个成功样例的上游成本为 0.03 USD、下游应收为 0.06 USD。截断和 403 的成本待核对，应收为零。31 项 SDK 与网关回归、严格 Clippy、三语站点和根路径及 /docs/ 导航通过。客户端函数、原生 JSON Schema 和内联媒体见下文。真实 AWS 账户验收继续单列。
 
 - [AWS Converse 与 ConverseStream](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) · [AWS 推理参数](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html) · [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat)
 
@@ -236,6 +236,14 @@ Chat Completions 的 `response_format.json_schema` 与 Responses 的 `text.forma
 本地 AWS 协议服务以独立 Artisan 验证 SDK 原生 `with_schema` 和 SDK 经网关，独立 HTTP 覆盖 Chat Completions／Responses 的 JSON 与 SSE、嵌套对象、与工具并用、首段 JSON 早于 AWS 终帧、预检、上游 400、达到 Token 上限，以及格式错误时不发成功终帧。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对 12 次网关尝试。AWS 报告 17 输入和 4 输出 Token 的成功样例按模拟费率成本 0.03 USD、应收 0.06 USD。四次格式错误仍按已确认用量入账，应收为零。31 项回归、严格 Clippy 和三语站点检查通过。原生 SDK 继续按固定 Laravel 的工具或 JSON 指令策略处理 `with_schema`。正式 AWS 账户及模型验收仍待执行。
 
 - [AWS 原生结构化输出](https://docs.aws.amazon.com/bedrock/latest/userguide/structured-output.html) · [AWS JsonSchemaDefinition](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_JsonSchemaDefinition.html) · [OpenAI 结构化输出](https://developers.openai.com/api/docs/guides/structured-outputs)
+
+## GW-03 Bedrock 网关内联媒体
+
+Chat Completions 的 `image_url`、`file` 和 Responses 的 `input_image`、`input_file` 保留文本和媒体块顺序。复用 SDK 的附件 MIME 校验与 Converse 内容块转换。支持 PNG、JPEG、WebP、PDF、UTF-8 文本和 Markdown，文档接受文件名加原始 Base64 或 Base64 data URL。每条文档消息需要文本提示，允许仅含图片的消息。按 AWS 限制和 SDK 附件预算检查大小、宽高、总数量和文档数量。远程地址、共享文件 ID、未支持的细节档位及 MIME 不一致在出站前拒绝。
+
+用独立 Artisan、真实 HTTP 和本地 AWS 协议服务验收 SDK 直连、SDK 经网关及外部访问。Chat Completions／Responses 分别验证 JSON 与 SSE、图片文档原始字节、文本间隔、单图输入及非法输入；另验证带图片和 PDF 的两轮工具调用回送同样的原始附件。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对八次媒体网关尝试。每笔记录 17 输入和 4 输出 Token，按模拟费率结算成本 0.03 USD、应收 0.06 USD。账本没有保存附件数据。31 项 SDK 与网关回归、严格 Clippy 和三语站点通过。AWS 实机的模型媒体能力待验。
+
+- [AWS Converse 消息约束](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Message.html) · [AWS 文档块](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html) · [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat)
 
 ## GW-03 Bedrock 文生图兼容入口
 

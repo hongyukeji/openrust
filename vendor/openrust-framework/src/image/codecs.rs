@@ -32,7 +32,8 @@ pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
 }
 
 /// Reads image metadata without decoding pixels or applying EXIF orientation.
-pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+/// 读取已编码图片的宽高，无需解码像素。
+pub fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     match bytes.first_chunk::<4>()? {
         b"II*\0" => return directory_dimensions::tiff(bytes, true),
         b"MM\0*" => return directory_dimensions::tiff(bytes, false),

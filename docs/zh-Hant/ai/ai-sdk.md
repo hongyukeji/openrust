@@ -862,7 +862,9 @@ Cohere 讀取原生浮點向量和計費輸入 Token，Jina 使用 `retrieval.pa
 
 要透過閘道發布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。用戶端以公開模型名稱呼叫 `POST /v1/chat/completions`。一般 JSON 和 SSE 都支援前置 system 或 developer 指令、文字歷史、最大輸出 Token、temperature、top-p 和最多四個停止字串。將 `stream_options.include_usage` 設為 `true` 可收到末尾用量訊框。省略該訊框時閘道仍記錄用量。
 
-此入口支援文字和用戶端函式工具。提交 `tools` 與選用的 `tool_choice`，下一輪保留工具定義，並用帶原始 `tool_call_id` 的 `tool` 訊息送回每個結果。平行結果會合併為一則 Bedrock 訊息。若 `parallel_tool_calls` 為 `false`，閘道會拒絕上游一次傳回多個呼叫的回應。串流工具呼叫在 Bedrock 送出完整參數及最終用量後交付。需要重播簽名推理的工具步驟或媒體輸入可用原生 SDK。
+此入口支援文字和用戶端函式工具。提交 `tools` 與選用的 `tool_choice`，下一輪保留工具定義，並用帶原始 `tool_call_id` 的 `tool` 訊息送回每個結果。平行結果會合併為一則 Bedrock 訊息。若 `parallel_tool_calls` 為 `false`，閘道會拒絕上游一次傳回多個呼叫的回應。串流工具呼叫在 Bedrock 送出完整參數及最終用量後交付。需要重播簽名推理的工具步驟可用原生 SDK。
+
+使用者訊息可附帶內嵌 PNG、JPEG、WebP 圖片及 PDF、UTF-8 文字或 Markdown 文件。Chat Completions 在 `image_url.url` 傳 Base64 data URL，文件用 `file` 傳 `filename` 和 Base64 `file_data`。Responses 使用 `input_image` 和 `input_file`。帶文件的訊息需同時提供文字區塊，圖片的 `detail` 支援 `auto`。單次請求最多 16 個附件，其中最多 5 份文件。單張圖片上限 3.75 MB，每邊最多 8,000 像素。單份文件上限 4.5 MB。這兩個入口只接受內嵌資料。
 
 需要結構化輸出時，將 `response_format.type` 設為 `json_schema`，並在 `response_format.json_schema` 中提供 `name`、物件 `schema` 和選用的 `description`。同時發布 `responses` 時，可將這些欄位與 `type: "json_schema"` 一起放在 `text.format`。一般 JSON 和 SSE 均使用 Bedrock 原生約束。請選擇支援結構化輸出的模型，並在 Schema 的每個物件上明確設定 `additionalProperties: false`。此入口需要明確的 Schema，Bedrock 會拒絕不支援的定義。閘道為此模式提供 120 秒，包含首次編譯 Schema 的時間。
 
