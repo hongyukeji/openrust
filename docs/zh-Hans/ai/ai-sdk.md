@@ -314,6 +314,14 @@ Schedule::configure(|schedule| {
 
 启用 Bedrock 图片计费前，发布并执行最新的 `ai-gateway-migrations`。在上游和下游费率中设置 `image`，用十进制字符串表示对应币种的每图单价，例如 `"image": "0.04"`。按尺寸和质量分档时，配置 `image_tiers`，例如 `{"768x1152/premium": "0.08"}`。网关以实际发给 Bedrock 的参数选档，Stability 使用 `3:2/default` 这类键。未命中时回退到 `image` 固定费率。两项都缺失时，该方向金额保留待核对，硬预算也无法按该方向预占。账本保存选中的 `image_tier` 和单价。只按图计费时将 `input` 和 `output` 设为 `"0"`。网关按请求的 `n` 预占，按实际返回且通过验证的图片数结算。已知数量会出现在用量账本及 `/v1/usage` 的 `output_images`。未知供应商费用保留待核对，可用 AWS 账单对账。
 
+### 网关 Live 与 Sideband {#gateway-live}
+
+配置 [Live 供应商连接](#live-webrtc)，在 `config/ai_gateway.rs` 以 `"endpoints": ["live"]` 发布模型。启用 `ai_gateway.usage.enabled` 并执行 `ai-gateway-migrations`。将公开模型别名授权给调用方的网关 Key。硬预算或输出配额当前无法预占 Live 用量，相应请求会被拦截。
+
+用 Bearer 网关 Key 调用 `POST /v1/live`，在 JSON 或 multipart 中提交 `sdp` 和 `session`。用 `session.model` 选择公开别名。Key 只有一个可用 Live 别名时可省略该字段。响应体是 SDP answer，`Location` 是网关的 Sideband 路径。Codex 客户端可通过 `POST /backend-api/codex/realtime/calls` 调用 Codex Live 连接。
+
+用同一个网关 Key 连接 Sideband 路径。每个会话同时只能有一个控制连接。原控制连接断开并释放后，可以使用同一个 Key 接回会话，包括从另一个网关进程接回。会话固定绑定原上游连接和模型，一小时后过期。后续创建请求会清除过期映射。若控制连接在到期时仍在线，网关会向上游请求终止。后台主动回收仍待实现。
+
 ### 网关语音合成 {#gateway-speech}
 
 要开放 `POST /v1/tts`，为 `xai` 连接发布一个模型，并向调用方的网关 Key 授权。可在 `config/ai_gateway.rs` 的 `models` 下加入以下示例。

@@ -31,6 +31,7 @@ mod gemini_batches;
 mod gemini_caches;
 mod gemini_count;
 mod image_upload;
+mod live;
 mod resources;
 mod usage_summary;
 mod websocket;
@@ -43,10 +44,14 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         shared_routes(router)?;
         router.post("/messages", messages)?;
         router.get("/usage", usage_summary::show)?;
+        router.post("/live", live::create)?;
+        router.get("/live/{call_id}", live::sideband)?;
         Ok(())
     })?;
     Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {
         router.get("/models", codex_models)?;
+        router.post("/realtime/calls", live::create_codex)?;
+        router.get("/{call_id}", live::sideband_codex)?;
         responses_routes(router)
     })?;
     Route::group(RouteGroup::new().prefix("/upload/v1beta"), |router| {

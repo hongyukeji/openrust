@@ -746,7 +746,8 @@ impl TextEndpoint {
             | Self::ImagesGenerations
             | Self::ImagesEdits
             | Self::XaiTextToSpeech
-            | Self::XaiSpeechToText => Err(AiError::StreamingNotSupported),
+            | Self::XaiSpeechToText
+            | Self::Live => Err(AiError::StreamingNotSupported),
         }
     }
 }

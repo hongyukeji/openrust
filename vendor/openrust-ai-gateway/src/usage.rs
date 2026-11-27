@@ -23,6 +23,7 @@ mod batch_recovery;
 pub(crate) mod gemini_batch_files;
 pub(crate) mod gemini_batches;
 pub(crate) mod gemini_caches;
+pub(crate) mod live_calls;
 pub(crate) mod xai_custom_voices;
 
 const TABLE: &str = "ai_gateway_usage";

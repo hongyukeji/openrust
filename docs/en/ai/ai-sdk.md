@@ -314,6 +314,14 @@ For a Bedrock text-to-image model, publish only `images/generations`. The respon
 
 For Bedrock image billing, publish and run the latest `ai-gateway-migrations`. Set `image` in the upstream and downstream tariffs to a decimal amount per image in the tariff currency, for example `"image": "0.04"`. Use `image_tiers` for size and quality prices, for example `{"768x1152/premium": "0.08"}`. The gateway selects the tier from the request sent to Bedrock. Stability uses keys such as `3:2/default`. Use `image` as a flat fallback for unmatched tiers. When neither rate exists, that side stays unpriced and a hard budget cannot reserve against it. The ledger saves the selected `image_tier` and unit price. Set `input` and `output` to `"0"` for an image-only tariff. The gateway reserves against the requested count `n`, then settles against the validated images actually returned. `output_images` appears in the attempt ledger and in `/v1/usage` when a count is available. Unknown provider charges remain pending and can be reconciled against AWS billing.
 
+### Gateway Live and Sideband {#gateway-live}
+
+Configure a [Live provider connection](#live-webrtc), then publish the upstream model with `"endpoints": ["live"]` in `config/ai_gateway.rs`. Enable `ai_gateway.usage.enabled` and run `ai-gateway-migrations`. Give the caller’s gateway Key access to the public model alias. Live requests under a hard budget or output quota are rejected until the gateway can reserve those costs and units.
+
+Send `POST /v1/live` with the Bearer gateway Key and JSON or multipart fields `sdp` and `session`. The `session.model` field selects the public alias. It can be omitted when exactly one Live alias is available. The response is the SDP answer and a local Sideband URL in `Location`. Codex clients can use `POST /backend-api/codex/realtime/calls` with a Codex Live connection.
+
+Open the Sideband URL with the same gateway Key. One control connection can use the session at a time. You can reconnect with the same Key after the active controller releases it, including through another gateway process. The session stays bound to the original upstream connection and model and expires after one hour. Expired mappings are removed when a later call is created. A connected controller requests upstream termination at expiry. Unattended upstream recovery remains pending.
+
 ### Gateway speech synthesis {#gateway-speech}
 
 To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize it for the caller’s gateway Key. For example, add this entry under `models` in `config/ai_gateway.rs`.

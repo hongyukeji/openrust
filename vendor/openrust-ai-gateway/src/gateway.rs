@@ -177,6 +177,16 @@ impl Key {
         self.group.as_ref().and_then(|group| group.quota)
     }
 
+    pub(crate) fn live_has_budget_or_quota(&self, target: &Target) -> bool {
+        self.group
+            .as_ref()
+            .is_some_and(|group| group.quota.is_some() || group.budget.is_some())
+            || target
+                .account
+                .as_ref()
+                .is_some_and(|account| account.budget.is_some())
+    }
+
     pub(crate) fn output_reservation(
         &self,
         endpoint: TextEndpoint,
@@ -217,7 +227,8 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 17] = [
+const ENDPOINTS: [TextEndpoint; 18] = [
+    TextEndpoint::Live,
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -308,6 +319,9 @@ impl Model {
 }
 
 fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+    if endpoint == TextEndpoint::Live {
+        return provider.live_gateway().map(|_| endpoint);
+    }
     if endpoint.is_gemini_batch() {
         return provider.gemini_batch_gateway().map(|_| endpoint);
     }
@@ -448,7 +462,8 @@ impl Gateway {
                             !endpoint.is_image()
                                 && !endpoint.is_xai_voice()
                                 && !endpoint.is_gemini_embedding()
-                                && !endpoint.is_gemini_batch(),
+                                && !endpoint.is_gemini_batch()
+                                && *endpoint != TextEndpoint::Live,
                             |configured| configured.iter().any(|path| path == endpoint.path()),
                         )
                     })
@@ -463,10 +478,12 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
-                if endpoints.iter().any(|endpoint| endpoint.is_gemini_batch())
+                if endpoints
+                    .iter()
+                    .any(|endpoint| endpoint.is_gemini_batch() || *endpoint == TextEndpoint::Live)
                     && usage_store.is_none()
                 {
-                    return Err(invalid("Gemini 批任务需要启用持久化用量"));
+                    return Err(invalid("Gemini 批任务和 Live 会话需要启用持久化用量"));
                 }
                 if model.gemini_cached_contents
                     && (usage_store.is_none()

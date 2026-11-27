@@ -57,6 +57,8 @@ mod invocation;
 mod invocation_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_ai_gateway_keys_table.rs"]
 mod key_migration;
+#[path = "../database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs"]
+mod live_calls_migration;
 mod localization;
 mod managed_keys;
 #[path = "../database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs"]
@@ -218,6 +220,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs",
         &xai_custom_voices_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs",
+        &live_calls_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -349,6 +355,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs",
                         include_bytes!("../database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

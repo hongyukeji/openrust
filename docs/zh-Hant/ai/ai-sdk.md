@@ -314,6 +314,14 @@ Schedule::configure(|schedule| {
 
 啟用 Bedrock 圖片計費前，發佈並執行最新的 `ai-gateway-migrations`。在上游和下游費率中設定 `image`，用十進位字串表示對應幣別的每圖單價，例如 `"image": "0.04"`。依尺寸和品質分級時，設定 `image_tiers`，例如 `{"768x1152/premium": "0.08"}`。閘道依實際送往 Bedrock 的參數選擇費率，Stability 使用 `3:2/default` 這類鍵。未命中時使用 `image` 固定費率。兩項都缺少時，該方向金額保留待核對，硬預算也無法依該方向預留。帳本會儲存選中的 `image_tier` 和單價。只依圖片計費時將 `input` 和 `output` 設為 `"0"`。閘道依請求的 `n` 預留，再依實際傳回且通過驗證的圖片數結算。已知數量會顯示於用量帳本及 `/v1/usage` 的 `output_images`。未知供應商費用保留待核對，可用 AWS 帳單對帳。
 
+### 閘道 Live 與 Sideband {#gateway-live}
+
+設定 [Live 供應商連線](#live-webrtc)，在 `config/ai_gateway.rs` 以 `"endpoints": ["live"]` 發布模型。啟用 `ai_gateway.usage.enabled` 並執行 `ai-gateway-migrations`。將公開模型別名授權給呼叫端的閘道 Key。硬預算或輸出配額目前無法預占 Live 用量，相應請求會被攔截。
+
+用 Bearer 閘道 Key 呼叫 `POST /v1/live`，在 JSON 或 multipart 中提交 `sdp` 和 `session`。用 `session.model` 選擇公開別名。Key 只有一個可用 Live 別名時可省略此欄位。回應本文是 SDP answer，`Location` 是閘道的 Sideband 路徑。Codex 用戶端可透過 `POST /backend-api/codex/realtime/calls` 呼叫 Codex Live 連線。
+
+以同一個閘道 Key 連上 Sideband 路徑。每個工作階段同時只能有一個控制連線。原控制連線中斷並釋放後，可用同一個 Key 接回工作階段，包括從另一個閘道程序接回。工作階段固定繫結原上游連線及模型，一小時後到期。後續建立請求會清除到期映射。若控制連線在到期時仍在線，閘道會向上游要求終止。背景主動回收仍待實作。
+
 ### 閘道語音合成 {#gateway-speech}
 
 要開放 `POST /v1/tts`，為 `xai` 連線發布一個模型，並授權呼叫端的閘道 Key。可在 `config/ai_gateway.rs` 的 `models` 下加入以下範例。
