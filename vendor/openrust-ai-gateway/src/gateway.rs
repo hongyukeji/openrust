@@ -652,7 +652,10 @@ impl Gateway {
             ("upstream_model".into(), json!(target.upstream_model)),
             ("provider".into(), json!(target.provider_name)),
             ("endpoint".into(), json!(endpoint.path())),
-            ("upstream_endpoint".into(), json!(upstream_endpoint.path())),
+            (
+                "upstream_endpoint".into(),
+                json!(target.provider.relay_endpoint_name(upstream_endpoint)),
+            ),
             ("input_tokens".into(), Value::Null),
             ("output_tokens".into(), Value::Null),
         ]

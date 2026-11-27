@@ -221,6 +221,16 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 - [Gemini 原生向量接口](https://ai.google.dev/api/embeddings)
 
+## GW-03 Bedrock 向量兼容入口
+
+显式发布端点 `embeddings` 的 Bedrock 模型可通过 `POST /v1/embeddings` 调用。Cohere Embed 文本批次和 Titan V2 单条文本各对应一次 AWS `InvokeModel`。网关保留输入顺序，支持浮点数组和小端 float32 的 Base64 表示，并由授权规则决定下游可见的公开名。转换前拒绝无法保留语义的 Token 数组、维数或批次，避免为未发送的调用创建出站记录。Titan 多条输入的逐次调用、部分失败及扣费仍待单独验收。
+
+账本记录上游模型 ID、`model/{modelId}/invoke` 和 AWS 回报的请求 ID。用量来自 Titan 正文或 Cohere 响应头。缺少用量时响应省略 `usage`，账本保持未知。AWS 响应未报告实际模型时，账本保留选路目标，回报模型字段为空。
+
+本地 AWS 协议服务覆盖 SDK 直连、独立 Artisan 经网关、外部真实 HTTP 三条链路。验证别名、目录授权、Key 隔离、出站前拒绝、浮点数组和 Base64、已知与未知用量、403 请求证据。SQLite 中五条网关尝试都有协议服务回报的请求 ID，SDK 直连和前置拒绝不产生网关记录。13 项网关回归、SDK 和网关严格 Clippy、三语站点通过。正式 AWS 账户仍待验收。
+
+- [OpenAI Embeddings 请求和返回](https://developers.openai.com/api/reference/python/resources/embeddings/methods/create) · [AWS 向量模型和维度](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html) · [AWS InvokeModel](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
+
 ## GW-04 最终流用量先入账
 
 启用持久化用量时，网关先合并同一次上游尝试已收到的计数，再持久化完成结果，最后向下游交付最终帧。普通响应、转换流与原生流共用该结算顺序。原生 Responses 完成或截断帧、Messages 的 `message_stop`、Chat 的末尾用量块及 Gemini 的终态和最终总量触发即时结算。流结束后会继续处理缺失终值的记录。持久化失败时交付协议错误，保留待完成记录；同一尝试只能更新一次既有结算记录。

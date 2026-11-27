@@ -176,12 +176,14 @@ impl Settlement {
         let cache_read = count("cached_input_tokens");
         let cache_written = count("cache_write_input_tokens");
         let reasoning = count("reasoning_tokens");
-        let input_only = matches!(
-            context
-                .get("upstream_endpoint")
-                .and_then(serde_json::Value::as_str),
-            Some("embeddings" | "embedContent" | "batchEmbedContents")
-        );
+        let input_only = context.get("endpoint").and_then(serde_json::Value::as_str)
+            == Some("embeddings")
+            || matches!(
+                context
+                    .get("upstream_endpoint")
+                    .and_then(serde_json::Value::as_str),
+                Some("embeddings" | "embedContent" | "batchEmbedContents")
+            );
         let state = if !dispatch_started {
             "not_dispatched"
         } else if outcome == "completed" && input.is_some() && (input_only || output.is_some()) {

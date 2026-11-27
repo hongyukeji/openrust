@@ -830,6 +830,8 @@ let vectors = response.embeddings;
 
 Use `dimensions(n)` when the selected model supports explicit dimensions. For an OpenAI-compatible connection, configure its `models.embeddings` before using it for embeddings. To publish a vector model through `POST /v1/embeddings`, map its public name and set `"endpoints": ["embeddings"]` on that mapping. Grant the alias to the client Key as with a text model.
 
+A published Bedrock embedding model uses the same `/v1/embeddings` endpoint. Cohere Embed accepts a string or a batch of strings at the model's native vector size. Titan Text Embeddings V2 accepts one string per request and supports 256, 512, or 1024 dimensions. Both can return float arrays or Base64-encoded little-endian float32 vectors. The gateway includes `usage` when Bedrock reports input tokens.
+
 Select `cohere`, `jina`, or `voyageai` in `AI_EMBEDDINGS_PROVIDER` to use one of the named retrieval connections. Each shares its API key and base URL with reranking.
 
 | Connection | Embedding model |

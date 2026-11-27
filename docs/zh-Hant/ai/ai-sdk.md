@@ -830,6 +830,8 @@ let vectors = response.embeddings;
 
 所選模型支援指定維度時，可使用 `dimensions(n)`。使用 OpenAI 相容連線產生向量前，先設定該連線的 `models.embeddings`。透過 `POST /v1/embeddings` 發佈向量模型時，對應公開名稱並為該模型設定 `"endpoints": ["embeddings"]`，再把公開名稱授權給下游 Key。
 
+已發佈的 Bedrock 向量模型也可透過 `/v1/embeddings` 呼叫。Cohere Embed 接受單筆或一批文字，採用模型原生維數。Titan Text Embeddings V2 每次接收一筆文字，支援 256、512 或 1024 維。兩者皆可傳回浮點陣列，或將小端序 float32 向量編碼為 Base64。Bedrock 回報輸入 Token 時，閘道傳回 `usage`。
+
 將 `AI_EMBEDDINGS_PROVIDER` 設為 `cohere`、`jina` 或 `voyageai`，即可使用對應連線產生文字向量。每條連線與重排序共用金鑰和基礎 URL。
 
 | 連線 | 向量模型 |

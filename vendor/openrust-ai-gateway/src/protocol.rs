@@ -715,6 +715,13 @@ async fn relay(
             } else {
                 (Value::Object(payload), None)
             };
+        if let Some(message) = target
+            .provider
+            .relay_request_error(upstream_endpoint, &payload)
+        {
+            conversion_error = Some(message);
+            continue;
+        }
         let budget = match gateway.budget_reservations(
             key,
             &name,
@@ -1173,7 +1180,13 @@ async fn respond(
             "AI 网关无法持久化本次上游用量",
         );
     }
-    rename_model(&mut data, &name);
+    if endpoint == TextEndpoint::Embeddings
+        && let Some(object) = data.as_object_mut()
+    {
+        object.insert("model".into(), name.into());
+    } else {
+        rename_model(&mut data, &name);
+    }
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
 

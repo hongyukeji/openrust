@@ -2,6 +2,7 @@ mod catalog;
 mod embeddings;
 mod image;
 mod invoke;
+mod relay;
 mod reranking;
 mod structured;
 mod tools;
@@ -243,6 +244,42 @@ impl TextProvider for BedrockProvider {
 
     fn reranking_provider(&self) -> Option<Arc<dyn crate::RerankingProvider>> {
         Some(Arc::new(self.clone()))
+    }
+
+    fn supports_endpoint(&self, endpoint: crate::TextEndpoint) -> bool {
+        endpoint == crate::TextEndpoint::Embeddings
+    }
+
+    fn relay_endpoint_name(&self, endpoint: crate::TextEndpoint) -> &'static str {
+        match endpoint {
+            crate::TextEndpoint::Embeddings => "model/{modelId}/invoke",
+            _ => endpoint.path(),
+        }
+    }
+
+    fn relay_request_error(
+        &self,
+        endpoint: crate::TextEndpoint,
+        body: &Value,
+    ) -> Option<&'static str> {
+        if endpoint == crate::TextEndpoint::Embeddings {
+            relay::EmbeddingRequest::parse(body).err()
+        } else {
+            None
+        }
+    }
+
+    fn relay(
+        &self,
+        endpoint: crate::TextEndpoint,
+        body: Value,
+    ) -> HttpFuture<'_, AiResult<openrust::http::client::Response>> {
+        Box::pin(async move {
+            if !self.supports_endpoint(endpoint) {
+                return Err(AiError::EndpointNotSupported);
+            }
+            self.relay_embeddings(body).await
+        })
     }
 
     fn generate_text<'a>(

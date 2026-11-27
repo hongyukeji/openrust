@@ -716,7 +716,7 @@ Bedrock 普通与流式请求接入 `StepTextGateway`。本地函数映射为 AW
 
 Bedrock 的 `EmbeddingProvider` 复用 AWS Runtime `InvokeModel` 客户端、凭证装配与错误分类。Titan 按输入顺序逐条发送，默认 1024 维并汇总正文用量；Cohere 按固定基线发送整批文本，接受数组和 `float` 对象两种返回，使用模型原生维数并读取 AWS 用量头。缺失用量保持未知。模型按 E07 的显式选用规则，由调用或 `BEDROCK_EMBEDDING_MODEL` 提供。缓存沿用显式凭证的连接隔离，AWS 默认凭证链直接访问上游。
 
-本地 AWS 协议服务通过独立 HTTP 和 Artisan 实测 SigV4、Bearer、Titan 256 和 1024 维、顺序、用量汇总、Cohere 批量与缓存、缺用量、无效向量及 AWS 配额错误。同时复验 Converse 和 ConverseStream。21 项 SDK 回归、严格 Clippy 和三语站点通过。Bedrock 向量的正式 AWS 账户与网关入口仍待验收。
+本地 AWS 协议服务通过独立 HTTP 和 Artisan 实测 SigV4、Bearer、Titan 256 和 1024 维、顺序、用量汇总、Cohere 批量与缓存、缺用量、无效向量及 AWS 配额错误。同时复验 Converse 和 ConverseStream。21 项 SDK 回归、严格 Clippy 和三语站点通过。网关兼容证据见 [GW-03 Bedrock 向量兼容入口](gateway.md#gw-03-bedrock-向量兼容入口)。正式 AWS 账户仍待验收。
 
 - [固定 Laravel BedrockProvider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/BedrockProvider.php) · [固定 Laravel Bedrock 向量网关](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php#L554-L654) · [AWS 向量模型维数](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html)
 
