@@ -167,6 +167,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 閘道將建立、修改有效期限和刪除分別記為快取生命週期操作。`ai:gateway:usage:list --billing` 透過 `resource_id` 關聯生成紀錄，並顯示上游請求 ID 與上游回報的資源用量。建立和有效期限更新的上游費用在取得帳單證據前維持待確認，生命週期操作不產生下游應收。帳單包含請求 ID 時，可用 `ai:gateway:billing:import` 匯入對應證據。只有 SKU 彙總的儲存費用應單獨填寫 `category`。閘道保留彙總金額，不將其分攤給單次操作或加到生成 Token 的彙總中。
 
+匯入 Gemini 儲存 SKU 彙總時，將該項的 `category` 設為 `gemini_context_cache_storage`。在模型的上游費率中設定 `cache_storage_per_million_token_hours`，單位為每百萬快取 Token 每小時的金額。對於已結束的帳期，閘道將已確認的快取有效區間裁切至報告期間，依建立和修改有效期限時的費率快照計算，彙總後只捨入一次。`storage.estimated` 是估算金額，`storage.estimated_difference` 是帳單金額減去估算金額。缺少時間、費率或生命週期證據時，受影響的資源維持待確認。估算僅供 SKU 彙總對照。
+
 要發佈 Gemini 非同步批次工作，請啟用閘道用量儲存、發佈並執行 `ai-gateway-migrations`，再將 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公開模型的 `endpoints`。將批次工作提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用閘道回傳的 `batches/…` 名稱查詢、取消或刪除工作。`GET /v1beta/batches` 列出目前 Key 的工作，支援 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
 請依批次工作的價格設定具名連線與公開模型費率。閘道只登記一次提交，取得最終項目用量後結算。啟用硬預算時，為上游模型設定可信的單項輸入上限 `input_token_limit`，向量批次也依此上限預留。啟用硬預算或輸出配額的生成批次支援文字輸出。閘道採用最嚴格的設定上限，依每項的候選數換算 `maxOutputTokens`，保留呼叫端較小的上限和原有推理設定。候選輸出與推理 Token 均計入配額。用量無法確認時保留配額預留。Gemini 回傳結果檔案時，閘道在 `response.responsesFile` 中回傳目前 Key 有權存取的檔名。使用 `GeminiBatches::download`，或持同一 Key 請求 `GET /download/v1beta/{responsesFile}:download?alt=media`。結果以 JSONL 串流回傳，單行上限為 64 MiB。下載中斷後從頭重試。

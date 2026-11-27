@@ -57,6 +57,22 @@ impl Amount {
             .ok_or(DatabaseError::InvalidScalar)
     }
 
+    pub(crate) fn cache_storage_numerator(self, tokens: i64, seconds: i64) -> Option<i128> {
+        self.0
+            .checked_mul(i128::from(tokens))?
+            .checked_mul(i128::from(seconds))
+    }
+
+    pub(crate) fn from_cache_storage_numerator(numerator: i128) -> Option<Self> {
+        let divisor = PER_MILLION * 3600;
+        round_amount(
+            numerator / divisor,
+            numerator % divisor,
+            divisor,
+            Rounding::HalfEven,
+        )
+    }
+
     pub(crate) fn is_zero(self) -> bool {
         self.0 == 0
     }
@@ -122,6 +138,8 @@ struct Tariff {
     output: Amount,
     cache_read: Option<Amount>,
     cache_write: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cache_storage_per_million_token_hours: Option<Amount>,
     reasoning: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     image: Option<Amount>,
@@ -654,14 +672,23 @@ impl Tariff {
                 PER_MILLION,
             )
         };
-        let round_up = match rounding {
-            Rounding::Ceiling => remainder != 0,
-            Rounding::HalfEven => {
-                remainder > divisor / 2 || (remainder == divisor / 2 && quotient % 2 != 0)
-            }
-        };
-        quotient.checked_add(i128::from(round_up)).map(Amount)
+        round_amount(quotient, remainder, divisor, rounding)
     }
+}
+
+fn round_amount(
+    quotient: i128,
+    remainder: i128,
+    divisor: i128,
+    rounding: Rounding,
+) -> Option<Amount> {
+    let round_up = match rounding {
+        Rounding::Ceiling => remainder != 0,
+        Rounding::HalfEven => {
+            remainder > divisor / 2 || (remainder == divisor / 2 && quotient % 2 != 0)
+        }
+    };
+    quotient.checked_add(i128::from(round_up)).map(Amount)
 }
 
 enum Rounding {

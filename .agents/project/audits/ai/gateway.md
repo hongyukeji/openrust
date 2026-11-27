@@ -15,7 +15,7 @@
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。内联异步批任务见下文。 |
 | `POST /v1beta/models/{model}:{batchGenerateContent,asyncBatchEmbedContent}`、`GET /v1beta/batches[/{id}]`、`POST /v1beta/batches/{id}:cancel`、`DELETE /v1beta/batches/{id}` | Google Batch API 原生生命周期，资源归属及单项计量 | GW-03／04 已验收内联任务及文本生成批次硬预算和输出配额。结果下载和文件型任务提交见下文。 |
-| `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03 已验收创建、分页、读取、过期更新、删除及普通／SSE 生成引用。GW-04 已验收生成缓存命中计费、生命周期费用证据导入及 SKU 汇总隔离。正式账单与存储 SKU 分摊待验。 |
+| `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03 已验收创建、分页、读取、过期更新、删除及普通／SSE 生成引用。GW-04 已验收生成缓存命中计费、生命周期费用证据导入及存储 SKU 本地估算。正式账单和单资源供应商费用待验。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |
 
 ## 媒体、实时与运维
@@ -354,9 +354,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经真实 HTTP、独立 Artisan SDK �
 
 创建、有效期修改和删除在出站前独立登记。通过 `resource_id` 关联缓存和生成请求，在 SQLite、PostgreSQL、MySQL 上回读上游请求 ID、实际缓存 Token 和上游时间字段。创建和续期的上游成本保留待证据状态，删除操作和生命周期下游应收为零。普通与流式生成按原价格快照和缓存命中数量独立核算。用于生成请求的 Token 账单汇总排除生命周期行。
 
-三库经真实 HTTP、独立 Artisan 和合成供应商账单验证部分账单不立即确认、完整修订按上游请求 ID 确认创建 0.07 USD 与续期 0.02 USD、重复导入无重复确认。生成记录对照值 0.618 USD 保持独立，单独的存储 SKU 汇总 0.31 USD 保留为未映射类别。SQLite 同步复验原两轮三次尝试的 0.23 USD 成本和 0.25 USD 应收，以及更正与冲突证据。正式 Gemini 账单和存储 SKU 分摊尚待验证。
+三库经真实 HTTP、独立 Artisan 和合成供应商账单验证部分账单不立即确认、完整修订按上游请求 ID 确认创建 0.07 USD 与续期 0.02 USD、重复导入无重复确认。生成记录对照值 0.618 USD 保持独立，单独的存储 SKU 汇总 0.31 USD 保留为未映射类别。SQLite 同步复验原两轮三次尝试的 0.23 USD 成本和 0.25 USD 应收，以及更正与冲突证据。存储 SKU 本地估算见下文，正式 Gemini 账单尚待验证。
 
 - [Google Cloud 按 SKU 核对 Gemini 用量费用](https://aistudio.google.com/docs/billing#evaluate-spend)
+
+### Gemini 缓存存储 SKU 汇总对照
+
+`gemini_context_cache_storage` 使用独立汇总结果。根据创建、更新时间和有效期等上游证据，把每个缓存的存续区间裁剪到报告账期，以生命周期操作的上游费率快照累加 Token 秒，再按每百万 Token 小时汇总舍入。报告保留供应商金额、局部估算及证据缺口。只有全部相关资源证据齐全时才计算估算差额。续期切换费率缺少时间、存储价格缺失、旧资源缺少生命周期账目和未结束的账期均保持待确认。估算金额不写进单次请求的成本或生成汇总。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过真实 HTTP 与独立 Artisan 导入合成账单。3000 个缓存 Token 在账期内按 4.5 USD 费率累计 300 秒，按 9 USD 费率累计 900 秒，估算总额为 0.007875 USD。报表金额 0.008 USD 时差额为 0.000125 USD。验证期外过期资源排除、部分和未结束账期、历史已保存报告复读、无费率及缺时间待确认、删除确认时间跨秒时保留待确认、旧资源缺证据，以及重复导入。实账和供应商资源级费用仍待核实。
+
+- [Gemini API 的缓存读入和存储费率单位](https://aistudio.google.com/docs/pricing)
 
 ## GW-03 Gemini JSON 数组与 SSE
 

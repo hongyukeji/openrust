@@ -12,6 +12,8 @@ use crate::{
     reconciliation::{actual_costs, optional_text, valid, with_evidence},
 };
 
+mod gemini_storage;
+
 const TABLE: &str = "ai_gateway_cost_totals";
 const TOKENS: &str = "tokens";
 
@@ -38,6 +40,8 @@ pub(crate) struct ComparedTotal {
     difference: Option<String>,
     priced_attempts: u64,
     pending_attempts: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    storage: Option<gemini_storage::StorageComparison>,
 }
 
 pub(crate) fn validate(totals: &mut [CostTotal]) -> DatabaseResult<()> {
@@ -188,6 +192,20 @@ pub(crate) async fn save(
     complete: bool,
 ) -> DatabaseResult<Vec<ComparedTotal>> {
     let baseline = recorded(transaction, connection, totals, window).await?;
+    let mut scopes = BTreeMap::<String, BTreeSet<String>>::new();
+    let period_elapsed = window.1 <= crate::managed_keys::now();
+    if complete && period_elapsed {
+        for total in totals
+            .iter()
+            .filter(|total| total.category.as_deref() == Some(gemini_storage::CATEGORY))
+        {
+            scopes
+                .entry(total.provider.clone())
+                .or_default()
+                .insert(total.currency.clone());
+        }
+    }
+    let storage = gemini_storage::totals(transaction, &scopes, window).await?;
     let mut compared = Vec::with_capacity(totals.len());
     for total in totals {
         let (known, pending) = if total.category.is_none() {
@@ -203,9 +221,23 @@ pub(crate) async fn save(
         } else {
             (Recorded::default(), 0)
         };
+        let storage_estimate = (complete
+            && total.category.as_deref() == Some(gemini_storage::CATEGORY))
+        .then(|| storage.get(&(total.provider.clone(), total.currency.clone())))
+        .flatten();
+        let storage_comparison = storage_estimate
+            .map(|estimate| estimate.comparison(total.amount))
+            .transpose()?;
         let mut difference = None;
         let state = if !complete {
             "partial_report"
+        } else if total.category.as_deref() == Some(gemini_storage::CATEGORY) {
+            match storage_estimate {
+                _ if !period_elapsed => "pending_storage_evidence",
+                Some(estimate) if estimate.pending > 0 => "pending_storage_evidence",
+                Some(estimate) if estimate.priced > 0 => "estimated_storage",
+                _ => "no_local_storage",
+            }
         } else if total.category.is_some() {
             "unmapped_category"
         } else if pending != 0 {
@@ -232,6 +264,7 @@ pub(crate) async fn save(
             difference,
             priced_attempts: known.priced,
             pending_attempts: pending,
+            storage: storage_comparison,
         };
         let snapshot = serde_json::to_string(&row).map_err(|_| DatabaseError::InvalidScalar)?;
         if !transaction
