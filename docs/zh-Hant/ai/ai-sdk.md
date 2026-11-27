@@ -286,7 +286,7 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`unknown`（未知）、`partial`（部分）、`final`（最終）與 `legacy`（歷史）。明確零值會保留。清單也會回傳可取得的送出時間、上游請求 ID 與回報模型。已記錄送出時間表示閘道已進入傳送步驟，中斷的嘗試仍可能需要對帳。
 
-### 文字計費 {#text-billing}
+### Token 計費 {#text-billing}
 
 將 `billing.enabled` 與 `usage.enabled` 設為 true。發布並執行閘道遷移。指定價格版本，按連線與上游模型設定成本費率，再按公開模型設定下游應收費率。
 
@@ -306,6 +306,8 @@ Artisan 嘗試清單的 `usage_state` 區分 `not_dispatched`（未送出）、`
 ```
 
 費率以十進位字串表示，單位為指定幣別每百萬 Token。分項定價時設定 `cache_read`、`cache_write` 或 `reasoning`。每筆費用使用請求時儲存的費率。缺少價格或用量證據時，金額可保留待核對。執行 `./artisan ai:gateway:usage:list --billing` 可查看成本、應收、價格版本與精確小數金額。每頁在同一條資料庫查詢中讀取用量、費用和帳單證據。
+
+`/v1/embeddings` 和 Gemini 的 `embedContent`、`batchEmbedContents` 只依輸入 Token 計算成本和應收。向量模型的費率可將 `output` 設為 `"0"`。上游明確回報零 Token 時金額為零，缺少輸入用量時金額保留待核對。
 
 在 `groups.<群組>.rate_multiplier` 設定非負十進位字串，例如 `"0.5"`，可調整該群組的公開模型應收。倍率參與預留和結算，結算金額最後統一捨入。費率快照保留請求時使用的倍率。
 
@@ -400,6 +402,8 @@ SDK Agent 透過自有閘道使用 xAI 原生工具時，在 `ai.providers` 新�
 ### 分組每日貨幣預算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 啟用用量與計費，並執行閘道遷移。在 `groups.<群組>.budget` 設定預算。在 `billing.upstream.<連線>.<模型>` 中提供 `input_token_limit`，使用供應商確認的單次請求可計費輸入 Token 上限，包含快取 Token。下游費率使用與預算相同的幣別。同組所有 Key 及共用同一資料庫的閘道執行個體共享預算。
+
+向量請求依整次上游呼叫的可計費輸入 Token 上限預留，不占用輸出額度。發佈批次向量入口時，需核對整批輸入的上限。
 
 ```json
 {

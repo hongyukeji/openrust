@@ -151,12 +151,18 @@ impl Budget {
             endpoint,
             TextEndpoint::Responses | TextEndpoint::ChatCompletions | TextEndpoint::Messages
         ) && billable_text_only(endpoint, payload);
-        if bounded_text && let Some(charges) = charges {
+        if (bounded_text || endpoint.is_embedding())
+            && let Some(charges) = charges
+        {
             let mut capped = payload.clone();
-            let cap = output_quota.map_or(self.max_output_tokens, |quota| {
-                quota.min(self.max_output_tokens)
-            });
-            let output = limit_output(cap, endpoint, native_openai, &mut capped)?;
+            let output = if endpoint.is_embedding() {
+                0
+            } else {
+                let cap = output_quota.map_or(self.max_output_tokens, |quota| {
+                    quota.min(self.max_output_tokens)
+                });
+                limit_output(cap, endpoint, native_openai, &mut capped)?
+            };
             let atoms = match scope {
                 BudgetScope::Group(_) => charges.receivable_ceiling(&self.currency, output),
                 BudgetScope::Account(_) => charges.cost_ceiling(&self.currency, output),

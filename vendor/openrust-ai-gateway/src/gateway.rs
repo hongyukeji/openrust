@@ -768,14 +768,15 @@ impl Gateway {
         target: &Target,
         endpoint: TextEndpoint,
     ) -> Option<ChargePlan> {
-        let billable = matches!(
-            endpoint,
-            TextEndpoint::Responses
-                | TextEndpoint::ChatCompletions
-                | TextEndpoint::Messages
-                | TextEndpoint::GeminiGenerateContent
-                | TextEndpoint::GeminiStreamGenerateContent
-        );
+        let billable = endpoint.is_embedding()
+            || matches!(
+                endpoint,
+                TextEndpoint::Responses
+                    | TextEndpoint::ChatCompletions
+                    | TextEndpoint::Messages
+                    | TextEndpoint::GeminiGenerateContent
+                    | TextEndpoint::GeminiStreamGenerateContent
+            );
         self.billing.as_ref().filter(|_| billable).map(|prices| {
             prices.select(
                 &target.provider_name,

@@ -405,6 +405,9 @@ impl ChargePlan {
 impl Tariff {
     fn quote(&self, settlement: &Settlement) -> Option<Amount> {
         let mut input = i128::from(settlement.input_tokens?);
+        if settlement.input_only {
+            return self.amount(input.checked_mul(self.input.0)?, Rounding::HalfEven);
+        }
         let mut output = i128::from(settlement.output_tokens?);
         if settlement.upstream_endpoint == "messages" {
             input = input

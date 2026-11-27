@@ -156,6 +156,7 @@ pub(crate) struct Settlement {
     pub(crate) reported_model: Option<String>,
     finished_at: i64,
     pub(crate) upstream_endpoint: String,
+    pub(crate) input_only: bool,
 }
 
 impl Settlement {
@@ -199,6 +200,7 @@ impl Settlement {
         Self {
             outcome,
             state,
+            input_only,
             status: count("status"),
             input_tokens: input,
             output_tokens: output,

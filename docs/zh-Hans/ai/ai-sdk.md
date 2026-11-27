@@ -286,7 +286,7 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`unknown`（未知）、`partial`（部分）、`final`（最终）和 `legacy`（历史）。明确零值保留原样。列表也会返回可获得的出站时间、上游请求 ID 和报告模型。已记录出站时间表示网关已进入发送步骤，中断的尝试仍可能需要对账。
 
-### 文本计费 {#text-billing}
+### Token 计费 {#text-billing}
 
 将 `billing.enabled` 和 `usage.enabled` 设为 true。发布并执行网关迁移。指定价格版本，按连接和上游模型配置成本费率，再按公开模型配置下游应收费率。
 
@@ -306,6 +306,8 @@ Artisan 尝试列表的 `usage_state` 区分 `not_dispatched`（未出站）、`
 ```
 
 费率用十进制字符串表示，单位为指定币种每百万 Token。分别定价时配置 `cache_read`、`cache_write` 或 `reasoning`。每笔费用使用请求时保存的费率。缺少价格或用量证据时，金额可保留待核对。运行 `./artisan ai:gateway:usage:list --billing` 可查看成本、应收、价格版本及精确小数金额。每页在同一条数据库查询中读取用量、费用和账单证据。
+
+`/v1/embeddings` 和 Gemini 的 `embedContent`、`batchEmbedContents` 只按输入 Token 计算成本和应收。向量模型的费率可将 `output` 设为 `"0"`。上游明确回报零 Token 时金额为零，缺少输入用量时金额保留待核对。
 
 在 `groups.<分组>.rate_multiplier` 设置非负十进制字符串，例如 `"0.5"`，可调整该分组的公开模型应收。倍率参与预占和结算，结算金额最后统一舍入。费率快照保留请求时使用的倍率。
 
@@ -400,6 +402,8 @@ SDK Agent 通过自有网关使用 xAI 原生工具时，在 `ai.providers` 新�
 ### 分组每日货币预算 {#billing-budget}
 
 在 `config/ai_gateway.rs` 启用用量和计费，并执行网关迁移。在 `groups.<分组>.budget` 设置预算。在 `billing.upstream.<连接>.<模型>` 中提供 `input_token_limit`，使用供应商确认的单次请求可计费输入 Token 上限，包含缓存 Token。下游费率使用与预算相同的币种。同组所有 Key 及共用同一数据库的网关实例共享预算。
+
+向量请求按整次上游调用的可计费输入 Token 上限预占，不占用输出额度。发布批量向量入口时，需核对整批输入的上限。
 
 ```json
 {

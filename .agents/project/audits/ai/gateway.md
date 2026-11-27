@@ -231,6 +231,16 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 - [OpenAI Embeddings 请求和返回](https://developers.openai.com/api/reference/python/resources/embeddings/methods/create) · [AWS 向量模型和维度](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html) · [AWS InvokeModel](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
 
+## GW-04 向量输入计费与预算
+
+`/v1/embeddings`、Gemini `embedContent` 和 `batchEmbedContents` 沿用现有费率快照、出站记录及预算事务。用量完整的向量尝试只按输入 Token 计价。明确零用量按零结算，缺用量保留待核对。配置预算时，预占上限按整次上游请求的 `input_token_limit` 和费率确定，无需为输出 Token 预留金额。无法得出上界时沿用拒绝或监测策略。
+
+通过独立 HTTP、Artisan 和 SQLite 核对本地协议样例。按模拟费率，Bedrock Cohere 13 Token 结算成本 0.013 USD、应收 0.026 USD，Titan 7 Token 为 0.007 和 0.014 USD，Gemini 单条 9 Token 为 0.0045 和 0.0135 USD，批量 18 Token 为 0.009 和 0.027 USD。未知用量保留金额与预占待核对。缺上界时拒绝且未出站。并发时分组先预占 0.04 USD，再拒绝第二笔。首笔完成后扣减 0.026 USD，释放 0.014 USD，账号成本按独立费率结算。多次 Titan 出站仍须验证部分失败时的个别成本与整批应收。
+
+13 项网关回归、SDK 与网关严格 Clippy、三语站点通过。另用独立 HTTP 和 Artisan 复验文本生成的分组与账号双重预占、跨币种选路、拒绝回滚、未知费用及资金恢复。
+
+- [OpenAI Embeddings 用量字段](https://developers.openai.com/api/reference/python/resources/embeddings/methods/create) · [AWS Titan V2 输入上限与尺寸](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html)
+
 ## GW-04 最终流用量先入账
 
 启用持久化用量时，网关先合并同一次上游尝试已收到的计数，再持久化完成结果，最后向下游交付最终帧。普通响应、转换流与原生流共用该结算顺序。原生 Responses 完成或截断帧、Messages 的 `message_stop`、Chat 的末尾用量块及 Gemini 的终态和最终总量触发即时结算。流结束后会继续处理缺失终值的记录。持久化失败时交付协议错误，保留待完成记录；同一尝试只能更新一次既有结算记录。
@@ -295,7 +305,7 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 中，每次 SDK 调用有两个回合
 
 ## GW-04 分组应收货币预算
 
-同组 Key 在共用数据库按币种和 UTC 日合并预占。配置上游模型已验证的可计费输入上限，网关沿用输出 Token 限制方法，按费率分项的最大值向上取整，先预占再出站。用量尝试、费率、输出配额与应收预算使用同一事务。已知终值按实际应收释放差额，缺少终值的预占保留。超过声明上界的实际应收继续保存在账本，本账期停止新增调用。当前支持可限额的 Responses、Chat Completions 和 Messages，其他能力按分组策略拒绝或放入监测模式。通过 `ai:gateway:budget:show` 读取当前窗口的余额。
+同组 Key 在共用数据库按币种和 UTC 日合并预占。配置上游模型已验证的可计费输入上限，网关对生成请求应用输出 Token 限制，按费率分项的最大值向上取整，先预占再出站。用量尝试、费率、输出配额与应收预算使用同一事务。已知终值按实际应收释放差额，缺少终值的预占保留。超过声明上界的实际应收继续保存在账本，本账期停止新增调用。支持可限额的 Responses、Chat Completions 和 Messages，以及按输入预占的向量请求。其他能力按分组策略拒绝或放入监测模式。通过 `ai:gateway:budget:show` 读取当前窗口的余额。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测两个网关进程在同组跨 Key 竞争。确认余额不足时无上游请求，验证输出限制、隔离分组、正常结算、失败尝试释放、回退再预占、未知策略、上界被突破后停线及进程重启时保持预占。两包测试、严格 Clippy 和三语文档通过。此批控制下游应收，运维恢复和账号成本预算见后续批次。
 

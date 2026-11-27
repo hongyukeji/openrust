@@ -286,7 +286,7 @@ When persistent usage is enabled, the gateway saves reported final usage before 
 
 The Artisan attempt list reports `usage_state` as `not_dispatched`, `unknown`, `partial`, `final`, or `legacy`. Explicit zero counts are preserved. It also shows the dispatch time, upstream request ID and reported model when available. A recorded dispatch time means the gateway was about to send the request, so an interrupted attempt may still require reconciliation.
 
-### Text billing {#text-billing}
+### Token billing {#text-billing}
 
 Set `billing.enabled` and `usage.enabled` to true. Publish and run the gateway migrations. Specify the price version, upstream rates by connection and upstream model, and receivable rates by published model.
 
@@ -306,6 +306,8 @@ Set `billing.enabled` and `usage.enabled` to true. Publish and run the gateway m
 ```
 
 Each rate is a decimal string in the specified currency per million tokens. Set `cache_read`, `cache_write` or `reasoning` only when those tokens have distinct rates. Each charge uses its captured tariff. Missing usage evidence or prices can leave an amount pending. Use `./artisan ai:gateway:usage:list --billing` to inspect cost and receivable records, their price versions and their exact decimal amounts. Each page reads usage, charges and invoice evidence in one database statement.
+
+For `/v1/embeddings` and Gemini's `embedContent` and `batchEmbedContents`, cost and receivable use the input token rate. The tariff still takes an `output` field, which can be `"0"` for an embedding model. A reported zero yields a zero charge. If upstream omits input usage, the amount stays pending.
 
 Set `groups.<group>.rate_multiplier` to a nonnegative decimal string such as `"0.5"` to adjust the published model’s downstream charge for that group. The gateway applies the multiplier before rounding the amount and before reserving group funds. The recorded price snapshot retains the multiplier in effect when the request started.
 
@@ -400,6 +402,8 @@ The original rate, amount and evidence remain available. `usage:list --billing` 
 ### Daily group billing budget {#billing-budget}
 
 In `config/ai_gateway.rs`, enable usage and billing and run the gateway migrations. Set the group budget in `groups.<group>.budget`. In `billing.upstream.<connection>.<model>`, set `input_token_limit` to the upstream model's verified maximum billable input Tokens per request, including cached Tokens. Set a downstream rate in the same currency. The limit applies across all Keys in the group and all gateway instances using the same database.
+
+For embedding requests, the reservation uses the configured maximum billable input tokens for the whole upstream request. It uses no output allowance. Verify the total input bound when publishing an endpoint that accepts batches.
 
 ```json
 {

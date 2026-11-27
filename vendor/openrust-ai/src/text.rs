@@ -364,6 +364,10 @@ impl TextEndpoint {
         )
     }
 
+    pub const fn is_embedding(self) -> bool {
+        matches!(self, Self::Embeddings) || self.is_gemini_embedding()
+    }
+
     pub const fn is_image(self) -> bool {
         matches!(self, Self::ImagesGenerations | Self::ImagesEdits)
     }
