@@ -4,11 +4,14 @@ use openrust::{
     support::Str,
 };
 
+use serde::{Deserialize, Serialize};
+
 use super::UsageStore;
 use crate::managed_keys::{integer, now, text};
 
 pub(crate) const RETENTION_SECONDS: i64 = 48 * 60 * 60;
 pub(crate) const DISK: &str = "local";
+pub(crate) const MAX_PARTS: usize = 256;
 const CLEANUP_GRACE_SECONDS: i64 = 5 * 60;
 const TABLE: &str = "ai_gateway_gemini_batch_files";
 
@@ -30,6 +33,13 @@ pub(crate) struct CleanupReport {
     pub(crate) failed: usize,
 }
 
+#[derive(Deserialize, Serialize)]
+pub(crate) struct UploadPart {
+    pub(crate) path: String,
+    pub(crate) size: usize,
+    pub(crate) sha256: String,
+}
+
 pub(crate) struct BatchFile {
     pub(crate) id: String,
     pub(crate) owner: String,
@@ -38,6 +48,34 @@ pub(crate) struct BatchFile {
     pub(crate) size: usize,
     pub(crate) object: Option<(String, String)>,
     pub(crate) deleted: bool,
+    pub(crate) received: usize,
+    pub(crate) parts: Vec<UploadPart>,
+    pub(crate) finalized: bool,
+}
+
+impl BatchFile {
+    pub(crate) fn confirmed_bytes(&self) -> usize {
+        if self.object.is_some() {
+            self.size
+        } else {
+            self.received
+        }
+    }
+
+    pub(crate) fn is_ready(&self) -> bool {
+        self.finalized || self.object.is_some()
+    }
+
+    pub(crate) fn matches_part(&self, offset: usize, size: usize, sha256: &str) -> bool {
+        let mut start = 0;
+        for part in &self.parts {
+            if start == offset {
+                return part.size == size && part.sha256 == sha256;
+            }
+            start += part.size;
+        }
+        false
+    }
 }
 
 impl UsageStore {
@@ -98,26 +136,73 @@ impl UsageStore {
             (Some(Value::Null), Some(Value::Null)) => None,
             _ => return Err(DatabaseError::InvalidScalar),
         };
+        let size = read_size(&row, "size_bytes")?;
+        let received = read_size(&row, "received_bytes")?;
+        let finalized = match row.get("finalized") {
+            Some(Value::Bool(value)) => *value,
+            Some(Value::Integer(value @ (0 | 1))) => *value == 1,
+            _ => return Err(DatabaseError::InvalidScalar),
+        };
+        let parts: Vec<UploadPart> = match row.get("upload_parts") {
+            Some(Value::Text(parts)) => {
+                serde_json::from_str(parts).map_err(|_| DatabaseError::InvalidScalar)?
+            }
+            Some(Value::Null) => Vec::new(),
+            _ => return Err(DatabaseError::InvalidScalar),
+        };
+        let prefix = format!("{}/", directory(id));
+        let valid_path = |path: &str| path.strip_prefix(&prefix).is_some_and(Str::is_ulid);
+        if parts.len() > MAX_PARTS
+            || parts.iter().try_fold(0_usize, |total, part| {
+                (valid_path(&part.path) && part.size > 0).then_some(())?;
+                total.checked_add(part.size)
+            }) != Some(received)
+            || received > size
+            || (finalized && received != size)
+            || object
+                .as_ref()
+                .is_some_and(|(path, _)| finalized || received != 0 || !valid_path(path))
+        {
+            return Err(DatabaseError::InvalidScalar);
+        }
         Ok(Some(BatchFile {
             id: id.into(),
             owner: owner.into(),
             display_name: text(&row, "display_name")?,
             mime: text(&row, "mime")?,
-            size: integer(&row, "size_bytes")?
-                .and_then(|size| usize::try_from(size).ok())
-                .ok_or(DatabaseError::InvalidScalar)?,
+            size,
+            received,
+            parts,
+            finalized,
             object,
             deleted: integer(&row, "deleted_at")?.is_some(),
         }))
     }
 
-    pub(crate) async fn finish_gemini_batch_file(
+    pub(crate) async fn record_gemini_batch_file_part(
         &self,
         file: &BatchFile,
-        path: &str,
-        sha256: &str,
+        part: Option<&UploadPart>,
+        finalize: bool,
     ) -> DatabaseResult<bool> {
         let now = now();
+        let received = file.received + part.map_or(0, |part| part.size);
+        let mut update = Record::from([
+            ("received_bytes".into(), (received as i64).into()),
+            ("finalized".into(), finalize.into()),
+        ]);
+        if let Some(part) = part {
+            let parts = file
+                .parts
+                .iter()
+                .chain(std::iter::once(part))
+                .collect::<Vec<_>>();
+            let parts = serde_json::to_string(&parts).map_err(|_| DatabaseError::InvalidScalar)?;
+            update.insert("upload_parts".into(), parts.into());
+        }
+        if finalize {
+            update.insert("expires_at".into(), (now + RETENTION_SECONDS).into());
+        }
         Ok(self
             .connection
             .table(TABLE)
@@ -125,12 +210,10 @@ impl UsageStore {
             .r#where("id", "=", file.id.as_str())
             .where_null("deleted_at")
             .where_null("object_path")
+            .r#where("finalized", "=", false)
+            .r#where("received_bytes", "=", file.received as i64)
             .r#where("expires_at", ">", now)
-            .update(Record::from([
-                ("expires_at".into(), (now + RETENTION_SECONDS).into()),
-                ("object_path".into(), path.into()),
-                ("sha256".into(), sha256.into()),
-            ]))
+            .update(update)
             .await?
             == 1)
     }
@@ -201,4 +284,10 @@ impl UsageStore {
         }
         Ok(report)
     }
+}
+
+fn read_size(row: &openrust::database::Row, column: &str) -> DatabaseResult<usize> {
+    integer(row, column)?
+        .and_then(|size| usize::try_from(size).ok())
+        .ok_or(DatabaseError::InvalidScalar)
 }

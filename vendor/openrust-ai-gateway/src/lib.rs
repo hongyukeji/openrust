@@ -39,6 +39,8 @@ mod cost_pages_migration;
 mod gateway;
 #[path = "../database/migrations/2026_11_27_000019_add_expiry_to_ai_gateway_gemini_batch_files.rs"]
 mod gemini_batch_file_expiry_migration;
+#[path = "../database/migrations/2026_11_27_000020_add_parts_to_ai_gateway_gemini_batch_files.rs"]
+mod gemini_batch_file_parts_migration;
 #[path = "../database/migrations/2026_11_27_000018_create_ai_gateway_gemini_batch_files_table.rs"]
 mod gemini_batch_files_migration;
 mod gemini_batch_input;
@@ -182,6 +184,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000019_add_expiry_to_ai_gateway_gemini_batch_files.rs",
         &gemini_batch_file_expiry_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000020_add_parts_to_ai_gateway_gemini_batch_files.rs",
+        &gemini_batch_file_parts_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -289,6 +295,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000019_add_expiry_to_ai_gateway_gemini_batch_files.rs",
                         include_bytes!("../database/migrations/2026_11_27_000019_add_expiry_to_ai_gateway_gemini_batch_files.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000020_add_parts_to_ai_gateway_gemini_batch_files.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000020_add_parts_to_ai_gateway_gemini_batch_files.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

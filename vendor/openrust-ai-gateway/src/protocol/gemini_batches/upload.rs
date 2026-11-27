@@ -4,9 +4,12 @@ use openrust::filesystem::{Storage, Visibility, WriteOptions};
 use sha2::{Digest, Sha256};
 
 use super::*;
-use crate::usage::gemini_batch_files::{BatchFile, DISK, directory, valid_id};
+use crate::usage::gemini_batch_files::{
+    BatchFile, DISK, MAX_PARTS, UploadPart, directory, valid_id,
+};
 
-const LIMIT: usize = 8 * 1024 * 1024;
+const PART_LIMIT: usize = 8 * 1024 * 1024;
+const FILE_LIMIT: usize = 32 * 1024 * 1024;
 
 pub(in crate::protocol) fn upload_route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(async move {
@@ -36,7 +39,10 @@ pub(in crate::protocol) fn upload_route(request: &mut Request) -> HttpFuture<'_,
                 }
                 start(request, store, &key).await
             }
-            Some("upload, finalize" | "upload,finalize") => finish(request, store, &key).await,
+            Some("upload") => upload(request, store, &key, false).await,
+            Some("finalize" | "upload, finalize" | "upload,finalize") => {
+                upload(request, store, &key, true).await
+            }
             Some("query") => query(request, store, &key).await,
             _ => invalid("批文件上传命令无效"),
         }
@@ -67,7 +73,7 @@ async fn start(request: &mut Request, store: &UsageStore, key: &Key) -> HttpResu
     };
     let Some(size) = super::super::single_header(request, "x-goog-upload-header-content-length")
         .and_then(|size| size.parse::<usize>().ok())
-        .filter(|size| (1..=LIMIT).contains(size))
+        .filter(|size| (1..=FILE_LIMIT).contains(size))
     else {
         return invalid("批文件长度无效或超出上限");
     };
@@ -97,6 +103,9 @@ async fn start(request: &mut Request, store: &UsageStore, key: &Key) -> HttpResu
         size,
         object: None,
         deleted: false,
+        received: 0,
+        parts: Vec::new(),
+        finalized: false,
     };
     let url = format!("{url}?upload_id={}", file.id);
     let Ok(url) = HeaderValue::from_str(&url) else {
@@ -132,7 +141,12 @@ async fn lookup(
     }
 }
 
-async fn finish(request: &mut Request, store: &UsageStore, key: &Key) -> HttpResult {
+async fn upload(
+    request: &mut Request,
+    store: &UsageStore,
+    key: &Key,
+    finalize: bool,
+) -> HttpResult {
     let Some(id) = upload_id(request) else {
         return not_found();
     };
@@ -140,83 +154,147 @@ async fn finish(request: &mut Request, store: &UsageStore, key: &Key) -> HttpRes
         Ok(file) => file,
         Err(error) => return error,
     };
-    if super::super::single_header(request, "x-goog-upload-offset") != Some("0") {
-        return invalid("批文件上传偏移须为 0");
-    }
-    let data = match request.body_bytes_with_limit(file.size).await {
-        Ok(data) if data.len() == file.size => data,
-        _ => return invalid("批文件长度不匹配"),
+    let Some(offset) = super::super::single_header(request, "x-goog-upload-offset")
+        .and_then(|offset| offset.parse::<usize>().ok())
+    else {
+        return invalid("批文件上传偏移无效");
     };
+    if offset > file.confirmed_bytes() {
+        return upload_conflict(&file);
+    }
+    let data = match request
+        .body_bytes_with_limit(PART_LIMIT.min(file.size - offset))
+        .await
+    {
+        Ok(data) if finalize || !data.is_empty() => data,
+        Err(HttpError::PayloadTooLarge) => return super::super::request_too_large(PROTOCOL),
+        _ => return invalid("批文件分片长度无效"),
+    };
+    let end = offset + data.len();
+    if finalize && end != file.size {
+        return invalid("批文件尚未上传完整");
+    }
     let hash = digest(&data);
-    if let Some((_, existing)) = &file.object {
-        return if *existing == hash {
-            file_result(&file, true)
-        } else {
-            conflict()
+    if file.is_ready() {
+        return replay(&file, offset, data.len(), &hash, finalize);
+    }
+    let repeated = offset < file.received;
+    if repeated && !file.matches_part(offset, data.len(), &hash) {
+        return upload_conflict(&file);
+    }
+    if repeated && !finalize {
+        return upload_progress(&file);
+    }
+
+    let written = if data.is_empty() || repeated {
+        None
+    } else {
+        if file.parts.len() == MAX_PARTS {
+            return invalid("批文件分片数量超限");
+        }
+        let Ok(disk) = Storage::disk(Some(DISK)) else {
+            return storage_error();
         };
-    }
-    let Ok(disk) = Storage::disk(Some(DISK)) else {
-        return storage_error();
-    };
-    let path = format!("{}/{}", directory(&file.id), Str::ulid());
-    if !matches!(
-        disk.put_with_options(
-            &path,
-            &data,
-            WriteOptions {
-                visibility: Some(Visibility::Private)
-            }
-        )
-        .await,
-        Ok(true)
-    ) {
-        return storage_error();
-    }
-    match store.finish_gemini_batch_file(&file, &path, &hash).await {
-        Ok(true) => file_result(&file, true),
-        Ok(false) => {
-            let _ = disk.delete(&path).await;
-            match lookup(store, key, &file.id, false).await {
-                Ok(winner)
-                    if winner
-                        .object
-                        .as_ref()
-                        .is_some_and(|(_, current)| *current == hash) =>
-                {
-                    file_result(&winner, true)
+        let path = format!("{}/{}", directory(&file.id), Str::ulid());
+        if !matches!(
+            disk.put_with_options(
+                &path,
+                &data,
+                WriteOptions {
+                    visibility: Some(Visibility::Private)
                 }
-                Ok(_) => conflict(),
+            )
+            .await,
+            Ok(true)
+        ) {
+            return storage_error();
+        }
+        Some((
+            disk,
+            UploadPart {
+                path,
+                size: data.len(),
+                sha256: hash.clone(),
+            },
+        ))
+    };
+    match store
+        .record_gemini_batch_file_part(&file, written.as_ref().map(|(_, part)| part), finalize)
+        .await
+    {
+        Ok(true) if finalize => file_result(&file, true),
+        Ok(true) => upload_ack(end, false),
+        Ok(false) => {
+            if let Some((disk, part)) = written {
+                let _ = disk.delete(&part.path).await;
+            }
+            match lookup(store, key, &file.id, false).await {
+                Ok(winner) => replay(&winner, offset, data.len(), &hash, finalize),
                 Err(error) => error,
             }
         }
-        // 写入结果未知时保留文件，避免数据库已提交的引用失效。
+        // 更新结果未知时保留新对象，数据库可能已经接收该分片。
         Err(_) => storage_error(),
     }
+}
+
+fn replay(
+    file: &BatchFile,
+    offset: usize,
+    length: usize,
+    hash: &str,
+    finalize: bool,
+) -> HttpResult {
+    let matches = if let Some((_, original)) = &file.object {
+        (offset == 0 && length == file.size && hash == original)
+            || (length == 0 && offset == file.size)
+    } else {
+        file.matches_part(offset, length, hash)
+            || (file.is_ready() && length == 0 && offset == file.size)
+    };
+    if !matches || (finalize && !file.is_ready()) {
+        return upload_conflict(file);
+    }
+    if finalize {
+        return file_result(file, true);
+    }
+    upload_progress(file)
 }
 
 async fn query(request: &mut Request, store: &UsageStore, key: &Key) -> HttpResult {
     let Some(id) = upload_id(request) else {
         return not_found();
     };
-    let file = match lookup(store, key, &id, false).await {
-        Ok(file) => file,
-        Err(error) => return error,
-    };
-    let status = if file.object.is_some() {
-        "final"
-    } else {
-        "active"
-    };
-    let size = if file.object.is_some() { file.size } else { 0 };
-    Ok(Response::empty(StatusCode::OK)
+    match lookup(store, key, &id, false).await {
+        Ok(file) => upload_progress(&file),
+        Err(error) => error,
+    }
+}
+
+fn upload_progress(file: &BatchFile) -> HttpResult {
+    upload_ack(file.confirmed_bytes(), file.is_ready())
+}
+
+fn upload_ack(received: usize, finalized: bool) -> HttpResult {
+    Response::json(StatusCode::OK, json!({}))
+        .map(|response| upload_headers(response, received, finalized))
+}
+
+fn upload_headers(response: Response, received: usize, finalized: bool) -> Response {
+    let status = if finalized { "final" } else { "active" };
+    response
         .header(
             HeaderName::from_static("x-goog-upload-status"),
             HeaderValue::from_static(status),
         )
         .header(
             HeaderName::from_static("x-goog-upload-size-received"),
-            HeaderValue::from(size),
-        ))
+            HeaderValue::from(received),
+        )
+}
+
+fn upload_conflict(file: &BatchFile) -> HttpResult {
+    conflict().map(|response| upload_headers(response, file.confirmed_bytes(), file.is_ready()))
 }
 
 pub(super) fn get_route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -247,7 +325,7 @@ async fn manage(request: &mut Request, delete: bool) -> HttpResult {
         return Ok(response);
     }
     if !delete {
-        return if file.object.is_some() {
+        return if file.is_ready() {
             file_result(&file, false)
         } else {
             not_found()
@@ -260,13 +338,11 @@ async fn manage(request: &mut Request, delete: bool) -> HttpResult {
             Err(_) => return storage_error(),
         }
     }
-    if let Some((path, _)) = &file.object {
-        let Ok(disk) = Storage::disk(Some(DISK)) else {
-            return storage_error();
-        };
-        if !matches!(disk.delete(path).await, Ok(true)) {
-            return storage_error();
-        }
+    let Ok(disk) = Storage::disk(Some(DISK)) else {
+        return storage_error();
+    };
+    if !matches!(disk.delete_directory(&directory(&file.id)).await, Ok(true)) {
+        return storage_error();
     }
     Response::json(StatusCode::OK, json!({}))
 }
@@ -285,10 +361,15 @@ fn file_result(file: &BatchFile, wrapped: bool) -> HttpResult {
         },
     )
     .map(|response| {
-        response.header(
+        let response = response.header(
             header::CACHE_CONTROL,
             HeaderValue::from_static("private, no-store"),
-        )
+        );
+        if wrapped {
+            upload_headers(response, file.size, true)
+        } else {
+            response
+        }
     })
 }
 
@@ -307,17 +388,38 @@ pub(super) async fn contents(
 ) -> Result<Bytes, HttpResult> {
     let id = name.strip_prefix("files/").ok_or_else(not_found)?;
     let file = lookup(store, key, id, false).await?;
-    let (path, hash) = file.object.ok_or_else(not_found)?;
+    if !file.is_ready() {
+        return Err(not_found());
+    }
     let disk = Storage::disk(Some(DISK)).map_err(|_| storage_error())?;
+    if let Some((path, hash)) = file.object {
+        return read_verified(&disk, &path, file.size, &hash)
+            .await
+            .map(Bytes::from);
+    }
+    let mut bytes = Vec::with_capacity(file.size);
+    for part in file.parts {
+        let data = read_verified(&disk, &part.path, part.size, &part.sha256).await?;
+        bytes.extend_from_slice(&data);
+    }
+    Ok(Bytes::from(bytes))
+}
+
+async fn read_verified(
+    disk: &openrust::filesystem::FilesystemAdapter,
+    path: &str,
+    size: usize,
+    hash: &str,
+) -> Result<Vec<u8>, HttpResult> {
     let data = disk
-        .get(&path)
+        .get(path)
         .await
         .map_err(|_| storage_error())?
         .ok_or_else(storage_error)?;
-    if data.len() != file.size || digest(&data) != hash {
+    if data.len() != size || digest(&data) != hash {
         return Err(storage_error());
     }
-    Ok(data.into())
+    Ok(data)
 }
 
 pub(super) async fn resolve_source(
@@ -392,7 +494,7 @@ pub(super) fn prepared_source(
         };
         serde_json::to_writer(&mut encoded, &row).map_err(|_| "无法编码批文件")?;
         encoded.push(b'\n');
-        if encoded.len() > LIMIT {
+        if encoded.len() > FILE_LIMIT {
             return Err("提交的批文件超出上限");
         }
     }

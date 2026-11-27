@@ -165,7 +165,7 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 請依批次工作的價格設定具名連線與公開模型費率。閘道只登記一次提交，取得最終項目用量後結算。啟用硬預算時，為上游模型設定可信的單項輸入上限 `input_token_limit`，向量批次也依此上限預留。啟用硬預算或輸出配額的生成批次支援文字輸出。閘道採用最嚴格的設定上限，依每項的候選數換算 `maxOutputTokens`，保留呼叫端較小的上限和原有推理設定。候選輸出與推理 Token 均計入配額。用量無法確認時保留配額預留。Gemini 回傳結果檔案時，閘道在 `response.responsesFile` 中回傳目前 Key 有權存取的檔名。使用 `GeminiBatches::download`，或持同一 Key 請求 `GET /download/v1beta/{responsesFile}:download?alt=media`。結果以 JSONL 串流回傳，單行上限為 64 MiB。下載中斷後從頭重試。
 
-檔案型工作可用 `Files::put` 上傳 JSONL，也可用 Gemini 的 `POST /upload/v1beta/files` 啟動上傳，再一次送出 `upload, finalize`。持同一 Key 將回傳的 `files/input-…` 填入 `batch.inputConfig.fileName`。每個檔案最多 8 MiB，暫存在私有 `local` 磁碟，多程序部署時共用該磁碟。透過 `/v1beta/{fileName}` 讀取中繼資料或刪除暫存檔案。閘道逐行驗證並套用設定的限額，再上傳至選定連線。批次工作受理後即可刪除暫存檔案。
+不超過 8 MiB 的 JSONL 可用 `Files::put`，也可透過 `POST /upload/v1beta/files` 啟動工作階段後一次送出 `upload, finalize`。較大的檔案使用回傳的上傳 URL 逐片傳送 `upload`，以 `X-Goog-Upload-Offset` 指定位元組偏移。中斷後傳送 `query`，從 `X-Goog-Upload-Size-Received` 指示的位置繼續。最後一片可用 `upload, finalize`，也可在全部上傳後以檔案總位元組數為偏移傳送空的 `finalize`。閘道每個檔案最多接收 32 MiB，每次請求最多 8 MiB，每個檔案最多 256 片。分片保存在私有 `local` 磁碟，多程序部署時共用該磁碟。持同一 Key 將回傳的 `files/input-…` 填入 `batch.inputConfig.fileName`。透過 `/v1beta/{fileName}` 可讀取中繼資料或刪除暫存檔案。閘道驗證檔案並套用設定的限額，再將 JSONL 上傳至選定連線。批次工作受理後即可刪除暫存檔案。
 
 上傳工作階段與暫存檔案各保留 48 小時，暫存檔案從上傳完成起計時。用 `./artisan ai:gateway:batch-files:prune --pretend` 預覽清理，移除 `--pretend` 即可分批清理到期檔案和中繼資料。在 `routes/console.rs` 登記同一命令即可定時清理。
 

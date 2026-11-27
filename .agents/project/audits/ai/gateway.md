@@ -322,9 +322,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 HTTP、Artisan 和本地 
 
 新增 Gemini JSONL 暂存上传，支持原生 resumable 会话启动、状态查询和单次完整文件提交。输入字节保存到私有 `local` 磁盘，数据库持有 Key 归属、对象路径、字节长度及 SHA-256。提交按同一 Key 查找本地文件，校验内容和每行的模型与资源，沿用内联批次的预算及输出配额处理，再将改写的 JSONL 上传到实际连接。客户端收到的任务、文件和上游凭证范围继续隔离。重复提交相同上传内容返回原文件，不同内容返回冲突。删除先标记本地文件不可再用，再清理文件对象，清理失败可重试。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan SDK 上传、HTTP 文件型提交和本地 Gemini 协议服务验证文件仅存私有磁盘、跨 Key 拒绝、跨进程提交、上传重试和冲突、摘要不符拒绝、文件删除以及结果下载与结算。带硬预算和输出配额的两项样例在原生上传的 JSONL 中各限制 10 个输出 Token，应收预占 0.12 USD。本入口受框架上传上限约束，每个文件最多 8 MiB，使用单次 `upload, finalize`。多片续传、更大文件和正式 Gemini 账号实测继续单列。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan SDK 上传、HTTP 文件型提交和本地 Gemini 协议服务验证文件仅存私有磁盘、跨 Key 拒绝、跨进程提交、上传重试和冲突、摘要不符拒绝、文件删除以及结果下载与结算。带硬预算和输出配额的两项样例在原生上传的 JSONL 中各限制 10 个输出 Token，应收预占 0.12 USD。首批采用单次 `upload, finalize`。续传和文件上限见下文，正式 Gemini 账号待实测。
 
 - [Gemini 批任务 JSONL 文件上传](https://aistudio.google.com/docs/batch-api#input-file)
+
+### Gemini 批文件分片续传
+
+沿用 Gemini 的 `upload`、`query`、`upload, finalize` 和空正文 `finalize`。每次写入创建独立私有对象，数据库在同一次条件更新登记分片位置、对象引用、SHA-256 和已确认偏移。相同分片并发重发只登记一次，不同内容或不连续偏移返回当前进度与冲突。任务只能引用已经完成的文件，读取时按顺序验证每片长度和摘要。兼容已经发布的单对象记录。单次请求上限 8 MiB，每个文件上限 32 MiB、最多 256 片。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 以独立进程和本地 Gemini 协议服务验证 9 MiB JSONL 跨进程续传、同片并发重发、跨 Key 与错误偏移拒绝、空正文完成及其重试、旧单对象读取、分片损坏拒绝、目录删除和结果结算。带硬预算的样本验证重写后的文件仍发往同一上游连接，并预占 0.12 USD 应收。更大的文件和正式 Gemini 账号仍待验。
+
+- [Google Go SDK 的 Gemini 分片上传实现](https://github.com/googleapis/go-genai/blob/main/api_client.go)
 
 ### Gemini 暂存批文件清理
 
