@@ -5,6 +5,7 @@ use http::{HeaderMap, HeaderName, HeaderValue};
 use openrust::{
     config::Environment,
     http::client::{Factory, PendingRequest, Response},
+    support::Str,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -83,6 +84,7 @@ struct Configuration {
     headers: BTreeMap<String, String>,
     #[serde(default)]
     forward_usage_context: bool,
+    live: Option<crate::LiveProtocol>,
     #[serde(default)]
     models: Models,
     #[serde(default)]
@@ -233,6 +235,45 @@ impl Connection {
 
     pub(crate) fn base_url(&self) -> &str {
         &self.config.url
+    }
+
+    pub(crate) fn live_protocol(&self) -> Option<crate::LiveProtocol> {
+        match self.authorization {
+            Authorization::Bearer => self.config.live,
+            _ => None,
+        }
+    }
+
+    pub(crate) fn live_request(&self) -> AiResult<PendingRequest> {
+        let protocol = self.live_protocol().ok_or(AiError::EndpointNotSupported)?;
+        if self.config.key_env.is_none() {
+            return Err(AiError::MissingCredential);
+        }
+        let mut request = self
+            .request(None)?
+            .max_response_bytes(crate::live::MAX_SIGNAL_BYTES);
+        if protocol != crate::LiveProtocol::Codex {
+            return Ok(request);
+        }
+        if !self
+            .headers
+            .get("x-oai-attestation")
+            .is_some_and(|value| value.to_str().is_ok_and(|value| !value.trim().is_empty()))
+            || self.headers.contains_key("openai-beta")
+        {
+            return Err(AiError::InvalidConfiguration("providers.<name>.headers"));
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert("openai-alpha", HeaderValue::from_static("quicksilver=v2"));
+        for name in ["session-id", "thread-id"] {
+            if !self.headers.contains_key(name) {
+                let value = Str::uuid().map_err(|_| AiError::Transport)?.to_string();
+                let value = HeaderValue::from_str(&value).map_err(|_| AiError::Transport)?;
+                headers.insert(HeaderName::from_static(name), value);
+            }
+        }
+        request = request.replace_headers(headers);
+        Ok(request)
     }
 
     pub(crate) fn name(&self) -> &str {

@@ -118,6 +118,23 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 Set the bearer key in `SUB2API_API_KEY`. Add a `headers` object only if your deployment requires extra headers. Names and values must be valid HTTP headers. Authentication and headers managed by the SDK remain controlled by the connection and protocol. Run `./artisan ai:models sub2api --json` to check whether the configured model is also discoverable.
 
+## Live WebRTC connections {#live-webrtc}
+
+On a named `openai` driver connection, set `"live": "openai"` to use the public OpenAI Live API and configure its bearer credential with `key_env`. Use `"live": "codex"` for an authorized Codex Live connection. Point its URL at the configured Codex API base and supply the upstream-required account headers, including a valid `x-oai-attestation` from your deployment’s authorized attestation provider. Use environment-backed configuration for credential and attestation values.
+
+Create the call with the caller’s SDP offer and session object. The returned SDP answer belongs to the WebRTC peer connection. Open the Sideband WebSocket with the returned call ID and the same named connection for server events and controls. The public OpenAI Live adapter also supports `hangup_live_call`.
+
+```rust
+use openrust_ai::{Ai, AiError};
+use serde_json::json;
+
+let provider = Ai::text_provider(Some("voice"))?;
+let live = provider.live_gateway().ok_or(AiError::EndpointNotSupported)?;
+let session = json!({"model": model});
+let call = live.create_live_call(&offer_sdp, &session).await?;
+let control = live.connect_live_sideband(&call.id).await?;
+```
+
 ## Azure OpenAI {#azure-openai}
 
 To use the `azure` preset, set `AZURE_OPENAI_URL` to your Azure resource URL and set `AZURE_OPENAI_API_KEY`. The preset appends `/openai/v1` when needed. Use your deployment name as `AZURE_OPENAI_DEPLOYMENT` for text. For a different named connection, use `driver: "openai"`, the full v1 URL, and `auth: "api-key"`.

@@ -49,6 +49,7 @@ mod gemini_batches;
 mod gemini_caches;
 mod generation_options;
 mod image;
+mod live;
 mod load_skill;
 mod localization;
 mod manager;
@@ -136,6 +137,7 @@ pub use image::{
     GeneratedImage, Image, ImageAttachment, ImageFormat, ImagePrompt, ImageProvider, ImageResponse,
     ImageUsage, PendingImageGeneration,
 };
+pub use live::{LiveCall, LiveGateway, LiveProtocol};
 pub use load_skill::LoadSkill;
 pub use manager::AiManager;
 pub use mcp_tool::{McpServerTool, McpTool};

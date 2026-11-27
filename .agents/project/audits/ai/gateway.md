@@ -386,7 +386,7 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过本地协议服务及独立 HTTP
 
 OpenAI 公开 Live 使用 `POST /v1/live/sessions` 的 WebRTC JSON 封装及 `/v1/live/sessions/{id}/attach`。公开 Realtime 使用 multipart `POST /v1/realtime/calls` 和 WebSocket `/v1/realtime?call_id=...`。供应商适配须分别核对其协议、账号授权和生命周期。固定 Codex 通道要求部署者具备实际账号和服务端 attestation 条件。
 
-本批实现共用出站握手。它复用现有 Rust HTTP 客户端的鉴权、目标规则、TLS、中间件及诊断管道，使用已有 tungstenite 协议实现交换帧。成功升级前验证 HTTP 101 握手，禁止重定向与重试；HTTP Fake 不能生成实际升级连接。真实 TCP 测试通过文本与二进制双向交换、关闭帧、伪造握手拒绝、302 不跟随及 Fake 放行规则。框架 HTTP 客户端 47 项回归、两 AI 包库级严格 Clippy 和三语文档构建均通过。启用 AI 网关的应用构建完成，SQLite 音色 HTTP 与 Artisan 发布、迁移、路由缓存回归通过。G18 的网关路由、会话归属绑定、控制接管和回收仍待实现及验收。G19 的 Realtime 双向业务事件继续单独验收。
+本批实现共用出站握手。它复用现有 Rust HTTP 客户端的鉴权、目标规则、TLS、中间件及诊断管道，使用已有 tungstenite 协议实现交换帧。成功升级前验证 HTTP 101 握手，禁止重定向与重试；HTTP Fake 不能生成实际升级连接。真实 TCP 测试通过文本与二进制双向交换、关闭帧、伪造握手拒绝、302 不跟随及 Fake 放行规则。框架 HTTP 客户端 47 项回归、两 AI 包库级严格 Clippy 和三语文档构建均通过。启用 AI 网关的应用构建完成，SQLite 音色 HTTP 与 Artisan 发布、迁移、路由缓存回归通过。SDK 已完成[两种上游的 SDP 创建与 Sideband](README.md#ai-06-live-webrtc-与-sideband)。G18 的网关路由、会话归属绑定、控制接管和回收仍待实现及验收。G19 的 Realtime 双向业务事件继续单独验收。
 
 - [Sub2API 固定版路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L231)
 - [Sub2API 固定版 Live 服务](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_live.go#L261)

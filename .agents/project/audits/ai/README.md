@@ -790,6 +790,16 @@ xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上�
 
 SDK 直连、外部 Responses 和 SDK 经网关的原生 xAI 组合证据见 [GW-04 xAI 原生 Responses 三条链路](gateway.md#xai-原生-responses-三条链路)。
 
+### AI-06 Live WebRTC 与 Sideband
+
+具名 `openai` 驱动连接通过 `live` 显式启用 `codex` 或 `openai`。SDK 的 `LiveGateway` 复用同一连接的 Bearer 凭证、HTTP 出站策略与 WebSocket 握手。Codex 模式按固定基线发送 SDP／会话 JSON、所需查询参数和已配置的授权证明，提取响应中的呼叫 ID。后续 Sideband 仍访问具名连接的基础 URL。OpenAI 公开 Live 模式按其原生 WebRTC JSON 创建、附接 Sideband 以及挂断。
+
+隔离供应商通过真实 TCP HTTP 和 WebSocket 核对两套路径、请求结构、账号头、SDP answer、双向控制和关闭。验证缺少显式模式、缺少 Codex 证明、无效呼叫 ID 和上游 `Location` 含其他域名时的处理。 四项 SDK 测试、两 AI 包库级严格 Clippy、三语文档构建与示例锚点通过。启用网关的应用构建后复验了 SQLite 音色 HTTP 及 Artisan 发布、迁移和路由缓存。正式 Codex 账号和 DeviceCheck 证明及 OpenAI 公开 Live 模型权限尚待实机验收。G18 的网关入口、持久化拥有权、接管和回收继续见[网关验收](gateway.md#livesideband-出站传输)。
+
+- [固定 Codex Live 兼容基线](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_live.go#L261)
+- [OpenAI Live 创建会话](https://developers.openai.com/api/reference/resources/live/methods/create/)
+- [OpenAI Live Sideband](https://developers.openai.com/api/docs/guides/voice-server-controls?voice-api=live)
+
 ### xAI 原生语音合成
 
 固定 Laravel 的 xAI 供应商公开文本和图像能力。按固定 Sub2API 的 Grok 语音路由和 xAI 原生协议，为 SDK 的 `Audio` 补齐二进制合成。固定基线的 `Audio` 门面、配置、返回类型和 Storage 调用方式继续使用。原生 `/v1/tts` 由上游选择模型，SDK 的模型字段保存操作标识 `tts`，不向供应商发送模型字段。按原生语音类型请求 MP3、WAV 或 PCM，语言使用 `auto`。独立风格指令、其他 SDK 输出格式和不适用的显式模型在出站前拒绝。上游音频按 MIME 与字节内容校验。

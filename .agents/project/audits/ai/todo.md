@@ -54,7 +54,7 @@
 - [x] **G15 流式语音合成**。本地三库已验收固定基线 `POST /v1/tts` 的首块音频、五种编码、时间戳、正常终止和取消，详见[网关验收记录](gateway.md#xai-http-流式语音合成)。双向实时会话见 G19，正式 xAI 账号见 E09。
 - [x] **G16 大文件语音转录接收**。本地三库已验收 HTTP 分块、限额、缓冲、断流和计量，SQLite 实测 500 MB 边界，详见[网关验收记录](gateway.md#xai-大文件语音转录)。正式账号见 E09。
 - [x] **G17 自定义音色**。本地三库已验收列表、上传、读取、更新、样本下载、删除、租户与账号归属及合成计量，详见[网关验收记录](gateway.md#xai-自定义音色)。正式权限见 E09。
-- [ ] **G18 Live／Sideband**。核对会话创建、控制通道、归属、断开和回收。 已完成[出站传输和协议核对](gateway.md#livesideband-出站传输)。
+- [ ] **G18 Live／Sideband**。核对会话创建、控制通道、归属、断开和回收。已完成[出站传输与协议核对](gateway.md#livesideband-出站传输)及[SDK 上游验收](README.md#ai-06-live-webrtc-与-sideband)。
 - [ ] **G19 Realtime 双向会话**。核对升级、双向事件、取消和单连接多次生成。
 - [ ] **G20 独立搜索和平台动作**。逐项裁决 `web_search`、`x_search`、`alpha/search`、`systemone`，验收鉴权、参数、错误和用量。
 - [ ] **G21 Codex 搜索与 Realtime Calls**。用固定客户端验收专用路径、凭证范围和会话归属。

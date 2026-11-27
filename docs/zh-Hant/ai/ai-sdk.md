@@ -118,6 +118,23 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 在 `SUB2API_API_KEY` 設定 Bearer 憑證。執行個體需要額外標頭時，可在連線中設定 `headers`。名稱和值均須符合 HTTP 規範，驗證和通訊協定所需的標頭由連線及 SDK 管理。可用 `./artisan ai:models sub2api --json` 確認設定的模型也在探索結果中。
 
+## Live WebRTC 連線 {#live-webrtc}
+
+在使用 `openai` 驅動的具名連線中加入 `"live": "openai"`，接入 OpenAI 公開 Live API，並用 `key_env` 設定 Bearer 憑證。接入已授權的 Codex Live 時，使用 `"live": "codex"`，將 URL 指向對應 Codex API 基礎位址，並設定上游要求的帳號標頭，其中 `x-oai-attestation` 由部署方獲授權的證明服務提供。憑證與證明值透過環境變數注入設定。
+
+使用用戶端的 SDP offer 與工作階段物件建立呼叫。將回傳的 SDP answer 交給 WebRTC 對端連線。用回傳的呼叫 ID 在同一個具名連線上建立 Sideband WebSocket，接收伺服器事件並傳送控制指令。OpenAI 公開 Live 轉接器也提供 `hangup_live_call`。
+
+```rust
+use openrust_ai::{Ai, AiError};
+use serde_json::json;
+
+let provider = Ai::text_provider(Some("voice"))?;
+let live = provider.live_gateway().ok_or(AiError::EndpointNotSupported)?;
+let session = json!({"model": model});
+let call = live.create_live_call(&offer_sdp, &session).await?;
+let control = live.connect_live_sideband(&call.id).await?;
+```
+
 ## Azure OpenAI {#azure-openai}
 
 使用 `azure` 預設時，將 `AZURE_OPENAI_URL` 設為 Azure 資源位址，再填寫 `AZURE_OPENAI_API_KEY`。預設會視需要附加 `/openai/v1`。文字呼叫使用 `AZURE_OPENAI_DEPLOYMENT` 指定部署名稱。新增其他具名連線時，使用 `driver: "openai"`、完整的 v1 URL 和 `auth: "api-key"`。

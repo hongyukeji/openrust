@@ -305,6 +305,10 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    fn live_gateway(&self) -> Option<&dyn crate::LiveGateway> {
+        None
+    }
+
     fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
         false
     }
@@ -1002,6 +1006,12 @@ impl TextProvider for OpenAiTextProvider {
     fn xai_custom_voice_gateway(&self) -> Option<&dyn crate::XaiCustomVoiceGateway> {
         matches!(self.protocol, OpenAiProtocol::Xai)
             .then(|| self.connection.as_ref() as &dyn crate::XaiCustomVoiceGateway)
+    }
+
+    fn live_gateway(&self) -> Option<&dyn crate::LiveGateway> {
+        let connection = self.connection.as_ref();
+        (matches!(self.protocol, OpenAiProtocol::Responses) && connection.live_protocol().is_some())
+            .then_some(connection as &dyn crate::LiveGateway)
     }
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {

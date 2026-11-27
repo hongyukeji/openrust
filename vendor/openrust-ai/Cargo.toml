@@ -36,6 +36,7 @@ url = "2.5"
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["macros", "rt", "net", "io-util", "time"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
 
 [lints]
 workspace = true
