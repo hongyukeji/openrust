@@ -9,6 +9,43 @@ use crate::{AiError, AiResult, embeddings::valid_vectors};
 
 use super::{BedrockProvider, invoke::InvokeFailure};
 
+fn is_titan(model: &str) -> bool {
+    model
+        .rsplit('/')
+        .next()
+        .is_some_and(|id| id.starts_with("amazon.titan-embed-text-v2:"))
+}
+
+pub(super) fn split_titan(body: &Value) -> Result<Option<Vec<Value>>, &'static str> {
+    let Some(model) = body["model"].as_str().filter(|model| is_titan(model)) else {
+        return Ok(None);
+    };
+    let Some(inputs) = body["input"].as_array().filter(|items| items.len() > 1) else {
+        return Ok(None);
+    };
+    if inputs.len() > 2048 {
+        return Err("Bedrock Titan 批量请求最多接收 2048 条文本");
+    }
+    let mut template = json!({
+        "model": model,
+        "dimensions": body["dimensions"],
+        "encoding_format": body["encoding_format"],
+        "input": inputs[0],
+    });
+    EmbeddingRequest::parse(&template)?;
+    template["input"] = Value::Null;
+    Ok(Some(
+        inputs
+            .iter()
+            .map(|input| {
+                let mut request = template.clone();
+                request["input"] = input.clone();
+                request
+            })
+            .collect(),
+    ))
+}
+
 enum Input<'a> {
     Titan { text: &'a str, dimensions: usize },
     Cohere(Vec<&'a str>),
@@ -41,11 +78,7 @@ impl<'a> EmbeddingRequest<'a> {
                 return Err("此 Cohere 向量入口使用模型的原生维数");
             }
             Input::Cohere(texts)
-        } else if model
-            .rsplit('/')
-            .next()
-            .is_some_and(|id| id.starts_with("amazon.titan-embed-text-v2:"))
-        {
+        } else if is_titan(model) {
             if texts.len() != 1 {
                 return Err("Bedrock Titan 向量入口每次接收一段文本");
             }

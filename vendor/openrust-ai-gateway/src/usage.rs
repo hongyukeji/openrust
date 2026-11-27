@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use openrust::{
     database::{
-        Connection, DatabaseError, DatabaseResult, Row, Value,
+        Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
         query::{Builder, Record},
     },
     log::LogContext,
@@ -133,6 +133,7 @@ pub(crate) struct UsageStore {
     connection: Connection,
 }
 
+#[derive(Clone)]
 pub(crate) struct UsageAttempt {
     store: UsageStore,
     pub(crate) id: String,
@@ -187,7 +188,10 @@ impl Settlement {
             );
         let state = if !dispatch_started {
             "not_dispatched"
-        } else if outcome == "completed" && input.is_some() && (input_only || output.is_some()) {
+        } else if (outcome == "completed" || input_only && outcome == "batch_aborted")
+            && input.is_some()
+            && (input_only || output.is_some())
+        {
             "final"
         } else if [input, output, cache_read, cache_written, reasoning]
             .into_iter()
@@ -424,15 +428,16 @@ impl UsageStore {
         reconciliation::read(&self.connection, id).await
     }
 
-    pub(crate) async fn begin(
+    pub(crate) async fn begin_many(
         &self,
         context: &LogContext,
         quota: Option<QuotaReservation>,
         owner: UsageOwner<'_>,
         charges: Option<ChargePlan>,
         budget: BudgetReservations,
-    ) -> DatabaseResult<Option<UsageAttempt>> {
-        let id = Str::ulid().to_string();
+        count: usize,
+    ) -> DatabaseResult<Option<Vec<UsageAttempt>>> {
+        let ids: Vec<_> = (0..count).map(|_| Str::ulid().to_string()).collect();
         let field = |key: &str| {
             context
                 .get(key)
@@ -440,7 +445,6 @@ impl UsageStore {
                 .map_or(Value::Null, Into::into)
         };
         let mut record = Record::from([
-            ("id".into(), id.as_str().into()),
             ("request_id".into(), field("request_id")),
             ("key_id".into(), field("key_id")),
             ("key_name".into(), field("key")),
@@ -487,11 +491,11 @@ impl UsageStore {
             record.insert("account_budget_id".into(), reservation.id.as_str().into());
             record.insert("reserved_cost_atoms".into(), reservation.atoms.into());
         }
-        if quota.is_some() || charges.is_some() || !budget.is_empty() {
+        if count > 1 || quota.is_some() || charges.is_some() || !budget.is_empty() {
             let reservation = quota.clone();
             let plan = charges.clone();
             let budget_reservation = budget.clone();
-            let attempt = id.clone();
+            let attempts = ids.clone();
             let reserved = self
                 .connection
                 .transaction(
@@ -499,7 +503,7 @@ impl UsageStore {
                         let reservation = reservation.clone();
                         let plan = plan.clone();
                         let budget = budget_reservation.clone();
-                        let attempt = attempt.clone();
+                        let attempts = attempts.clone();
                         let record = record.clone();
                         Box::pin(async move {
                             if let Some(reservation) = reservation
@@ -507,12 +511,17 @@ impl UsageStore {
                             {
                                 return Ok(false);
                             }
-                            for budget in [budget.group, budget.account].into_iter().flatten() {
-                                budget.reserve(transaction).await?;
-                            }
-                            insert_usage(transaction.table(TABLE), record).await?;
-                            if let Some(plan) = plan {
-                                plan.register(transaction, &attempt).await?;
+                            for attempt in attempts {
+                                for budget in [&budget.group, &budget.account].into_iter().flatten()
+                                {
+                                    budget.reserve(transaction).await?;
+                                }
+                                let mut record = record.clone();
+                                record.insert("id".into(), attempt.as_str().into());
+                                insert_usage(transaction.table(TABLE), record).await?;
+                                if let Some(plan) = &plan {
+                                    plan.register(transaction, &attempt).await?;
+                                }
                             }
                             Ok(true)
                         })
@@ -524,15 +533,20 @@ impl UsageStore {
                 return Ok(None);
             }
         } else {
+            record.insert("id".into(), ids[0].as_str().into());
             insert_usage(self.connection.table(TABLE), record).await?;
         }
-        Ok(Some(UsageAttempt {
-            store: self.clone(),
-            id,
-            quota,
-            charges,
-            budget,
-        }))
+        Ok(Some(
+            ids.into_iter()
+                .map(|id| UsageAttempt {
+                    store: self.clone(),
+                    id,
+                    quota: quota.clone(),
+                    charges: charges.clone(),
+                    budget: budget.clone(),
+                })
+                .collect(),
+        ))
     }
 
     pub(crate) async fn key_summary(
@@ -747,53 +761,14 @@ impl UsageAttempt {
 
     pub(crate) async fn finish(&self, settlement: Settlement) -> DatabaseResult<()> {
         let changed = if self.quota.is_some() || self.charges.is_some() || !self.budget.is_empty() {
-            let reservation = self.quota.clone();
-            let plan = self.charges.clone();
-            let budget = self.budget.clone();
-            let id = self.id.clone();
+            let attempt = self.clone();
             self.store
                 .connection
                 .transaction(
                     move |transaction| {
-                        let reservation = reservation.clone();
-                        let plan = plan.clone();
-                        let budget = budget.clone();
-                        let id = id.clone();
+                        let attempt = attempt.clone();
                         let settlement = settlement.clone();
-                        Box::pin(async move {
-                            let changed =
-                                finish_usage(transaction.table(TABLE), &id, &settlement).await?;
-                            if changed == 1 {
-                                if let Some(plan) = &plan {
-                                    plan.settle(transaction, &id, &settlement).await?;
-                                }
-                                if let Some(reservation) = reservation
-                                    && settlement.outcome == "completed"
-                                {
-                                    reservation
-                                        .settle(transaction, settlement.output_tokens)
-                                        .await?;
-                                }
-                                if let Some(plan) = plan {
-                                    if let Some(group) = budget.group {
-                                        group
-                                            .settle(transaction, plan.receivable(&settlement))
-                                            .await?;
-                                    }
-                                    if let Some(account) = budget.account
-                                        && !budget::settlements::applied(
-                                            transaction,
-                                            &id,
-                                            billing::adjustments::Direction::Cost,
-                                        )
-                                        .await?
-                                    {
-                                        account.settle(transaction, plan.cost(&settlement)).await?;
-                                    }
-                                }
-                            }
-                            Ok(changed)
-                        })
+                        Box::pin(async move { attempt.finish_in(transaction, &settlement).await })
                     },
                     3,
                 )
@@ -818,6 +793,65 @@ impl UsageAttempt {
             }
         }
         Ok(())
+    }
+
+    pub(crate) async fn finish_many(attempts: Vec<(Self, Settlement)>) -> DatabaseResult<()> {
+        let Some((first, _)) = attempts.first() else {
+            return Ok(());
+        };
+        first
+            .store
+            .connection
+            .clone()
+            .transaction(
+                move |transaction| {
+                    let attempts = attempts.clone();
+                    Box::pin(async move {
+                        for (attempt, settlement) in attempts {
+                            if attempt.finish_in(transaction, &settlement).await? != 1 {
+                                return Err(DatabaseError::InvalidQuery("AI 网关批量结算状态无效"));
+                            }
+                        }
+                        Ok(())
+                    })
+                },
+                3,
+            )
+            .await
+    }
+
+    async fn finish_in(
+        &self,
+        transaction: &mut Transaction,
+        settlement: &Settlement,
+    ) -> DatabaseResult<u64> {
+        let changed = finish_usage(transaction.table(TABLE), &self.id, settlement).await?;
+        if changed == 1 {
+            if let Some(plan) = &self.charges {
+                plan.settle(transaction, &self.id, settlement).await?;
+                if let Some(group) = &self.budget.group {
+                    group
+                        .settle(transaction, plan.receivable(settlement))
+                        .await?;
+                }
+                if let Some(account) = &self.budget.account
+                    && !budget::settlements::applied(
+                        transaction,
+                        &self.id,
+                        billing::adjustments::Direction::Cost,
+                    )
+                    .await?
+                {
+                    account.settle(transaction, plan.cost(settlement)).await?;
+                }
+            }
+            if let Some(quota) = &self.quota
+                && settlement.outcome == "completed"
+            {
+                quota.settle(transaction, settlement.output_tokens).await?;
+            }
+        }
+        Ok(changed)
     }
 }
 

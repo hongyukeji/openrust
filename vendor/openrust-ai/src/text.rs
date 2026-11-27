@@ -306,6 +306,11 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    /// 将一个向量请求拆成需要各自登记的一组原生调用。
+    fn split_embedding_relay(&self, _body: &Value) -> Result<Option<Vec<Value>>, &'static str> {
+        Ok(None)
+    }
+
     /// 向已配置的协议连接发送 JSON。调用方负责入站鉴权和模型授权。
     fn relay(&self, _endpoint: TextEndpoint, _body: Value) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async { Err(AiError::EndpointNotSupported) })

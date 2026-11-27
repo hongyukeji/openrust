@@ -282,6 +282,10 @@ impl TextProvider for BedrockProvider {
         })
     }
 
+    fn split_embedding_relay(&self, body: &Value) -> Result<Option<Vec<Value>>, &'static str> {
+        relay::split_titan(body)
+    }
+
     fn generate_text<'a>(
         &'a self,
         prompt: TextPrompt<'a>,

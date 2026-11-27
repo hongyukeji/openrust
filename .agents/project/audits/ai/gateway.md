@@ -223,11 +223,11 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 ## GW-03 Bedrock 向量兼容入口
 
-显式发布端点 `embeddings` 的 Bedrock 模型可通过 `POST /v1/embeddings` 调用。Cohere Embed 文本批次和 Titan V2 单条文本各对应一次 AWS `InvokeModel`。网关保留输入顺序，支持浮点数组和小端 float32 的 Base64 表示，并由授权规则决定下游可见的公开名。转换前拒绝无法保留语义的 Token 数组、维数或批次，避免为未发送的调用创建出站记录。Titan 多条输入的逐次调用、部分失败及扣费仍待单独验收。
+显式发布端点 `embeddings` 的 Bedrock 模型可通过 `POST /v1/embeddings` 调用。Cohere Embed 文本批次对应一次 AWS `InvokeModel`。Titan V2 每条输入对应一次 AWS 调用，网关以同一逻辑请求归集，按输入顺序返回索引和向量。支持浮点数组和小端 float32 的 Base64 表示，并由授权规则决定下游可见的公开名。Token 数组、非法维数和超出协议上限的批次在预占和出站前拒绝。
 
 账本记录上游模型 ID、`model/{modelId}/invoke` 和 AWS 回报的请求 ID。用量来自 Titan 正文或 Cohere 响应头。缺少用量时响应省略 `usage`，账本保持未知。AWS 响应未报告实际模型时，账本保留选路目标，回报模型字段为空。
 
-本地 AWS 协议服务覆盖 SDK 直连、独立 Artisan 经网关、外部真实 HTTP 三条链路。验证别名、目录授权、Key 隔离、出站前拒绝、浮点数组和 Base64、已知与未知用量、403 请求证据。SQLite 中五条网关尝试都有协议服务回报的请求 ID，SDK 直连和前置拒绝不产生网关记录。13 项网关回归、SDK 和网关严格 Clippy、三语站点通过。正式 AWS 账户仍待验收。
+本地 AWS 协议服务覆盖 SDK 直连、独立 Artisan 经网关、外部真实 HTTP 三条链路。验证别名、目录授权、Key 隔离、出站前拒绝、浮点数组和 Base64、已知与未知用量、403 请求证据。SQLite 中单条样例的五条网关尝试都有协议服务回报的请求 ID，SDK 直连和前置拒绝不产生网关记录。Titan V2 批量验收见下节。正式 AWS 账户仍待验收。
 
 - [OpenAI Embeddings 请求和返回](https://developers.openai.com/api/reference/python/resources/embeddings/methods/create) · [AWS 向量模型和维度](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-supported.html) · [AWS InvokeModel](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModel.html)
 
@@ -235,11 +235,15 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 `/v1/embeddings`、Gemini `embedContent` 和 `batchEmbedContents` 沿用现有费率快照、出站记录及预算事务。用量完整的向量尝试只按输入 Token 计价。明确零用量按零结算，缺用量保留待核对。配置预算时，预占上限按整次上游请求的 `input_token_limit` 和费率确定，无需为输出 Token 预留金额。无法得出上界时沿用拒绝或监测策略。
 
-通过独立 HTTP、Artisan 和 SQLite 核对本地协议样例。按模拟费率，Bedrock Cohere 13 Token 结算成本 0.013 USD、应收 0.026 USD，Titan 7 Token 为 0.007 和 0.014 USD，Gemini 单条 9 Token 为 0.0045 和 0.0135 USD，批量 18 Token 为 0.009 和 0.027 USD。未知用量保留金额与预占待核对。缺上界时拒绝且未出站。并发时分组先预占 0.04 USD，再拒绝第二笔。首笔完成后扣减 0.026 USD，释放 0.014 USD，账号成本按独立费率结算。多次 Titan 出站仍须验证部分失败时的个别成本与整批应收。
+通过独立 HTTP、Artisan 和 SQLite 核对本地协议样例。按模拟费率，Bedrock Cohere 13 Token 结算成本 0.013 USD、应收 0.026 USD，Titan 7 Token 为 0.007 和 0.014 USD，Gemini 单条 9 Token 为 0.0045 和 0.0135 USD，批量 18 Token 为 0.009 和 0.027 USD。未知用量保留金额与预占待核对。缺上界时拒绝且未出站。并发时分组先预占 0.04 USD，再拒绝第二笔。首笔完成后扣减 0.026 USD，释放 0.014 USD，账号成本按独立费率结算。
 
 13 项网关回归、SDK 与网关严格 Clippy、三语站点通过。另用独立 HTTP 和 Artisan 复验文本生成的分组与账号双重预占、跨币种选路、拒绝回滚、未知费用及资金恢复。
 
 - [OpenAI Embeddings 用量字段](https://developers.openai.com/api/reference/python/resources/embeddings/methods/create) · [AWS Titan V2 输入上限与尺寸](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html)
+
+Titan V2 批量在同一事务登记各条尝试与整批预占。每条调用保存 AWS 请求 ID 和用量证据，整批成功时原子结算所有应收。某条失败时停止后续调用，已确认用量的成功条目结算上游成本，所有条目的下游应收为零。尚未出站的条目释放预占，已出站的未知成本保持待核对。
+
+SQLite 与本地 AWS 协议服务验证三条调用链、两条向量顺序和合计 18 Token、逐条金额 0.014 与 0.022 USD、部分失败保留 0.009 USD 成本且应收为零。校验第三条保持未出站，三条余额不足时整笔登记回滚。并发样例先预占整批 0.08 USD，拒绝另一笔后按实际应收扣减 0.018 USD。13 项网关回归、文本预算复验、两包严格 Clippy 和三语文档检查通过。进程强制终止后的批量资金恢复和正式 AWS 账户仍待专项验收。
 
 ## GW-04 最终流用量先入账
 

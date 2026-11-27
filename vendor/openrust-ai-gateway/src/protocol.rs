@@ -26,6 +26,7 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod embedding_batch;
 mod image_upload;
 mod resources;
 mod usage_summary;
@@ -715,9 +716,22 @@ async fn relay(
             } else {
                 (Value::Object(payload), None)
             };
-        if let Some(message) = target
-            .provider
-            .relay_request_error(upstream_endpoint, &payload)
+        let batch = if upstream_endpoint == TextEndpoint::Embeddings {
+            match target.provider.split_embedding_relay(&payload) {
+                Ok(batch) => batch,
+                Err(message) => {
+                    conversion_error = Some(message);
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
+        if let Some(message) = batch
+            .as_deref()
+            .unwrap_or(std::slice::from_ref(&payload))
+            .iter()
+            .find_map(|part| target.provider.relay_request_error(upstream_endpoint, part))
         {
             conversion_error = Some(message);
             continue;
@@ -774,7 +788,7 @@ async fn relay(
             }
             admitted = true;
         }
-        let mut call = match gateway
+        let mut calls = match gateway
             .usage(
                 key,
                 &name,
@@ -784,11 +798,16 @@ async fn relay(
                     request_id: &request_id,
                     invocation: invocation.as_ref(),
                 },
-                (lease, reservation, budget),
+                (
+                    lease,
+                    reservation,
+                    budget,
+                    batch.as_ref().map_or(1, Vec::len),
+                ),
             )
             .await
         {
-            Ok(call) => call,
+            Ok(calls) => calls,
             Err(UsageAdmission::Limited(retry_after)) => {
                 return protocol
                     .error(
@@ -825,8 +844,12 @@ async fn relay(
             }
         };
         if let Some(affinity) = &affinity {
-            call.bind_affinity(affinity.clone(), target.affinity_key.clone());
+            calls[0].bind_affinity(affinity.clone(), target.affinity_key.clone());
         }
+        if let Some(batch) = batch {
+            return embedding_batch::relay(target, calls, batch, name, protocol, cache_store).await;
+        }
+        let mut call = calls.pop().expect("已登记单次请求");
         match request_upstream(
             target,
             upstream_endpoint,

@@ -636,10 +636,11 @@ impl Gateway {
             Option<ConcurrencyLease>,
             Option<QuotaReservation>,
             BudgetReservations,
+            usize,
         ),
-    ) -> Result<Call, UsageAdmission> {
+    ) -> Result<Vec<Call>, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
-        let (lease, reservation, budget) = admission;
+        let (mut lease, reservation, budget, count) = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
             ("key_id".into(), json!(key.managed_id)),
@@ -665,7 +666,7 @@ impl Gateway {
             context.insert("consumer_invocation".into(), json!(invocation.id));
             context.insert("model_turn".into(), json!(invocation.model_turn));
         }
-        let attempt = match &self.usage_store {
+        let attempts = match &self.usage_store {
             Some(store) => {
                 let retry_after = reservation.as_ref().map(QuotaReservation::retry_after);
                 let budget_retry = budget.group.as_ref().map(BudgetReservation::retry_after);
@@ -675,8 +676,15 @@ impl Gateway {
                     context.insert("reserved_output_tokens".into(), json!(reservation.amount));
                 }
                 let charges = self.charge_plan(key, name, target, upstream_endpoint);
-                let attempt = store
-                    .begin(&context, reservation, key.usage_owner(), charges, budget)
+                store
+                    .begin_many(
+                        &context,
+                        reservation,
+                        key.usage_owner(),
+                        charges,
+                        budget,
+                        count,
+                    )
                     .await
                     .map_err(|error| match error {
                         DatabaseError::InvalidQuery(crate::budget::DENIED) => budget_retry
@@ -693,23 +701,31 @@ impl Gateway {
                         retry_after
                             .map(UsageAdmission::Limited)
                             .unwrap_or(UsageAdmission::Unavailable)
-                    })?;
-                context.insert("attempt_id".into(), json!(attempt.id));
-                Some(attempt)
+                    })?
             }
-            None => None,
+            None => Vec::new(),
         };
-        Ok(Call {
-            logger: self.logger.clone(),
-            provider: target.provider.clone(),
-            context,
-            reported_cost_usd_ticks: None,
-            attempt,
-            outcome: "cancelled",
-            dispatch_started: false,
-            affinity: None,
-            lease,
-        })
+        let mut attempts = attempts.into_iter();
+        Ok((0..count)
+            .map(|_| {
+                let attempt = attempts.next();
+                let mut context = context.clone();
+                if let Some(attempt) = &attempt {
+                    context.insert("attempt_id".into(), json!(attempt.id));
+                }
+                Call {
+                    logger: self.logger.clone(),
+                    provider: target.provider.clone(),
+                    context,
+                    reported_cost_usd_ticks: None,
+                    attempt,
+                    outcome: "cancelled",
+                    dispatch_started: false,
+                    affinity: None,
+                    lease: lease.take(),
+                }
+            })
+            .collect())
     }
 
     pub(crate) fn budget_reservations(
@@ -808,6 +824,34 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) async fn finish_batch(calls: &mut [Self], successful: bool) -> bool {
+        let attempts = calls
+            .iter()
+            .filter_map(|call| {
+                let attempt = call.attempt.clone()?;
+                let mut settlement = call.settlement();
+                if successful {
+                    settlement.outcome = "completed";
+                }
+                Some((attempt, settlement))
+            })
+            .collect();
+        if UsageAttempt::finish_many(attempts).await.is_err() {
+            return false;
+        }
+        for call in calls {
+            call.attempt = None;
+            if successful {
+                call.outcome("completed");
+                if let Some((affinity, target)) = call.affinity.take() {
+                    affinity.remember(target).await;
+                }
+            }
+            call.release().await;
+        }
+        true
+    }
+
     pub(crate) fn bind_affinity(&mut self, affinity: SessionAffinity, target: String) {
         self.affinity = Some((affinity, target));
     }
