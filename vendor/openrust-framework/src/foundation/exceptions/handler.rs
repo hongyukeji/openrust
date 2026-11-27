@@ -302,10 +302,11 @@ impl Handler {
     }
 
     fn renders_json(&self, request: &Request, exception: &Exception<'_>) -> bool {
-        self.configuration().as_ref().map_or_else(
-            || request.expects_json(),
-            |config| config.renders_json(request, exception),
-        )
+        request.is_api_request()
+            || self.configuration().as_ref().map_or_else(
+                || request.expects_json(),
+                |config| config.renders_json(request, exception),
+            )
     }
 
     fn render_default(&self, request: &Request, exception: &Exception<'_>, json: bool) -> Response {

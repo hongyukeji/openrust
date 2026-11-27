@@ -362,16 +362,17 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
         .send("POST", "/two-factor-challenge", r#"{"code":"287082"}"#, 422)
         .await;
     assert_eq!(
-        client.send("POST", "/login", LOGIN, 200).await.body,
+        client.send("POST", "/login", LOGIN, 200).await.body["data"],
         json!({"two_factor":false})
     );
     assert_eq!(
         client.send("GET", "/state", "", 200).await.body["user"],
         "login-001"
     );
-    client
+    let locked = client
         .send("POST", "/user/two-factor-authentication", "{}", 423)
         .await;
+    assert_eq!(locked.body["code"], "password_confirmation_required");
     client
         .send(
             "POST",
@@ -384,7 +385,7 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
         client
             .send("GET", "/user/two-factor-qr-code", "", 200)
             .await
-            .body,
+            .body["data"],
         json!([])
     );
     client
@@ -394,7 +395,7 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
         client
             .send("GET", "/user/two-factor-recovery-codes", "", 200)
             .await
-            .body,
+            .body["data"],
         json!([])
     );
     assert_eq!(
@@ -402,19 +403,20 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
             .send("POST", "/user/two-factor-authentication", "{}", 200)
             .await
             .body,
-        ""
+        json!({"success":true,"code":"ok","message":"Success"})
     );
     assert_eq!(
         client
             .send("GET", "/user/two-factor-secret-key", "", 200)
             .await
-            .body,
+            .body["data"],
         json!({"secretKey":SECRET})
     );
     let qr = client
         .send("GET", "/user/two-factor-qr-code", "", 200)
         .await
-        .body;
+        .body["data"]
+        .clone();
     assert!(qr["url"].as_str().unwrap().contains(SECRET));
     let svg = qr["svg"].as_str().unwrap();
     assert!(svg.contains("width=\"192\" height=\"192\""));
@@ -428,7 +430,8 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
     let codes = client
         .send("GET", "/user/two-factor-recovery-codes", "", 200)
         .await
-        .body;
+        .body["data"]
+        .clone();
     assert_eq!(codes.as_array().unwrap().len(), 8);
     client
         .send("POST", "/user/two-factor-authentication", "{}", 200)
@@ -437,7 +440,7 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
         client
             .send("GET", "/user/two-factor-recovery-codes", "", 200)
             .await
-            .body,
+            .body["data"],
         codes
     );
     client
@@ -451,7 +454,7 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
     client.send("POST", "/logout", "{}", 204).await;
     // Unconfirmed account continues through the ordinary native password pipeline.
     assert_eq!(
-        client.send("POST", "/login", LOGIN, 200).await.body,
+        client.send("POST", "/login", LOGIN, 200).await.body["data"],
         json!({"two_factor":false})
     );
     client
@@ -481,7 +484,7 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
                 200
             )
             .await
-            .body,
+            .body["data"],
         json!({"two_factor":true})
     );
     assert_eq!(
@@ -560,7 +563,8 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
     let replaced = client
         .send("GET", "/user/two-factor-recovery-codes", "", 200)
         .await
-        .body;
+        .body["data"]
+        .clone();
     assert_eq!(replaced[0], "recovery-8");
     client.send("POST", "/logout", "{}", 204).await;
     client.send("POST", "/login", LOGIN, 200).await;
@@ -594,7 +598,8 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
     let regenerated = client
         .send("GET", "/user/two-factor-recovery-codes", "", 200)
         .await
-        .body;
+        .body["data"]
+        .clone();
     assert_ne!(regenerated, codes);
     client.html = true;
     let disabled = client
@@ -613,12 +618,12 @@ async fn official_two_factor_routes_manage_encrypted_account_and_complete_native
         client
             .send("GET", "/user/two-factor-qr-code", "", 200)
             .await
-            .body,
+            .body["data"],
         json!([])
     );
     client.send("POST", "/logout", "{}", 204).await;
     assert_eq!(
-        client.send("POST", "/login", LOGIN, 200).await.body,
+        client.send("POST", "/login", LOGIN, 200).await.body["data"],
         json!({"two_factor":false})
     );
     server
@@ -980,7 +985,7 @@ async fn fixed_php_challenge_request_controller_cases_match_mysql_http_sessions_
                     200
                 )
                 .await
-                .body,
+                .body["data"],
             json!({"two_factor":true})
         );
         if case["exists"] == false {

@@ -66,13 +66,20 @@ impl Drop for Server {
 impl Server {
     async fn new(prefix: &str, extra: &str, enabled: bool) -> Self {
         let root = Root::new();
-        std::fs::write(root.0.join(".env"),format!("APP_NAME=测试应用\nDB_DATABASE=api_info\nAPP_VERSION=1.2.3-test\nAPP_LOCALE=en\nAPP_FALLBACK_LOCALE=en\nAPP_SUPPORTED_LOCALES=*\nAPP_DEBUG=false\nAPI_PREFIX={prefix}\nAPI_RESPONSE_ENVELOPE={enabled}\n{extra}")).unwrap();
+        std::fs::write(root.0.join(".env"),format!("APP_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSESSION_DRIVER=array\nAPP_NAME=测试应用\nDB_DATABASE=api_info\nAPP_VERSION=1.2.3-test\nAPP_LOCALE=en\nAPP_FALLBACK_LOCALE=en\nAPP_SUPPORTED_LOCALES=*\nAPP_DEBUG=false\nAPI_PREFIX={prefix}\nAPI_RESPONSE_ENVELOPE={enabled}\n{extra}")).unwrap();
         let application = Application::configure(root.0.clone())
             .with_config(config::load)
-            .with_routing(Routing::default().api(|| {
-                api::register()?;
-                extra_routes()
-            }))
+            .with_routing(
+                Routing::default()
+                    .api(|| {
+                        api::register()?;
+                        extra_routes()
+                    })
+                    .web(|| {
+                        Route::get("/web-resource", custom_resource)?;
+                        Ok(())
+                    }),
+            )
             .with_exceptions(|exceptions| {
                 exceptions.should_render_json_when(|request, _| {
                     request.expects_json() || request.is_api_path()
@@ -226,6 +233,8 @@ fn extra_routes() -> Result<(), openrust::routing::RoutingError> {
     })?;
     Route::get("/json-api", || ProtocolResource)?;
     Route::get("/missing-resource", || MissingResource)?;
+    Route::get("/custom-resource", custom_resource)?;
+    Route::get("/empty-resource", || EmptyResource)?;
     Route::get("/validation", invalid)?;
     Route::get("/throttled", throttled)?;
     Ok(())
@@ -379,6 +388,40 @@ impl openrust::http::resources::json::JsonResource for Plain {
         Ok(self.0.clone())
     }
 }
+fn custom_resource(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::http::resources::json::JsonResource as _;
+        Plain(json!({"data":"business field"}))
+            .response()
+            .wrap("items")
+            .additional(serde_json::Map::from_iter([
+                ("trace".into(), json!("kept")),
+                ("success".into(), json!(false)),
+            ]))
+            .to_response(request)
+    })
+}
+
+struct EmptyResource;
+impl openrust::http::resources::json::JsonResource for EmptyResource {
+    fn to_array(&self, _: &Request) -> openrust::http::resources::json::ResourceResult<Value> {
+        Ok(json!({"id":1}))
+    }
+    fn status(&self) -> StatusCode {
+        StatusCode::NO_CONTENT
+    }
+    fn with_response(
+        &self,
+        _: &Request,
+        response: &mut Response,
+    ) -> openrust::http::resources::json::ResourceResult<()> {
+        response
+            .parts_mut()
+            .headers
+            .insert("x-resource", "kept".parse().unwrap());
+        Ok(())
+    }
+}
 struct ProtocolResource;
 impl openrust::http::resources::json::JsonResource for ProtocolResource {
     const JSON_API: bool = true;
@@ -412,16 +455,19 @@ async fn resource_pagination_errors_and_protocol_boundaries_share_real_http() {
         let server = Server::new("api", "", legacy_enabled).await;
         let (status, _, page) = server.send("GET", "/api/page", "zh-Hans").await;
         assert_eq!(status, 200);
-        assert!(page.get("message").is_none());
-        assert!(page.get("code").is_none());
-        assert!(page.get("success").is_none());
+        assert_eq!(page["message"], "成功");
+        assert_eq!(page["code"], "ok");
+        assert_eq!(page["success"], true);
         assert_eq!(page["data"], json!([{"id":1}]));
         assert_eq!(page["meta"]["total"], 3);
         assert_eq!(page["meta"]["last_page"], 3);
         assert!(page["links"]["next"].is_string());
         let (status, _, body) = server.send("GET", "/api/missing-resource", "zh-Hans").await;
         assert_eq!(status, 404);
-        assert_eq!(body, json!({"data":null}));
+        assert_eq!(
+            body,
+            json!({"success":false,"code":"not_found","message":"Not Found","data":null})
+        );
         let (status, _, body) = server.send("GET", "/api/validation", "zh-Hans").await;
         assert_eq!(status, 422);
         assert_eq!(
@@ -440,6 +486,24 @@ async fn resource_pagination_errors_and_protocol_boundaries_share_real_http() {
         assert!(headers.contains("application/vnd.api+json"));
         assert!(body.get("success").is_none());
         assert_eq!(body["data"]["type"], "things");
+
+        let (status, _, custom) = server.send("GET", "/api/custom-resource", "en").await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            custom,
+            json!({"success":true,"code":"ok","message":"Success","data":{"data":"business field"},"trace":"kept"})
+        );
+        let (status, _, web) = server.send("GET", "/web-resource", "en").await;
+        assert_eq!(status, 200, "{web}");
+        assert_eq!(
+            web,
+            json!({"items":{"data":"business field"},"trace":"kept","success":false})
+        );
+        let (status, headers, empty) = server.send("GET", "/api/empty-resource", "en").await;
+        assert_eq!(status, 204);
+        assert!(headers.contains("x-resource: kept"));
+        assert!(!headers.contains("content-type: application/json"));
+        assert_eq!(empty, Value::Null);
         server.close().await;
     }
 }

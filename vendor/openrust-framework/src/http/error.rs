@@ -319,3 +319,20 @@ impl From<crate::foundation::vite::ViteError> for HttpError {
         }
     }
 }
+
+pub(crate) fn api_error_code(status: StatusCode) -> &'static str {
+    match status.as_u16() {
+        400 => "bad_request",
+        401 => "unauthenticated",
+        403 => "forbidden",
+        404 => "not_found",
+        405 => "method_not_allowed",
+        409 => "conflict",
+        419 => "csrf_token_mismatch",
+        422 => "validation_failed",
+        429 => "rate_limited",
+        500 => "internal_error",
+        503 => "service_unavailable",
+        _ => "http_error",
+    }
+}

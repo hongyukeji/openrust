@@ -8,7 +8,7 @@ use crate::{
 use openrust::{
     auth::{Auth, Credentials, events::Failed},
     contracts::session::Session as _,
-    http::{HttpError, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, Request, Response, StatusCode},
     support::{
         Timebox,
         facades::{Lang, Redirect},
@@ -105,7 +105,7 @@ impl RedirectIfTwoFactorAuthenticatable {
         if request.wants_json() {
             return Ok(Some(Response::json(
                 StatusCode::OK,
-                serde_json::json!({"two_factor":true}),
+                ApiResult::success(serde_json::json!({"two_factor":true})),
             )?));
         }
         Ok(Some(

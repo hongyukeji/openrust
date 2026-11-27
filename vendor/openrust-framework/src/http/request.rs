@@ -472,6 +472,18 @@ impl Request {
         matches_pattern(&self.decoded_path(), pattern)
     }
 
+    /// 检查请求是否匹配 API 路由，或命中应用配置的非空 API 前缀。
+    pub fn is_api_request(&self) -> bool {
+        self.api_route || self.is_api_path()
+    }
+
+    pub(crate) fn wraps_json_errors(&self) -> bool {
+        self.parts()
+            .extensions
+            .get::<super::ApiResultErrors>()
+            .is_some()
+    }
+
     /// 匹配 API 前缀本身及其子路径；空前缀不按路径匹配。
     pub fn is_api_path(&self) -> bool {
         self.api_prefix

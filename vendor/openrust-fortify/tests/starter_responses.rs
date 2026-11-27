@@ -250,11 +250,14 @@ async fn opt_in_json_projection_statuses_empty_payloads_and_cache_protection() {
     );
 }
 #[tokio::test]
-async fn standalone_fortify_keeps_native_json() {
+async fn standalone_fortify_wraps_business_json() {
     let kernel = application(false).await;
     let (status, body, _) = call(&kernel, "/login", "application/json", false).await;
     assert_eq!(status, 200);
-    assert_eq!(body, json!({"two_factor":false}));
+    assert_eq!(
+        body,
+        json!({"success":true,"code":"ok","message":"Success","data":{"two_factor":false}})
+    );
 }
 #[tokio::test]
 async fn html_registration_keeps_native_redirect() {

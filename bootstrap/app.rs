@@ -27,7 +27,7 @@ pub(crate) fn create_application() -> Result<Application, Box<dyn Error + Send +
         })
         .with_exceptions(|exceptions| {
             exceptions.should_render_json_when(|request, _| {
-                request.is_api_path() || request.expects_json()
+                request.is_api_request() || request.expects_json()
             });
         })
         .create()

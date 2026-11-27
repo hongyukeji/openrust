@@ -41,7 +41,7 @@ async fn render(
             .into());
     }
     if request.wants_json() {
-        return Response::json(StatusCode::OK, serde_json::json!({"message":message}));
+        return Response::json(StatusCode::OK, ApiResult::empty().with_message(message));
     }
     let redirect = if reset {
         let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;

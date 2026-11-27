@@ -32,9 +32,14 @@ pub use ::http::{
     Extensions, HeaderMap, Method, StatusCode, Uri, request::Parts as RequestParts,
     response::Parts as ResponseParts,
 };
+/// 请求扩展，使用 ApiResult 渲染已协商为 JSON 的异常。
+#[derive(Clone)]
+pub struct ApiResultErrors;
+
 pub use api_result::{ApiResult, ApiResultPath, PageMeta};
 pub use body::Body;
 pub(crate) use download::filename_header;
+pub(crate) use error::api_error_code;
 pub use error::{HttpError, abort, abort_responsable, abort_response};
 pub use http_response_exception::HttpResponseException;
 pub use next::Next;

@@ -1,6 +1,6 @@
 # API Resources
 
-For explicit business responses, see [`ApiResult`](../the-basics/responses.md#business-responses).
+On API routes and under the configured API prefix, ordinary resources use [`ApiResult`](../the-basics/responses.md#business-responses). Their payload goes under `data`, including when a custom wrapper is set or wrapping is disabled. Top-level metadata such as `links` and `meta` remains available. The envelope reserves `success`, `code` and `message`. Resource status codes, response hooks and bodyless statuses still apply. Web resources use the wrapping rules below, and JSON:API resources follow their protocol.
 
 ## Generating Resources {#generating-resources}
 

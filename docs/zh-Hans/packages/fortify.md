@@ -34,7 +34,9 @@ Fortify 管理注册、Session 登录和凭据变更。[Sanctum](sanctum.md) 的
 
 ## 认证
 
-`POST /login` 接收配置的用户名、`password` 和可选 `remember`。普通 JSON 登录成功返回 `200` 和 `two_factor:false`，需要双因素挑战时返回 `two_factor:true`。认证成功会轮换 Session。`POST /logout` 使其失效并重新生成 CSRF 令牌。浏览器变更请求须携带会话 Cookie 和 CSRF 头。JSON 验证失败返回 `422`，命名限流返回 `429`。
+`POST /login` 接收配置的用户名、`password` 和可选 `remember`。普通 JSON 登录成功返回 `200`，`data.two_factor` 为 `false`。需要双因素挑战时，该字段为 `true`。认证成功会轮换 Session。`POST /logout` 使其失效并重新生成 CSRF 令牌。浏览器变更请求须携带会话 Cookie 和 CSRF 头。JSON 验证失败返回 `422`，命名限流返回 `429`。
+
+内置业务 JSON 使用 [`ApiResult`](../the-basics/responses.md#business-responses)。密码确认状态通过 `data.confirmed` 返回，双因素二维码、密钥和恢复码的数据放在 `data` 中。无数据的成功操作省略 `data`，并保留原有 HTTP 状态。验证错误包含 `errors`，HTTP 204 保留空正文。浏览器跳转、自定义响应契约和会话 Passkeys 沿用现有响应行为。
 
 通过 `Fortify::authenticate_using` 定制身份查询，`confirm_passwords_using` 定制密码确认，`authenticate_through` 替换登录流水线。默认流水线处理限流、用户名规范化、双因素跳转、认证和会话准备。Web 响应可通过 `fortify.redirects` 配置跳转。
 

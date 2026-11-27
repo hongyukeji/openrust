@@ -1037,25 +1037,27 @@ async fn verify(config: Json) {
     assert_eq!(guest["data"]["manager_id"], Json::Null);
     assert_eq!(guest["data"]["reports"], 1);
     assert_eq!(guest["data"]["report_count"], 1);
+    assert_eq!(guest["success"], true);
+    assert_eq!(guest["code"], "ok");
     assert_eq!(guest["meta"]["source"], "resource");
     request(address, "GET", "/api/missing", "", 404).await;
     request(address, "GET", "/api/failed", "", 400).await;
     let (_, absent) = request(address, "GET", "/api/conditional", "", 200).await;
     assert_eq!(
-        absent,
-        json!({"data":{"status":"base","guest":true,"known_null":null,"name":"A","zero":0,"false_value":false}})
+        absent["data"],
+        json!({"status":"base","guest":true,"known_null":null,"name":"A","zero":0,"false_value":false})
     );
     let (_, loaded) = request(address, "GET", "/api/conditional?load=1", "", 200).await;
     assert_eq!(
-        loaded,
-        json!({"data":{"status":"base","appended":"account label","report":"B","known_null":null,"name":"A","zero":0,"false_value":false}})
+        loaded["data"],
+        json!({"status":"base","appended":"account label","report":"B","known_null":null,"name":"A","zero":0,"false_value":false})
     );
     let (_, empty) = request(address, "GET", "/api/conditional?load=1&empty=1", "", 200).await;
     assert!(empty["data"].get("report").is_some_and(Json::is_null));
     let (_, pivot) = request(address, "GET", "/api/pivots", "", 200).await;
     assert_eq!(
-        pivot,
-        json!({"data":{"ordinary":"gold","custom":true,"typed":"gold"}})
+        pivot["data"],
+        json!({"ordinary":"gold","custom":true,"typed":"gold"})
     );
 
     let (_, list) = request(address, "GET", "/api/list", "", 200).await;
@@ -1063,21 +1065,21 @@ async fn verify(config: Json) {
     assert!(list["data"][0].get("reports").is_none());
     assert!(list.get("meta").is_none());
     assert_eq!(
-        request(address, "GET", "/api/empty", "", 200).await.1,
-        json!({"data":[]})
+        request(address, "GET", "/api/empty", "", 200).await.1["data"],
+        json!([])
     );
     assert_eq!(
-        request(address, "GET", "/api/already", "", 200).await.1,
-        json!({"data":{"id":9}})
+        request(address, "GET", "/api/already", "", 200).await.1["data"],
+        json!({"id":9})
     );
     assert_eq!(
-        request(address, "GET", "/api/unwrapped", "", 200).await.1,
+        request(address, "GET", "/api/unwrapped", "", 200).await.1["data"],
         json!({"id":1})
     );
 
     assert_eq!(
         request(address, "GET", "/api/metadata", "", 200).await.1,
-        json!({"data":{"id":1},"meta":{"tags":["a","b"],"version":[1,2]}})
+        json!({"success":true,"code":"ok","message":"Success","data":{"id":1},"meta":{"tags":["a","b"],"version":[1,2]}})
     );
     let (_, page) = request(address, "GET", "/api/page?filter=all", "", 200).await;
     assert_eq!(page["data"].as_array().unwrap().len(), 2);
@@ -1408,7 +1410,7 @@ async fn verify_json_options(address: SocketAddr) {
             headers.contains("x-resource: fractional"),
             endpoint == "single"
         );
-        assert!(body.starts_with("{\n    \"data\":"));
+        assert!(body.contains("\n    \"data\":"));
         assert!(body.contains(r#""reading_time": 3.0"#));
         assert!(body.contains(r#""path": "\/caf\u00e9\/\ud83d\ude00""#));
         let data: Json = serde_json::from_str(&body).unwrap();
@@ -1424,7 +1426,7 @@ async fn verify_json_options(address: SocketAddr) {
         }
     }
     let (_, empty) = request_raw(address, "GET", "/api/encoded/empty", "", 200).await;
-    assert!(empty.starts_with("{\n    \"data\": []"));
+    assert!(empty.contains("\n    \"data\": []"));
     assert!(empty.contains(r#""path": "\/api\/encoded\/page""#));
     let (_, documents) = request(address, "GET", "/api/encoded/document", "", 200).await;
     assert_eq!(documents["compact"], "{\"reading_time\":3.0}");
@@ -1433,12 +1435,12 @@ async fn verify_json_options(address: SocketAddr) {
 
 async fn verify_resolved_resources(address: SocketAddr) {
     let (headers, body) = request_raw(address, "GET", "/api/resolved", "", 200).await;
-    assert!(body.starts_with("{\n    \"accounts\":"));
+    assert!(body.contains("\n    \"data\":"));
     let payload: Json = serde_json::from_str(&body).unwrap();
     assert!(headers.contains("x-resource: indexed"));
     assert_eq!(payload["source"], "indexed");
-    assert_eq!(payload["accounts"]["10"]["id"], 1);
-    assert!(payload["accounts"]["10"].get("password").is_none());
+    assert_eq!(payload["data"]["10"]["id"], 1);
+    assert!(payload["data"]["10"].get("password").is_none());
 
     let (headers, payload) = request(address, "GET", "/api/resolved/explicit", "", 200).await;
     assert!(!headers.contains("x-resource:"));
@@ -1446,7 +1448,7 @@ async fn verify_resolved_resources(address: SocketAddr) {
     assert!(payload.get("source").is_none());
 
     let (_, page) = request(address, "GET", "/api/resolved/page", "", 200).await;
-    assert_eq!(page["accounts"]["20"]["id"], 2);
+    assert_eq!(page["data"]["20"]["id"], 2);
     assert_eq!(page["links"]["next"], "/api/resolved/page?page=2");
     assert!(page["meta"]["total"].as_u64().unwrap() >= 3);
     let (headers, page) = request(address, "GET", "/api/resolved/page?page=99", "", 200).await;
@@ -1457,12 +1459,15 @@ async fn verify_resolved_resources(address: SocketAddr) {
     assert_eq!(
         request(address, "GET", "/api/resolved/empty", "", 200)
             .await
-            .1,
-        json!({"data":[]})
+            .1["data"],
+        json!([])
     );
     let (headers, empty) = request(address, "GET", "/api/resolved/empty-custom", "", 200).await;
     assert!(headers.contains("x-resource: indexed"));
-    assert_eq!(empty, json!({"accounts":[],"source":"indexed"}));
+    assert_eq!(
+        empty,
+        json!({"success":true,"code":"ok","message":"Success","data":[],"source":"indexed"})
+    );
 }
 
 async fn verify_collection_keys(address: SocketAddr) {
@@ -1480,7 +1485,7 @@ async fn verify_collection_keys(address: SocketAddr) {
     assert_eq!(data["7"], "second");
     assert!(data["1e2"].is_null());
     let (_, empty) = request(address, "GET", "/api/keys/empty", "", 200).await;
-    assert_eq!(empty, json!({"data":[]}));
+    assert_eq!(empty["data"], json!([]));
     let (_, mixed) = request(address, "GET", "/api/keys/mixed", "", 200).await;
     assert_eq!(mixed["data"]["team"]["id"], 1);
     assert_eq!(mixed["data"]["9"]["id"], 2);
@@ -1670,7 +1675,13 @@ async fn wrapping_server(
     json_api: JsonApi,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let mut app = Application::configure(std::env::temp_dir())
-        .with_routing(Routing::default().api(wrapping_routes))
+        .with_config(|_, _| {
+            Ok(std::collections::BTreeMap::from([
+                ("app".into(), json!({"key":"a".repeat(32)})),
+                ("session".into(), json!({"driver":"array"})),
+            ]))
+        })
+        .with_routing(Routing::default().web(wrapping_routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1715,7 +1726,7 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
         wrapping_server(ResourceWrapping::without_wrapping(), left_configuration).await;
     let (right, right_task) =
         wrapping_server(ResourceWrapping::wrap("items"), right_configuration).await;
-    let include_path = "/api/person?include=reports.reports.reports";
+    let include_path = "/person?include=reports.reports.reports";
     let ((_, left_person), (_, right_person)) = tokio::join!(
         request(left, "GET", include_path, "", 200),
         request(right, "GET", include_path, "", 200),
@@ -1731,61 +1742,58 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
     assert_eq!(left_person["included"].as_array().unwrap().len(), 1);
     assert_eq!(right_person["included"].as_array().unwrap().len(), 2);
     assert_eq!(right_person["included"][1]["id"], "grandchild");
-    let (_, empty) = request(left, "GET", "/api/person/empty", "", 200).await;
+    let (_, empty) = request(left, "GET", "/person/empty", "", 200).await;
     assert_eq!(empty, json!({"jsonapi":left_person["jsonapi"],"data":[]}));
     for _ in 0..2 {
         let ((_, plain), (_, wrapped)) = tokio::join!(
-            request(left, "GET", "/api/plain", "", 200),
-            request(right, "GET", "/api/plain", "", 200),
+            request(left, "GET", "/plain", "", 200),
+            request(right, "GET", "/plain", "", 200),
         );
         assert_eq!(plain, json!({"id":1}));
         assert_eq!(wrapped, json!({"items":{"id":1}}));
     }
     for address in [left, right] {
-        let (headers, person) = request(address, "GET", "/api/person", "", 200).await;
+        let (headers, person) = request(address, "GET", "/person", "", 200).await;
         assert!(headers.contains("content-type: application/vnd.api+json"));
         assert_eq!(person["data"]["id"], "external-id");
         assert_eq!(
-            request(address, "GET", "/api/explicit", "", 200).await.1,
+            request(address, "GET", "/explicit", "", 200).await.1,
             json!({"data":{"id":1}})
         );
         assert_eq!(
-            request(address, "GET", "/api/named", "", 200).await.1,
+            request(address, "GET", "/named", "", 200).await.1,
             json!({"accounts":[],"source":"indexed"})
         );
         assert_eq!(
-            request(address, "GET", "/api/unwrapped", "", 200).await.1,
+            request(address, "GET", "/unwrapped", "", 200).await.1,
             json!({"id":1})
         );
     }
     assert_eq!(
-        request(right, "GET", "/api/already", "", 200).await.1,
+        request(right, "GET", "/already", "", 200).await.1,
         json!({"items":{"id":1}})
     );
     assert_eq!(
-        request(left, "GET", "/api/forced", "", 200).await.1,
+        request(left, "GET", "/forced", "", 200).await.1,
         json!({"items":{"id":1}})
     );
     assert_eq!(
-        request(right, "GET", "/api/forced", "", 200).await.1,
+        request(right, "GET", "/forced", "", 200).await.1,
         json!({"items":{"items":{"id":1}}})
     );
-    let left_meta = request(left, "GET", "/api/metadata", "", 200).await.1;
+    let left_meta = request(left, "GET", "/metadata", "", 200).await.1;
     assert_eq!(
         left_meta,
         json!({"data":{"data":{"id":1}},"meta":{"total":1}})
     );
     for (address, key) in [(left, "data"), (right, "items")] {
-        for path in [
-            "/api/prepared?name=Ada",
-            "/api/prepared/controller?name=Ada",
-        ] {
+        for path in ["/prepared?name=Ada", "/prepared/controller?name=Ada"] {
             let (headers, body) = request(address, "GET", path, "", 200).await;
             assert!(headers.contains("x-resource: prepared"));
             assert_eq!(body[key], json!({"name":"Ada"}));
             assert_eq!(body["meta"], json!({"prepared":true}));
         }
-        let page = request(address, "GET", "/api/page?filter=active", "", 200)
+        let page = request(address, "GET", "/page?filter=active", "", 200)
             .await
             .1;
         assert_eq!(page[key], json!([{"id":1}]));
@@ -1797,7 +1805,7 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
                 .contains("filter=active")
         );
     }
-    let collection = request(right, "GET", "/api/collection", "", 200).await.1;
+    let collection = request(right, "GET", "/collection", "", 200).await.1;
     assert_eq!(collection["items"], json!([{"id":1}]));
     left_task.abort();
     right_task.abort();

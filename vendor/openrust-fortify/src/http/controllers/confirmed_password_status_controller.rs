@@ -1,7 +1,7 @@
 use crate::resolver::internal;
 use openrust::{
     contracts::session::Session as _,
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     support::{facades::Config, now, php_integer_less_than_value},
 };
 use serde_json::json;
@@ -30,7 +30,10 @@ impl ConfirmedPasswordStatusController {
                 .unwrap_or(json!(900));
             let seconds = request.input(Some("seconds")).await?.unwrap_or(default);
             let confirmed = php_integer_less_than_value(elapsed, &seconds);
-            let mut response = Response::json(StatusCode::OK, json!({"confirmed":confirmed}))?;
+            let mut response = Response::json(
+                StatusCode::OK,
+                ApiResult::success(json!({"confirmed":confirmed})),
+            )?;
             if confirmed && elapsed != 0 {
                 response = response.header(
                     "x-retry-after".parse().map_err(internal)?,

@@ -42,9 +42,13 @@ async fn signed_email_verification_uses_native_mysql_sessions_and_rejects_wrong_
         true
     );
     assert_eq!(NOTIFICATIONS.load(std::sync::atomic::Ordering::Relaxed), 1);
-    client
+    let sent = client
         .send("POST", "/email/verification-notification", "{}", 202)
         .await;
+    assert_eq!(
+        sent.body,
+        json!({"success":true,"code":"ok","message":"Success"})
+    );
     assert_eq!(NOTIFICATIONS.load(std::sync::atomic::Ordering::Relaxed), 2);
     for query in ["?id=1", "?email=other@example.test", "?expired=1"] {
         let url = path(

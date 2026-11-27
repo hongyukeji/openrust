@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     contracts::{container::Container as _, support::Responsable},
-    http::{HttpError, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, Request, Response, StatusCode, api_error_code},
     support::facades::current_container,
 };
 
@@ -118,12 +118,37 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     {
         with.insert("jsonapi".into(), information);
     }
-    let payload = wrap(data, wrapper, resource.force_wrapping(), with, additional);
+    let api = !resource.is_json_api() && request.is_api_request();
+    let force = resource.force_wrapping();
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {
         Response::empty(status)
     } else {
         Response::json_with(status, || {
+            let payload = if api {
+                let result = if status.is_client_error() || status.is_server_error() {
+                    ApiResult::failure(
+                        api_error_code(status),
+                        status.canonical_reason().unwrap_or("HTTP Error"),
+                    )
+                } else {
+                    ApiResult::empty()
+                };
+                let fields = wrap_fields(
+                    data,
+                    "data",
+                    force || wrapper != Some("data"),
+                    with,
+                    additional,
+                );
+                let mut payload = result.payload()?;
+                for (key, value) in fields {
+                    payload.entry(key).or_insert(value);
+                }
+                Value::Object(payload)
+            } else {
+                wrap(data, wrapper, force, with, additional)
+            };
             resource
                 .json_options()
                 .encode(&payload)
@@ -151,13 +176,29 @@ fn wrap(
     let Some(key) = wrapper.or(has_metadata.then_some("data")) else {
         return data;
     };
+    Value::Object(wrap_fields(
+        data,
+        key,
+        force || wrapper.is_none(),
+        with,
+        additional,
+    ))
+}
+
+fn wrap_fields(
+    data: Value,
+    key: &str,
+    force: bool,
+    with: Map<String, Value>,
+    additional: Map<String, Value>,
+) -> Map<String, Value> {
     let mut payload = match data {
-        Value::Object(fields) if wrapper.is_some() && !force && fields.contains_key(key) => fields,
+        Value::Object(fields) if !force && fields.contains_key(key) => fields,
         data => Map::from_iter([(key.to_owned(), data)]),
     };
     merge_fields(&mut payload, with);
     merge_fields(&mut payload, additional);
-    Value::Object(payload)
+    payload
 }
 
 pub(super) fn merge_fields(target: &mut Map<String, Value>, incoming: Map<String, Value>) {

@@ -72,6 +72,8 @@ async fn native_passkeys_enroll_confirm_revoke_and_invalidate_recent_proof() {
     )
     .await;
     assert_eq!(rejected.0, 422, "{}", rejected.1);
+    let rejected_body: Value = serde_json::from_str(&rejected.1).unwrap();
+    assert!(rejected_body.get("success").is_none(), "{rejected_body}");
     let opts = options(&mut browser, "/user/passkeys/options").await;
     let registration = authenticator.register(&opts);
     let registered = post(

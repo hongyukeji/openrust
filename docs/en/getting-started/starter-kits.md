@@ -348,7 +348,7 @@ curl -X POST http://localhost:8000/api/user/two-factor-authentication \
   -H 'Content-Type: application/json' -d '{}'
 ```
 
-All writes and sensitive reads use the common user lock and same-connection transaction, checking the current token and credential snapshot before returning. Invalid codes return 422, missing or consumed proofs return 401, insufficient token abilities return 403, and disabled feature routes return 404. Login continues to require TOTP or an unused recovery code once the factor is active. Standalone Fortify applications retain their existing route responses; the additional API envelope and stricter confirmation checks belong to this installed suite.
+All writes and sensitive reads use the common user lock and same-connection transaction, checking the current token and credential snapshot before returning. Invalid codes return 422, missing or consumed proofs return 401, insufficient token abilities return 403, and disabled feature routes return 404. Login continues to require TOTP or an unused recovery code once the factor is active. Standalone Fortify uses `ApiResult` for its built-in business JSON responses. The installed user suite adds these token endpoints and stricter confirmation checks.
 
 ### Browser profile and password forms {#web-user-updates}
 

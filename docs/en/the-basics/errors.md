@@ -134,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Rendering Exceptions as JSON
 
-The framework uses the request's JSON preference by default. The application skeleton configures `with_exceptions` to render JSON for the effective API namespace and for requests that expect JSON. Use `should_render_json_when` to set a different policy.
+The default handler renders exceptions on API routes and under the effective API prefix as [`ApiResult`](./responses.md#business-responses). It uses the request's JSON preference for other routes, where `should_render_json_when` can configure the policy.
 
 Set `APP_DEBUG=false` in production. The default JSON response uses `Server Error` for a generic 500, and the default HTML page omits exception sources. In debug mode, built-in server-error responses include a bounded list of source messages, escaped when displayed as HTML. Custom callbacks control the contents of responses they return.
 
@@ -144,7 +144,7 @@ For example, a missing API route returns `404` with a JSON `message` field. A mi
 
 The application's `with_exceptions` policy returns JSON for the effective API namespace or requests expecting JSON. Other missing routes return HTML. This changes the response format, not the 404 status. The same policy applies to missing static files; HEAD preserves the status and content type with an empty body.
 
-The path rule matches descendants of the effective prefix, such as `/v1/internal/users` for `/v1/internal`. With an empty prefix, the skeleton uses the request’s JSON preference.
+The path rule matches descendants of the effective prefix, such as `/v1/internal/users` for `/v1/internal`. With an empty prefix, matched API routes still return JSON for exceptions. Unmatched paths use the request's JSON preference.
 
 ```sh
 curl -i http://localhost:8000/missing

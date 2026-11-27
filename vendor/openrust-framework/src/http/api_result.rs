@@ -251,7 +251,7 @@ impl ApiResult<()> {
     }
 }
 impl<T: Serialize> ApiResult<T> {
-    fn payload(&self) -> Result<Map<String, Value>, serde_json::Error> {
+    pub(super) fn payload(&self) -> Result<Map<String, Value>, serde_json::Error> {
         let mut fields = Map::from_iter([
             ("success".into(), json!(self.success)),
             ("code".into(), json!(self.code)),

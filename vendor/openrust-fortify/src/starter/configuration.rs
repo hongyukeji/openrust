@@ -128,7 +128,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
                 Box::pin(async move {
                     if matches!(error, openrust::http::HttpError::Unauthenticated)
                         && !request.expects_json()
-                        && !request.is_api_path()
+                        && !request.is_api_request()
                     {
                         let login = openrust::support::facades::Url::route("login", &[], false)?;
                         return Ok(Some(
@@ -151,7 +151,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
                         Box::pin(async move {
                             super::web::forget(request)?;
                             if !request.expects_json()
-                                && !request.is_api_path()
+                                && !request.is_api_request()
                                 && let Some(response) =
                                     openrust::auth::middleware::RequirePassword::default()
                                         .challenge(request)?

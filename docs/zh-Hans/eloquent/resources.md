@@ -1,6 +1,6 @@
 # API 资源
 
-显式返回统一业务格式的用法见 [`ApiResult`](../the-basics/responses.md#business-responses)。
+API 路由及配置的 API 前缀下的普通资源使用 [`ApiResult`](../the-basics/responses.md#business-responses)。即使自定义或关闭了资源包装，数据仍放在 `data` 中。`links`、`meta` 等元数据保留在顶层，`success`、`code` 和 `message` 为封装保留字段。资源的状态码、响应钩子和空正文行为继续生效。Web 资源沿用下文的包装规则，JSON:API 资源遵循其协议。
 
 ## 生成资源 {#generating-resources}
 

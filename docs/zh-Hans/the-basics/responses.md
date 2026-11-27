@@ -111,7 +111,7 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `Response::json(status, result)` 将 `ApiResult` 作为统一业务 JSON 返回。`ApiResult` 保存正文数据，HTTP 状态由 `Response::json` 接收。
 
-框架将 API 路由及配置的 API 前缀下的异常渲染为失败的 `ApiResult`。验证异常还包含字段 `errors`。直接返回的普通资源沿用各自的数据包装和 `links`、`meta` 等元数据。JSON:API 资源遵循自己的协议格式。
+框架将 API 路由及配置的 API 前缀下的异常渲染为失败的 `ApiResult`。`API_PREFIX` 为空时，已匹配的 API 路由仍返回 JSON，包括使用会话的验证异常。验证异常还包含字段 `errors`。普通 API 资源使用 `ApiResult`，保留顶层的 `links`、`meta` 等元数据。JSON:API 资源沿用协议规定的文档格式。
 
 相关机制见[API 资源](../eloquent/resources.md)和[异常处理](./errors.md)。
 

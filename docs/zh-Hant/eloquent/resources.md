@@ -1,6 +1,6 @@
 # API 資源
 
-明確回傳統一業務格式的用法見 [`ApiResult`](../the-basics/responses.md#business-responses)。
+API 路由及設定的 API 前綴下的一般資源使用 [`ApiResult`](../the-basics/responses.md#business-responses)。即使自訂或停用了資源包裝，資料仍放在 `data` 中。`links`、`meta` 等中繼資料保留在頂層，`success`、`code` 和 `message` 為封裝保留欄位。資源的狀態碼、回應鉤子和空本文行為繼續生效。Web 資源沿用下文的包裝規則，JSON:API 資源遵循其協定。
 
 ## 產生資源 {#generating-resources}
 

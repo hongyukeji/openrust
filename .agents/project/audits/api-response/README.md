@@ -80,3 +80,13 @@ OpenSpring 的 `CmsContentApiController` 将 `Result.success(data)` 交给 `Resp
 默认应用和生成的认证 API 显式构造 `ApiResult`。默认异常处理器对 API 路由及 API 前缀下的请求产生失败的 `ApiResult`，包括验证字段错误，保留原有 HTTP 状态及 `Allow`、`Retry-After` 等响应头。空前缀时根据实际匹配的 API 路由识别异常。显式自定义响应、HTML、普通 Resource 包装和 JSON:API 继续由各自入口决定格式。
 
 验收使用 Rust 1.95.0。全工作区测试目标检查通过，并用 `openrust-fortify/socialite` 复核可选入口。独立应用 HTTP 验证默认及自定义前缀的 200／404／405，核对 HEAD 空正文、`Allow` 和前缀之外的 HTML 响应。根应用与框架 26 项相关测试通过，包含独立 MySQL 8.4 的 Precognition 验证。另有两项 Fortify 真实 HTTP 测试通过，覆盖密码令牌签发、状态码和最近确认。Precognition 的浏览器辅助脚本用例按原测试配置忽略。
+
+## Fortify 业务 JSON、普通资源与空 API 前缀
+
+沿用上节的 Laravel 资源响应和 OpenSpring 业务数据／HTTP 分层对照。检查了旧版 `v0.x` 的 `core/error.rs`，其中业务类型持有 HTTP 状态，不复用该职责。当前实现复用纯数据 `ApiResult`、资源响应钩子和异常渲染器。
+
+- Fortify 默认业务响应覆盖登录及待双因素挑战、密码确认及状态查询、注册、密码重置、账户更新、双因素管理和验证邮件重发。保留各入口的状态和响应头，返回 204 的入口继续生成空正文。Fortify 路由仅对已协商为 JSON 的默认异常启用业务封装。会话 Passkeys 从该中间件组排除。
+- 普通 API 资源使用 `data` 承载数据，保留顶层 `links`、`meta`、其它非保留元数据及 JSON 编码选项。资源声明的 4xx／5xx 使用失败业务格式。Web 包装和 JSON:API 协议由原入口处理。
+- 异常处理在尝试会话验证重定向之前识别已匹配的 API 路由。空前缀时，带会话且请求 HTML 的 API 验证失败仍返回 422 和字段错误，普通未匹配路径继续按请求协商。
+
+隔离源码使用 Rust 1.95.0 运行根应用、Fortify（含 Socialite）和框架的相关测试。167 项通过。真实 TCP 覆盖会话与空 API 前缀、资源状态和响应头、SQLite／独立 MySQL 8.4.13 的资源分页、Fortify 的成功和失败响应，以及 JSON:API 和会话 Passkeys 的既有格式。默认应用二进制另验证了 `/api`、`/api/admin`、HEAD 空正文和 405 的 `Allow`，确认前缀外的缺失路径仍返回 HTML。

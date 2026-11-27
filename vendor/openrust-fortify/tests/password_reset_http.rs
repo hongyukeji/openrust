@@ -87,7 +87,7 @@ async fn password_reset_uses_named_broker_rotates_remember_token_and_keeps_guest
         .await;
     assert_eq!(
         sent.body,
-        json!({"message":"We have emailed your password reset link."})
+        json!({"success":true,"code":"ok","message":"We have emailed your password reset link."})
     );
     let token = RESET_NOTIFICATIONS.lock().unwrap()[0].1.clone();
     assert_eq!(RESET_NOTIFICATIONS.lock().unwrap()[0].0, "a@example.test");
@@ -105,7 +105,7 @@ async fn password_reset_uses_named_broker_rotates_remember_token_and_keeps_guest
         .await;
     assert_eq!(
         result.body,
-        json!({"message":"Your password has been reset."})
+        json!({"success":true,"code":"ok","message":"Your password has been reset."})
     );
     assert_eq!(*server.events.lock().unwrap(), ["PasswordReset"]);
     assert_eq!(token_count(&server, "fortify_named_resets").await, 0);
@@ -367,7 +367,9 @@ async fn fixed_php_password_reset_responses_and_completion_match_mysql_http() {
             if status == 422 {
                 assert_eq!(response.body["errors"], case["errors"], "{case}");
             } else {
-                assert_eq!(response.body, case["body"], "{case}");
+                assert_eq!(response.body["success"], true, "{case}");
+                assert_eq!(response.body["code"], "ok", "{case}");
+                assert_eq!(response.body["message"], case["body"]["message"], "{case}");
             }
         } else {
             if let Some(location) = case["location"].as_str() {

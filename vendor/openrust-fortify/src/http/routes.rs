@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Fortify,
     http::{
@@ -7,15 +9,36 @@ use crate::{
     resolver::Resolver,
 };
 use openrust::{
-    http::Method,
+    contracts::http::Middleware,
+    http::{ApiResultErrors, HttpError, HttpFuture, Method, Next, Request, Response},
     routing::{ControllerDispatcher, RouteGroup, RoutingError},
     support::facades::{Facade as _, Route},
 };
 
+const BUSINESS_JSON: &str = "fortify.business-json";
+
+struct BusinessJson;
+
+impl Middleware for BusinessJson {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            request.parts_mut().extensions.insert(ApiResultErrors);
+            Ok(next.run(request).await)
+        })
+    }
+}
+
 pub(crate) fn register() -> Result<(), RoutingError> {
     let fortify = Resolver::<Fortify>::get_facade_root()
         .map_err(|source| RoutingError::ContainerFailed { source })?;
-    let mut group = RouteGroup::new().prefix(fortify.string("fortify.prefix", ""));
+    Route::push_middleware_to_group(BUSINESS_JSON, Arc::new(BusinessJson).into())?;
+    let mut group = RouteGroup::new()
+        .prefix(fortify.string("fortify.prefix", ""))
+        .middleware_name(BUSINESS_JSON);
     if let Some(domain) = fortify
         .config
         .get("fortify.domain")
@@ -247,6 +270,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                         ControllerDispatcher::new($action),
                     )?;
                     route
+                        .without_middleware(BUSINESS_JSON)
                         .middleware_name(if $guest { guest.clone() } else { auth.clone() })
                         .name($name);
                     if $manage && confirm {

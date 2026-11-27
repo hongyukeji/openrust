@@ -17,7 +17,10 @@ async fn registration_profile_and_password_updates_use_native_eloquent_sessions_
     client.send("POST", "/register", "{}", 422).await;
     assert!(server.events.lock().unwrap().is_empty());
     let response = client.send("POST", "/register", REGISTER, 201).await;
-    assert_eq!(response.body, "");
+    assert_eq!(
+        response.body,
+        json!({"success":true,"code":"ok","message":"Success"})
+    );
     assert_eq!(*server.events.lock().unwrap(), ["Registered", "Login"]);
     assert_eq!(NOTIFICATIONS.load(std::sync::atomic::Ordering::Relaxed), 1);
     let after = client.send("GET", "/state", "", 200).await.body;

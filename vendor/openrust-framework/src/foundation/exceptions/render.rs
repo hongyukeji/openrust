@@ -45,9 +45,14 @@ pub(super) fn default_response(
     let sources =
         (status.is_server_error() && !matches!(error, Some(HttpError::Aborted { .. })) && debug)
             .then(|| debug_sources(exception));
-    if request.api_route || request.is_api_path() {
+    if request.is_api_request() || (json && request.wraps_json_errors()) {
         let message = json_message(error, status, message, sources.as_deref());
-        let mut result = ApiResult::failure(api_error_code(error, status), message);
+        let code = if matches!(error, Some(HttpError::InvalidSignature)) {
+            "invalid_signature"
+        } else {
+            crate::http::api_error_code(status)
+        };
+        let mut result = ApiResult::failure(code, message);
         if let Some(HttpError::Validation(exception)) = error {
             result =
                 result.with_errors(exception.errors().messages().clone().into_iter().collect());
@@ -117,26 +122,6 @@ fn json_message<'a>(
             .map_or("Server Error", String::as_str)
     } else {
         message
-    }
-}
-
-fn api_error_code(error: Option<&HttpError>, status: StatusCode) -> &'static str {
-    if matches!(error, Some(HttpError::InvalidSignature)) {
-        return "invalid_signature";
-    }
-    match status.as_u16() {
-        400 => "bad_request",
-        401 => "unauthenticated",
-        403 => "forbidden",
-        404 => "not_found",
-        405 => "method_not_allowed",
-        409 => "conflict",
-        419 => "csrf_token_mismatch",
-        422 => "validation_failed",
-        429 => "rate_limited",
-        500 => "internal_error",
-        503 => "service_unavailable",
-        _ => "http_error",
     }
 }
 

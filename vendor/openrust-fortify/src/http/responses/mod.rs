@@ -3,7 +3,7 @@ use crate::{
     resolver::{Resolver, internal},
 };
 use openrust::{
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     support::{
         MessageBag,
         facades::{Facade as _, Lang, Redirect},
@@ -35,7 +35,10 @@ impl contracts::Response for LoginResponse {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             if request.wants_json() {
-                return Response::json(StatusCode::OK, serde_json::json!({"two_factor":false}));
+                return Response::json(
+                    StatusCode::OK,
+                    ApiResult::success(serde_json::json!({"two_factor":false})),
+                );
             }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
@@ -68,7 +71,7 @@ impl contracts::Response for PasswordConfirmedResponse {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             if request.wants_json() {
-                return Response::json(StatusCode::CREATED, "");
+                return Response::json(StatusCode::CREATED, ApiResult::empty());
             }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
@@ -264,7 +267,7 @@ macro_rules! management_response {
             ) -> HttpFuture<'a, Result<Response, HttpError>> {
                 Box::pin(async move {
                     if request.wants_json() {
-                        return Response::json(StatusCode::OK, "");
+                        return Response::json(StatusCode::OK, ApiResult::empty());
                     }
                     Ok(Redirect::back(request, None, Default::default())?
                         .with(request, "status", $status.into())?
@@ -319,7 +322,7 @@ impl contracts::Response for RegisterResponse {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             if request.wants_json() {
-                return Response::json(StatusCode::CREATED, "");
+                return Response::json(StatusCode::CREATED, ApiResult::empty());
             }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
@@ -414,7 +417,7 @@ impl contracts::Response for EmailVerificationNotificationSentResponse {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             if request.wants_json() {
-                return Response::json(StatusCode::ACCEPTED, "");
+                return Response::json(StatusCode::ACCEPTED, ApiResult::empty());
             }
             Ok(Redirect::back(request, None, Default::default())?
                 .with(

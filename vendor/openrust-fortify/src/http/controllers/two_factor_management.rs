@@ -6,7 +6,7 @@ use crate::{
 use openrust::{
     auth::Auth,
     contracts::{auth::Guard as _, session::Session as _},
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::Facade as _,
 };
 use zeroize::Zeroizing;
@@ -116,7 +116,7 @@ impl RecoveryCodeController {
                         .map_err(internal)?,
                 )
             {
-                return Response::json(StatusCode::OK, serde_json::json!([]));
+                return Response::json(StatusCode::OK, ApiResult::success(Vec::<String>::new()));
             }
             // This endpoint returns arbitrary decoded PHP JSON; the trait's code list is stricter.
             let encrypted = text(
@@ -134,7 +134,7 @@ impl RecoveryCodeController {
             );
             let codes: serde_json::Value =
                 serde_json::from_slice(&clear).unwrap_or(serde_json::Value::Null);
-            Response::json(StatusCode::OK, codes)
+            Response::json(StatusCode::OK, ApiResult::success(codes))
         })
     }
 }
@@ -174,7 +174,10 @@ impl TwoFactorSecretKeyController {
                     .map_err(internal)?,
             );
             let secret = std::str::from_utf8(&clear).map_err(internal)?;
-            Response::json(StatusCode::OK, serde_json::json!({"secretKey":secret}))
+            Response::json(
+                StatusCode::OK,
+                ApiResult::success(serde_json::json!({"secretKey":secret})),
+            )
         })
     }
 }
@@ -196,14 +199,17 @@ impl TwoFactorQrCodeController {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             if !present(user.attribute("two_factor_secret").map_err(internal)?) {
-                return Response::json(StatusCode::OK, serde_json::json!([]));
+                return Response::json(StatusCode::OK, ApiResult::success(Vec::<String>::new()));
             }
             let provider =
                 Resolver::<dyn contracts::TwoFactorAuthenticationProvider>::get_facade_root()
                     .map_err(internal)?;
             let svg = user.qr_svg(&fortify, provider.as_ref()).map_err(internal)?;
             let url = user.qr_url(&fortify, provider.as_ref()).map_err(internal)?;
-            Response::json(StatusCode::OK, serde_json::json!({"svg":svg,"url":url}))
+            Response::json(
+                StatusCode::OK,
+                ApiResult::success(serde_json::json!({"svg":svg,"url":url})),
+            )
         })
     }
 }

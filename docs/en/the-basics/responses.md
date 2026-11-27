@@ -111,7 +111,7 @@ Both `Response` and `RedirectResponse` support `with_cookie(&cookie, request)` a
 
 Pass an `ApiResult` to `Response::json(status, result)` to return the business format. `ApiResult` carries the JSON data and `Response::json` takes the HTTP status.
 
-The framework renders exceptions on API routes and under the configured API prefix as failed `ApiResult` bodies. Validation errors include `errors`. Ordinarily returned resources keep their configured wrapper and metadata such as `links` and `meta`. JSON:API resources keep their protocol format.
+The framework renders exceptions on API routes and under the configured API prefix as failed `ApiResult` bodies. A matched API route still returns JSON when `API_PREFIX` is empty, including session-backed validation failures, which include field `errors`. Ordinary API resources use `ApiResult` and retain top-level `links`, `meta` and other resource metadata. JSON:API resources retain their protocol document format.
 
 See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
 

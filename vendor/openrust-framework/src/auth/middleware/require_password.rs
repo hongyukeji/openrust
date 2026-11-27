@@ -1,7 +1,7 @@
 use crate::{
     auth::{Auth, AuthError},
     contracts::{http::Middleware, session::Session as _},
-    http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
+    http::{ApiResult, HttpError, HttpFuture, Next, Request, Response, StatusCode},
     session::{PASSWORD_CONFIRMED_AT, confirmation_seconds},
     support::facades::{Redirect, Url},
 };
@@ -32,11 +32,16 @@ impl RequirePassword {
             return Ok(None);
         }
         if request.expects_json() {
-            return Response::json(
-                StatusCode::LOCKED,
-                serde_json::json!({"message": "Password confirmation required."}),
-            )
-            .map(Some);
+            let message = "Password confirmation required.";
+            let response = if request.wraps_json_errors() {
+                Response::json(
+                    StatusCode::LOCKED,
+                    ApiResult::failure("password_confirmation_required", message),
+                )
+            } else {
+                Response::json(StatusCode::LOCKED, serde_json::json!({"message": message}))
+            }?;
+            return Ok(Some(response));
         }
         let target = Url::route(
             self.route.as_deref().unwrap_or("password.confirm"),

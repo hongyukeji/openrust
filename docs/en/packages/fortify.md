@@ -34,7 +34,9 @@ The installed defaults use guard `web`, password broker `users`, username and em
 
 ## Authentication
 
-`POST /login` accepts the configured username, `password` and optional `remember`. Successful ordinary JSON login returns `200` with `two_factor:false`; a pending two-factor challenge returns `two_factor:true`. Successful authentication rotates the session. `POST /logout` invalidates it and regenerates the CSRF token. Send the session cookie and CSRF header on state-changing browser requests. JSON validation failures return `422`; named throttling returns `429`.
+`POST /login` accepts the configured username, `password` and optional `remember`. Successful ordinary JSON login returns `200` with `data.two_factor` set to `false`. A pending two-factor challenge sets it to `true`. Successful authentication rotates the session. `POST /logout` invalidates it and regenerates the CSRF token. Send the session cookie and CSRF header on state-changing browser requests. JSON validation failures return `422`; named throttling returns `429`.
+
+Built-in business JSON responses use [`ApiResult`](../the-basics/responses.md#business-responses). Password confirmation status is available at `data.confirmed`, and two-factor QR, secret and recovery code responses place their payload under `data`. Successful actions without payload omit `data` and retain their HTTP status. Validation errors include `errors`, and HTTP 204 responses have an empty body. Browser redirects, custom response contracts and session Passkeys retain their existing response behavior.
 
 Use `Fortify::authenticate_using` for authentication lookup, `confirm_passwords_using` for password confirmation, and `authenticate_through` to replace the login pipeline. The default pipeline handles throttling, username canonicalization, two-factor redirection, authentication and session preparation. Configure `fortify.redirects` for web outcomes.
 

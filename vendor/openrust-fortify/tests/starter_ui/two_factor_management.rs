@@ -482,7 +482,7 @@ async fn cookie_second_factor_rejects_primary_proof_after_password_rotation() {
         .await;
     assert_eq!(login.0, 200, "{}", login.1);
     assert_eq!(
-        serde_json::from_str::<Value>(&login.1).unwrap()["two_factor"],
+        serde_json::from_str::<Value>(&login.1).unwrap()["data"]["two_factor"],
         true
     );
     // 在另一客户端变更凭据；旧Cookie的主因素不能被有效TOTP复活。

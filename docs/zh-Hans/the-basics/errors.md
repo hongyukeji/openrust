@@ -134,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 将异常渲染为 JSON
 
-框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `with_exceptions` 中为 最终生效的 API 路径 和期望 JSON 的请求启用 JSON 异常响应。可用 `should_render_json_when` 自定义策略。
+默认处理器将 API 路由及生效 API 前缀下的异常渲染为 [`ApiResult`](./responses.md#business-responses)。其他路由默认根据请求对 JSON 的偏好选择响应，可用 `should_render_json_when` 配置。
 
 生产环境设为 `APP_DEBUG=false`。通用 500 的默认 JSON 消息为 `Server Error`，默认 HTML 页面省略异常来源。调试模式下，内置服务端错误响应包含有数量及长度上限的来源消息，输出到 HTML 时会转义。自定义回调负责控制所返回的响应内容。
 
@@ -144,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 应用的 `with_exceptions` 策略对最终生效的 API 路径或期望 JSON 的请求返回 JSON，其他缺失路由返回 HTML。响应格式改变，404 状态保持。缺失静态文件也使用此策略；HEAD 保留状态和内容类型，正文为空。
 
-路径规则匹配生效前缀下的路径，如前缀 `/v1/internal` 下的 `/v1/internal/users`。前缀为空时，应用骨架根据请求对 JSON 的偏好选择异常响应。
+路径规则匹配生效前缀下的路径，如前缀 `/v1/internal` 下的 `/v1/internal/users`。前缀为空时，已匹配的 API 路由仍返回 JSON 异常响应。未匹配的路径按请求对 JSON 的偏好选择响应。
 
 ```sh
 curl -i http://localhost:8000/missing

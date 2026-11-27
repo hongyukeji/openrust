@@ -34,7 +34,9 @@ Fortify 管理註冊、Session 登入與憑證變更。[Sanctum](sanctum.md) 的
 
 ## 認證
 
-`POST /login` 接收設定的使用者名稱、`password` 與選用的 `remember`。一般 JSON 登入成功回傳 `200` 與 `two_factor:false`，需要雙因素挑戰時回傳 `two_factor:true`。認證成功會輪替 Session。`POST /logout` 使其失效並重新產生 CSRF 權杖。瀏覽器變更請求須攜帶工作階段 Cookie 與 CSRF 標頭。JSON 驗證失敗回傳 `422`，具名限流回傳 `429`。
+`POST /login` 接收設定的使用者名稱、`password` 與選用的 `remember`。一般 JSON 登入成功回傳 `200`，`data.two_factor` 為 `false`。需要雙因素挑戰時，該欄位為 `true`。認證成功會輪替 Session。`POST /logout` 使其失效並重新產生 CSRF 權杖。瀏覽器變更請求須攜帶工作階段 Cookie 與 CSRF 標頭。JSON 驗證失敗回傳 `422`，具名限流回傳 `429`。
+
+內建業務 JSON 使用 [`ApiResult`](../the-basics/responses.md#business-responses)。密碼確認狀態透過 `data.confirmed` 回傳，雙因素 QR Code、金鑰和復原碼的資料放在 `data` 中。無資料的成功操作省略 `data`，並保留原有 HTTP 狀態。驗證錯誤包含 `errors`，HTTP 204 保留空本文。瀏覽器重新導向、自訂回應契約和工作階段 Passkeys 沿用現有回應行為。
 
 透過 `Fortify::authenticate_using` 自訂身分查詢，`confirm_passwords_using` 自訂密碼確認，`authenticate_through` 替換登入管線。預設管線處理限流、名稱正規化、雙因素導向、認證與工作階段準備。Web 回應可透過 `fortify.redirects` 設定導向。
 

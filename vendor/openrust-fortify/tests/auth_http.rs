@@ -368,6 +368,8 @@ async fn login_validation_session_rotation_confirmation_and_logout_over_http() {
     assert!(before["user"].is_null());
     client.send("GET", "/login", "", 405).await;
     let invalid = client.send("POST", "/login", "{}", 422).await;
+    assert_eq!(invalid.body["success"], false);
+    assert_eq!(invalid.body["code"], "validation_failed");
     assert!(invalid.body["errors"]["email"].is_array());
     client
         .send(
@@ -378,7 +380,10 @@ async fn login_validation_session_rotation_confirmation_and_logout_over_http() {
         )
         .await;
     let login = client.send("POST", "/login", LOGIN, 200).await;
-    assert_eq!(login.body, json!({"two_factor":false}));
+    assert_eq!(
+        login.body,
+        json!({"success":true,"code":"ok","message":"Success","data":{"two_factor":false}})
+    );
     let after = client.send("GET", "/state", "", 200).await.body;
     assert_eq!(after["user"], "001");
     assert_ne!(after["id"], before["id"]);
@@ -407,23 +412,25 @@ async fn login_validation_session_rotation_confirmation_and_logout_over_http() {
             201,
         )
         .await;
-    assert_eq!(confirm.body, "");
     assert_eq!(
-        client
-            .send("GET", "/user/confirmed-password-status", "", 200)
-            .await
-            .body,
-        json!({"confirmed":true})
+        confirm.body,
+        json!({"success":true,"code":"ok","message":"Success"})
     );
+    let confirmation = client
+        .send("GET", "/user/confirmed-password-status", "", 200)
+        .await;
+    assert_eq!(confirmation.body["data"], json!({"confirmed":true}));
     client.send("GET", "/age", "", 200).await;
     assert_eq!(
         client
             .send("GET", "/user/confirmed-password-status", "", 200)
             .await
-            .body,
+            .body["data"],
         json!({"confirmed":false})
     );
-    client.send("POST", "/logout", "{}", 204).await;
+    let logout = client.send("POST", "/logout", "{}", 204).await;
+    assert_eq!(logout.body, "");
+    assert!(!logout.headers.contains("content-type: application/json"));
     let out = client.send("GET", "/state", "", 200).await.body;
     assert!(out["user"].is_null());
     assert_ne!(out["id"], after["id"]);
@@ -446,6 +453,7 @@ async fn five_login_failures_lock_out_then_other_application_remains_independent
             .await;
     }
     let lock = client.send("POST", "/login", LOGIN, 429).await;
+    assert_eq!(lock.body["code"], "rate_limited");
     assert!(lock.body["errors"]["email"].is_array());
     let mut other = Client::new(&two);
     other.send("POST", "/login", LOGIN, 200).await;
@@ -745,7 +753,7 @@ async fn mysql_session_and_database_and_eloquent_user_providers_use_fortify_http
             client
                 .send("GET", "/user/confirmed-password-status", "", 200)
                 .await
-                .body,
+                .body["data"],
             json!({"confirmed":true})
         );
         client.send("POST", "/logout", "{}", 204).await;
@@ -910,7 +918,7 @@ async fn password_status_preserves_php_mixed_seconds_comparison() {
             )
             .await;
         assert_eq!(
-            result.body,
+            result.body["data"],
             json!({"confirmed":expected}),
             "seconds={seconds}"
         );

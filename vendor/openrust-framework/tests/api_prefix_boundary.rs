@@ -13,7 +13,14 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 fn configuration(_: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     Ok(BTreeMap::from([
-        ("app".into(), json!({"locale":"en","debug":false})),
+        (
+            "session".into(),
+            json!({"driver":"array","cookie":"prefix_session"}),
+        ),
+        (
+            "app".into(),
+            json!({"locale":"en","debug":false,"key":"a".repeat(32)}),
+        ),
         (
             "api".into(),
             json!({
@@ -25,6 +32,16 @@ fn configuration(_: &Path, env: &Environment) -> Result<BTreeMap<String, Value>,
 
 fn unauthenticated(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Err(HttpError::Unauthenticated) })
+}
+
+fn invalid_with_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        request.session()?;
+        let errors = openrust::support::MessageBag::new([("email", ["Email is required."])]);
+        Err(HttpError::Validation(Box::new(
+            openrust::validation::ValidationException::new(errors),
+        )))
+    })
 }
 
 async fn transport(
@@ -137,6 +154,7 @@ async fn empty_api_prefix_does_not_classify_all_paths_as_api() {
         })
         .with_routing(Routing::default().api(|| {
             Route::get("/child", unauthenticated)?;
+            Route::get("/invalid", invalid_with_session)?.middleware("web")?;
             Ok(())
         }))
         .create()
@@ -157,6 +175,18 @@ async fn empty_api_prefix_does_not_classify_all_paths_as_api() {
         serde_json::from_str::<Value>(&body).unwrap(),
         json!({"success":false,"code":"unauthenticated","message":"Unauthenticated."})
     );
+    let (headers, body) = send(address, "/invalid", "text/html").await;
+    assert!(headers.starts_with("HTTP/1.1 422 "), "{headers}");
+    assert!(
+        headers.contains("content-type: application/json"),
+        "{headers}"
+    );
+    assert!(headers.contains("set-cookie: prefix_session="), "{headers}");
+    assert!(!headers.contains("location:"), "{headers}");
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["success"], false);
+    assert_eq!(value["code"], "validation_failed");
+    assert_eq!(value["errors"]["email"], json!(["Email is required."]));
     server.abort();
     let _ = server.await;
     std::fs::remove_dir_all(root).unwrap();
