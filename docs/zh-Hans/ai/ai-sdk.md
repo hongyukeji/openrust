@@ -305,7 +305,7 @@ Schedule::configure(|schedule| {
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-使用 Bearer 网关 Key，提交 xAI 的 `text` 和 `language` JSON 字段。Key 恰好能访问一个语音合成别名时，网关会自动选择它。有多个可用别名时，在请求的 `model` 字段指定公开模型名。网关向 xAI 发送原生请求，并返回 MP3、WAV 或 PCM 音频字节。共享凭证只能使用 xAI 内置音色。启用 `unversioned_paths` 后也可调用 `POST /tts`。
+使用 Bearer 网关 Key，提交 xAI 的 `text` 和 `language` JSON 字段。Key 恰好能访问一个语音合成别名时，网关会自动选择它。有多个可用别名时，在请求的 `model` 字段指定公开模型名。网关向 xAI 发送原生请求，流式返回 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音频。结算后结束 HTTP 响应，取消下载时关闭上游连接。设置 `with_timestamps: true` 会收到带 Base64 音频及字符级 `audio_timestamps` 的 JSON 响应。共享凭证只能使用 xAI 内置音色。启用 `unversioned_paths` 后也可调用 `POST /tts`。
 
 启用持久化用量后，Artisan 按尝试显示 `input_characters`。调用方的 `/v1/usage` 汇总已出站的字符数，包含失败尝试。网关按原始 `text` 的 Unicode 标量值计数，包含空格和标签。发音替换和文本规范化不改变计数。
 

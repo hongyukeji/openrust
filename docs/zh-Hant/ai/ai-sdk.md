@@ -305,7 +305,7 @@ Schedule::configure(|schedule| {
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，並回傳 MP3、WAV 或 PCM 音訊位元組。共享憑證只能使用 xAI 內建音色。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
+使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，串流回傳 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音訊。結算後結束 HTTP 回應，取消下載時關閉上游連線。設定 `with_timestamps: true` 會收到含 Base64 音訊及字元級 `audio_timestamps` 的 JSON 回應。共享憑證只能使用 xAI 內建音色。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
 
 啟用持久化用量後，Artisan 按嘗試顯示 `input_characters`。呼叫端的 `/v1/usage` 彙總已送出的字元數，包含失敗嘗試。閘道按原始 `text` 的 Unicode 純量值計數，包含空格和標記。發音替換及文字正規化不改變計數。
 

@@ -28,7 +28,7 @@
 | `GET /v1/images/batches/{id}/items`、`GET /v1/images/batches/{id}/items/{custom_id}/content`、`GET /v1/images/batches/{id}/download`、`POST /v1/images/batches/{id}/cancel`、`DELETE /v1/images/batches/{id}/outputs` | 网关 Key，任务项、结果、取消与删除 | GW-03／04 待验证资源所属、二进制结果、部分失败和可重试性。 |
 | `POST /v1/videos`、`POST /v1/videos/{generations,edits,extensions}`、`GET /v1/videos/{id}[/content]`、`GET /v1/videos/{generations,edits,extensions}/{id}[/content]` | 网关 Key，依平台支持创建／编辑／扩展、状态与二进制读取 | AI-06／GW-03／04 待按平台验证任务 ID、状态、取消与内容。 |
 | `POST /{api/v3,v3,v1}/contents/generations/tasks`、`GET/DELETE /{api/v3,v3,v1}/contents/generations/tasks/{id}` 及无版本同路径 | 网关 Key，Seedance 任务创建、查询和删除 | GW-03／04 待按国内视频供应商任务及资源所有权验收。 |
-| `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收二进制 `POST /v1/tts`、multipart `POST /v1/stt` 和两条可选无版本别名。语音流及自定义音色管理仍待验收。 |
+| `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收 `POST /v1/tts` 的 HTTP 音频流和时间戳响应、multipart `POST /v1/stt` 和两条可选无版本别名。双向实时语音及自定义音色管理仍待验收。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
@@ -346,9 +346,19 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 依据固定 Sub2API 的 Grok 语音入口开放 `POST /v1/tts` 及可选无版本别名。通过 `models.<name>.endpoints = ["tts"]` 向授权调用方发布。原生请求未指定模型时只选调用方唯一获准的合成模型，多模型需显式选择。公开别名和网关 Key 均不发往上游。共享连接允许 xAI 内置音色，合成输出支持二进制 MP3、WAV 和 PCM。上游结果须通过音频校验，并在持久化结算后交付。已经发往上游的合成请求失败后不自动重放。
 
-本地 xAI 协议服务实测 SDK 直连、SDK 经网关、外部 HTTP、Artisan 路由和 SQLite 用量。校验上游身份、无版本别名、跨授权、多个模型、未知费用硬预算、请求限流、音色资源隔离、无 Token 误计、无备用重放、上游错误脱敏、二进制字节及结果类型。七次网关出站尝试含五次成功、一次上游 503 和一次无效音频，其 Token 与计费明细保持空值。13 项 SDK 和网关回归、严格 Clippy 及三语文档站点通过。字符计费与对账见下一节。带时间戳的结果、电话音频格式、流式合成和 xAI 正式账户仍待验收。
+本地 xAI 协议服务实测 SDK 直连、SDK 经网关、外部 HTTP、Artisan 路由和 SQLite 用量。校验上游身份、无版本别名、跨授权、多个模型、未知费用硬预算、请求限流、音色资源隔离、无 Token 误计、无备用重放、上游错误脱敏、二进制字节及结果类型。七次网关出站尝试含五次成功、一次上游 503 和一次无效音频，其 Token 与计费明细保持空值。13 项 SDK 和网关回归、严格 Clippy 及三语文档站点通过。字符计费与对账见下一节。HTTP 流式音频、电话编码和时间戳结果见下文。xAI 正式账户仍待验收。
 
 - [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L296-L309) · [xAI Text to Speech](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
+
+### xAI HTTP 流式语音合成
+
+`POST /v1/tts` 的原生二进制响应使用框架的出站字节流。通过 MIME 和最短格式前缀校验后，服务器立即交付音频。支持 MP3、WAV、PCM、μ-law 和 A-law。上游传输错误、声明长度未达到的 WAV 和奇数字节的 PCM 终止下载并保留未完成账目。客户端取消会关闭上游流，已经发送的合成不自动重放。正常 EOF 在用量与字符费用结算后交付。
+
+`with_timestamps: true` 使用 xAI 的 JSON 形状，核对 Base64 音频及编码、时长、字符与时间区间数组，保留识别的公开字段。双向语音 WebSocket 在 G19 单独验收。网关沿用连接的 HTTP 请求时限，正式 xAI 账号待 E09 验证。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过本地协议服务及独立 HTTP 和 Artisan，复验 SDK 直连、SDK 经网关、外部 HTTP、五种编码、被切分的 WAV 头、首个音频块早于上游结束、结算早于正常 HTTP 结束、字符时间戳、截断及客户端断开后上游连接关闭。三库各有 14 次网关出站尝试，其中七次正常结算、三次无效上游响应、三次流未完成、一次取消。失败和取消的供应商成本待证，不产生下游应收。13 项 SDK 和网关回归、严格 Clippy 和三语站点检查通过，并复验 SQLite 字符计费。
+
+- [xAI HTTP 音频、时间戳与流模式](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
 
 ## GW-04 xAI 合成字符计量、计费与对账
 

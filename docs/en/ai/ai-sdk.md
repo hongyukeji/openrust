@@ -305,7 +305,7 @@ To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize 
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and returns MP3, WAV, or PCM audio bytes. Use built-in xAI voice IDs on shared credentials. With `unversioned_paths` enabled, `POST /tts` is also available.
+Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and streams MP3, WAV, PCM, μ-law (`mulaw`), or A-law (`alaw`) audio. The HTTP response finishes after settlement. Cancelling the download closes the upstream stream. Set `with_timestamps: true` for a JSON response containing Base64 audio and character-level `audio_timestamps`. Use built-in xAI voice IDs on shared credentials. With `unversioned_paths` enabled, `POST /tts` is also available.
 
 With usage persistence enabled, Artisan lists `input_characters` for each synthesis attempt. The caller’s `/v1/usage` summaries count characters in dispatched requests, including failed attempts. The gateway counts Unicode scalar values in the original `text` field, including spaces and markers. Pronunciation replacement and text normalization do not alter the count.
 

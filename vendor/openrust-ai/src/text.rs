@@ -1028,9 +1028,13 @@ impl TextProvider for OpenAiTextProvider {
                 let fields = body.as_object_mut().ok_or(AiError::InvalidPrompt)?;
                 fields.remove("model");
             }
-            let stream = !endpoint.is_counting()
-                && endpoint != TextEndpoint::Embeddings
-                && body.get("stream").and_then(Value::as_bool) == Some(true);
+            let stream = if endpoint == TextEndpoint::XaiTextToSpeech {
+                body["with_timestamps"] != true
+            } else {
+                !endpoint.is_counting()
+                    && endpoint != TextEndpoint::Embeddings
+                    && body.get("stream").and_then(Value::as_bool) == Some(true)
+            };
             self.connection.send(endpoint, &body, stream, None).await
         })
     }
