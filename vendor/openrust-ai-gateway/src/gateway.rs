@@ -967,6 +967,22 @@ impl Call {
         }
     }
 
+    pub(crate) fn observe_bedrock_error_usage(&mut self, payload: &Value) {
+        // Converse 的本地转换失败仍可能带有 AWS 已确认的最终用量。
+        if matches!(
+            self.context
+                .get("upstream_endpoint")
+                .and_then(Value::as_str),
+            Some("model/{modelId}/converse" | "model/{modelId}/converse-stream")
+        ) && payload["usage"]["prompt_tokens"].is_u64()
+            && payload["usage"]["completion_tokens"].is_u64()
+        {
+            self.observe_usage(payload);
+            self.context
+                .insert("confirmed_error_usage".into(), Value::Bool(true));
+        }
+    }
+
     pub(crate) fn observe_usage(&mut self, payload: &Value) -> bool {
         if self.outcome == "completed" {
             return false;

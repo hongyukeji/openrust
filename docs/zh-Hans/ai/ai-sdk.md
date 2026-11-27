@@ -860,7 +860,9 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 用 `Agent::stream` 调用 Bedrock ConverseStream。SDK 读取 AWS 原生事件流，并通过 SSE 返回增量文本和可见推理。结束原因和 Token 用量随最终元数据返回。流截断或 AWS 事件无效会产生流式错误，请求超时也适用于读取事件。
 
-要通过网关发布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。客户端用公开模型名调用 `POST /v1/chat/completions`。普通 JSON 和 SSE 都支持前置 system 或 developer 指令、文本历史、最大输出 Token、temperature、top-p 和最多四个停止字符串。设置 `stream_options.include_usage` 为 `true` 可收到末尾用量帧。省略该帧时网关仍记录用量。此入口目前接受纯文本。工具、媒体和结构化输出可通过下文的 SDK 接口使用。
+要通过网关发布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。客户端用公开模型名调用 `POST /v1/chat/completions`。普通 JSON 和 SSE 都支持前置 system 或 developer 指令、文本历史、最大输出 Token、temperature、top-p 和最多四个停止字符串。设置 `stream_options.include_usage` 为 `true` 可收到末尾用量帧。省略该帧时网关仍记录用量。
+
+此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。需要回放签名推理的工具步骤、媒体输入或结构化响应可用原生 SDK。
 
 Bedrock 的 Converse 和 ConverseStream 均可通过 `with_tools` 调用本地函数。SDK 保留原始工具 ID，在下一回合随结果回送供应商签名推理。仅在模型支持相应 Bedrock 工具选择时使用 `ToolChoice::Required` 或 `ToolChoice::tool`。流式工具等到消息结束和用量事件完整到达后才执行。
 

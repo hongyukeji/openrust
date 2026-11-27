@@ -860,7 +860,9 @@ Cohere 讀取原生浮點向量和計費輸入 Token，Jina 使用 `retrieval.pa
 
 用 `Agent::stream` 呼叫 Bedrock ConverseStream。SDK 讀取 AWS 原生事件串流，並透過 SSE 傳回增量文字和可見推理。結束原因和 Token 用量隨最終中繼資料傳回。串流截斷或 AWS 事件無效會產生串流錯誤，請求逾時也適用於讀取事件。
 
-要透過閘道發布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。用戶端以公開模型名稱呼叫 `POST /v1/chat/completions`。一般 JSON 和 SSE 都支援前置 system 或 developer 指令、文字歷史、最大輸出 Token、temperature、top-p 和最多四個停止字串。將 `stream_options.include_usage` 設為 `true` 可收到末尾用量訊框。省略該訊框時閘道仍記錄用量。此入口目前接受純文字。工具、媒體和結構化輸出可透過下文的 SDK 介面使用。
+要透過閘道發布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。用戶端以公開模型名稱呼叫 `POST /v1/chat/completions`。一般 JSON 和 SSE 都支援前置 system 或 developer 指令、文字歷史、最大輸出 Token、temperature、top-p 和最多四個停止字串。將 `stream_options.include_usage` 設為 `true` 可收到末尾用量訊框。省略該訊框時閘道仍記錄用量。
+
+此入口支援文字和用戶端函式工具。提交 `tools` 與選用的 `tool_choice`，下一輪保留工具定義，並用帶原始 `tool_call_id` 的 `tool` 訊息送回每個結果。平行結果會合併為一則 Bedrock 訊息。若 `parallel_tool_calls` 為 `false`，閘道會拒絕上游一次傳回多個呼叫的回應。串流工具呼叫在 Bedrock 送出完整參數及最終用量後交付。需要重播簽名推理的工具步驟、媒體輸入或結構化回應可用原生 SDK。
 
 Bedrock 的 Converse 和 ConverseStream 均可透過 `with_tools` 呼叫本機函式。SDK 保留原始工具 ID，在下一回合隨結果送回供應商簽名推理。僅在模型支援對應 Bedrock 工具選擇時使用 `ToolChoice::Required` 或 `ToolChoice::tool`。串流工具等到訊息結束和用量事件完整送達後才執行。
 

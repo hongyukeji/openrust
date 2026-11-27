@@ -76,17 +76,7 @@ impl ReplayBlock {
             ContentBlock::ReasoningContent(ReasoningContentBlock::RedactedContent(bytes)) => {
                 Self::RedactedReasoning(Str::to_base64(bytes.as_ref()))
             }
-            ContentBlock::ToolUse(tool) => {
-                let Value::Object(arguments) = json_value(tool.input())? else {
-                    return Err(AiError::InvalidToolArguments);
-                };
-                Self::Tool(ToolCall {
-                    id: tool.tool_use_id().into(),
-                    name: tool.name().into(),
-                    arguments,
-                    result_id: None,
-                })
-            }
+            ContentBlock::ToolUse(tool) => Self::Tool(read_call(tool)?),
             _ => return Ok(None),
         };
         Ok(Some(replay))
@@ -208,7 +198,19 @@ pub(super) fn results(results: &[ToolResult]) -> AiResult<BedrockMessage> {
         .map_err(|_| AiError::InvalidResponse)
 }
 
-fn call_block(call: &ToolCall) -> AiResult<ContentBlock> {
+pub(super) fn read_call(tool: &ToolUseBlock) -> AiResult<ToolCall> {
+    let Value::Object(arguments) = json_value(tool.input())? else {
+        return Err(AiError::InvalidToolArguments);
+    };
+    Ok(ToolCall {
+        id: tool.tool_use_id().into(),
+        name: tool.name().into(),
+        arguments,
+        result_id: None,
+    })
+}
+
+pub(super) fn call_block(call: &ToolCall) -> AiResult<ContentBlock> {
     ToolUseBlock::builder()
         .tool_use_id(call.wire_id())
         .name(&call.name)

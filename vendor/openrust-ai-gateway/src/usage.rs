@@ -193,10 +193,16 @@ impl Settlement {
                     .and_then(serde_json::Value::as_str),
                 Some("embeddings" | "embedContent" | "batchEmbedContents")
             );
+        let confirmed_error = context
+            .get("confirmed_error_usage")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true);
         let state = if !dispatch_started {
             "not_dispatched"
         } else if outcome == "completed" && images.is_some()
-            || (outcome == "completed" || input_only && outcome == "batch_aborted")
+            || (outcome == "completed"
+                || confirmed_error
+                || input_only && outcome == "batch_aborted")
                 && input.is_some()
                 && (input_only || output.is_some())
         {

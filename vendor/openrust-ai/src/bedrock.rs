@@ -1,5 +1,6 @@
 mod catalog;
 mod chat;
+mod chat_tools;
 mod embeddings;
 mod image;
 mod invoke;
@@ -635,7 +636,7 @@ fn stream_events(
                 }
                 ConverseStreamOutput::ContentBlockStart(event) if started && stopped.is_none() => {
                     let index = u64::try_from(event.content_block_index()).map_err(|_| AiError::InvalidResponse)?;
-                    let tool = event.start().and_then(|start| start.as_tool_use().ok())
+                    let tool = event.start().and_then(|start| start.as_tool_use().ok()).filter(|tool| tool.r#type().is_none())
                         .ok_or(AiError::InvalidResponse)?;
                     if !allow_tools || blocks.contains_key(&index) {
                         Err(AiError::InvalidResponse)?;

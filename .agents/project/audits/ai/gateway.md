@@ -217,9 +217,17 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 `chat/completions` 发布端点将普通文本映射到 AWS Converse，SSE 映射到 ConverseStream。复用 SDK 的 AWS 凭证链、原生事件解码及用量换算。保留前置 system／developer 和消息内的文本顺序，映射最大输出 Token、temperature、top-p 与停止字符串。返回公开模型名及可见推理。跳过供应商签名与不透明推理。网关在用量帧及 `[DONE]` 发出前保存最终用量。明确请求 `stream_options.include_usage` 时输出末尾用量帧，并在此前各数据帧中将 `usage` 设为 null。
 
-独立 Artisan 实测 SDK 直连与 SDK 经网关。外部 HTTP 通过本地 AWS 原生协议服务验证 JSON、首段文本早于终帧、流式结束原因、三种用量选项、身份隔离、结构化及工具请求出站前拒绝、AWS 403 和截断无 `[DONE]`。SQLite 核对七次网关尝试的原生操作与 AWS 请求 ID。成功样例按 12 个基础输入、2 个缓存读取、3 个缓存写入和 4 个输出 Token 记录，隐藏用量帧时仍保存最终状态。以独立缓存费率复算，每个成功样例的上游成本为 0.03 USD、下游应收为 0.06 USD。截断和 403 的成本待核对，应收为零。31 项 SDK 与网关回归、严格 Clippy、三语站点和根路径及 /docs/ 导航通过。网关工具、媒体、结构化输出和真实 AWS 账户的验收继续单列。
+独立 Artisan 实测 SDK 直连与 SDK 经网关。外部 HTTP 通过本地 AWS 原生协议服务验证 JSON、首段文本早于终帧、流式结束原因、三种用量选项、身份隔离、结构化及工具请求出站前拒绝、AWS 403 和截断无 `[DONE]`。SQLite 核对七次网关尝试的原生操作与 AWS 请求 ID。成功样例按 12 个基础输入、2 个缓存读取、3 个缓存写入和 4 个输出 Token 记录，隐藏用量帧时仍保存最终状态。以独立缓存费率复算，每个成功样例的上游成本为 0.03 USD、下游应收为 0.06 USD。截断和 403 的成本待核对，应收为零。31 项 SDK 与网关回归、严格 Clippy、三语站点和根路径及 /docs/ 导航通过。客户端函数见 [Bedrock Chat 客户端函数](#gw-03-bedrock-chat-客户端函数)。媒体、结构化输出和真实 AWS 账户的验收继续单列。
 
 - [AWS Converse 与 ConverseStream](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) · [AWS 推理参数](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html) · [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat)
+
+## GW-03 Bedrock Chat 客户端函数
+
+Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Converse 工具构造。模型支持相应选项时可用自动、必选及指定工具。在后续请求保留启用的工具配置，用原调用 ID 回送结果。同一助手轮的多个结果合并为一条 AWS user 消息。缺失、重复或不匹配的结果在出站前拒绝。网关核对返回的工具名称、调用 ID、选择策略及并行限制。SSE 在原生终帧验证参数和用量后交付工具。需要重放签名或不透明推理的工具响应目前使用原生 SDK，网关拒绝交付这类调用。
+
+本地 AWS 协议服务通过独立 Artisan 验证 SDK 直连与 SDK 经网关，两轮均保留 `stock:one`，总量为 34 输入和 8 输出 Token。外部 HTTP 验证 JSON 和 SSE 两轮、两个并行结果逆序回送、指定工具、必选、禁用、非法历史和签名不外泄。模拟工具调用的九次成功均各结算成本 0.03 USD、应收 0.06 USD。四次本地转换失败仍按 AWS 最终用量各记成本 0.03 USD，应收为零。缺最终元数据的截断流不发工具或 `[DONE]`，成本待核对。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过这组 HTTP 与 Artisan 验收。31 项回归、严格 Clippy 和三语站点通过。
+
+- [AWS 客户端工具调用](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html) · [AWS ToolUseBlock](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolUseBlock.html) · [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php)
 
 ## GW-03 Bedrock 文生图兼容入口
 

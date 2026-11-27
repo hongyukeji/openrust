@@ -1100,6 +1100,7 @@ async fn request_upstream(
     }
     if let Ok(data) = upstream.json::<Value>() {
         call.observe_usage(&data);
+        call.observe_bedrock_error_usage(&data);
         call.observe_final_cost(&data);
     }
     call.outcome("upstream_error");
@@ -1295,6 +1296,7 @@ async fn stream(
                 return;
             };
             if matches!(data["type"].as_str(), Some("error" | "response.failed")) || event.event == "error" || data.get("error").is_some_and(|value| !value.is_null()) {
+                call.observe_bedrock_error_usage(&data);
                 if endpoint == TextEndpoint::Responses && data["type"] == "response.failed" {
                     call.observe_usage(&data["response"]);
                     call.observe_final_cost(&data["response"]);
@@ -1401,6 +1403,13 @@ fn bridged_stream(
                     yield Ok(error_frame);
                     return;
                 };
+                if data.get("error").is_some_and(|value| !value.is_null()) {
+                    call.observe_bedrock_error_usage(&data);
+                    call.outcome("upstream_error");
+                    call.settle().await;
+                    yield Ok(error_frame);
+                    return;
+                }
                 observed |= call.observe_usage(&data);
                 observed |= call.observe_usage(&data["message"]);
                 observed |= call.observe_usage(&data["response"]);
