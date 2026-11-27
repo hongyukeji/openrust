@@ -342,7 +342,9 @@ pub(super) async fn resolve(
     if camel.is_none() && snake.is_none() {
         return Ok(None);
     }
-    if !GENERATION.contains(&endpoint) || (camel.is_some() && snake.is_some()) {
+    if !(GENERATION.contains(&endpoint) || endpoint == TextEndpoint::GeminiCountTokens)
+        || (camel.is_some() && snake.is_some())
+    {
         return Err(invalid("此 Gemini 端点不支持缓存引用"));
     }
     let value = camel.or(snake).expect("已经核对缓存参数");

@@ -433,6 +433,39 @@ impl TextProvider for GeminiTextProvider {
                     _ => unreachable!(),
                 }
             }
+            if endpoint == TextEndpoint::GeminiCountTokens {
+                let request = body.as_object_mut().ok_or(AiError::InvalidPrompt)?;
+                let camel = request
+                    .remove("generateContentRequest")
+                    .filter(|value| !value.is_null());
+                let snake = request
+                    .remove("generate_content_request")
+                    .filter(|value| !value.is_null());
+                if camel.is_some() && snake.is_some() {
+                    return Err(AiError::InvalidPrompt);
+                }
+                if let Some(config) = camel.or(snake) {
+                    let Value::Object(mut config) = config else {
+                        return Err(AiError::InvalidPrompt);
+                    };
+                    let actual = validated_model_id(&model)?;
+                    if request.values().any(|value| !value.is_null())
+                        || config
+                            .get("model")
+                            .filter(|model| !model.is_null())
+                            .is_some_and(|model| {
+                                model
+                                    .as_str()
+                                    .and_then(|value| validated_model_id(value).ok())
+                                    != Some(actual)
+                            })
+                    {
+                        return Err(AiError::InvalidPrompt);
+                    }
+                    config.insert("model".into(), format!("models/{actual}").into());
+                    body = json!({"generateContentRequest":config});
+                }
+            }
             let (request, path) = self.model_request(endpoint, &model, None)?;
             request.post(&path, &body).await.map_err(transport_error)
         })

@@ -128,6 +128,7 @@ async fn recorded(
             "ai_gateway_usage.endpoint",
             crate::usage::gemini_caches::OPERATIONS
                 .into_iter()
+                .chain([openrust_ai::TextEndpoint::GeminiCountTokens.path()])
                 .map(Value::from)
                 .collect(),
         )

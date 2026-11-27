@@ -29,6 +29,7 @@ type HttpResult = Result<Response, HttpError>;
 mod embedding_batch;
 mod gemini_batches;
 mod gemini_caches;
+mod gemini_count;
 mod image_upload;
 mod resources;
 mod usage_summary;
@@ -675,6 +676,28 @@ async fn relay(
             "此端点仅支持无状态请求及内联附件",
         );
     }
+    let gemini_count_envelope = if endpoint == TextEndpoint::GeminiCountTokens {
+        match gemini_count::unwrap(&mut data, &name) {
+            Ok(wrapped) => wrapped,
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        false
+    };
+    if endpoint == TextEndpoint::GeminiCountTokens
+        && !gemini_count_envelope
+        && ["cachedContent", "cached_content"]
+            .iter()
+            .any(|field| resources::present_field(&data, field))
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "Gemini 计数缓存须放在生成配置中",
+        );
+    }
     let gemini_cache = if matches!(protocol, Protocol::Gemini) {
         match gemini_caches::resolve(&gateway, key, &name, endpoint, &mut data).await {
             Ok(cache) => cache,
@@ -809,10 +832,16 @@ async fn relay(
         } else {
             std::mem::take(&mut data)
         };
-        payload.insert("model".into(), json!(target.upstream_model));
         if let Some(cache) = &gemini_cache {
             payload.insert("cachedContent".into(), json!(cache.upstream_name));
         }
+        if gemini_count_envelope {
+            payload = serde_json::Map::from_iter([(
+                "generateContentRequest".into(),
+                Value::Object(payload),
+            )]);
+        }
+        payload.insert("model".into(), json!(target.upstream_model));
         let signed_reasoning = endpoint == TextEndpoint::Responses
             && upstream_endpoint == TextEndpoint::ChatCompletions
             && target.provider.supports_chat_reasoning_replay();
@@ -1324,6 +1353,14 @@ async fn respond(
         } else {
             json!({"input_tokens":count})
         };
+    } else if endpoint == TextEndpoint::GeminiCountTokens && !gemini_count::valid_response(&data) {
+        call.outcome("invalid_upstream_response");
+        call.settle().await;
+        return protocol.error(
+            StatusCode::BAD_GATEWAY,
+            "invalid_upstream_response",
+            "上游未返回有效的 Gemini Token 数",
+        );
     } else if !endpoint.is_counting() {
         call.observe_usage(&data);
         call.observe_final_cost(&data);

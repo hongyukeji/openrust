@@ -342,6 +342,14 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 - [Gemini 文件保留时限](https://aistudio.google.com/docs/files) · [Laravel 调度 Artisan 命令](https://laravel.com/framework/docs/12.x/scheduling#scheduling-artisan-commands)
 
+## GW-03 Gemini 完整生成请求计数
+
+`:countTokens` 同时支持直接 `contents` 及 `generateContentRequest` 完整请求形状。接受协议字段的两种拼写，验证内层公开模型与路径一致，转发前用真实模型重写内层资源名。完整请求复用生成入口的 Key、模型和原上游账号绑定，可计数内联内容、系统指令、客户端函数和获准的缓存。共享连接拒绝上游文件 ID 及文件搜索资源。计数结果校验非负总数及可选缓存子集，计数尝试与生成用量分别记录。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 Artisan SDK 直连、SDK 经网关和外部 HTTP 验证平面及完整请求、两种字段拼写、工具定义原样转发、模型替换、跨 Key 和凭证变更拒绝、删除后拒绝、绑定目标 503 后不回退、无效计数 502 及未出站的非法请求。合成上游返回 3008 个总 Token 和 3000 个缓存 Token，网关账本登记计数尝试及资源关联，生成 Token 和应收账目不变。随后执行一次缓存生成，对账结果匹配模拟供应商生成费用 0.309 USD，待结算生成尝试为 0。14 项网关回归、19 项 SDK 回归、两包严格 Clippy 和三语站点校验通过。正式 Gemini 账号待实测。
+
+- [Google Gemini v1beta CountTokens 协议](https://github.com/googleapis/googleapis/blob/master/google/ai/generativelanguage/v1beta/generative_service.proto#L1196)
+
 ## GW-03／GW-04 Gemini 网关显式上下文缓存
 
 公开模型显式启用 `gemini_cached_contents` 后，网关先登记本地资源，再用获准的 Gemini 连接创建缓存。数据库保存归属、公开模型、上游范围及资源映射。未确认创建保留登记，外部列表和读取只返回已绑定资源。硬预算要求拒绝未知费用时，网关在出站前拦截创建和有效期更新。普通及流式生成在发送前校验当前 Key、公开模型、端点授权及原连接凭证。只在该连接内改写缓存名称，失败后不向备用账号提交同一请求。

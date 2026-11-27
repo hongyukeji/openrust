@@ -161,6 +161,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 預設以 JSON 陣列串流回傳。可用 `?alt=json` 明確選擇 JSON，或用 `?alt=sse` 選擇 SSE。陣列中的每一項是一個 Gemini 回應區塊。串流開始後若發生錯誤，陣列末尾會提供 Gemini 錯誤物件。
 
+`:countTokens` 可以直接接收 `contents`，也可以在 `generateContentRequest` 中接收完整的提示設定，包括系統指令、用戶端函式、生成設定和選填的閘道 `cachedContent`。內層指定 `model` 時須與路徑中的公開模型一致。每次請求使用其中一種形式。回傳的 `totalTokens` 和選填的 `cachedContentTokenCount` 保留上游計數，並獨立於生成用量。
+
 發佈 Gemini 上下文快取時，啟用閘道用量儲存，執行閘道遷移，並在 Gemini 生成模型上設定 `"gemini_cached_contents": true`。向 `POST /v1beta/cachedContents` 提交快取內容，`model` 填公開模型名稱，例如 `models/support-chat`，在 `x-goog-api-key` 中傳入閘道 Key。用 `GET /v1beta/cachedContents` 列出目前 Key 的快取，支援 `pageSize` 和 `pageToken`。透過 `/v1beta/{name}` 的 GET、PATCH 和 DELETE 管理單個快取，PATCH 可更新 `ttl` 或 `expireTime`。
 
 在 `:generateContent` 或 `:streamGenerateContent` 中，將閘道回傳的 `name` 作為 `cachedContent`，沿用同一個 Key 和公開模型。閘道會將請求送到建立快取的連線。建立時可使用內嵌內容和用戶端函式定義。生成用量依設定的快取輸入費率結算，快取建立和儲存費用仍需供應商帳單證據。群組或帳號預算要求拒絕上限未知的費用時，閘道會在送出請求前拒絕建立和修改有效期。

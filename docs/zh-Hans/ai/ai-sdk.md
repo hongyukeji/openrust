@@ -161,6 +161,8 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 默认以 JSON 数组流式返回。可用 `?alt=json` 显式选择 JSON，或用 `?alt=sse` 选择 SSE。数组中的每一项是一个 Gemini 响应块。流开始后发生错误时，数组末尾会提供 Gemini 错误对象。
 
+`:countTokens` 可以直接接收 `contents`，也可以在 `generateContentRequest` 中接收完整的提示配置，包括系统指令、客户端函数、生成设置和可选的网关 `cachedContent`。内层指定 `model` 时须与路径中的公开模型一致。每次请求使用其中一种形式。返回的 `totalTokens` 和可选的 `cachedContentTokenCount` 保留上游的计数，并独立于生成用量。
+
 发布 Gemini 上下文缓存时，启用网关用量存储，运行网关迁移，并在 Gemini 生成模型上设置 `"gemini_cached_contents": true`。向 `POST /v1beta/cachedContents` 提交缓存内容，`model` 填公开模型名，例如 `models/support-chat`，在 `x-goog-api-key` 中传入网关 Key。用 `GET /v1beta/cachedContents` 列出当前 Key 的缓存，支持 `pageSize` 和 `pageToken`。单个缓存通过 `/v1beta/{name}` 的 GET、PATCH 和 DELETE 管理，PATCH 可更新 `ttl` 或 `expireTime`。
 
 在 `:generateContent` 或 `:streamGenerateContent` 中，把网关返回的 `name` 作为 `cachedContent`，沿用同一个 Key 和公开模型。网关会把请求发给创建缓存的连接。创建时可使用内联内容和客户端函数定义。生成用量按配置的缓存输入费率结算，缓存创建和存储费用仍需供应商账单证据。分组或账号预算要求拒绝上界未知的费用时，网关会在出站前拒绝创建和修改有效期。
