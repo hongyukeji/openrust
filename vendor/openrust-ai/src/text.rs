@@ -293,6 +293,10 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    fn gemini_cache_gateway(&self) -> Option<&dyn crate::GeminiCacheGateway> {
+        None
+    }
+
     fn gemini_batch_gateway(&self) -> Option<&dyn crate::GeminiBatchGateway> {
         None
     }

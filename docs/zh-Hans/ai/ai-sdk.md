@@ -1158,6 +1158,32 @@ Gemini 返回类似 `files/policy` 的资源名。`Files::get` 和 `Files::delet
 
 测试中用 `Files::fake([])?` 在内存中上传、查询和删除文件。可以传入字节响应序列，也可以用 `fake_with` 根据请求 ID 生成内容。在替身上启用 `prevent_stray_operations(true)`，拒绝未配置的查询。可用 `assert_stored`、`assert_not_stored`、`assert_deleted` 和 `assert_not_deleted` 断言操作。`Files::fake_id("policy.txt")` 返回确定的测试 ID。
 
+## Gemini 上下文缓存 {#gemini-caches}
+
+用 `GeminiCaches::for_connection("gemini")` 创建和管理 Gemini 显式缓存。向 `create` 传入模型和原生缓存字段。示例中的 `reference` 是达到上游模型最低可缓存输入大小的文本。
+
+```rust
+use openrust_ai::{Agent, GeminiCaches, PromptOptions, agent};
+use serde_json::json;
+
+let cache = GeminiCaches::for_connection("gemini")?;
+let entry = cache.create("your-model", &json!({
+    "displayName": "reference",
+    "ttl": "1800s",
+    "contents": [{"role": "user", "parts": [{"text": reference}]}]
+})).await?;
+let options = json!({"cachedContent": entry.name});
+let response = agent("")
+    .with_provider_options("gemini", options.as_object().unwrap().clone())
+    .prompt_with("Summarize the reference.", PromptOptions {
+        provider: Some("gemini"),
+        model: Some(&entry.model),
+        ..Default::default()
+    }).await?;
+```
+
+用 `get` 读取元数据，用 `list` 和返回的分页令牌浏览，用 `delete` 删除。更新过期时间时，向 `update` 传入 `GeminiCacheExpiration::Ttl("3600s")` 或 `GeminiCacheExpiration::ExpireTime(...)`。生成时沿用相同的具名连接和模型。将缓存前缀的系统指令和工具定义放在缓存里。普通和流式响应的缓存输入量由 `response.usage.cache_read_input_tokens` 返回。缓存操作使用 Gemini SDK 直连。
+
 ## Gemini 批任务 {#gemini-batches}
 
 使用 `GeminiBatches::for_connection("gemini")` 选择具名 Gemini Developer API 连接。将模型 ID 和 Google 的 `batch` 对象内容传给 `generate(model, &batch)` 或 `embed(model, &batch)`。批任务支持内联请求和 Gemini 输入文件。

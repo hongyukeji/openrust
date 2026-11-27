@@ -436,6 +436,14 @@ OpenAI Bearer 列表收到 `client_version` 时返回 Codex 清单，并提供 `
 
 - [固定 Laravel Anthropic File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicFileGateway.php) · [固定 Laravel OpenRouter File Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/OpenRouter/OpenRouterFileGateway.php) · [Anthropic Files API](https://platform.claude.com/docs/en/build-with-claude/files) · [OpenRouter Files API](https://openrouter.ai/docs/api/api-reference/files/list-files)
 
+## Gemini 显式上下文缓存 SDK
+
+`GeminiCaches::for_connection` 复用具名 Gemini Developer API 连接。SDK 覆盖 `cachedContents` 的创建、读取、分页、过期时间更新与删除。创建传入原生内容；更新只发送 `ttl` 或 `expireTime` 及对应 `updateMask`。保留上游返回的模型版本和缓存用量。Agent 可通过具名 Provider Options 设置 `cachedContent`，输入中的蛇形拼写会规范化为 Gemini 格式，冲突字段或无效资源名在发出请求前被拒绝。
+
+通过独立 Artisan、HTTP Kernel 和本地 Gemini REST 服务验证生命周期、分页令牌原样传递、上游 API Key 与版本路径、两种过期字段、删除后 404、普通／SSE 生成引用及 3000 个缓存输入 Token。缓存 CRUD 与生成使用同一具名上游连接。网关租户资源映射、绑定选路及账号实测留在对应后续批次。
+
+- [Gemini Caching REST 参考](https://aistudio.google.com/api-reference/caching) · [Gemini SDK Caches 接口](https://googleapis.github.io/js-genai/release_docs/classes/caches.Caches.html)
+
 ## Gemini 异步批任务 SDK
 
 固定 Laravel Gemini Provider 没有异步批任务契约。OpenRust 以 `GeminiBatches::for_connection` 使用已配置的 Gemini Developer API 连接，提供 `generate`、`embed`、`get`、`list`、`cancel`、`delete` 和结果文件 `download`。生成和向量分别使用 `batchGenerateContent`、`asyncBatchEmbedContent`。任务状态、单项结果和失败沿用上游 JSON，提交成功只表示任务已受理。创建请求发出一次。读取仅接受规范 `batches/{id}`，下载从同一任务的明确结果引用派生同源路径并使用原具名连接，不跟随重定向。凭证、基础地址和自定义请求头组成上游请求范围，供共享网关绑定任务。

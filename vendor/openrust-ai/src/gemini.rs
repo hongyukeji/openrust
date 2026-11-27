@@ -27,6 +27,7 @@ use crate::{
 
 mod audio;
 mod batches;
+mod caches;
 mod embeddings;
 mod image;
 mod interactions;
@@ -199,6 +200,7 @@ impl GeminiTextProvider {
             body["generationConfig"]["topP"] = top_p.into();
         }
         apply_provider_options(&mut body, prompt.provider_options, true)?;
+        caches::normalize_reference(&mut body)?;
         Ok(body)
     }
 
@@ -252,6 +254,10 @@ impl GeminiTextProvider {
 }
 
 impl TextProvider for GeminiTextProvider {
+    fn gemini_cache_gateway(&self) -> Option<&dyn crate::GeminiCacheGateway> {
+        Some(self)
+    }
+
     fn gemini_batch_gateway(&self) -> Option<&dyn crate::GeminiBatchGateway> {
         Some(self)
     }
@@ -433,7 +439,7 @@ impl TextProvider for GeminiTextProvider {
     }
 }
 
-fn validated_model_id(model: &str) -> AiResult<&str> {
+pub(crate) fn validated_model_id(model: &str) -> AiResult<&str> {
     let model = model_id(model);
     if model.is_empty()
         || !model

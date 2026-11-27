@@ -1158,6 +1158,32 @@ Gemini 傳回類似 `files/policy` 的資源名稱。`Files::get` 和 `Files::de
 
 測試中用 `Files::fake([])?` 在記憶體中上傳、查詢與刪除檔案。可傳入位元組回應序列，也可用 `fake_with` 依請求 ID 產生內容。在替身上啟用 `prevent_stray_operations(true)`，拒絕未設定的查詢。可用 `assert_stored`、`assert_not_stored`、`assert_deleted` 及 `assert_not_deleted` 驗證操作。`Files::fake_id("policy.txt")` 傳回固定的測試 ID。
 
+## Gemini 上下文快取 {#gemini-caches}
+
+用 `GeminiCaches::for_connection("gemini")` 建立和管理 Gemini 顯式快取。向 `create` 傳入模型與原生快取欄位。範例中的 `reference` 是達到上游模型最低可快取輸入大小的文字。
+
+```rust
+use openrust_ai::{Agent, GeminiCaches, PromptOptions, agent};
+use serde_json::json;
+
+let cache = GeminiCaches::for_connection("gemini")?;
+let entry = cache.create("your-model", &json!({
+    "displayName": "reference",
+    "ttl": "1800s",
+    "contents": [{"role": "user", "parts": [{"text": reference}]}]
+})).await?;
+let options = json!({"cachedContent": entry.name});
+let response = agent("")
+    .with_provider_options("gemini", options.as_object().unwrap().clone())
+    .prompt_with("Summarize the reference.", PromptOptions {
+        provider: Some("gemini"),
+        model: Some(&entry.model),
+        ..Default::default()
+    }).await?;
+```
+
+用 `get` 讀取中繼資料，用 `list` 和回傳的分頁權杖瀏覽，用 `delete` 刪除。更新到期時間時，向 `update` 傳入 `GeminiCacheExpiration::Ttl("3600s")` 或 `GeminiCacheExpiration::ExpireTime(...)`。生成時沿用相同的具名連線與模型。將快取前綴的系統指令與工具定義放在快取中。一般和串流回應的快取輸入量由 `response.usage.cache_read_input_tokens` 回傳。快取操作使用 Gemini SDK 直接連線。
+
 ## Gemini 批次工作 {#gemini-batches}
 
 使用 `GeminiBatches::for_connection("gemini")` 選擇具名 Gemini Developer API 連線。將模型 ID 和 Google 的 `batch` 物件內容傳給 `generate(model, &batch)` 或 `embed(model, &batch)`。批次工作支援內嵌請求和 Gemini 輸入檔案。

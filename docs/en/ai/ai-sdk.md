@@ -1158,6 +1158,32 @@ When calling the shared gateway, send inline attachments using the endpoint’s 
 
 In tests, call `Files::fake([])?` for in-memory uploads, lookups, and deletes. Pass a sequence of byte responses or use `fake_with` to generate bytes from the requested ID. Enable `prevent_stray_operations(true)` on the fake to reject unconfigured lookups. Use `assert_stored`, `assert_not_stored`, `assert_deleted`, and `assert_not_deleted` to check operations. `Files::fake_id("policy.txt")` returns the deterministic test ID.
 
+## Gemini context caching {#gemini-caches}
+
+Use `GeminiCaches::for_connection("gemini")` to create and manage an explicit Gemini cache. Pass the model and the native cache fields to `create`. Prepare a `reference` string that meets your model’s minimum cacheable input size.
+
+```rust
+use openrust_ai::{Agent, GeminiCaches, PromptOptions, agent};
+use serde_json::json;
+
+let cache = GeminiCaches::for_connection("gemini")?;
+let entry = cache.create("your-model", &json!({
+    "displayName": "reference",
+    "ttl": "1800s",
+    "contents": [{"role": "user", "parts": [{"text": reference}]}]
+})).await?;
+let options = json!({"cachedContent": entry.name});
+let response = agent("")
+    .with_provider_options("gemini", options.as_object().unwrap().clone())
+    .prompt_with("Summarize the reference.", PromptOptions {
+        provider: Some("gemini"),
+        model: Some(&entry.model),
+        ..Default::default()
+    }).await?;
+```
+
+Use `get` for metadata, `list` with the returned page token to navigate, and `delete` to remove the cache. `update` accepts `GeminiCacheExpiration::Ttl("3600s")` or `GeminiCacheExpiration::ExpireTime(...)`. Use the same named connection and model when generating. Put the system instructions and tool definitions for the cached prefix in the cache. Gemini reports cached input tokens in `response.usage.cache_read_input_tokens` for ordinary and streamed responses. These operations use the direct Gemini SDK connection.
+
 ## Gemini batch jobs {#gemini-batches}
 
 Use `GeminiBatches::for_connection("gemini")` with a named Gemini Developer API connection. Pass the model ID and the contents of Google's `batch` object to `generate(model, &batch)` or `embed(model, &batch)`. The batch can reference a Gemini input file or include requests inline.
