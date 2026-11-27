@@ -7,7 +7,7 @@ use openrust::http::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Ai, AiError, AiResult, TextProvider};
+use crate::{Ai, AiError, AiResult, FileInfo, FileUpload, TextProvider};
 
 /// Gemini Developer API 的原生异步批任务操作。
 pub enum GeminiBatchRequest<'a> {
@@ -40,6 +40,11 @@ pub enum GeminiBatchRequest<'a> {
 pub trait GeminiBatchGateway: Send + Sync {
     /// 用于持久化上游任务归属。更换端点、认证信息或连接头会得到不同的范围。
     fn batch_scope(&self) -> AiResult<String>;
+
+    /// 将批任务输入上传到同一个上游连接。
+    fn upload_batch_input(&self, _file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
 
     fn send_batch<'a>(
         &'a self,

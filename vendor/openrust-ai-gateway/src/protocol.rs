@@ -44,6 +44,10 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.get("/models", codex_models)?;
         responses_routes(router)
     })?;
+    Route::group(RouteGroup::new().prefix("/upload/v1beta"), |router| {
+        router.post("/files", gemini_batches::upload::upload_route)?;
+        Ok(())
+    })?;
     Route::group(RouteGroup::new().prefix("/download/v1beta"), |router| {
         router.get("/files/{id}", gemini_batches::download_route)?;
         Ok(())

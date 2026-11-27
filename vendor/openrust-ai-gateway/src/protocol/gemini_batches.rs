@@ -1,4 +1,5 @@
 mod download;
+pub(super) mod upload;
 
 use futures_util::StreamExt;
 use openrust::{
@@ -7,7 +8,7 @@ use openrust::{
     routing::{Router, RoutingError},
     support::{Str, facades::Facade},
 };
-use openrust_ai::{AiError, GeminiBatchRequest, TextEndpoint};
+use openrust_ai::{AiError, FileUpload, GeminiBatchRequest, TextEndpoint};
 use serde_json::{Map, Value, json};
 
 use super::{
@@ -22,6 +23,8 @@ use crate::{
 const PROTOCOL: Protocol = Protocol::Gemini;
 
 pub(super) fn routes(router: &mut Router) -> Result<(), RoutingError> {
+    router.get("/files/{id}", upload::get_route)?;
+    router.delete("/files/{id}", upload::delete_route)?;
     router.get("/batches", list_route)?;
     router.get("/batches/{id}", get_route)?;
     router.post("/batches/{id}", cancel_route)?;
@@ -77,12 +80,16 @@ pub(super) async fn create(
         Err(HttpError::PayloadTooLarge) => return super::request_too_large(PROTOCOL),
         Err(_) => return invalid("无法读取批任务正文"),
     };
-    let Ok(data) = serde_json::from_slice::<Value>(&body) else {
+    let Ok(mut data) = serde_json::from_slice::<Value>(&body) else {
         return invalid("批任务需要 JSON 对象");
     };
     if data.as_object().is_none_or(|body| body.len() != 1) {
         return invalid("批任务需要 batch 对象");
     }
+    let source_keys = match upload::resolve_source(store, &key, &mut data["batch"]).await {
+        Ok(keys) => keys,
+        Err(error) => return error,
+    };
     let count = match validate_inline(&data["batch"], &model, endpoint) {
         Ok(count) => count,
         Err(message) => return invalid(message),
@@ -119,6 +126,15 @@ pub(super) async fn create(
         };
         let quota = match key.output_reservation(endpoint, target, &mut payload) {
             Ok(quota) => quota,
+            Err(message) => return invalid(message),
+        };
+        rewrite_input_models(&mut payload, &target.upstream_model);
+        let upload = match source_keys
+            .as_ref()
+            .map(|keys| upload::prepared_source(&payload, keys))
+            .transpose()
+        {
+            Ok(upload) => upload,
             Err(message) => return invalid(message),
         };
         let lease = if let Some(account) = &target.account {
@@ -180,12 +196,26 @@ pub(super) async fn create(
             endpoint,
             item_count: count,
         };
-        if store.reserve_gemini_batch(&batch).await.is_err() || !call.begin_dispatch().await {
+        if store.reserve_gemini_batch(&batch).await.is_err() {
+            return storage_error();
+        }
+        if let Some(upload) = upload {
+            let file = match provider.upload_batch_input(upload).await {
+                Ok(file) => file,
+                Err(error) => return driver_error(error),
+            };
+            if !file.id.starts_with("files/") {
+                return malformed();
+            }
+            let fields = payload.as_object_mut().expect("已核对批次对象");
+            fields.remove("input_config");
+            fields.insert("inputConfig".into(), json!({"fileName":file.id}));
+        }
+        if !call.begin_dispatch().await {
             return storage_error();
         }
         // 提交结果未确认时只保留原尝试，禁止把请求重发给另一个账号。
         call.outcome("batch_submission_unknown");
-        rewrite_input_models(&mut payload, &target.upstream_model);
         let operation = if endpoint.is_embedding() {
             GeminiBatchRequest::Embed {
                 model: &target.upstream_model,

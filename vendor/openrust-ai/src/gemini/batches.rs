@@ -3,8 +3,8 @@ use serde_json::{Value, json};
 use url::Url;
 
 use crate::{
-    AiError, AiResult, GeminiBatchGateway, GeminiBatchRequest,
-    files::validate_gemini_id,
+    AiError, AiResult, FileInfo, FileProvider, FileUpload, GeminiBatchGateway, GeminiBatchRequest,
+    files::{GeminiFileProvider, validate_gemini_id},
     gemini_batches::{batch_name, valid_cursor},
     text::transport_error,
 };
@@ -14,6 +14,10 @@ use super::{GeminiTextProvider, validated_model_id};
 impl GeminiBatchGateway for GeminiTextProvider {
     fn batch_scope(&self) -> AiResult<String> {
         self.0.request_namespace("gemini-batches")
+    }
+
+    fn upload_batch_input(&self, file: FileUpload) -> HttpFuture<'_, AiResult<FileInfo>> {
+        Box::pin(async move { GeminiFileProvider(self.0.clone()).put_file(file).await })
     }
 
     fn send_batch<'a>(

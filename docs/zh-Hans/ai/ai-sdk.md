@@ -161,9 +161,11 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 默认以 JSON 数组流式返回。可用 `?alt=json` 显式选择 JSON，或用 `?alt=sse` 选择 SSE。数组中的每一项是一个 Gemini 响应块。流开始后发生错误时，数组末尾会提供 Gemini 错误对象。
 
-发布 Gemini 异步批任务时，启用网关用量存储，发布并运行 `ai-gateway-migrations`，再将 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公开模型的 `endpoints`。将内联请求提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用网关返回的 `batches/…` 名称查询、取消或删除任务。`GET /v1beta/batches` 列出当前 Key 的任务，支持 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
+发布 Gemini 异步批任务时，启用网关用量存储，发布并运行 `ai-gateway-migrations`，再将 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公开模型的 `endpoints`。将批任务提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用网关返回的 `batches/…` 名称查询、取消或删除任务。`GET /v1beta/batches` 列出当前 Key 的任务，支持 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
-请按批任务价格配置具名连接和公开模型的费率。网关只登记一次提交，取得最终条目用量后结算。启用硬预算时，为上游模型设置可信的单项输入上界 `input_token_limit`，内联向量批次也按此上界预占。启用硬预算或输出配额的内联生成批次支持文本输出。网关取最严格的配置上限，按每项的候选数换算 `maxOutputTokens`，保留调用方更小的上限和原有推理设置。候选输出和推理 Token 均计入配额。用量无法确认时保留配额预占。共享连接通过内联请求提交。Gemini 返回结果文件时，网关在 `response.responsesFile` 中返回当前 Key 有权访问的文件名。用 `GeminiBatches::download`，或持同一 Key 请求 `GET /download/v1beta/{responsesFile}:download?alt=media`。结果以 JSONL 流式返回，单行最大 64 MiB。下载中断后从头重试。文件型任务可通过 Gemini SDK 直连提交。
+请按批任务价格配置具名连接和公开模型的费率。网关只登记一次提交，取得最终条目用量后结算。启用硬预算时，为上游模型设置可信的单项输入上界 `input_token_limit`，向量批次也按此上界预占。启用硬预算或输出配额的生成批次支持文本输出。网关取最严格的配置上限，按每项的候选数换算 `maxOutputTokens`，保留调用方更小的上限和原有推理设置。候选输出和推理 Token 均计入配额。用量无法确认时保留配额预占。Gemini 返回结果文件时，网关在 `response.responsesFile` 中返回当前 Key 有权访问的文件名。用 `GeminiBatches::download`，或持同一 Key 请求 `GET /download/v1beta/{responsesFile}:download?alt=media`。结果以 JSONL 流式返回，单行最大 64 MiB。下载中断后从头重试。
+
+文件型任务可用 `Files::put` 上传 JSONL，也可用 Gemini 的 `POST /upload/v1beta/files` 启动上传，再一次性发送 `upload, finalize`。持同一 Key 将返回的 `files/input-…` 填入 `batch.inputConfig.fileName`。每个文件最多 8 MiB，暂存于私有 `local` 磁盘，多进程部署时共用该磁盘。通过 `/v1beta/{fileName}` 读取元数据或删除暂存文件。网关逐行校验并应用配置的限额，再上传到选定连接。批任务受理后即可删除暂存文件。
 
 公开模型映射可配置 `fallbacks`，依次尝试备用连接。每项填写 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。无状态请求遇到上游 429、5xx 等可重试错误时，网关会尝试备用连接。客户端仍使用同一个公开名，每次尝试用同一个请求 ID 记录。带工具、要求存储输出或已经开始返回的流不参与重放。
 

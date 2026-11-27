@@ -14,7 +14,7 @@
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 和 Bedrock 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。内联异步批任务见下文。 |
-| `POST /v1beta/models/{model}:{batchGenerateContent,asyncBatchEmbedContent}`、`GET /v1beta/batches[/{id}]`、`POST /v1beta/batches/{id}:cancel`、`DELETE /v1beta/batches/{id}` | Google Batch API 原生生命周期，资源归属及单项计量 | GW-03／04 已验收内联任务及文本生成批次硬预算和输出配额。结果下载见下文。文件型任务提交继续单列。 |
+| `POST /v1beta/models/{model}:{batchGenerateContent,asyncBatchEmbedContent}`、`GET /v1beta/batches[/{id}]`、`POST /v1beta/batches/{id}:cancel`、`DELETE /v1beta/batches/{id}` | Google Batch API 原生生命周期，资源归属及单项计量 | GW-03／04 已验收内联任务及文本生成批次硬预算和输出配额。结果下载和文件型任务提交见下文。 |
 | `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03／04 待按生命周期核对，依赖租户与账号归属。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |
 
@@ -314,9 +314,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经真实 HTTP、独立 Artisan 和本
 
 上游提供 JSONL 结果时，网关在 `response.responsesFile` 公开绑定本地批任务的文件名。下载先按当前 Key 查任务，再验证当前模型授权和原上游账号范围，由已授权的上游任务响应解析真实文件名。上游文件标识、错误详情和响应头不随下载转发。逐行解析、保留条目 Key、重写模型名，并在最后一条发出前登记已确认的用量。截断或条目数不符时中断下载，原账目继续待结算。删除带结果文件的批任务前先读取结果证据。单行限制 64 MiB。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 HTTP、Artisan 和本地 Gemini 协议服务验收网关下载。模拟内联批次返回文件结果，验证按分组隔离、原始文件名拒绝、JSONL 分块、没有换行符的最终行、截断重试、两进程并发下载和 SDK 下载。样本一项成功、一项状态错误，成功项仍结算 8 输入、3 候选、2 推理 Token，应收 0.036 USD，上游成本待核对。删除后原本地文件名不可再下载。文件型任务提交及正式账号验收仍待完成。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用独立 HTTP、Artisan 和本地 Gemini 协议服务验收网关下载。模拟内联批次返回文件结果，验证按分组隔离、原始文件名拒绝、JSONL 分块、没有换行符的最终行、截断重试、两进程并发下载和 SDK 下载。样本一项成功、一项状态错误，成功项仍结算 8 输入、3 候选、2 推理 Token，应收 0.036 USD，上游成本待核对。删除后原本地文件名不可再下载。正式账号验收仍待完成。
 
 - [Gemini 批任务结果与 REST 下载](https://aistudio.google.com/docs/batch-api#batch-job-status)
+
+### Gemini 文件型批任务提交
+
+新增 Gemini JSONL 暂存上传，支持原生 resumable 会话启动、状态查询和单次完整文件提交。输入字节保存到私有 `local` 磁盘，数据库持有 Key 归属、对象路径、字节长度及 SHA-256。提交按同一 Key 查找本地文件，校验内容和每行的模型与资源，沿用内联批次的预算及输出配额处理，再将改写的 JSONL 上传到实际连接。客户端收到的任务、文件和上游凭证范围继续隔离。重复提交相同上传内容返回原文件，不同内容返回冲突。删除先标记本地文件不可再用，再清理文件对象，清理失败可重试。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 Artisan SDK 上传、HTTP 文件型提交和本地 Gemini 协议服务验证文件仅存私有磁盘、跨 Key 拒绝、跨进程提交、上传重试和冲突、摘要不符拒绝、文件删除以及结果下载与结算。带硬预算和输出配额的两项样例在原生上传的 JSONL 中各限制 10 个输出 Token，应收预占 0.12 USD。本入口受框架上传上限约束，每个文件最多 8 MiB，使用单次 `upload, finalize`。多片续传、更大文件、暂存文件自动清理及正式 Gemini 账号实测继续单列。
+
+- [Gemini 批任务 JSONL 文件上传](https://aistudio.google.com/docs/batch-api#input-file)
 
 ## GW-03 Gemini JSON 数组与 SSE
 
