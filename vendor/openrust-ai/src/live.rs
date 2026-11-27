@@ -45,7 +45,7 @@ impl LiveGateway for Connection {
     }
 
     fn live_scope(&self) -> AiResult<String> {
-        self.request_namespace(match self.protocol() {
+        self.request_namespace(match self.validate_live_connection()? {
             LiveProtocol::Codex => "codex-live",
             LiveProtocol::OpenAi => "openai-live",
         })

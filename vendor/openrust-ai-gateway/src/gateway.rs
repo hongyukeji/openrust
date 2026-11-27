@@ -266,6 +266,12 @@ pub(crate) struct Model {
 }
 
 impl Model {
+    pub(crate) fn live_targets(&self) -> impl Iterator<Item = &Target> {
+        self.targets.iter().filter(|target| {
+            self.endpoints.contains(&TextEndpoint::Live) && target.provider.live_gateway().is_some()
+        })
+    }
+
     pub(crate) fn allows_server_tool(&self, kind: &str, tool: &Value) -> bool {
         let allowed = match kind {
             "web_search" | "web_search_preview" => ResponsesServerTool::WebSearch,

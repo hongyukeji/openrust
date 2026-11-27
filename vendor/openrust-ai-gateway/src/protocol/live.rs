@@ -22,6 +22,8 @@ use super::{
     authorize, request_too_large,
 };
 use crate::{
+    gateway::AttemptAdmission,
+    invocation::CallIdentity,
     managed_keys::now,
     session_affinity,
     usage::{UsageStore, live_calls::LiveCall},
@@ -32,6 +34,9 @@ const MAX_BYTES: usize = 2 * 1024 * 1024;
 const SESSION_SECONDS: i64 = 3600;
 const SOCKET_TIMEOUT: Duration = Duration::from_secs(8);
 const RENEW_INTERVAL: Duration = Duration::from_secs(15);
+
+mod observer;
+pub(crate) use observer::LiveObserver;
 
 #[derive(Clone, Copy)]
 enum Entry {
@@ -84,6 +89,9 @@ async fn open_call(request: &mut Request, entry: Entry) -> HttpResult {
         Ok(offer) => offer,
         Err(response) => return response,
     };
+    if input.sdp.lines().next() != Some("v=0") || input.sdp.contains('\0') {
+        return invalid("Live SDP 参数无效");
+    }
     let Some(session) = input.session.as_object_mut() else {
         return invalid("session 须为 JSON 对象");
     };
@@ -127,45 +135,87 @@ async fn open_call(request: &mut Request, entry: Entry) -> HttpResult {
     } else {
         None
     };
+    let request_id = Str::ulid().to_string();
+    let operation = match adapter.protocol() {
+        LiveProtocol::Codex => "realtime/calls",
+        LiveProtocol::OpenAi => "live/sessions",
+    };
+    let Ok(mut attempts) = gateway
+        .usage(
+            &key,
+            &name,
+            target,
+            (TextEndpoint::Live, TextEndpoint::Live),
+            CallIdentity {
+                request_id: &request_id,
+                invocation: None,
+            },
+            AttemptAdmission {
+                input_characters: None,
+                resource_id: Some(request_id.clone()),
+                lease,
+                quota: None,
+                budget: Default::default(),
+                count: 1,
+                charges: None,
+                operation,
+                hide_chat_usage: false,
+            },
+        )
+        .await
+    else {
+        return unavailable();
+    };
+    let mut attempt = attempts.pop().expect("Live 请求只登记一次出站");
     let call = LiveCall {
-        id: Str::ulid().to_string(),
+        id: request_id,
         owner: owner(&key),
         model: name,
         scope,
         upstream_id: None,
         expires_at: now() + SESSION_SECONDS,
+        started_at: None,
+        usage_id: attempt.attempt_id().map(str::to_owned),
     };
-    if store.reserve_live_call(&call).await.is_err() {
+    if store.reserve_live_call(&call).await.is_err() || !attempt.begin_dispatch().await {
         return unavailable();
     }
     session.insert("model".into(), target.upstream_model.as_str().into());
     let upstream = adapter.create_live_call(&input.sdp, &input.session).await;
-    if let Some(lease) = lease {
-        let _ = lease.release().await;
-    }
+    attempt.release().await;
     let created = match upstream {
         Ok(created) => created,
         Err(error) => {
-            if (matches!(
-                error,
-                AiError::InvalidPrompt
-                    | AiError::InvalidConfiguration(_)
-                    | AiError::MissingCredential
-            ) || matches!(error, AiError::ProviderStatus(400..=499)))
-                && store.forget_pending_live_call(&call).await.is_err()
+            if let AiError::ProviderStatus(status) = error
+                && let Ok(status) = StatusCode::from_u16(status)
             {
-                return unavailable();
+                attempt.status(status);
+            }
+            if matches!(
+                error, AiError::InvalidPrompt | AiError::InvalidConfiguration(_) | AiError::MissingCredential
+                    | AiError::ProviderStatus(400..=407 | 409..=499)
+            ) {
+                attempt.outcome("upstream_error");
+                if !attempt.settle().await || store.forget_pending_live_call(&call).await.is_err() {
+                    return unavailable();
+                }
+            } else {
+                if !attempt.persist_observation().await {
+                    return unavailable();
+                }
+                attempt.defer_settlement();
             }
             return upstream_error(error);
         }
     };
-    if store.attach_live_call(&call, &created.id).await.is_err() {
-        if adapter.protocol() == LiveProtocol::OpenAi {
-            let _ =
-                tokio::time::timeout(SOCKET_TIMEOUT, adapter.hangup_live_call(&created.id)).await;
-        }
+    attempt.status(StatusCode::OK);
+    if !attempt.persist_observation().await
+        || store.attach_live_call(&call, &created.id).await.is_err()
+    {
+        let _ = terminate_upstream(adapter, &created.id, None).await;
         return unavailable();
     }
+    attempt.defer_settlement();
     let location = HeaderValue::from_str(&format!("{}{}", entry.sideband_path(), call.id))
         .expect("Live control path contains ASCII");
     Ok(Response::new(StatusCode::OK, Body::from(created.sdp))
@@ -218,7 +268,7 @@ async fn upgrade(request: &mut Request, entry: Entry) -> HttpResult {
         return Ok(response);
     }
     let controller = Str::ulid().to_string();
-    match store.claim_live_control(&call, &controller).await {
+    match claim_control(store, &call, &controller).await {
         Ok(true) => {}
         Ok(false) => {
             return HTTP.error(
@@ -247,7 +297,7 @@ async fn upgrade(request: &mut Request, entry: Entry) -> HttpResult {
                     result.expect_err("upstream is an error")
                 });
                 control
-                    .finish(matches!(error, AiError::ProviderStatus(404 | 410)))
+                    .finish(is_gone(&error).then_some("session_ended"))
                     .await;
                 return upstream_error(error);
             }
@@ -261,37 +311,33 @@ async fn upgrade(request: &mut Request, entry: Entry) -> HttpResult {
             .max_message_size(MAX_BYTES)
             .max_write_buffer_size(2 * MAX_BYTES)
             .on_failed_upgrade(move |_| {
-                tokio::spawn(failure.finish(false));
+                tokio::spawn(failure.finish(None));
             })
             .on_upgrade(move |mut socket| async move {
                 let mut upstream = upstream;
                 let outcome = proxy(&mut socket, &mut upstream, &control, &upstream_model).await;
-                if outcome == Outcome::Expired
-                    && let Some(adapter) = provider.live_gateway()
-                {
-                    let id = control
-                        .call
-                        .upstream_id
-                        .as_deref()
-                        .expect("Live 资源已有上游 ID");
-                    match adapter.protocol() {
-                        LiveProtocol::Codex => {
-                            let command =
-                                WebSocketMessage::Text(r#"{"type":"session.close"}"#.into());
-                            let _ =
-                                tokio::time::timeout(SOCKET_TIMEOUT, upstream.send(command)).await;
+                let terminal = match outcome {
+                    Outcome::Ended => Some("session_ended"),
+                    Outcome::Expired => match provider.live_gateway() {
+                        Some(adapter)
+                            if terminate_upstream(
+                                adapter,
+                                id_for(&control.call),
+                                Some(&mut upstream),
+                            )
+                            .await =>
+                        {
+                            Some("session_expired")
                         }
-                        LiveProtocol::OpenAi => {
-                            let _ =
-                                tokio::time::timeout(SOCKET_TIMEOUT, adapter.hangup_live_call(id))
-                                    .await;
-                        }
-                    }
-                }
-                let _ = tokio::time::timeout(SOCKET_TIMEOUT, upstream.close(None)).await;
+                        _ => None,
+                    },
+                    Outcome::Disconnected => None,
+                };
+                close_upstream(&mut upstream).await;
+                drop(upstream);
                 let _ =
                     tokio::time::timeout(SOCKET_TIMEOUT, socket.send(Message::Close(None))).await;
-                control.finish(outcome != Outcome::Disconnected).await;
+                control.finish(terminal).await;
             }),
     ))
 }
@@ -304,12 +350,128 @@ struct Control {
 }
 
 impl Control {
-    async fn finish(self, closed: bool) {
-        let _ = self
-            .store
-            .release_live_control(&self.call, &self.controller, closed)
-            .await;
+    async fn finish(self, outcome: Option<&'static str>) {
+        let result = match outcome {
+            Some(outcome) => {
+                self.store
+                    .finish_live_call(&self.call, &self.controller, outcome)
+                    .await
+            }
+            None => {
+                self.store
+                    .release_live_control(&self.call, &self.controller)
+                    .await
+            }
+        };
+        if result.is_err() {
+            eprintln!("AI 网关 Live 控制状态暂未落库");
+        }
     }
+}
+
+async fn claim_control(
+    store: &UsageStore,
+    call: &LiveCall,
+    controller: &str,
+) -> openrust::database::DatabaseResult<bool> {
+    if store.claim_live_control(call, controller).await? {
+        return Ok(true);
+    }
+    if !store.request_live_handoff(call).await? {
+        return store.claim_live_control(call, controller).await;
+    }
+    let until = tokio::time::Instant::now() + SOCKET_TIMEOUT;
+    loop {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if store.claim_live_control(call, controller).await? {
+            return Ok(true);
+        }
+        if tokio::time::Instant::now() >= until {
+            return Ok(false);
+        }
+    }
+}
+
+fn id_for(call: &LiveCall) -> &str {
+    call.upstream_id.as_deref().expect("Live 资源已有上游 ID")
+}
+
+fn is_gone(error: &AiError) -> bool {
+    matches!(error, AiError::ProviderStatus(404 | 410))
+}
+
+fn terminal_event(text: &str) -> bool {
+    serde_json::from_str::<Value>(text)
+        .ok()
+        .is_some_and(|event| {
+            matches!(
+                event["type"].as_str(),
+                Some("session.closed" | "session.ended")
+            )
+        })
+}
+
+async fn terminate_upstream(
+    adapter: &dyn LiveGateway,
+    id: &str,
+    socket: Option<&mut Upstream>,
+) -> bool {
+    tokio::time::timeout(SOCKET_TIMEOUT, async {
+        match adapter.protocol() {
+            LiveProtocol::OpenAi => match adapter.hangup_live_call(id).await {
+                Ok(()) => true,
+                Err(error) => is_gone(&error),
+            },
+            LiveProtocol::Codex => {
+                let mut connected;
+                let socket = match socket {
+                    Some(socket) => socket,
+                    None => match adapter.connect_live_sideband(id).await {
+                        Ok(socket) => {
+                            connected = socket;
+                            &mut connected
+                        }
+                        Err(error) => return is_gone(&error),
+                    },
+                };
+                if socket
+                    .send(WebSocketMessage::Text(r#"{"type":"session.close"}"#.into()))
+                    .await
+                    .is_err()
+                {
+                    return false;
+                }
+                while let Some(frame) = socket.next().await {
+                    match frame {
+                        Ok(WebSocketMessage::Text(text)) if terminal_event(text.as_str()) => {
+                            return true;
+                        }
+                        Ok(WebSocketMessage::Close(frame)) => {
+                            return frame.is_some_and(|frame| u16::from(frame.code) == 1000);
+                        }
+                        Err(_) => return false,
+                        Ok(_) => {}
+                    }
+                }
+                false
+            }
+        }
+    })
+    .await
+    .unwrap_or(false)
+}
+
+async fn close_upstream(socket: &mut Upstream) {
+    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+        if socket.close(None).await.is_ok() {
+            while let Some(Ok(frame)) = socket.next().await {
+                if matches!(frame, WebSocketMessage::Close(_)) {
+                    break;
+                }
+            }
+        }
+    })
+    .await;
 }
 
 #[derive(PartialEq, Eq)]
@@ -342,8 +504,7 @@ async fn proxy(
             from_upstream = upstream.next() => {
                 let (message, ended) = match from_upstream {
                     Some(Ok(WebSocketMessage::Text(text))) => {
-                        let ended = serde_json::from_str::<Value>(text.as_str()).ok().is_some_and(|event|
-                            matches!(event["type"].as_str(), Some("session.closed" | "session.ended")));
+                        let ended = terminal_event(text.as_str());
                         (Message::Text(text.as_str().into()), ended)
                     }
                     Some(Ok(WebSocketMessage::Binary(bytes))) => (Message::Binary(bytes), false),
@@ -410,13 +571,18 @@ fn targets<'a>(
                 .provider
                 .live_gateway()
                 .filter(|adapter| entry.permits(*adapter))?;
-            let scope = adapter.live_scope().ok()?;
-            Some((
-                target,
-                adapter,
-                session_affinity::key(&[entry.sideband_path(), &target.affinity_key, &scope]),
-            ))
+            let scope = target_scope(entry, target, adapter)?;
+            Some((target, adapter, scope))
         })
+}
+
+fn target_scope(entry: Entry, target: &Target, adapter: &dyn LiveGateway) -> Option<String> {
+    let scope = adapter.live_scope().ok()?;
+    Some(session_affinity::key(&[
+        entry.sideband_path(),
+        &target.affinity_key,
+        &scope,
+    ]))
 }
 
 fn owner(key: &Key) -> String {

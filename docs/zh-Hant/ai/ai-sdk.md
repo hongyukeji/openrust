@@ -320,7 +320,9 @@ Schedule::configure(|schedule| {
 
 用 Bearer 閘道 Key 呼叫 `POST /v1/live`，在 JSON 或 multipart 中提交 `sdp` 和 `session`。用 `session.model` 選擇公開別名。Key 只有一個可用 Live 別名時可省略此欄位。回應本文是 SDP answer，`Location` 是閘道的 Sideband 路徑。Codex 用戶端可透過 `POST /backend-api/codex/realtime/calls` 呼叫 Codex Live 連線。
 
-以同一個閘道 Key 連上 Sideband 路徑。每個工作階段同時只能有一個控制連線。原控制連線中斷並釋放後，可用同一個 Key 接回工作階段，包括從另一個閘道程序接回。工作階段固定繫結原上游連線及模型，一小時後到期。後續建立請求會清除到期映射。若控制連線在到期時仍在線，閘道會向上游要求終止。背景主動回收仍待實作。
+以同一個閘道 Key 連上 Sideband 路徑。每個工作階段同時只能有一個控制連線。原控制連線中斷並釋放後，可用同一個 Key 接回工作階段，包括從另一個閘道程序接回。工作階段固定繫結原上游連線及模型，一小時後到期。`ai-gateway-live` 執行器負責觀察無人控制的工作階段、向獲授權的用戶端讓出控制權，並在程序重啟後回收到期呼叫。至少在一個閘道程序啟用該執行器。每個程序最多並行觀察 32 個工作階段。更換上游連線或憑證前，應先結束現有工作階段，讓執行器可以使用原帳號完成回收。
+
+從 `Location` 取得呼叫 ID，透過 `./artisan ai:gateway:usage:list --request-id=<call-id>` 查詢結果。閘道只記一次終態，閘道觀察到的工作階段時長保存在 `resource_usage.session_duration_ms`。供應商用量和金額仍可能未知。工作階段時長和轉錄音訊時長分別記錄。
 
 ### 閘道語音合成 {#gateway-speech}
 

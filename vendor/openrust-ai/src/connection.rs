@@ -244,24 +244,30 @@ impl Connection {
         }
     }
 
-    pub(crate) fn live_request(&self) -> AiResult<PendingRequest> {
+    pub(crate) fn validate_live_connection(&self) -> AiResult<crate::LiveProtocol> {
         let protocol = self.live_protocol().ok_or(AiError::EndpointNotSupported)?;
         if self.config.key_env.is_none() {
             return Err(AiError::MissingCredential);
         }
+        if protocol == crate::LiveProtocol::Codex
+            && (!self
+                .headers
+                .get("x-oai-attestation")
+                .is_some_and(|value| value.to_str().is_ok_and(|value| !value.trim().is_empty()))
+                || self.headers.contains_key("openai-beta"))
+        {
+            return Err(AiError::InvalidConfiguration("providers.<name>.headers"));
+        }
+        Ok(protocol)
+    }
+
+    pub(crate) fn live_request(&self) -> AiResult<PendingRequest> {
+        let protocol = self.validate_live_connection()?;
         let mut request = self
             .request(None)?
             .max_response_bytes(crate::live::MAX_SIGNAL_BYTES);
         if protocol != crate::LiveProtocol::Codex {
             return Ok(request);
-        }
-        if !self
-            .headers
-            .get("x-oai-attestation")
-            .is_some_and(|value| value.to_str().is_ok_and(|value| !value.trim().is_empty()))
-            || self.headers.contains_key("openai-beta")
-        {
-            return Err(AiError::InvalidConfiguration("providers.<name>.headers"));
         }
         let mut headers = HeaderMap::new();
         headers.insert("openai-alpha", HeaderValue::from_static("quicksilver=v2"));

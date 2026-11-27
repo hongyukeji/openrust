@@ -32,6 +32,7 @@ mod gemini_caches;
 mod gemini_count;
 mod image_upload;
 mod live;
+pub(crate) use live::LiveObserver;
 mod resources;
 mod usage_summary;
 mod websocket;

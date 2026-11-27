@@ -320,7 +320,9 @@ Schedule::configure(|schedule| {
 
 用 Bearer 网关 Key 调用 `POST /v1/live`，在 JSON 或 multipart 中提交 `sdp` 和 `session`。用 `session.model` 选择公开别名。Key 只有一个可用 Live 别名时可省略该字段。响应体是 SDP answer，`Location` 是网关的 Sideband 路径。Codex 客户端可通过 `POST /backend-api/codex/realtime/calls` 调用 Codex Live 连接。
 
-用同一个网关 Key 连接 Sideband 路径。每个会话同时只能有一个控制连接。原控制连接断开并释放后，可以使用同一个 Key 接回会话，包括从另一个网关进程接回。会话固定绑定原上游连接和模型，一小时后过期。后续创建请求会清除过期映射。若控制连接在到期时仍在线，网关会向上游请求终止。后台主动回收仍待实现。
+用同一个网关 Key 连接 Sideband 路径。每个会话同时只能有一个控制连接。原控制连接断开并释放后，可以使用同一个 Key 接回会话，包括从另一个网关进程接回。会话固定绑定原上游连接和模型，一小时后过期。`ai-gateway-live` 运行器负责观察无人控制的会话、向获授权的客户端让出控制权，并在进程重启后回收过期呼叫。至少在一个网关进程启用该运行器。每个进程最多并行观察 32 个会话。更换上游连接或凭证前，应先结束现有会话，让运行器可以使用原账号完成回收。
+
+从 `Location` 取得呼叫 ID，通过 `./artisan ai:gateway:usage:list --request-id=<call-id>` 查询结果。网关只记一次终态，网关观察到的会话时长保存在 `resource_usage.session_duration_ms`。供应商用量和金额仍可能未知。会话时长和转录音频时长分别记录。
 
 ### 网关语音合成 {#gateway-speech}
 

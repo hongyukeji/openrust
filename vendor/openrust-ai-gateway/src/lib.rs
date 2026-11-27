@@ -59,6 +59,8 @@ mod invocation_migration;
 mod key_migration;
 #[path = "../database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs"]
 mod live_calls_migration;
+#[path = "../database/migrations/2026_11_27_000027_add_lifecycle_to_ai_gateway_live_calls.rs"]
+mod live_lifecycle_migration;
 mod localization;
 mod managed_keys;
 #[path = "../database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs"]
@@ -224,6 +226,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs",
         &live_calls_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000027_add_lifecycle_to_ai_gateway_live_calls.rs",
+        &live_lifecycle_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -236,6 +242,21 @@ struct DatabaseSettings {
 pub struct AiGatewayServiceProvider;
 
 impl ServiceProvider for AiGatewayServiceProvider {
+    fn runners(&self, app: &Application) -> Vec<Arc<dyn openrust::foundation::Runner>> {
+        let Ok(gateway) = app.container().make::<Gateway>() else {
+            return Vec::new();
+        };
+        if gateway.usage_store.is_none()
+            || !gateway
+                .models
+                .values()
+                .any(|model| model.live_targets().next().is_some())
+        {
+            return Vec::new();
+        }
+        vec![Arc::new(protocol::LiveObserver(gateway))]
+    }
+
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             if !app.configuration_is_cached() && app.config()?.get("ai_gateway").is_none() {
@@ -359,6 +380,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs",
                         include_bytes!("../database/migrations/2026_11_27_000026_create_ai_gateway_live_calls_table.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000027_add_lifecycle_to_ai_gateway_live_calls.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000027_add_lifecycle_to_ai_gateway_live_calls.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

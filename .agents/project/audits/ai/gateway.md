@@ -29,7 +29,7 @@
 | `POST /v1/videos`、`POST /v1/videos/{generations,edits,extensions}`、`GET /v1/videos/{id}[/content]`、`GET /v1/videos/{generations,edits,extensions}/{id}[/content]` | 网关 Key，依平台支持创建／编辑／扩展、状态与二进制读取 | AI-06／GW-03／04 待按平台验证任务 ID、状态、取消与内容。 |
 | `POST /{api/v3,v3,v1}/contents/generations/tasks`、`GET/DELETE /{api/v3,v3,v1}/contents/generations/tasks/{id}` 及无版本同路径 | 网关 Key，Seedance 任务创建、查询和删除 | GW-03／04 待按国内视频供应商任务及资源所有权验收。 |
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收 `POST /v1/tts` 的 HTTP 音频流和时间戳响应、multipart `POST /v1/stt` 和两条可选无版本别名。自定义音色六个操作和合成引用已通过本地三库验收。双向实时语音及供应商实机仍待验收。 |
-| `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | Live 与 Sideband 路由的创建、会话归属、双向帧、断开重接和连接中到期已通过本地三库。无人控制时的上游观察和回收待闭合。独立 Realtime 入口见 G19。 |
+| `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。独立 Realtime 入口见 G19。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
@@ -398,9 +398,17 @@ OpenAI 公开 Live 使用 `POST /v1/live/sessions` 的 WebRTC JSON 封装及 `/v
 
 `POST /v1/live` 和 `POST /backend-api/codex/realtime/calls` 接收 JSON 或 multipart 的 SDP 和会话，按照显式发布的 `live` 模型别名选路。Codex 路由只选 Codex Live 连接。响应返回 SDP 和网关生成的 Sideband 路径。固定基线未注册无版本 Live 路径。需要持久化用量配置以安装会话表。硬预算和输出配额当前缺少可用预占口径，因此在出站前拦截。
 
-数据库保存本地 ID、Key 归属、路由族及上游账号的绑定、上游 ID 和控制租约。SDP、事件、音频、凭证和证明头保持在请求链路。每次升级重新校验 Key、路由和账号绑定，跨调用方使用 404 隐藏会话。原子租约跨进程排除并行控制连接，断开可重接。终态或可确认的上游资源消失会释放映射。连接中到达一小时上限时向上游请求结束。闲置会话仍需后台观察接管、主动上游回收和会话用量归集，G18 保持开放。
+数据库保存本地 ID、Key 归属、路由族及上游账号的绑定、上游 ID 和控制租约。SDP、事件、音频、凭证和证明头保持在请求链路。每次升级重新校验 Key、路由和账号绑定，跨调用方使用 404 隐藏会话。原子租约跨进程排除并行控制连接，断开可重接。终态或可确认的上游资源消失会释放映射。超过一小时上限时向上游请求结束。观察进程和会话用量见[后台接管与终态归集](#live-后台接管与终态归集)。
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关进程和上游协议夹具验收。覆盖迁移发布、路由列表与缓存、两种创建、无版本路由拒绝、硬配额拦截、跨 Key 和凭证更换、同一会话双向帧与模型覆写、并行接管拒绝、断开后跨进程重接、终态回收和在线控制到期时主动请求挂断。SQLite 音色回归、12 项 SDK 和网关用例、两 AI 包严格库级 Clippy 及三语文档检查通过。真实供应商账号和 WebRTC 媒体平面留待实机验收。
+
+### Live 后台接管与终态归集
+
+网关配置 Live 模型后，应用运行器 `ai-gateway-live` 按会话从持久存储认领无人控制的呼叫，每个进程最多保持 32 个后台观察通道。授权客户端连接时，观察者先关闭自己的上游通道再让出租约。前台断开后观察者可重新接管。进程退出时释放租约，异常退出由租约过期接管。未确定上游结束的记录保留，运行器稍后按原账号重试。
+
+一个 Live 呼叫关联一条用量记录。后台或前台在同一个数据库事务内终结用量并移除映射。`resource_usage.session_duration_ms` 保存网关观察时长，供应商未报告的 Token、转录时长和费用保持未知。通过 `ai:gateway:usage:list --request-id=<id>` 查询。更换上游配置前应先结束使用该连接的现有呼叫，保留其原账号作为全生命周期的控制目标。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证两进程抢占、观察者让权、客户端断开后再接管、模拟进程崩溃与租约到期、无人控制时的 Codex 关闭事件及公开 Live 挂断、暂时性 503 后重试和同期单条终态。另验证旧迁移回退再升级、旧无用量记录回收、Artisan 发布与查询及路由缓存。12 项 Rust 回归、两 AI 包严格库级 Clippy、SQLite 音色 HTTP 回归和三语文档构建通过。正式 Codex DeviceCheck、公开 OpenAI Live 模型权限及真实 WebRTC 媒体仍在 E11。
 
 ### xAI 自定义音色
 
