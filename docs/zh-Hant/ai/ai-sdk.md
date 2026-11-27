@@ -424,7 +424,9 @@ SDK Agent 透過自有閘道使用 xAI 原生工具時，在 `ai.providers` 新�
 
 執行 `./artisan ai:gateway:budget:show team` 可查看目前 UTC 帳期的限額、預留、已在限額內入帳的金額及可用餘額。餘額不足時回傳 HTTP 429 和 `budget_exceeded`。無法確認上限的路由會回傳 `budget_unbounded`，也可透過 `unknown: "monitor"` 允許通過，並保留通常的用量與計費。
 
-程序重新啟動後，可執行 `./artisan ai:gateway:budget:recover team` 釋放已逾時且未寫入對外送出標記的預留。預設等待 300 秒，可用 `--after=秒數` 和 `--limit=筆數` 調整掃描。復原會在同一交易中關閉嘗試及費用記錄並釋放預留。已寫入對外送出標記的嘗試會繼續保留供對帳。
+程序重新啟動後，可執行 `./artisan ai:gateway:budget:recover team` 釋放已逾時且未寫入對外送出標記的預留。預設等待 300 秒，可用 `--after=秒數` 和 `--limit=筆數` 調整掃描。復原會在同一交易中關閉嘗試及費用記錄並釋放預留。一般已對外送出的嘗試會繼續保留供對帳。
+
+若 Titan 批次在最終結算前中斷，復原指令會在同一交易處理整批，即使筆數超過 `--limit`。復原會釋放下游應收預留，依已儲存的費率結算已確認的輸入用量，並保留已送出但用量未知的帳號預留。逾時檢查包含最近的送出時間。請在確認原請求已停止後執行復原。
 
 ### 上游帳號每日成本預算 {#upstream-cost-budget}
 

@@ -424,7 +424,9 @@ The gateway caps outgoing text generation before reserving the maximum receivabl
 
 Run `./artisan ai:gateway:budget:show team` to see the current UTC window's limit, reserved amount, amount booked within the limit and available balance. Exhaustion returns HTTP 429 with `budget_exceeded`. Routes without a verified ceiling return `budget_unbounded` unless you set `unknown` to `monitor`. Monitor routes keep their regular usage and billing behavior.
 
-After a restart, run `./artisan ai:gateway:budget:recover team` to release stale reservations for attempts that never reached the dispatch marker. The default age is 300 seconds. Use `--after=SECONDS` and `--limit=COUNT` to control the scan. Recovery closes the attempt and its charge records together with the reservation release. Attempts that reached the dispatch marker stay available for reconciliation.
+After a restart, run `./artisan ai:gateway:budget:recover team` to release stale reservations for attempts that never reached the dispatch marker. The default age is 300 seconds. Use `--after=SECONDS` and `--limit=COUNT` to control the scan. Recovery closes the attempt and its charge records together with the reservation release. Other dispatched attempts stay available for reconciliation.
+
+For a Titan batch interrupted before its final settlement, the recovery command handles the whole batch in one transaction, even when it contains more rows than `--limit`. It releases downstream reservations, prices confirmed input usage from the saved tariff, and keeps the account reservation for dispatched calls with unknown usage. The age check includes the latest dispatch marker. Run recovery after confirming the request has stopped.
 
 ### Daily upstream account cost budget {#upstream-cost-budget}
 

@@ -424,7 +424,9 @@ SDK Agent 通过自有网关使用 xAI 原生工具时，在 `ai.providers` 新�
 
 运行 `./artisan ai:gateway:budget:show team` 查看当前 UTC 账期的限额、预占、已在限额内入账的金额和可用余额。余额不足返回 HTTP 429 和 `budget_exceeded`。无法确认上界的路由返回 `budget_unbounded`，也可通过 `unknown: "monitor"` 放行，并保留常规用量及计费。
 
-进程重启后，可运行 `./artisan ai:gateway:budget:recover team` 释放已超时且未写入出站标记的预占。默认等待 300 秒，可用 `--after=秒数` 和 `--limit=条数` 调整扫描。恢复会在同一事务中关闭尝试及费用记录并释放预占。已写入出站标记的尝试继续保留供对账。
+进程重启后，可运行 `./artisan ai:gateway:budget:recover team` 释放已超时且未写入出站标记的预占。默认等待 300 秒，可用 `--after=秒数` 和 `--limit=条数` 调整扫描。恢复会在同一事务中关闭尝试及费用记录并释放预占。普通的已出站尝试继续保留供对账。
+
+对于最终结算前中断的 Titan 批次，恢复命令在同一事务处理整批，即使条数超过 `--limit`。恢复释放下游应收预占，按已保存的费率结算已确认的输入用量，并保留已出站但用量未知的账号预占。超时检查包含最近的出站时间。请在确认原请求已停止后执行恢复。
 
 ### 上游账号每日成本预算 {#upstream-cost-budget}
 

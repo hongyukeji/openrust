@@ -310,20 +310,30 @@ impl BudgetReservation {
         transaction: &mut Transaction,
         amount: Option<Amount>,
     ) -> DatabaseResult<()> {
-        let Some(amount) = amount else {
-            return Ok(());
-        };
-        let charged = amount.atoms().filter(|amount| *amount <= self.atoms);
-        if let Some(charged) = charged {
-            release_reservation(transaction, &self.id, self.atoms, charged).await?;
-        } else {
-            // 回报超出声明上界时保留预占，记下真实应收并停止本账期准入。
-            self.scope(transaction)
-                .update(Record::from([("overrun".into(), true.into())]))
-                .await?;
-        }
-        Ok(())
+        settle_reserved(transaction, &self.id, self.atoms, amount).await
     }
+}
+
+pub(crate) async fn settle_reserved(
+    transaction: &mut Transaction,
+    id: &str,
+    reserved: i64,
+    amount: Option<Amount>,
+) -> DatabaseResult<()> {
+    let Some(amount) = amount else {
+        return Ok(());
+    };
+    if let Some(charged) = amount.atoms().filter(|amount| *amount <= reserved) {
+        release_reservation(transaction, id, reserved, charged).await?;
+    } else {
+        // 回报超出声明上界时保留预占，并停止本账期准入。
+        transaction
+            .table(TABLE)
+            .r#where("id", "=", id)
+            .update(Record::from([("overrun".into(), true.into())]))
+            .await?;
+    }
+    Ok(())
 }
 
 pub(crate) async fn release_reservation(

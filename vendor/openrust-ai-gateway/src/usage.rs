@@ -19,6 +19,8 @@ use crate::{
     reconciliation,
 };
 
+mod batch_recovery;
+
 const TABLE: &str = "ai_gateway_usage";
 const COLUMNS: [&str; 26] = [
     "id",
@@ -317,6 +319,19 @@ impl UsageStore {
             BudgetScope::Group(group) => ("group_name", group, "budget_id"),
             BudgetScope::Account(account) => ("provider", account, "account_budget_id"),
         };
+        let recovered_batches = batch_recovery::recover(
+            &self.connection,
+            owner_column,
+            owner,
+            required_budget,
+            cutoff,
+            limit,
+        )
+        .await?;
+        let remaining = limit.saturating_sub(recovered_batches as u64);
+        if remaining == 0 {
+            return Ok(recovered_batches);
+        }
         let rows = self
             .connection
             .table(TABLE)
@@ -335,14 +350,15 @@ impl UsageStore {
             .r#where(owner_column, "=", owner)
             .r#where("started_at", "<=", cutoff)
             .r#where("usage_state", "=", "not_dispatched")
+            .r#where("outcome", "!=", batch_recovery::PENDING)
             .where_null("dispatch_started_at")
             .where_null("finished_at")
             .where_not_null(required_budget)
             .order_by("id", "asc")
-            .limit(limit)
+            .limit(remaining)
             .get()
             .await?;
-        let mut recovered = 0;
+        let mut recovered = recovered_batches;
         for row in rows {
             // 数据库的默认排序规则可能把大小写不同的授权分组视为相等。
             if text(&row, owner_column)? != owner {
@@ -454,7 +470,15 @@ impl UsageStore {
             ("upstream_model".into(), field("upstream_model")),
             ("endpoint".into(), field("endpoint")),
             ("upstream_endpoint".into(), field("upstream_endpoint")),
-            ("outcome".into(), "pending".into()),
+            (
+                "outcome".into(),
+                if count > 1 {
+                    batch_recovery::PENDING
+                } else {
+                    "pending"
+                }
+                .into(),
+            ),
             ("usage_state".into(), "not_dispatched".into()),
             ("started_at".into(), now().into()),
         ]);

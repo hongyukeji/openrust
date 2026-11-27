@@ -262,7 +262,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 let released = store
                     .recover_budget(scope, age, limit as u64)
                     .await
-                    .map_err(|_| ConsoleError::new("无法恢复未出站的预算预占"))?;
+                    .map_err(|_| ConsoleError::new("无法恢复网关预算预占"))?;
                 write_json(output, json!({"released": released}))?;
                 Ok(0)
             })

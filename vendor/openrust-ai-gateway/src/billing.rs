@@ -245,6 +245,70 @@ pub(crate) async fn close_undispatched(
     Ok(())
 }
 
+pub(crate) async fn close_interrupted_embedding(
+    transaction: &mut Transaction,
+    attempt: &str,
+    dispatched: bool,
+    input_tokens: Option<i64>,
+) -> DatabaseResult<Option<Amount>> {
+    let rows = transaction
+        .table(TABLE)
+        .select(["direction", "currency", "tariff"])
+        .r#where("attempt_id", "=", attempt)
+        .r#where("state", "=", "pending")
+        .get()
+        .await?;
+    if rows.is_empty() {
+        return Ok((!dispatched).then_some(Amount::ZERO));
+    }
+    if rows.len() != 2 {
+        return Err(DatabaseError::InvalidQuery("AI 网关批量恢复价格快照不完整"));
+    }
+    let mut cost = None;
+    for row in rows {
+        let direction = crate::managed_keys::text(&row, "direction")?;
+        let has_price = matches!(row.get("currency"), Some(Value::Text(_)));
+        let (state, amount) = if !dispatched || direction == "receivable" {
+            ("not_billable", has_price.then_some(Amount::ZERO))
+        } else if !has_price {
+            ("missing_price", None)
+        } else if let Some(tokens) = input_tokens {
+            let tariff: Tariff = serde_json::from_str(&crate::managed_keys::text(&row, "tariff")?)
+                .map_err(|_| DatabaseError::InvalidScalar)?;
+            let amount = i128::from(tokens)
+                .checked_mul(tariff.input.0)
+                .and_then(|value| tariff.amount(value, Rounding::HalfEven))
+                .ok_or(DatabaseError::InvalidScalar)?;
+            ("priced", Some(amount))
+        } else {
+            ("awaiting_usage", None)
+        };
+        if direction == "cost" {
+            cost = amount;
+        }
+        if transaction
+            .table(TABLE)
+            .r#where("attempt_id", "=", attempt)
+            .r#where("direction", "=", direction.as_str())
+            .r#where("state", "=", "pending")
+            .update(Record::from([
+                ("state".into(), state.into()),
+                (
+                    "amount".into(),
+                    amount.map_or(Value::Null, |amount| String::from(amount).into()),
+                ),
+            ]))
+            .await?
+            != 1
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "AI 网关批量恢复价格快照状态无效",
+            ));
+        }
+    }
+    Ok(if dispatched { cost } else { Some(Amount::ZERO) })
+}
+
 #[derive(Clone)]
 pub(crate) struct ChargePlan {
     version: String,
