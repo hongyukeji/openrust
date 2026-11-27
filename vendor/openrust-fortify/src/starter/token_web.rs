@@ -2,6 +2,7 @@
 use super::{account, client};
 use crate::{
     Fortify, TwoFactorAuthenticatable,
+    http::routes::BusinessJson,
     resolver::{Resolver, internal},
 };
 use openrust::{
@@ -18,18 +19,24 @@ pub(super) fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
     if !fortify.truthy("fortify.views") {
         return Ok(());
     }
-    let group = RouteGroup::new()
-        .middleware_name("web")
-        .middleware_name("sensitive")
-        .middleware_name("auth.session")
-        .middleware_name(format!(
-            "auth:{}",
-            fortify.guard().as_deref().unwrap_or("web")
-        ));
-    Route::group(group, |router| {
+    let web = |group: RouteGroup| {
+        group
+            .middleware_name("web")
+            .middleware_name("sensitive")
+            .middleware_name("auth.session")
+            .middleware_name(format!(
+                "auth:{}",
+                fortify.guard().as_deref().unwrap_or("web")
+            ))
+    };
+    Route::group(web(RouteGroup::new()), |router| {
         router
             .get("/user/api-tokens", index::<M>)?
             .name("user.api-tokens.index");
+        Ok(())
+    })?;
+    let group = web(RouteGroup::new().middleware(std::sync::Arc::new(BusinessJson)));
+    Route::group(group, |router| {
         router
             .post("/user/api-tokens", store::<M>)?
             .name("user.api-tokens.store");

@@ -15,6 +15,57 @@ fn browser(server: &Server) -> Client {
         csrf: String::new(),
     }
 }
+#[tokio::test]
+async fn browser_business_actions_wrap_json_errors_and_keep_html_login_redirects() {
+    let server = devices_server().await;
+    let mut client = browser(&server);
+    assert_eq!(client.send("GET", "/login", "", false).await.0, 200);
+    let csrf = client.csrf.clone();
+    for (method, path) in [
+        ("POST", "/user/api-tokens"),
+        ("DELETE", "/user/api-tokens/missing"),
+        ("POST", "/user/profile-photo"),
+        ("DELETE", "/user/profile-photo"),
+        ("DELETE", "/user"),
+        ("DELETE", "/user/sessions"),
+        ("DELETE", "/user/sessions/missing"),
+    ] {
+        client.csrf.clear();
+        let (status, headers, body) = client.exchange(method, path, "{}", true).await;
+        assert_eq!(status, 419, "{method} {path}: {body}");
+        assert!(
+            headers.contains("content-type: application/json"),
+            "{headers}"
+        );
+        let error: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(error["success"], false, "{method} {path}");
+        assert_eq!(error["code"], "csrf_token_mismatch", "{method} {path}");
+
+        client.csrf.clone_from(&csrf);
+        let (status, _, body) = client.exchange(method, path, "{}", true).await;
+        assert_eq!(status, 401, "{method} {path}: {body}");
+        let error: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(error["success"], false, "{method} {path}");
+        assert_eq!(error["code"], "unauthenticated", "{method} {path}");
+
+        let (status, headers, _) = client.exchange(method, path, "{}", false).await;
+        assert_eq!(status, 302, "{method} {path}: {headers}");
+        assert!(
+            headers
+                .lines()
+                .any(|line| line.starts_with("location: ") && line.ends_with("/login")),
+            "{headers}"
+        );
+    }
+
+    for path in ["/user/api-tokens", "/user/sessions"] {
+        let (status, body) = client.send("GET", path, "", true).await;
+        assert_eq!(status, 401, "{path}: {body}");
+        let error: Value = serde_json::from_str(&body).unwrap();
+        assert!(error.get("success").is_none(), "{path}: {body}");
+    }
+}
+
 async fn login(client: &mut Client) {
     assert_eq!(client.send("GET", "/login", "", false).await.0, 200);
     let (status, body) = client

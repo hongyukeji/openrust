@@ -679,10 +679,13 @@ fn status_routes() -> Result<(), openrust::routing::RoutingError> {
     };
     let prefix = Config::string_with_default("api.prefix", "api")
         .map_err(|_| openrust::routing::RoutingError::InvalidAction)?;
+    use crate::http::routes::BusinessJson;
+
     // 收据是有限状态能力，不进入有Session/认证副作用的api组。
     Route::group(
         RouteGroup::new()
             .prefix(prefix)
+            .middleware(Arc::new(BusinessJson))
             .middleware(Arc::new(super::client_middleware::NoStore)),
         |router| {
             router

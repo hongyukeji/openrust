@@ -2,6 +2,7 @@
 use super::{account, client, device_api, devices};
 use crate::{
     Fortify, TwoFactorAuthenticatable,
+    http::routes::BusinessJson,
     resolver::{Resolver, internal},
 };
 use openrust::{
@@ -24,15 +25,21 @@ pub(super) fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
     }
     let guard = devices::policy().map_err(|_| RoutingError::InvalidAction)?;
     let guard = guard.ok_or(RoutingError::InvalidAction)?.guard.clone();
-    let group = RouteGroup::new()
-        .middleware_name("web")
-        .middleware_name("sensitive")
-        .middleware_name("auth.session")
-        .middleware_name(format!("auth:{guard}"));
-    Route::group(group, |router| {
+    let web = |group: RouteGroup| {
+        group
+            .middleware_name("web")
+            .middleware_name("sensitive")
+            .middleware_name("auth.session")
+            .middleware_name(format!("auth:{guard}"))
+    };
+    Route::group(web(RouteGroup::new()), |router| {
         router
             .get("/user/sessions", index::<M>)?
             .name("user.sessions.page");
+        Ok(())
+    })?;
+    let group = web(RouteGroup::new().middleware(std::sync::Arc::new(BusinessJson)));
+    Route::group(group, |router| {
         router
             .delete("/user/sessions", destroy_others::<M>)?
             .name("user.sessions.web-destroy-others");

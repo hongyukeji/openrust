@@ -7,6 +7,7 @@ use super::{
 };
 use crate::{
     Fortify, TwoFactorAuthenticatable,
+    http::routes::BusinessJson,
     resolver::{Resolver, internal},
 };
 use openrust::{
@@ -96,6 +97,7 @@ fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>() -> Result<(), Ro
     }
     Route::group(
         RouteGroup::new()
+            .middleware(Arc::new(BusinessJson))
             .middleware_name("web")
             .middleware_name("sensitive")
             .middleware_name("auth.session")

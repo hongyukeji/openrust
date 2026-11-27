@@ -34,6 +34,8 @@ Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 
 HTML requests retain native redirects and flash messages. JSON login, registration and completed two-factor login return the current user through `ApiResult`; registration uses 201. Updates omit empty data; logout and verification retain empty 204 bodies. Messages follow the application locale. Successful authentication responses use `Cache-Control: no-store`.
 
+Browser actions that issue or revoke API tokens, upload or remove a profile photo, delete an account, or revoke one or more sessions return errors in `ApiResult` when the request expects JSON. Validation errors include `errors`. HTML redirects and 204 empty bodies still apply.
+
 `UserResource` reads only `id`, `name`, `email`, `email_verified_at` and nullable `avatar_url`, preserving string identifiers without enumerating attributes or credentials. Replace the existing Fortify response binding for a custom resource. The response adapter alone does not issue tokens or alter guards.
 
 ## Mail links and password-backed sessions {#mail-and-sessions}
@@ -504,6 +506,8 @@ A delayed, durable reservation is committed before writing the new file. Attachi
 # Do not put the receipt in a URL. No login cookie is needed for this limited lookup.
 curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
 ```
+
+The status endpoint returns errors in `ApiResult` even with an empty `API_PREFIX`. Rate limiting returns 429 with `Retry-After`.
 
 Lookup returns limited pending/failed/completed state and file count. A missing/wrong/expired receipt returns404; a receipt query parameter returns400. Responses use `no-store` and `no-referrer`; Telescope masks the receipt header and `meta.cleanup.receipt`. Keep this receipt private. The public local disk is served through the native static-disk route when its URL has the application origin. Nodes and Workers must share the same disk root or object store; use `FILESYSTEM_PUBLIC_ROOT` for a shared local mount. CDN/object-storage URLs use their own serving configuration. Production storage ACL/CDN behavior needs deployment acceptance.
 

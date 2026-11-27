@@ -17,7 +17,7 @@ use openrust::{
 
 const BUSINESS_JSON: &str = "fortify.business-json";
 
-struct BusinessJson;
+pub(crate) struct BusinessJson;
 
 impl Middleware for BusinessJson {
     fn handle<'a>(

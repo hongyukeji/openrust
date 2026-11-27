@@ -268,6 +268,39 @@ async fn avatar_delete_returns_202_and_status_needs_only_header_receipt_without_
         "completed"
     );
 }
+#[tokio::test]
+async fn cleanup_receipt_errors_use_api_result_without_an_api_prefix_or_session() {
+    let server = start_security("api", false, false, "").await;
+    let mut client = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    let path = "/auth/resource-cleanups/missing";
+    let query = format!("{path}?receipt=forbidden");
+    for (path, expected_status, code) in [(query.as_str(), 400, "bad_request")]
+        .into_iter()
+        .chain(std::iter::repeat_n((path, 404, "not_found"), 59))
+        .chain([(path, 429, "rate_limited")])
+    {
+        let (status, headers, body) = client.exchange("GET", path, "", false).await;
+        assert_eq!(status, expected_status, "{path}: {body}");
+        assert!(
+            headers.contains("content-type: application/json"),
+            "{headers}"
+        );
+        assert!(headers.contains("cache-control: no-store"), "{headers}");
+        assert!(headers.contains("pragma: no-cache"), "{headers}");
+        assert!(!headers.contains("set-cookie:"), "{headers}");
+        if status == 429 {
+            assert!(headers.contains("retry-after:"), "{headers}");
+        }
+        let error: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(error["success"], false);
+        assert_eq!(error["code"], code);
+    }
+}
+
 async fn web_upload(client: &mut Client, bytes: &[u8]) -> (u16, String, String) {
     let boundary = "openrust-web-avatar";
     let mut body=format!("--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"avatar.png\"\r\nContent-Type: image/png\r\n\r\n").into_bytes();

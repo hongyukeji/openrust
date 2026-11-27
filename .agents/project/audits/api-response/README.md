@@ -90,3 +90,9 @@ OpenSpring 的 `CmsContentApiController` 将 `Result.success(data)` 交给 `Resp
 - 异常处理在尝试会话验证重定向之前识别已匹配的 API 路由。空前缀时，带会话且请求 HTML 的 API 验证失败仍返回 422 和字段错误，普通未匹配路径继续按请求协商。
 
 隔离源码使用 Rust 1.95.0 运行根应用、Fortify（含 Socialite）和框架的相关测试。167 项通过。真实 TCP 覆盖会话与空 API 前缀、资源状态和响应头、SQLite／独立 MySQL 8.4.13 的资源分页、Fortify 的成功和失败响应，以及 JSON:API 和会话 Passkeys 的既有格式。默认应用二进制另验证了 `/api`、`/api/admin`、HEAD 空正文和 405 的 `Allow`，确认前缀外的缺失路径仍返回 HTML。
+
+### 用户套件浏览器操作与清理收据的异常
+
+复用上一节的 Fortify JSON 异常标记。用户套件在七条浏览器写路由的 Web 中间件前设置标记，覆盖 CSRF、认证和业务校验错误。令牌与设备的浏览器列表用原来的路由组。清理收据独立路由也设置标记，继续使用原有限流器和禁止缓存的响应策略。旧版 `v0.x` 无对应的清理收据和浏览器令牌写入路由。
+
+隔离源码使用 Rust 1.95.0 运行 `starter_ui`、`auth_http` 和 `starter_responses`，共 134 项通过，包含 SQLite 和独立 MySQL 8.4.13 的 Fortify HTTP 验证。真实 TCP 验证了七个浏览器操作的 419、401 和 HTML 登录跳转、令牌的 422 字段错误与 204 空正文，以及空 API 前缀收据的 400、404、429、禁止缓存及 `Retry-After`，收据响应未设置会话 Cookie。

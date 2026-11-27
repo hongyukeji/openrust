@@ -34,6 +34,8 @@ Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 
 HTML 保留原生重新導向與快閃訊息。JSON 登入、註冊與雙因素登入完成後，透過 `ApiResult` 回傳目前使用者，註冊使用201。更新省略空資料；登出與信箱驗證保留204空本文。訊息依應用語言顯示，認證成功回應使用 `Cache-Control: no-store`。
 
+簽發或撤銷個人權杖、上傳或移除頭像、註銷帳戶、撤銷一個或多個工作階段的瀏覽器操作，在請求 JSON 時用 `ApiResult` 回傳錯誤。驗證失敗仍包含欄位 `errors`。HTML 重新導向和 204 空本文繼續沿用原有行為。
+
 `UserResource` 只讀取 `id`、`name`、`email`、`email_verified_at` 及可為空的 `avatar_url`，保留字串主鍵，不列舉屬性或讀取憑證。自訂資源可替換原有 Fortify 回應綁定。單獨使用回應配接不會簽發權杖或變更 Guard。
 
 ## 郵件連結與密碼工作階段 {#mail-and-sessions}
@@ -504,6 +506,8 @@ curl -X POST "$APP_URL/api/user/profile-photo" \
 # 收據不要放入 URL；有限狀態查詢不需要登入 Cookie。
 curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
 ```
+
+即使 `API_PREFIX` 為空，狀態查詢端點也用 `ApiResult` 回傳錯誤。達到頻率限制時回傳 429 和 `Retry-After`。
 
 查詢只回傳 pending／failed／completed 等狀態和檔案數量。缺少、錯誤或過期收據回傳404；透過 query 傳入收據回傳400。回應使用 `no-store` 和 `no-referrer`，Telescope 隱藏收據標頭及 `meta.cleanup.receipt`。收據應保密。公開本地磁碟 URL 與應用同源時使用原生靜態磁碟路由提供檔案；多節點與 Worker 須共用磁碟根目錄或物件儲存，本地共用掛載可設定 `FILESYSTEM_PUBLIC_ROOT`。CDN／物件儲存 URL 由對應服務提供，正式儲存 ACL／CDN 行為須在部署環境驗收。
 

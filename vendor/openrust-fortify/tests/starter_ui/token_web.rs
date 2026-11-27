@@ -123,6 +123,10 @@ async fn token_web_empty_or_unapproved_abilities_do_not_issue_and_api_only_has_n
     ] {
         let (status, body) = client.send("POST", "/user/api-tokens", data, true).await;
         assert_eq!(status, 422, "{body}");
+        let error: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(error["success"], false);
+        assert_eq!(error["code"], "validation_failed");
+        assert!(error["errors"]["abilities"].is_array(), "{body}");
     }
     let (status, _, body) = client
         .exchange_origin("GET", "/api/user/tokens", "", true, true)
@@ -178,6 +182,11 @@ async fn token_web_rejects_csrf_and_other_owners_without_revoking_their_token() 
     let path = format!("/user/api-tokens/{id}");
     let (status, _, body) = form_request(&mut other, &path, "_method=DELETE").await;
     assert_eq!(status, 404, "{body}");
+    let (status, body) = other.send("DELETE", &path, "{}", true).await;
+    assert_eq!(status, 404, "{body}");
+    let error: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(error["success"], false);
+    assert_eq!(error["code"], "not_found");
     let saved = owner.csrf.clone();
     owner.csrf = "invalid-csrf".into();
     let (status, _, body) = form_request(&mut owner, &path, "_method=DELETE").await;
@@ -196,6 +205,10 @@ async fn token_web_rejects_csrf_and_other_owners_without_revoking_their_token() 
         .0,
         200
     );
+    let (status, headers, body) = owner.exchange("DELETE", &path, "{}", true).await;
+    assert_eq!(status, 204, "{body}");
+    assert!(body.is_empty());
+    assert!(headers.contains("cache-control: no-store"), "{headers}");
 }
 
 #[tokio::test]
