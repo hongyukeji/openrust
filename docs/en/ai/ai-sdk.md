@@ -149,6 +149,8 @@ For an Anthropic client, set the base URL to your application domain and send th
 
 Use `POST /v1/responses/input_tokens` to count the input for a published OpenAI or Anthropic model. Send the model and stateless input in JSON. The gateway uses the upstream tokenizer and returns `input_tokens`. The Messages counting endpoint can use an OpenAI Responses connection as well. Counting requests share the Key's request limit, and generation logs omit these counts.
 
+Both counting endpoints can use a Bedrock connection whose model and region support the runtime `CountTokens` operation. To publish both paths, include `responses/input_tokens` and `messages/count_tokens` in the gateway model's `endpoints`. Both accept text, system instructions and client-side function history. Messages counting also accepts inline Base64 attachments supported by Bedrock Converse. Include a text block in any message with a document. The gateway records the attempt. It leaves generation usage, charges and monetary budget balances unchanged. Check AWS model support before publishing the endpoints. [Amazon Bedrock token counting](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html)
+
 Set `unversioned_paths` to `true` in `config/ai_gateway.rs` when a client needs paths without `/v1`. This adds `/models`, `/models/{model}`, `/chat/completions`, `/responses`, `/responses/input_tokens`, `/embeddings`, and `/messages/count_tokens` with the same authorization and limits.
 
 Both conversion directions support buffered JSON and SSE, and use the published model name in client responses. When upstream reports cache reads or writes, the gateway includes those counts using the destination protocol’s usage fields.

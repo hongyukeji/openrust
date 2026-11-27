@@ -305,6 +305,11 @@ pub trait TextProvider: Send + Sync {
         self.relay_endpoint_name(endpoint)
     }
 
+    /// 计数操作经供应商确认免费时，允许网关跳过货币预算预占。
+    fn relay_count_is_free(&self, _endpoint: TextEndpoint) -> bool {
+        false
+    }
+
     /// 返回网关是否应隐藏驱动为内部计量生成的 Chat 用量帧。
     fn hide_chat_relay_usage(&self, _body: &Value) -> bool {
         false

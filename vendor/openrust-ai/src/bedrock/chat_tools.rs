@@ -226,14 +226,14 @@ fn valid_id(id: &str) -> bool {
             .all(|value| value.is_ascii_alphanumeric() || b"_.:-".contains(&value))
 }
 
-fn id(value: &Value) -> Result<&str, &'static str> {
+pub(super) fn id(value: &Value) -> Result<&str, &'static str> {
     value
         .as_str()
         .filter(|id| valid_id(id))
         .ok_or("Bedrock 工具调用 ID 无效")
 }
 
-fn name(value: &Value) -> Result<&str, &'static str> {
+pub(super) fn name(value: &Value) -> Result<&str, &'static str> {
     value
         .as_str()
         .filter(|name| {

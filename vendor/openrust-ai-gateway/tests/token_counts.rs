@@ -23,9 +23,13 @@ fn app<const ALIASES: bool>() -> Result<TestApp, TestError> {
             gateway["models"]=json!({
                 "openai-public":{"provider":"openai","model":"openai-private"},
                 "claude-public":{"provider":"anthropic","model":"claude-private"},
+                "bedrock-public":{"provider":"bedrock","model":"aws-private","endpoints":["messages/count_tokens","responses/input_tokens"]},
                 "hidden":{"provider":"deepseek","model":"hidden"},
             });
-            gateway["keys"]=json!({"caller":{"key_env":"CALLER_KEY","models":["openai-public","claude-public"],"requests_per_minute":3}});
+            gateway["keys"]=json!({
+                "caller":{"key_env":"CALLER_KEY","models":["openai-public","claude-public"],"requests_per_minute":3},
+                "bedrock":{"key_env":"BEDROCK_CALLER_KEY","models":["bedrock-public"]},
+            });
             Ok([
                 ("ai_gateway".into(),gateway),
                 ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
@@ -33,6 +37,62 @@ fn app<const ALIASES: bool>() -> Result<TestApp, TestError> {
             ].into())
         })
     })
+}
+
+#[tokio::test]
+async fn bedrock_count_requires_the_original_upstream_value() -> Result<(), TestError> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let upstream = tokio::spawn(async move {
+        let router = axum::Router::new().route(
+            "/model/aws-private/count-tokens",
+            axum::routing::post(
+                |headers: http::HeaderMap, bytes: axum::body::Bytes| async move {
+                    assert_eq!(headers["authorization"], "Bearer bedrock-fixture");
+                    let body: Value = serde_json::from_slice(&bytes).unwrap();
+                    let messages = &body["input"]["converse"]["messages"];
+                    assert_eq!(messages[0]["role"], "user");
+                    let response = match messages[0]["content"][0]["text"].as_str().unwrap() {
+                        "zero" => r#"{"inputTokens":0}"#,
+                        "missing" => "{}",
+                        "negative" => r#"{"inputTokens":-1}"#,
+                        _ => panic!("unexpected count input"),
+                    };
+                    ([(http::header::CONTENT_TYPE, "application/json")], response)
+                },
+            ),
+        );
+        axum::serve(listener, router).await
+    });
+    let mut app = app::<false>()?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_GATEWAY_ENABLED=true\nBEDROCK_URL=http://{address}\nAWS_BEARER_TOKEN_BEDROCK=bedrock-fixture\nBEDROCK_CALLER_KEY=bedrock-caller\nCALLER_KEY=caller-fixture\n"
+        ),
+    )?;
+    for (prompt, status) in [
+        ("zero", StatusCode::OK),
+        ("missing", StatusCode::BAD_GATEWAY),
+        ("negative", StatusCode::BAD_GATEWAY),
+    ] {
+        let request = http::Request::post("/v1/responses/input_tokens")
+            .header("authorization", "Bearer bedrock-caller")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({"model":"bedrock-public","input":prompt}).to_string(),
+            ))?;
+        let response = app.call(request).await?;
+        assert_eq!(response.status(), status);
+        if status == StatusCode::OK {
+            assert_eq!(
+                response.json::<Value>()?,
+                json!({"object":"response.input_tokens","input_tokens":0})
+            );
+        }
+    }
+    upstream.abort();
+    Ok(())
 }
 
 #[tokio::test]
@@ -115,7 +175,7 @@ async fn native_and_bridged_counts_share_keys_and_unversioned_limits() -> Result
         }
     });
     let fixture_env = format!(
-        "AI_GATEWAY_ENABLED=true\nOPENAI_URL=http://{address}/openai/v1\nOPENAI_API_KEY=openai-fixture\nANTHROPIC_URL=http://{address}/claude/v1\nANTHROPIC_API_KEY=claude-fixture\nCALLER_KEY=caller-fixture\n"
+        "AI_GATEWAY_ENABLED=true\nOPENAI_URL=http://{address}/openai/v1\nOPENAI_API_KEY=openai-fixture\nANTHROPIC_URL=http://{address}/claude/v1\nANTHROPIC_API_KEY=claude-fixture\nCALLER_KEY=caller-fixture\nBEDROCK_CALLER_KEY=bedrock-caller\n"
     );
     let mut app = app::<true>()?;
     fs::write(app.root().join(".env.testing"), fixture_env)?;
@@ -230,7 +290,7 @@ async fn root_aliases_are_opt_in() -> Result<(), TestError> {
     let mut app = app::<false>()?;
     fs::write(
         app.root().join(".env.testing"),
-        "AI_GATEWAY_ENABLED=true\nCALLER_KEY=caller-fixture\n",
+        "AI_GATEWAY_ENABLED=true\nCALLER_KEY=caller-fixture\nBEDROCK_CALLER_KEY=bedrock-caller\n",
     )?;
     assert_eq!(app.get("/models").await?.status(), StatusCode::NOT_FOUND);
     assert_eq!(

@@ -149,6 +149,8 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 通过 `POST /v1/responses/input_tokens` 统计已发布的 OpenAI 或 Anthropic 模型输入。发送包含模型和无状态输入的 JSON，网关调用上游计数并返回 `input_tokens`。Messages 计数入口也可使用 OpenAI Responses 连接。计数请求计入下游 Key 的请求次数，计数结果不进入生成用量。
 
+两种计数入口也可使用 Bedrock 连接，前提是所选模型和区域支持运行时的 `CountTokens` 操作。要同时发布两条路径，在网关模型的 `endpoints` 中加入 `responses/input_tokens` 和 `messages/count_tokens`。两种入口均接收文本、系统指令和客户端函数历史。Messages 计数还接收 Bedrock Converse 支持的内联 Base64 附件，含文档的消息须同时包含文本块。网关记录出站尝试，生成用量、计费金额和货币预算余额保持原值。发布前可核对 AWS 的模型支持情况。[Amazon Bedrock Token 计数](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html)
+
 客户端需要不含 `/v1` 的路径时，在 `config/ai_gateway.rs` 将 `unversioned_paths` 设为 `true`。这会增加 `/models`、`/models/{model}`、`/chat/completions`、`/responses`、`/responses/input_tokens`、`/embeddings` 和 `/messages/count_tokens`，并共用原有授权与限流。
 
 两个方向的转换都支持普通 JSON 和 SSE，给客户端返回公开模型名。上游报告缓存读写用量时，网关会按目标协议返回相应计数。

@@ -3,6 +3,7 @@ mod chat;
 mod chat_media;
 mod chat_replay;
 mod chat_tools;
+mod count;
 mod embeddings;
 mod identity;
 mod image;
@@ -262,6 +263,7 @@ impl TextProvider for BedrockProvider {
             crate::TextEndpoint::Embeddings
                 | crate::TextEndpoint::ImagesGenerations
                 | crate::TextEndpoint::ChatCompletions
+                | crate::TextEndpoint::CountMessageTokens
         )
     }
 
@@ -275,11 +277,16 @@ impl TextProvider for BedrockProvider {
     fn relay_endpoint_name(&self, endpoint: crate::TextEndpoint) -> &'static str {
         match endpoint {
             crate::TextEndpoint::ChatCompletions => "model/{modelId}/converse",
+            crate::TextEndpoint::CountMessageTokens => "model/{modelId}/count-tokens",
             crate::TextEndpoint::Embeddings | crate::TextEndpoint::ImagesGenerations => {
                 "model/{modelId}/invoke"
             }
             _ => endpoint.path(),
         }
+    }
+
+    fn relay_count_is_free(&self, endpoint: crate::TextEndpoint) -> bool {
+        endpoint == crate::TextEndpoint::CountMessageTokens
     }
 
     fn hide_chat_relay_usage(&self, body: &Value) -> bool {
@@ -312,6 +319,7 @@ impl TextProvider for BedrockProvider {
             crate::TextEndpoint::Embeddings => relay::EmbeddingRequest::parse(body).err(),
             crate::TextEndpoint::ImagesGenerations => image::relay_image_request(body).err(),
             crate::TextEndpoint::ChatCompletions => chat::ChatRequest::parse(body, None).err(),
+            crate::TextEndpoint::CountMessageTokens => count::CountRequest::parse(body).err(),
             _ => None,
         }
     }
@@ -326,6 +334,7 @@ impl TextProvider for BedrockProvider {
                 crate::TextEndpoint::Embeddings => self.relay_embeddings(body).await,
                 crate::TextEndpoint::ImagesGenerations => self.relay_image(body).await,
                 crate::TextEndpoint::ChatCompletions => self.relay_chat(body, None).await,
+                crate::TextEndpoint::CountMessageTokens => self.relay_count(&body).await,
                 _ => Err(AiError::EndpointNotSupported),
             }
         })

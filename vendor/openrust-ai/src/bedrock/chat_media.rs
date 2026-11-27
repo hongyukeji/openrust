@@ -16,6 +16,42 @@ pub(super) struct ChatMedia {
 }
 
 impl ChatMedia {
+    pub(super) fn counting_attachment(
+        &mut self,
+        kind: &str,
+        part: &Value,
+    ) -> Result<ContentBlock, &'static str> {
+        let source = &part["source"];
+        if !has_only(part, &["type", "source"])
+            || !has_only(source, &["type", "media_type", "data"])
+            || source["type"] != "base64"
+        {
+            return Err("Bedrock 计数只支持内联 Base64 附件");
+        }
+        let mime = source["media_type"].as_str().ok_or("附件缺少 MIME 类型")?;
+        let encoded = source["data"].as_str().ok_or("附件缺少 Base64 数据")?;
+        if kind == "image" {
+            return self.attachment(decode_image(mime, encoded)?.into());
+        }
+        self.documents += 1;
+        if self.documents > MAX_DOCUMENTS {
+            return Err("Bedrock 每次最多接收五份文档");
+        }
+        let filename = match mime {
+            "application/pdf" => "document.pdf",
+            "text/plain" => "document.txt",
+            "text/markdown" => "document.md",
+            _ => return Err("Bedrock 计数文档须为 PDF、UTF-8 文本或 Markdown"),
+        };
+        let document =
+            DocumentAttachment::from_bytes(filename, decode(encoded, MAX_DOCUMENT_BYTES)?)
+                .map_err(|_| "Bedrock 计数文档无效")?;
+        if document.mime() != mime {
+            return Err("Bedrock 计数文档格式须与声明一致");
+        }
+        self.attachment(document.into())
+    }
+
     pub(super) fn user_content(
         &mut self,
         content: &Value,
@@ -79,6 +115,10 @@ fn image(value: &Value) -> Result<ImageAttachment, &'static str> {
         .as_str()
         .and_then(data_url)
         .ok_or("Bedrock Chat 图片须使用内联 Base64 data URL")?;
+    decode_image(mime, encoded)
+}
+
+fn decode_image(mime: &str, encoded: &str) -> Result<ImageAttachment, &'static str> {
     if !matches!(mime, "image/png" | "image/jpeg" | "image/webp") {
         return Err("Bedrock Chat 图片格式须为 PNG、JPEG 或 WebP");
     }

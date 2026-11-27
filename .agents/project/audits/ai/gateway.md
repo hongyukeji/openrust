@@ -8,10 +8,10 @@
 |---|---|---|
 | `POST /v1/chat/completions` | 网关 Key 与分组模型白名单，依上游平台派发，普通与 SSE | 已验收 OpenAI 同协议和 Anthropic 转换的 JSON、SSE、下游取消与客户端函数工具。上游选择覆盖配置回退、组授权、冷却、并发及会话黏性。 |
 | `POST /v1/responses` | 网关 Key 与分组，原生 Responses 或替代上游 | 已验收原生 Responses、转换到 Messages 和 Chat Completions 的普通及 SSE 文本与客户端函数工具。Chat 转换另覆盖 JSON 对象模式。结构化 Schema、附件、推理及其他高级字段仍待核对。 |
-| `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | 已验收 `input_tokens`，可使用 OpenAI 原生计数或映射到 Anthropic 计数。其余子路径待核对。共享凭证当前拒绝 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
+| `POST /v1/responses/*subpath` | 网关 Key，路由守卫只放行允许的操作路径，`input_tokens` 可独立派发 | 已验收 `input_tokens`，可使用 OpenAI 原生计数或映射到 Anthropic 和 Bedrock 计数。其余子路径待核对。共享凭证当前拒绝 `store: true`、`background: true`、`previous_response_id`、会话与旧资源引用。持久状态先取得租户与账号归属证据再开放。 |
 | `GET /v1/responses` | 网关 Key，升级 WebSocket 并走专用 Responses handler | GW-03 已实测下游 WebSocket 串行生成、首段、断开取消、权限撤销、关闭码和 HTTP 上游转换。已验收同连接的文本与客户端函数续接、四个并行通道和分叉；上游 WebSocket、预热和转向待核对。 |
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
-| `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
+| `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 和 Bedrock 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent?alt=sse`、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。JSON 流和异步批任务仍待核对。 |
 | `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03／04 待按生命周期核对，依赖租户与账号归属。 |
@@ -120,6 +120,14 @@ Messages 现在可在保留原生优先级的情况下选择 Responses 或 Chat-
 包测试验证根路径默认关闭、授权目录、跨协议认证及计数、共享限流、外部资源拒绝和用量日志。独立 Artisan 的 SDK 用根地址调用计数，独立 HTTP 验证 OpenAI／Anthropic 的真实协议映射和同一 Key 的限流。本地上游使用真实 TCP 协议模拟。Codex 专用模型目录、自托管状态和 WebSocket 仍待后续。
 
 - [OpenAI Responses 输入计数](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) · [Sub2API 固定路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)
+
+### Bedrock 原生输入计数
+
+SDK 复用 Bedrock Runtime 客户端，通过 `CountTokens(Converse)` 转换 Messages 的系统块、文本、函数定义与历史，以及内联图片和文档。Responses 计数复用到 Messages 的无状态文本和函数转换。网关沿用分组、模型、Key 限额和供应商选择。按固定 Sub2API 的计数入口区分计数与生成用量。OpenRust 保留出站尝试及 AWS 请求 ID。Bedrock 明确免费，跳过组和账号货币预算预占。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经独立 HTTP 和 Artisan 读取路由、尝试及预算，核对两条协议、无版本路径、Bearer 和 SigV4 签名、原始系统和工具内容、内联文件、无权限及非法输入拒绝。协议服务返回 81、43、55 和明确 0。缺失或负数返回 502，AWS 403 与 429 保留状态并使用脱敏响应。八次实际出站均无生成 Token 和费用，双预算余额各为原有的 0.01 USD。新增回归锁定显式零和缺失区分。17 项网关回归、严格 Clippy 和三语文档通过。正式 AWS 账户及模型区域支持范围待实机验收，依赖 Mantle 的模型由相应入口另行覆盖。
+
+- [AWS Bedrock CountTokens](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CountTokens.html) · [AWS 计数权限及支持范围](https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html) · [Sub2API 固定计数 handler](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler.go#L2160-L2271)
 
 ## GW-04 持久化用量
 

@@ -754,6 +754,9 @@ impl Gateway {
         payload: &mut Value,
         charges: Option<&ChargePlan>,
     ) -> Result<BudgetReservations, &'static str> {
+        if endpoint.is_counting() && target.provider.relay_count_is_free(endpoint) {
+            return Ok(BudgetReservations::default());
+        }
         let group = key.group.as_ref().and_then(|group| {
             group
                 .budget
