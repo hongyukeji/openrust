@@ -412,6 +412,7 @@ pub enum TextEndpoint {
     ImagesGenerations,
     ImagesEdits,
     XaiTextToSpeech,
+    XaiSpeechToText,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
     GeminiCountTokens,
@@ -433,6 +434,7 @@ impl TextEndpoint {
             Self::ImagesGenerations => "images/generations",
             Self::ImagesEdits => "images/edits",
             Self::XaiTextToSpeech => "tts",
+            Self::XaiSpeechToText => "stt",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
             Self::GeminiCountTokens => "countTokens",
@@ -471,6 +473,10 @@ impl TextEndpoint {
             self,
             Self::CountResponseTokens | Self::CountMessageTokens | Self::GeminiCountTokens
         )
+    }
+
+    pub const fn is_xai_voice(self) -> bool {
+        matches!(self, Self::XaiTextToSpeech | Self::XaiSpeechToText)
     }
 }
 
@@ -991,10 +997,7 @@ impl TextProvider for OpenAiTextProvider {
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
         if matches!(self.protocol, OpenAiProtocol::Xai) {
-            return matches!(
-                endpoint,
-                TextEndpoint::Responses | TextEndpoint::XaiTextToSpeech
-            );
+            return endpoint == TextEndpoint::Responses || endpoint.is_xai_voice();
         }
         match endpoint {
             TextEndpoint::Embeddings => {
@@ -1018,6 +1021,9 @@ impl TextProvider for OpenAiTextProvider {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
             }
+            if endpoint == TextEndpoint::XaiSpeechToText {
+                return Err(AiError::InvalidPrompt);
+            }
             if endpoint == TextEndpoint::XaiTextToSpeech {
                 let fields = body.as_object_mut().ok_or(AiError::InvalidPrompt)?;
                 fields.remove("model");
@@ -1036,7 +1042,11 @@ impl TextProvider for OpenAiTextProvider {
         parts: Vec<(String, Part)>,
     ) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async move {
-            if endpoint != TextEndpoint::ImagesEdits || !self.supports_endpoint(endpoint) {
+            if !matches!(
+                endpoint,
+                TextEndpoint::ImagesEdits | TextEndpoint::XaiSpeechToText
+            ) || !self.supports_endpoint(endpoint)
+            {
                 return Err(AiError::EndpointNotSupported);
             }
             let mut request = self.connection.request(None)?.as_multipart();

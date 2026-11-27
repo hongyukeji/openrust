@@ -309,6 +309,12 @@ Schedule::configure(|schedule| {
 
 启用持久化用量后，网关记录调用尝试及上游状态。语音合成没有 Token 计数或 Token 费用。拒绝未知费用的硬预算会在出站前拦截合成请求。
 
+### 网关语音转录 {#gateway-transcription}
+
+在 `config/ai_gateway.rs` 为 `xai` 连接配置上游转录模型和 `"endpoints": ["stt"]`，并向网关 Key 授权公开别名。`POST /v1/stt` 接收 Bearer Key 和一个 multipart `file`。含 multipart 头在内的整个请求体上限为 8 MiB。Key 只有一个转录别名时可以省略 `model`。有多个时，在 multipart 的 `model` 字段指定公开别名。启用 `unversioned_paths` 后也可调用 `POST /stt`。
+
+网关保留重复的 `keyterm` 和 `redact` 字段，将音频文件放在最后上传。原始 PCM、μ-law 和 A-law 须指定 `audio_format` 和受支持的 `sample_rate`。响应保留上游的时间戳、说话人编号和音频时长。启用持久化用量时记录尝试，转录无 Token 费用。拒绝未知费用的硬预算会在出站前拦截请求。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

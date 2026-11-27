@@ -35,6 +35,7 @@ mod resources;
 mod usage_summary;
 mod websocket;
 mod xai_speech;
+mod xai_transcription;
 
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
@@ -76,6 +77,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/images/generations", images_generations)?;
     router.post("/images/edits", images_edits)?;
     router.post("/tts", xai_speech)?;
+    router.post("/stt", xai_transcription)?;
     router.post("/messages/count_tokens", count_message_tokens)?;
     responses_routes(router)
 }
@@ -216,6 +218,7 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::ImagesGenerations,
                     TextEndpoint::ImagesEdits,
                     TextEndpoint::XaiTextToSpeech,
+                    TextEndpoint::XaiSpeechToText,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -307,6 +310,10 @@ fn count_message_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn xai_speech(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::XaiTextToSpeech, None))
+}
+
+fn xai_transcription(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::XaiSpeechToText, None))
 }
 
 #[derive(Clone, Copy)]
@@ -474,9 +481,19 @@ async fn relay(
         Err(response) => return response,
     };
     let key = key.as_ref();
-    let (mut data, mut uploads) = if endpoint == TextEndpoint::ImagesEdits
-        && image_upload::is_multipart(request)
-    {
+    let (mut data, mut uploads) = if endpoint == TextEndpoint::XaiSpeechToText {
+        match xai_transcription::parse(request).await {
+            Ok((data, parts)) => (data, Some(parts)),
+            Err(HttpError::PayloadTooLarge) => return request_too_large(protocol),
+            Err(_) => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_multipart",
+                    "语音转录需要一个有效的 multipart 音频文件及原生字段",
+                );
+            }
+        }
+    } else if endpoint == TextEndpoint::ImagesEdits && image_upload::is_multipart(request) {
         match image_upload::parse(request).await {
             Ok((data, parts)) => (data, Some(parts)),
             Err(HttpError::PayloadTooLarge) => return request_too_large(protocol),
@@ -516,8 +533,8 @@ async fn relay(
     } else {
         None
     };
-    let implicit_model = if speech_format.is_some() && !data.contains_key("model") {
-        match xai_speech::implicit_model(&gateway, key) {
+    let implicit_model = if endpoint.is_xai_voice() && !data.contains_key("model") {
+        match xai_speech::implicit_model(&gateway, key, endpoint) {
             Ok(model) => Some(model.to_owned()),
             Err((status, code, message)) => return protocol.error(status, code, message),
         }
@@ -775,7 +792,7 @@ async fn relay(
                     .any(|message| message.get(openrust_ai::CHAT_REASONING_REPLAY).is_some())
             });
     let may_replay = !endpoint.is_image()
-        && speech_format.is_none()
+        && !endpoint.is_xai_voice()
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1293,7 +1310,9 @@ async fn request_upstream(
     if status.is_success() {
         return Ok(upstream);
     }
-    if let Ok(data) = upstream.json::<Value>() {
+    if !endpoint.is_xai_voice()
+        && let Ok(data) = upstream.json::<Value>()
+    {
         call.observe_usage(&data);
         call.observe_bedrock_error_usage(&data);
         call.observe_final_cost(&data);
@@ -1390,6 +1409,16 @@ async fn respond(
             "invalid_upstream_response",
             "上游未返回有效的 Gemini Token 数",
         );
+    } else if endpoint == TextEndpoint::XaiSpeechToText {
+        if !xai_transcription::validate_response(&mut data) {
+            call.outcome("invalid_upstream_response");
+            call.settle().await;
+            return protocol.error(
+                StatusCode::BAD_GATEWAY,
+                "invalid_upstream_response",
+                "上游未返回有效的语音转录",
+            );
+        }
     } else if !endpoint.is_counting() {
         call.observe_usage(&data);
         call.observe_final_cost(&data);

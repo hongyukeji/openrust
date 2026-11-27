@@ -309,6 +309,12 @@ Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When th
 
 The gateway records attempts and upstream status when usage persistence is enabled. Audio attempts have no token counts or token charges. A hard monetary budget that rejects unknown costs blocks synthesis before dispatch.
 
+### Gateway speech transcription {#gateway-transcription}
+
+Publish an `xai` connection with `"endpoints": ["stt"]` and the upstream transcription model in `config/ai_gateway.rs`. Grant the public alias to the caller’s gateway Key. `POST /v1/stt` takes a bearer Key and one multipart `file`. The entire request, including multipart headers, is limited to 8 MiB. A Key with one transcription alias can omit `model`. For multiple aliases, send the public alias as the multipart `model` field. Enable `unversioned_paths` to also expose `POST /stt`.
+
+The gateway forwards repeated `keyterm` and `redact` fields and uploads the file last. Raw PCM, μ-law and A-law require `audio_format` and a supported `sample_rate`. The response retains provider timestamps, speaker numbers and duration. Usage persistence records the attempt without token charges. Hard budgets that reject unknown costs block the request before dispatch.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

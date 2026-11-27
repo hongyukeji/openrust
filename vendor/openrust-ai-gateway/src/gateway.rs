@@ -217,7 +217,7 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 16] = [
+const ENDPOINTS: [TextEndpoint; 17] = [
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -234,6 +234,7 @@ const ENDPOINTS: [TextEndpoint; 16] = [
     TextEndpoint::ImagesGenerations,
     TextEndpoint::ImagesEdits,
     TextEndpoint::XaiTextToSpeech,
+    TextEndpoint::XaiSpeechToText,
 ];
 
 pub(crate) struct Target {
@@ -443,7 +444,7 @@ impl Gateway {
                     .filter(|endpoint| {
                         model.endpoints.as_ref().map_or(
                             !endpoint.is_image()
-                                && *endpoint != TextEndpoint::XaiTextToSpeech
+                                && !endpoint.is_xai_voice()
                                 && !endpoint.is_gemini_embedding()
                                 && !endpoint.is_gemini_batch(),
                             |configured| configured.iter().any(|path| path == endpoint.path()),

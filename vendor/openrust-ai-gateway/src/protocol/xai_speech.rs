@@ -15,10 +15,12 @@ const BUILTIN_VOICES: &[&str] = &[
 pub(super) fn implicit_model<'a>(
     gateway: &'a Gateway,
     key: &Key,
+    endpoint: TextEndpoint,
 ) -> Result<&'a str, (StatusCode, &'static str, &'static str)> {
-    let mut allowed = gateway.models.iter().filter(|(name, model)| {
-        key.allows_model(name) && model.supports_for(TextEndpoint::XaiTextToSpeech, key)
-    });
+    let mut allowed = gateway
+        .models
+        .iter()
+        .filter(|(name, model)| key.allows_model(name) && model.supports_for(endpoint, key));
     let Some((name, _)) = allowed.next() else {
         return Err((StatusCode::NOT_FOUND, "model_not_found", "模型不可用"));
     };

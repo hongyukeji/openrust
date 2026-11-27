@@ -4677,6 +4677,7 @@ dependencies = [
  "eventsource-stream",
  "futures-util",
  "http",
+ "multer",
  "openrust-ai",
  "openrust-framework",
  "serde",

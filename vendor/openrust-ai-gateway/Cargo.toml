@@ -18,6 +18,7 @@ axum = { version = "0.8.9", default-features = false, features = ["http1", "toki
 eventsource-stream = "=0.2.3"
 futures-util = { version = "0.3", default-features = false }
 http = "1.4"
+multer = "3.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
