@@ -864,7 +864,7 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。
 
-Bedrock 的已完成轮次含签名推理时，Chat Completions 会在助手消息或一条 SSE 增量里返回 `openrust_reasoning_replay`。续轮将该字段保留在重建的助手消息中，原样提交此前消息，再追加工具结果或新的用户消息。OpenRust SDK 在工具运行中自动处理该字段。回放使用同一网关 Key、公开模型和 Bedrock 连接，并使用显式 Bearer 或 SigV4 凭证。加密状态有效期一小时，可由共享应用密钥的进程恢复。
+Bedrock 的已完成轮次含签名推理时，Chat Completions 会在助手消息或一条 SSE 增量里返回 `openrust_reasoning_replay`。续轮将该字段保留在重建的助手消息中，原样提交此前消息，再追加工具结果或新的用户消息。OpenRust SDK 在工具运行中自动处理该字段。回放使用同一网关 Key、公开模型和 Bedrock 连接。显式 Bearer 或 SigV4 凭证沿用原有绑定。使用 AWS 默认凭证链时，网关通过 STS `GetCallerIdentity` 核对调用者。同一 IAM 角色刷新临时凭证并切换角色会话后，可以继续原会话。加密状态有效期一小时，可由共享应用密钥的进程恢复。
 
 使用 Responses 时，设置 `store: false`，按顺序提交原始输入和上轮的全部输出项，再追加新的用户消息或 `function_call_output`。原样保留推理项中的 `reasoning.encrypted_content`。普通 JSON 和 SSE 均返回该推理项，也可通过 `include: ["reasoning.encrypted_content"]` 明确请求。
 

@@ -4649,6 +4649,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-bedrock",
  "aws-sdk-bedrockruntime",
+ "aws-sdk-sts",
  "aws-smithy-runtime-api",
  "aws-smithy-types",
  "bytes",

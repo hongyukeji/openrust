@@ -17,6 +17,7 @@ async-stream = "0.3.6"
 aws-config = { version = "=1.13.4", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
 aws-sdk-bedrock = { version = "=1.171.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
 aws-sdk-bedrockruntime = { version = "=1.151.0", default-features = false, features = ["rt-tokio", "default-https-client"] }
+aws-sdk-sts = { version = "=1.129.0", default-features = false }
 aws-smithy-runtime-api = "=1.22.1"
 aws-smithy-types = "=1.9.5"
 bytes = "1.12.1"

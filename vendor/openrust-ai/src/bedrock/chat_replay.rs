@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{AiError, AiResult, StepTextGateway, ToolCall};
+use crate::{AiError, AiResult, ToolCall};
 
-use super::{BedrockProvider, tools};
+use super::tools;
 
 const MAX_TOKEN_BYTES: usize = 128 * 1024;
 const TTL_SECONDS: u64 = 3600;
@@ -31,14 +31,14 @@ struct SignedTurn {
 
 impl ChatReplay {
     pub(super) fn new(
-        provider: &BedrockProvider,
+        upstream_scope: Option<&str>,
         downstream_scope: Option<&str>,
         model: Option<&str>,
     ) -> Option<Self> {
         let scope = digest(json!([
             "openrust-bedrock-chat-v1",
             downstream_scope?,
-            provider.approval_replay_scope().ok()??,
+            upstream_scope?,
             model?,
         ]));
         Some(Self {

@@ -4,6 +4,7 @@ mod chat_media;
 mod chat_replay;
 mod chat_tools;
 mod embeddings;
+mod identity;
 mod image;
 mod invoke;
 mod relay;
@@ -31,7 +32,7 @@ use aws_sdk_bedrockruntime::{
         error::ConverseStreamOutputError,
     },
 };
-use aws_smithy_runtime_api::client::auth::http::HTTP_BEARER_AUTH_SCHEME_ID;
+use aws_smithy_runtime_api::client::auth::{AuthSchemeId, http::HTTP_BEARER_AUTH_SCHEME_ID};
 use openrust::support::Str;
 use openrust::{
     config::Environment,
@@ -73,6 +74,8 @@ struct AssumeRole {
     external_id: Option<String>,
 }
 
+const SIGV4_AUTH_SCHEME_ID: AuthSchemeId = AuthSchemeId::new("sigv4");
+
 #[derive(Clone)]
 pub(crate) struct BedrockProvider {
     connection: Arc<Connection>,
@@ -81,6 +84,7 @@ pub(crate) struct BedrockProvider {
     client: Arc<OnceCell<Client>>,
     catalog_client: Arc<OnceCell<aws_sdk_bedrock::Client>>,
     iam_config: Arc<OnceCell<SdkConfig>>,
+    replay_principal: Arc<identity::ReplayPrincipal>,
 }
 
 impl BedrockProvider {
@@ -123,6 +127,7 @@ impl BedrockProvider {
             client: Arc::new(OnceCell::new()),
             catalog_client: Arc::new(OnceCell::new()),
             iam_config: Arc::new(OnceCell::new()),
+            replay_principal: Arc::new(identity::ReplayPrincipal::default()),
         })
     }
 
@@ -211,6 +216,7 @@ impl BedrockProvider {
                         .auth_scheme_preference([HTTP_BEARER_AUTH_SCHEME_ID])
                 } else {
                     aws_sdk_bedrockruntime::config::Builder::from(self.iam_config().await?)
+                        .auth_scheme_preference([SIGV4_AUTH_SCHEME_ID])
                 };
                 if let Some(endpoint) = &self.settings.url {
                     config = config.endpoint_url(endpoint);
@@ -332,7 +338,9 @@ impl TextProvider for BedrockProvider {
         scope: Option<&str>,
     ) -> Option<&'static str> {
         if endpoint == crate::TextEndpoint::ChatCompletions {
-            let replay = chat_replay::ChatReplay::new(self, scope, body["model"].as_str());
+            let upstream = self.approval_replay_scope().ok().flatten();
+            let replay =
+                chat_replay::ChatReplay::new(upstream.as_deref(), scope, body["model"].as_str());
             return chat::ChatRequest::parse(body, replay.as_ref()).err();
         }
         self.relay_request_error(endpoint, body)
@@ -340,6 +348,35 @@ impl TextProvider for BedrockProvider {
 
     fn supports_chat_reasoning_replay(&self) -> bool {
         true
+    }
+
+    fn validate_scoped_relay<'a>(
+        &'a self,
+        endpoint: crate::TextEndpoint,
+        body: &'a Value,
+        scope: Option<&'a str>,
+    ) -> HttpFuture<'a, Result<(), &'static str>> {
+        Box::pin(async move {
+            let has_state = endpoint == crate::TextEndpoint::ChatCompletions
+                && body["messages"].as_array().is_some_and(|messages| {
+                    messages
+                        .iter()
+                        .any(|message| message.get(crate::CHAT_REASONING_REPLAY).is_some())
+                });
+            if !has_state {
+                return self.relay_request_error(endpoint, body).map_or(Ok(()), Err);
+            }
+            let authentication = self
+                .chat_authentication(scope)
+                .await
+                .map_err(|_| "无法核对 Bedrock 回放所需的 AWS 身份")?;
+            let replay = chat_replay::ChatReplay::new(
+                authentication.scope.as_deref(),
+                scope,
+                body["model"].as_str(),
+            );
+            chat::ChatRequest::parse(body, replay.as_ref()).map(|_| ())
+        })
     }
 
     fn scoped_relay(

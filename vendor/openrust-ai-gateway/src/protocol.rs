@@ -730,7 +730,7 @@ async fn relay(
         targets.sort_by_key(|(target, _)| target.affinity_key != preferred);
     }
     let mut targets = targets.into_iter().peekable();
-    while let Some((target, upstream_endpoint)) = targets.next() {
+    'targets: while let Some((target, upstream_endpoint)) = targets.next() {
         let mut payload = if targets.peek().is_some() {
             data.clone()
         } else {
@@ -773,20 +773,15 @@ async fn relay(
         } else {
             None
         };
-        if let Some(message) = batch
-            .as_deref()
-            .unwrap_or(std::slice::from_ref(&payload))
-            .iter()
-            .find_map(|part| {
-                target.provider.scoped_relay_request_error(
-                    upstream_endpoint,
-                    part,
-                    relay_scope.as_deref(),
-                )
-            })
-        {
-            conversion_error = Some(message);
-            continue;
+        for part in batch.as_deref().unwrap_or(std::slice::from_ref(&payload)) {
+            if let Err(message) = target
+                .provider
+                .validate_scoped_relay(upstream_endpoint, part, relay_scope.as_deref())
+                .await
+            {
+                conversion_error = Some(message);
+                continue 'targets;
+            }
         }
         let charges = gateway.charge_plan(key, &name, target, upstream_endpoint, &payload);
         let budget = match gateway.budget_reservations(

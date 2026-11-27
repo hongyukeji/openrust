@@ -8,8 +8,8 @@ use aws_sdk_bedrock::{
 use crate::{AiError, AiResult, ModelCatalog, models::ListedModel};
 
 use super::{
-    BedrockProvider, BehaviorVersion, HTTP_BEARER_AUTH_SCHEME_ID, RetryConfig, Token,
-    converse_error,
+    BedrockProvider, BehaviorVersion, HTTP_BEARER_AUTH_SCHEME_ID, RetryConfig,
+    SIGV4_AUTH_SCHEME_ID, Token, converse_error,
 };
 
 const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -26,6 +26,7 @@ impl BedrockProvider {
                         .auth_scheme_preference([HTTP_BEARER_AUTH_SCHEME_ID])
                 } else {
                     aws_sdk_bedrock::config::Builder::from(self.iam_config().await?)
+                        .auth_scheme_preference([SIGV4_AUTH_SCHEME_ID])
                 };
                 if let Some(endpoint) = &self.settings.catalog_url {
                     config = config.endpoint_url(endpoint);

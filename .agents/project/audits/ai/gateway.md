@@ -231,7 +231,7 @@ Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Conve
 
 ## GW-03 Bedrock Chat 签名工具回放
 
-普通助手消息及 SSE 增量可携带 `openrust_reasoning_replay`。使用应用加密服务保存原始 AWS 助手内容块，可见推理仍通过 `reasoning_content` 发出。状态绑定实际下游凭证、公开名、上游目标和显式 AWS 凭证，校验原始历史和助手文本及工具调用，有效期一小时。回放在预占和出站前验证，随后按原顺序恢复签名推理、脱敏块和工具调用。SDK 工具步骤自动保留此字段，跨进程共享应用密钥即可恢复。该批覆盖直接 Chat Completions 工具回放。Responses 和纯文本轮次见下节。AWS 默认凭证链仍待验收。
+普通助手消息及 SSE 增量可携带 `openrust_reasoning_replay`。使用应用加密服务保存原始 AWS 助手内容块，可见推理仍通过 `reasoning_content` 发出。状态绑定实际下游凭证、公开名、上游目标和显式 AWS 凭证，校验原始历史和助手文本及工具调用，有效期一小时。回放在预占和出站前验证，随后按原顺序恢复签名推理、脱敏块和工具调用。SDK 工具步骤自动保留此字段，跨进程共享应用密钥即可恢复。该批覆盖显式凭证的直接 Chat Completions 工具回放。Responses、纯文本轮次及默认凭证链见下文。
 
 独立 Artisan 验证 SDK 原生直连，以及 SDK 经网关的普通和流式两轮工具调用。外部 HTTP 通过本地 AWS 协议服务验证原始签名和脱敏字节回送，两轮运用原始调用 ID。SSE 取回的状态可由另一工作进程接续。过期状态、修改密文、历史、助手文本、换下游 Key、轮换 Key、换公开别名或换 AWS 凭证均在出站前拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对八次签名网关尝试的用量及成本。31 项回归、严格 Clippy 和三语站点通过。正式 AWS 账户验收继续单列。
 
@@ -241,9 +241,17 @@ Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Conve
 
 无状态 Responses 使用标准 `reasoning.encrypted_content` 保存已完成轮次的加密状态，普通响应和 SSE 输出推理条目。SSE 维持消息、推理项与函数项的索引和完成顺序。支持携带 `include: ["reasoning.encrypted_content"]`。客户端依次回送此前输入、输出、工具结果或下一条用户消息。Chat Completions 也可为正常结束的纯文本签名轮次返回原有加密字段。复用应用加密、时效、历史摘要和凭证绑定，加上入站协议隔离。包含 Bedrock 加密状态的 Responses 请求只会匹配支持该状态的 Bedrock 目标，携带状态的续轮不触发故障重放。
 
-用本地 AWS 协议服务、独立 Artisan 和真实 HTTP 验证 Responses SDK 与外部客户端的普通及流式工具续轮，覆盖带可见文本的工具步骤、原始 `stock:one` 调用 ID、原始签名及脱敏块、纯文本续聊和跨进程恢复。更换 Key、别名、供应商或入站协议在出站前被拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对新增的八次工具及四次文本尝试。模拟费率下每笔用量为 17 输入和 4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 和三语站点通过。AWS 默认凭证链及正式账户实测仍待验收。
+用本地 AWS 协议服务、独立 Artisan 和真实 HTTP 验证 Responses SDK 与外部客户端的普通及流式工具续轮，覆盖带可见文本的工具步骤、原始 `stock:one` 调用 ID、原始签名及脱敏块、纯文本续聊和跨进程恢复。更换 Key、别名、供应商或入站协议在出站前被拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对新增的八次工具及四次文本尝试。模拟费率下每笔用量为 17 输入和 4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 和三语站点通过。默认凭证链见下节，正式 AWS 账户实测仍待验收。
 
 - [OpenAI 无状态推理回放](https://developers.openai.com/api/docs/guides/reasoning#preserve-reasoning-without-stored-responses) · [AWS Converse 签名要求](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
+
+## GW-03 Bedrock 默认凭证链签名回放
+
+默认凭证链用同一份 SigV4 凭证快照执行 STS `GetCallerIdentity` 和 Bedrock 推理。凭证指纹相同时复用连接内的身份结果。角色范围包含 AWS 分区、账户、角色名和 IAM 角色唯一 ID，临时会话名变化不改变作用域。身份不可核实时拒绝带签名状态的续轮，普通无状态文本继续按该凭证发出。显式 Bearer 与 SigV4 沿用已有回放范围。配置为空的 Bearer 环境变量时，IAM 路径优先使用 SigV4，推理和目录采用相同选择规则。
+
+真实 HTTP 与本地 STS／Bedrock 协议服务核对两次 AWS 签名使用的凭证。模拟共享 AWS 配置的 `credential_process`，在同一网关进程内换发临时凭证。Responses 签名工具回放和 Chat 纯文本回放均接续同一角色的新会话。同名但唯一 ID 不同的角色、其他账户及 STS 故障在 Bedrock 出站前拒绝续轮。独立 Artisan 验证两个目录调用使用 SigV4。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对五次新增推理尝试的用量和账务。模拟费率下每笔 17 输入、4 输出 Token，成本 0.03 USD，应收 0.06 USD。31 项回归、严格 Clippy 与三语站点通过。正式 AWS 账户及 SDK 跨进程审批回放仍待验。
+
+- [AWS STS GetCallerIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html) · [AWS IAM 角色唯一 ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html) · [AWS Rust 凭证链](https://docs.aws.amazon.com/sdk-for-rust/latest/dg/credproviders.html)
 
 ## GW-03 Bedrock 网关结构化输出
 

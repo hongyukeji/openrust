@@ -347,6 +347,18 @@ pub trait TextProvider: Send + Sync {
         self.relay_request_error(endpoint, body)
     }
 
+    fn validate_scoped_relay<'a>(
+        &'a self,
+        endpoint: TextEndpoint,
+        body: &'a Value,
+        scope: Option<&'a str>,
+    ) -> HttpFuture<'a, Result<(), &'static str>> {
+        Box::pin(async move {
+            self.scoped_relay_request_error(endpoint, body, scope)
+                .map_or(Ok(()), Err)
+        })
+    }
+
     /// 将一个向量请求拆成需要各自登记的一组原生调用。
     fn split_embedding_relay(&self, _body: &Value) -> Result<Option<Vec<Value>>, &'static str> {
         Ok(None)
