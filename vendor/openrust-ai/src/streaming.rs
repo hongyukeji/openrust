@@ -751,6 +751,7 @@ impl TextEndpoint {
             | Self::XaiWebSearch
             | Self::XaiXSearch
             | Self::SystemOne
+            | Self::AlphaSearch
             | Self::Live => Err(AiError::StreamingNotSupported),
         }
     }

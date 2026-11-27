@@ -26,6 +26,7 @@ use crate::{
 
 type HttpResult = Result<Response, HttpError>;
 
+mod alpha_search;
 mod embedding_batch;
 mod gemini_batches;
 mod gemini_caches;
@@ -55,6 +56,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
     })?;
     Route::group(RouteGroup::new().prefix("/backend-api/codex"), |router| {
         router.get("/models", codex_models)?;
+        router.post("/alpha/search", alpha_search::route)?;
         router.post("/realtime/calls", live::create_codex)?;
         router.get("/{call_id}", live::sideband_codex)?;
         responses_routes(router)
@@ -91,6 +93,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/realtime", xai_realtime::handshake)?;
     router.post("/web_search", xai_search::web)?;
     router.post("/x_search", xai_search::x)?;
+    router.post("/alpha/search", alpha_search::route)?;
     router
         .post("/stt", xai_transcription)?
         .streaming_body(xai_transcription::MAX_BODY_BYTES);
@@ -239,6 +242,7 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::XaiWebSearch,
                     TextEndpoint::XaiXSearch,
                     TextEndpoint::SystemOne,
+                    TextEndpoint::AlphaSearch,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -623,6 +627,16 @@ async fn relay(
             "该模型不支持此端点",
         );
     }
+    let alpha_search = if endpoint == TextEndpoint::AlphaSearch {
+        match alpha_search::prepare(request, &mut data, model) {
+            Ok(search) => Some(search),
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        None
+    };
     let search = if endpoint.is_xai_search() {
         match xai_search::prepare(endpoint, &mut data, model) {
             Ok(search) => Some(search),
@@ -881,6 +895,7 @@ async fn relay(
         && !endpoint.is_xai_voice()
         && !endpoint.is_xai_search()
         && endpoint != TextEndpoint::SystemOne
+        && endpoint != TextEndpoint::AlphaSearch
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1165,18 +1180,27 @@ async fn relay(
             return embedding_batch::relay(target, calls, batch, name, protocol, cache_store).await;
         }
         let mut call = calls.pop().expect("已登记单次请求");
+        let transport = if let Some(search) = &alpha_search {
+            RelayTransport::AlphaSearch(search)
+        } else if let Some(parts) = uploads.take() {
+            RelayTransport::Multipart(parts)
+        } else {
+            RelayTransport::Json(relay_scope)
+        };
         match request_upstream(
             target,
             upstream_endpoint,
             payload,
-            uploads.take(),
-            relay_scope,
+            transport,
             protocol,
             &mut call,
         )
         .await
         {
             Ok(upstream) => {
+                if endpoint == TextEndpoint::AlphaSearch {
+                    return alpha_search::respond(upstream, &name, call).await;
+                }
                 if endpoint == TextEndpoint::SystemOne {
                     return system_one::respond(upstream, &name, call).await;
                 }
@@ -1373,21 +1397,34 @@ struct UpstreamFailure {
     response: HttpResult,
 }
 
+enum RelayTransport<'a> {
+    Json(Option<String>),
+    Multipart(Vec<(String, client::Part)>),
+    AlphaSearch(&'a alpha_search::RequestOptions),
+}
+
 async fn request_upstream(
     target: &Target,
     endpoint: TextEndpoint,
     data: Value,
-    uploads: Option<Vec<(String, client::Part)>>,
-    scope: Option<String>,
+    transport: RelayTransport<'_>,
     protocol: Protocol,
     call: &mut Call,
 ) -> Result<client::Response, UpstreamFailure> {
     if !call.begin_dispatch().await {
         return Err(usage_storage_failure(protocol, call));
     }
-    let dispatched = match uploads {
-        Some(parts) => target.provider.relay_multipart(endpoint, data, parts).await,
-        None => target.provider.scoped_relay(endpoint, data, scope).await,
+    let dispatched = match transport {
+        RelayTransport::Multipart(parts) => {
+            target.provider.relay_multipart(endpoint, data, parts).await
+        }
+        RelayTransport::Json(scope) => target.provider.scoped_relay(endpoint, data, scope).await,
+        RelayTransport::AlphaSearch(options) => {
+            target
+                .provider
+                .relay_alpha_search(data, options.query.clone(), options.metadata.clone())
+                .await
+        }
     };
     let upstream = match dispatched {
         Ok(response) => response,
@@ -1462,6 +1499,22 @@ async fn request_upstream(
         pause_until,
         response,
     })
+}
+
+async fn bounded_json_object(
+    upstream: client::Response,
+    limit: usize,
+) -> Option<serde_json::Map<String, Value>> {
+    let mut stream = upstream.into_stream().ok()?;
+    let mut body = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if chunk.len() > limit - body.len() {
+            return None;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&body).ok()
 }
 
 fn usage_storage_failure(protocol: Protocol, call: &mut Call) -> UpstreamFailure {

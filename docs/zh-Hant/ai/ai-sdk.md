@@ -412,6 +412,23 @@ X Search 可設定 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 應用透過 `Classification` 呼叫閘道時，使用 `system-one` 驅動，將連線 URL 設為以 `/v1` 結尾的閘道位址，設定閘道 Key 及公開分類模型名稱。要求確定輸出 Token 或費用上限的原則會在送出至上游前拒絕請求。
 
+### Codex 獨立 Alpha Search {#gateway-alpha-search}
+
+使用支援原生 Alpha Search 的 OpenAI 連線，將 URL 設為上游提供的基礎前綴，例如獲准使用的 `/v1` 或 `/backend-api/codex`。將公開模型的 `endpoints` 設定為包含 `alpha/search`，並在 `server_tools` 中允許 `web_search`。
+
+```json
+{
+  "provider": "openai",
+  "model": "<upstream model ID>",
+  "endpoints": ["alpha/search"],
+  "server_tools": ["web_search"]
+}
+```
+
+攜帶閘道 Bearer Key 存取 `POST /v1/alpha/search` 或 `POST /backend-api/codex/alpha/search`。啟用 `unversioned_paths` 後可存取 `POST /alpha/search`。在 Codex 搜尋請求中填入公開模型名稱。
+
+閘道保留上游搜尋結果及加密輸出。啟用用量持久化後，記錄成功的獨立搜尋請求及上游回報的 Token。此模式要求上游憑證具有 Alpha Search 權限。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

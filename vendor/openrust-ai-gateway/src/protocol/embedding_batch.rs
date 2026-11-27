@@ -2,7 +2,9 @@ use openrust::http::{Response, StatusCode};
 use openrust_ai::TextEndpoint;
 use serde_json::{Value, json};
 
-use super::{Call, HttpResult, Protocol, Target, account_state_unavailable, request_upstream};
+use super::{
+    Call, HttpResult, Protocol, RelayTransport, Target, account_state_unavailable, request_upstream,
+};
 
 pub(super) async fn relay(
     target: &Target,
@@ -19,8 +21,7 @@ pub(super) async fn relay(
             target,
             TextEndpoint::Embeddings,
             part,
-            None,
-            None,
+            RelayTransport::Json(None),
             protocol,
             call,
         )

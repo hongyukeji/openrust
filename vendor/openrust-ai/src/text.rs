@@ -251,6 +251,16 @@ pub trait TextProvider: Send + Sync {
         false
     }
 
+    /// 执行独立的 Codex 搜索请求，使用具名连接的凭证。
+    fn relay_alpha_search(
+        &self,
+        _body: Value,
+        _query: Option<String>,
+        _metadata: Option<http::HeaderValue>,
+    ) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
     fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
         None
@@ -434,6 +444,7 @@ pub enum TextEndpoint {
     XaiWebSearch,
     XaiXSearch,
     SystemOne,
+    AlphaSearch,
     Live,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
@@ -461,6 +472,7 @@ impl TextEndpoint {
             Self::XaiWebSearch => "web_search",
             Self::XaiXSearch => "x_search",
             Self::SystemOne => "systemone",
+            Self::AlphaSearch => "alpha/search",
             Self::Live => "live",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
@@ -932,6 +944,22 @@ impl TextProvider for OpenAiTextProvider {
         matches!(self.protocol, OpenAiProtocol::Xai)
     }
 
+    fn relay_alpha_search(
+        &self,
+        body: Value,
+        query: Option<String>,
+        metadata: Option<http::HeaderValue>,
+    ) -> HttpFuture<'_, AiResult<Response>> {
+        Box::pin(async move {
+            if !self.supports_endpoint(TextEndpoint::AlphaSearch) {
+                return Err(AiError::EndpointNotSupported);
+            }
+            self.connection
+                .alpha_search(&body, query.as_deref(), metadata)
+                .await
+        })
+    }
+
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
         Box::pin(async { self.connection.catalog(self.list_models().await) })
     }
@@ -1065,6 +1093,7 @@ impl TextProvider for OpenAiTextProvider {
                     || self.connection.images_configured()
             }
             TextEndpoint::CountResponseTokens => matches!(self.protocol, OpenAiProtocol::Responses),
+            TextEndpoint::AlphaSearch => matches!(self.protocol, OpenAiProtocol::Responses),
             TextEndpoint::ChatCompletions => true,
             _ => self.protocol.endpoint() == endpoint,
         }
@@ -1074,6 +1103,9 @@ impl TextProvider for OpenAiTextProvider {
         Box::pin(async move {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
+            }
+            if endpoint == TextEndpoint::AlphaSearch {
+                return self.relay_alpha_search(body, None, None).await;
             }
             if endpoint == TextEndpoint::XaiSpeechToText {
                 return Err(AiError::InvalidPrompt);

@@ -32,7 +32,7 @@
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。G19 的 xAI Realtime 升级、双向事件、取消和同连接多轮也已完成本地三库。 |
 | `POST /v1/{web_search,x_search}` 和可选无版本别名 | 网关 Key、公开模型和搜索工具授权，转换为 xAI 原生 Responses | G20 已完成[独立搜索的本地三库验收](#xai-独立搜索)。供应商实机见 E09，工具计费见 B05。 |
 | `POST /v1/systemone` | 网关 Key 与已发布的 TypeSafe 模型，原生同步分类 | G20 已通过 [System One 本地三库验收](#typesafe-system-one)。TypeSafe 正式账号和账单见 E11。 |
-| `POST /v1/alpha/search` | 网关 Key 与 OpenAI／Codex 连接能力 | G20 待按协议和用量验收。Codex 专属路径与正式客户端另见 G21。 |
+| `POST /v1/alpha/search`、`POST /backend-api/codex/alpha/search` 和可选 `POST /alpha/search` | 网关 Key、模型与网页搜索授权，管理端配置具名原生连接 | G20 [原生独立搜索](#codex-原生-alpha-search)已通过本地三库。PAT 转 Responses 和工具费用分别见 G20 与 B05，正式客户端见 G21。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
 ## 兼容路径与账号类型
@@ -452,6 +452,18 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 TypeSafe 协议夹具的 SDK �
 - [固定 Sub2API 校验与响应边界](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/typesafe)
 - [固定 Laravel TypeSafe Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TypeSafeGateway.php)
 - [TypeSafe 官方 OpenAPI](https://api.typesafe.ai/openapi.json)
+
+### Codex 原生 Alpha Search
+
+固定基线在 `/v1/alpha/search`、`/backend-api/codex/alpha/search` 及可选无前缀路径注册独立搜索。OpenRust 复用现有 OpenAI 连接、Bearer Key、公开模型与工具授权、并发和用量登记。配置 `endpoints: ["alpha/search"]` 和 `server_tools: ["web_search"]` 后，以具名连接 URL 为前缀请求上游。配置的凭证和身份头用于出站鉴权，转发可用的 Codex turn metadata 与原始查询参数。移除 Responses 专用状态字段及连接头，拒绝共享资源 ID 和流式请求，防止授权模型被用来访问其他租户资源。
+
+返回 Codex 可读的 `output`、可选加密输出与结构化结果，保留结果 DTO 中的扩展字段，公开模型名覆盖出站模型。限制成功响应为 4 MiB，验证形状后才记录 `resource_usage.search_requests: 1`。有报告的 Token 写入独立用量。429、无效正文和超限响应保留上游请求 ID 和终态，异常不会重放到备用连接或计为成功搜索。要求已知费用上限的预算在出站前拒绝当前原生搜索。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 使用隔离原生搜索夹具通过独立 HTTP 和 Artisan。验证三条路径、无版本开关及路由缓存、Key、工具和模型权限、出站鉴权与剔除的连接头、重复查询参数、加密输出及扩展结果、429、超限响应和 14／5 Token。11 项 HTTP 与回退回归、两个 AI 包的严格库级 Clippy 和三语构建通过。固定 Sub2API 的 PAT 转 Responses 路径仍在 G20，官方 Codex 进程触发完整搜索及正式上游权限在 G21，按次及供应商工具单位的计费在 B05。
+
+- [固定 Sub2API Alpha Search 出站处理](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/service/openai_alpha_search.go)
+- [固定 Codex SearchClient](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/codex-api/src/endpoint/search.rs)
+- [OpenAI Responses 网页搜索文档](https://developers.openai.com/api/docs/guides/tools-web-search)
 
 ### xAI 自定义音色
 

@@ -229,12 +229,13 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 22] = [
+const ENDPOINTS: [TextEndpoint; 23] = [
     TextEndpoint::Live,
     TextEndpoint::XaiRealtime,
     TextEndpoint::XaiWebSearch,
     TextEndpoint::XaiXSearch,
     TextEndpoint::SystemOne,
+    TextEndpoint::AlphaSearch,
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -481,6 +482,7 @@ impl Gateway {
                                 && !endpoint.is_xai_voice()
                                 && !endpoint.is_xai_search()
                                 && *endpoint != TextEndpoint::SystemOne
+                                && *endpoint != TextEndpoint::AlphaSearch
                                 && !endpoint.is_gemini_embedding()
                                 && !endpoint.is_gemini_batch()
                                 && *endpoint != TextEndpoint::Live,
@@ -536,6 +538,7 @@ impl Gateway {
                     let standalone_search = match tool {
                         ResponsesServerTool::WebSearch => {
                             endpoints.contains(&TextEndpoint::XaiWebSearch)
+                                || endpoints.contains(&TextEndpoint::AlphaSearch)
                         }
                         ResponsesServerTool::XSearch => {
                             endpoints.contains(&TextEndpoint::XaiXSearch)

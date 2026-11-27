@@ -412,6 +412,23 @@ Send `POST /v1/systemone` with `model`, a string, object, or array as `state`, a
 
 To call the gateway from `Classification`, configure a `system-one` connection with the gateway base URL ending in `/v1`, the gateway key, and the public classification model alias. If the gateway policy requires a fixed output-token or cost ceiling, the request is rejected before dispatch.
 
+### Codex standalone Alpha Search {#gateway-alpha-search}
+
+For an OpenAI connection that serves native Alpha Search, set its base URL to the upstream prefix, such as a provisioned `/v1` or `/backend-api/codex`. Publish the public model with both the `alpha/search` endpoint and the `web_search` server tool.
+
+```json
+{
+  "provider": "openai",
+  "model": "<upstream model ID>",
+  "endpoints": ["alpha/search"],
+  "server_tools": ["web_search"]
+}
+```
+
+Use the gateway Bearer key with `POST /v1/alpha/search` or `POST /backend-api/codex/alpha/search`. Enable `unversioned_paths` to expose `POST /alpha/search`. Send the public model alias in the Codex search request.
+
+The gateway preserves search results and encrypted output from the upstream. It records a successful standalone request and any reported tokens when usage storage is enabled. This mode requires an upstream credential provisioned for Alpha Search.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

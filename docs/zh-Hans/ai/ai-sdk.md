@@ -412,6 +412,23 @@ X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 应用通过 `Classification` 调用网关时，使用 `system-one` 驱动，将连接 URL 设为以 `/v1` 结尾的网关地址，配置网关 Key 及公开分类模型名。要求确定输出 Token 或费用上限的策略会在出站前拒绝请求。
 
+### Codex 独立 Alpha Search {#gateway-alpha-search}
+
+使用支持原生 Alpha Search 的 OpenAI 连接，将 URL 设为上游提供的基础前缀，例如获准使用的 `/v1` 或 `/backend-api/codex`。将公开模型的 `endpoints` 配置为包含 `alpha/search`，并在 `server_tools` 中允许 `web_search`。
+
+```json
+{
+  "provider": "openai",
+  "model": "<upstream model ID>",
+  "endpoints": ["alpha/search"],
+  "server_tools": ["web_search"]
+}
+```
+
+携带网关 Bearer Key 访问 `POST /v1/alpha/search` 或 `POST /backend-api/codex/alpha/search`。启用 `unversioned_paths` 后可访问 `POST /alpha/search`。在 Codex 搜索请求中填入公开模型名。
+
+网关保留上游搜索结果及加密输出。启用用量持久化后，记录成功的独立搜索请求及上游报告的 Token。此模式要求上游凭证具有 Alpha Search 权限。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

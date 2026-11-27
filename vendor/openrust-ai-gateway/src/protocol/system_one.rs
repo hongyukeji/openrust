@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, fmt};
 
-use futures_util::StreamExt as _;
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{self, MapAccess, Visitor},
@@ -9,7 +8,7 @@ use serde_json::Map;
 
 use super::{
     Call, HttpFuture, HttpResult, Protocol, Request, Response, StatusCode, TextEndpoint, Value,
-    client, downstream_headers, json, relay, usage_storage_failure,
+    bounded_json_object, client, downstream_headers, json, relay, usage_storage_failure,
 };
 
 pub(super) fn route(request: &mut Request) -> HttpFuture<'_, HttpResult> {
@@ -117,7 +116,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Map<String, Value>, &'static str> {
 pub(super) async fn respond(upstream: client::Response, name: &str, mut call: Call) -> HttpResult {
     let status = upstream.status();
     let headers = downstream_headers(upstream.headers());
-    let data = response_object(upstream).await;
+    let data = bounded_json_object(upstream, 4 * 1024 * 1024).await;
     call.release().await;
     let Some(mut data) = data else {
         call.outcome("invalid_upstream_response");
@@ -147,20 +146,6 @@ pub(super) async fn respond(upstream: client::Response, name: &str, mut call: Ca
         return usage_storage_failure(Protocol::OpenAi, &mut call).response;
     }
     Response::json(status, data).map(|response| response.with_headers(headers))
-}
-
-async fn response_object(upstream: client::Response) -> Option<Map<String, Value>> {
-    const LIMIT: usize = 4 * 1024 * 1024;
-    let mut stream = upstream.into_stream().ok()?;
-    let mut body = Vec::new();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.ok()?;
-        if chunk.len() > LIMIT - body.len() {
-            return None;
-        }
-        body.extend_from_slice(&chunk);
-    }
-    serde_json::from_slice(&body).ok()
 }
 
 fn reported_tokens(value: &Value) -> Option<u64> {

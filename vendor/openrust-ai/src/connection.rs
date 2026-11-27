@@ -162,12 +162,20 @@ impl Connection {
     }
 
     pub(crate) fn request(&self, timeout: Option<Duration>) -> AiResult<PendingRequest> {
+        self.request_with_headers(timeout, self.headers.clone())
+    }
+
+    fn request_with_headers(
+        &self,
+        timeout: Option<Duration>,
+        headers: HeaderMap,
+    ) -> AiResult<PendingRequest> {
         let mut request = self
             .http
             .pending_request()
             .base_url(&self.config.url)
             .without_redirecting()
-            .replace_headers(self.headers.clone())
+            .replace_headers(headers)
             .redact_payload()
             .timeout(timeout.unwrap_or(Duration::from_secs(60)));
         if self.config.forward_usage_context
@@ -203,6 +211,39 @@ impl Connection {
             };
         }
         Ok(request)
+    }
+
+    pub(crate) async fn alpha_search(
+        &self,
+        body: &Value,
+        query: Option<&str>,
+        metadata: Option<HeaderValue>,
+    ) -> AiResult<Response> {
+        let mut headers = self.headers.clone();
+        for name in [
+            "openai-beta",
+            "responses-lite",
+            "x-codex-responses-lite",
+            "session_id",
+            "session-id",
+            "conversation_id",
+            "conversation-id",
+            "x-codex-beta-features",
+            "x-codex-turn-state",
+        ] {
+            headers.remove(name);
+        }
+        if let Some(metadata) = metadata {
+            headers.entry("x-codex-turn-metadata").or_insert(metadata);
+        }
+        let path = TextEndpoint::AlphaSearch.path();
+        let url = query.map_or_else(|| path.to_owned(), |query| format!("{path}?{query}"));
+        self.request_with_headers(None, headers)?
+            .accept_json()
+            .stream()
+            .post(&url, body)
+            .await
+            .map_err(transport_error)
     }
 
     fn credential(&self) -> AiResult<Option<&str>> {
