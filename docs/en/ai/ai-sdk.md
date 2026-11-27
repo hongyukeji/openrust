@@ -260,7 +260,9 @@ For server-side compaction in a normal Responses call, set `"context_management"
 
 Set `"responses_state": true` on a public model backed by a native OpenAI Responses connection. Send `"store": true` when creating a response. JSON, SSE and WebSocket return an opaque `resp_or_` ID. With the same gateway Key and public model, use that ID as `previous_response_id` in another HTTP or WebSocket call. Set `store` again to retain the new response.
 
-Use `GET /v1/responses/{response_id}` to retrieve a stored response and `DELETE /v1/responses/{response_id}` to delete it. Retrieval returns JSON and omits the upstream parent ID. Keep the application encryption key and upstream credentials consistent across gateway instances. The upstream connection stores the response and determines retention. This setting covers stored responses created during normal generation. Background runs, cancellation, input-item listing and shared upstream resource references are outside this setting.
+Use `GET /v1/responses/{response_id}` to retrieve a stored response and `DELETE /v1/responses/{response_id}` to delete it. Retrieval returns JSON and omits the upstream parent ID. Keep the application encryption key and upstream credentials consistent across gateway instances. The upstream connection stores the response and determines retention. This setting covers stored responses created during normal generation. Background runs, cancellation, streamed retrieval and shared upstream resource references are outside this setting.
+
+Use `GET /v1/responses/{response_id}/input_items` to inspect the saved inputs. The endpoint supports `limit` (1–100), `order` (`asc` or `desc`) and `include`. When `has_more` is true, pass the returned `last_id` as `after` on the same response. The gateway checks that the cursor belongs to that response and Key before contacting the upstream.
 
 ### Responses over WebSocket {#responses-websocket}
 

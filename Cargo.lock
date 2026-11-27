@@ -4677,6 +4677,7 @@ dependencies = [
  "axum",
  "eventsource-stream",
  "futures-util",
+ "hmac-sha256",
  "http",
  "multer",
  "openrust-ai",
@@ -4687,6 +4688,7 @@ dependencies = [
  "subtle",
  "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]

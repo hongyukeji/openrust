@@ -44,6 +44,7 @@
   - [x] [独立 Compact 暴露、归属与回放](gateway.md#responses-独立压缩与归属校验)已通过本地三库。
   - [x] [服务端压缩阈值、主动触发、三种响应传输与内联回放](gateway.md#responses-服务端压缩)已在本地三库验收。
   - [x] [显式保存、HTTP／WebSocket 续接、查询与删除、归属及凭证隔离](gateway.md#responses-持久响应与归属续接)已通过本地三库。
+  - [x] [输入条目分页、跨进程游标、归属隔离及压缩项回放](gateway.md#responses-输入条目分页)已通过本地三库。
 - [ ] **G05 Responses 上游 WebSocket**。验证上游握手、复用、断线、取消、续接和终态。
 - [ ] **G06 WebSocket 预热**。核对适用上游、出站与用量归属，以及失败后的连接状态。
 - [ ] **G07 WebSocket 实时转向**。验证生成中转向、旧分支状态、并行隔离和回合终态。

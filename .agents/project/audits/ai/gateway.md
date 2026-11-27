@@ -515,7 +515,7 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前�
 
 | 仍缺基础操作的固定基线路由族 | 关联任务 |
 |---|---|
-| 其余适用的 Responses 状态与资源子路径 | G04 按固定基线逐条裁决。已验收 [`/v1` 持久响应读取和删除](#responses-持久响应与归属续接)，后台状态和剩余资源子路径仍待验。 |
+| 其余适用的 Responses 状态与资源子路径 | G04 按固定基线逐条裁决。已验收 [`/v1` 持久响应读取和删除](#responses-持久响应与归属续接)及[输入条目分页](#responses-输入条目分页)，后台状态和剩余资源子路径仍待验。 |
 | `POST /images/{generations,edits}/async` 和 `GET /images/tasks/{id}` | G09 与 G10 的任务归属与读取 |
 | `/videos`、`/videos/{generations,edits,extensions}` 及其状态和内容路由 | G13 的视频任务与下载 |
 | `/contents/generations/tasks` 及任务查询和删除 | G14 的 Seedance 路径族及所有权 |
@@ -552,7 +552,7 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立进程和 OpenAI 协议夹�
 
 公开模型以 `responses_state: true` 显式开放持久响应，需要原生 OpenAI Responses 连接。创建时传 `store: true`，在 JSON、SSE 和 WebSocket 中获得同一响应的受保护标识。标识绑定下游 Key、公开模型、实际连接和上游凭证指纹。续接仅回到原连接，派发后不自动换账号重试。历史输入无法从续接请求估算，硬预算沿用未知成本策略。上游保存响应，网关通过现有加密服务保护标识。
 
-`GET /v1/responses/{response_id}` 读取 JSON，`DELETE /v1/responses/{response_id}` 删除。资源操作复用现有 Key 准入与账号并发限制，不创建生成用量记录。读取隐藏上游的父响应标识。固定 Sub2API 基线的根路径和 Codex 路由没有这两个资源操作。后台执行、取消、流式读取、输入条目及其他共享上游资源由 G04 继续审计。
+`GET /v1/responses/{response_id}` 读取 JSON，`DELETE /v1/responses/{response_id}` 删除。资源操作复用现有 Key 准入与账号并发限制，不创建生成用量记录。读取隐藏上游的父响应标识。固定 Sub2API 基线的根路径和 Codex 路由没有这两个资源操作。输入条目见下一节。后台执行、取消、流式读取及其他共享上游资源由 G04 继续审计。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过独立 HTTP 服务和上游协议夹具核对路由缓存、缓冲创建、SSE 标识一致、重启后的 HTTP 读取及 HTTP／WebSocket 续接、删除后 404。跨 Key、跨模型、上游凭证变化、标识篡改和直接传入上游 ID 均在出站前拒绝。成功的四次生成分别记录 14／2 Token，读取和删除不产生生成记录。Artisan 按请求查询通过。另在 SQLite 验证硬预算在出站前拒绝无法预估的历史续接，和两种压缩的独立回归。16 项 Rust 回归、两个 AI 包的严格库级 Clippy 和三语文档构建通过。全仓格式检查仍报告 Fortify 和框架测试的既有差异，全仓 Clippy 仍报告核心框架的四项既有告警。生产上游的实际权限、保留周期和费用继续按实机矩阵核对。
 
@@ -560,6 +560,16 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过独立 HTTP 服务和上游协�
 - [OpenAI Responses 读取](https://developers.openai.com/api/reference/resources/responses/methods/retrieve)
 - [OpenAI Responses 删除](https://developers.openai.com/api/reference/resources/responses/methods/delete)
 - [OpenAI 会话续接与历史用量](https://developers.openai.com/api/docs/guides/conversation-state)
+
+### Responses 输入条目分页
+
+按 OpenAI 原生契约开放 `GET /v1/responses/{response_id}/input_items`，沿用持久响应的 Key、公开模型与实际连接绑定，以及请求频率和账号并发限制。支持 `limit`、`order`、官方 `include` 字段及 `after`，接收重复 `include` 和 `include[]` 两种数组写法。条目 ID、`first_id` 和 `last_id` 共用稳定签名，签名绑定原响应及其归属。校验通过后只把原游标转交原连接。输入条目中的压缩项沿用加密保护，回放时还原上游原 ID 与原密文。固定 Sub2API 基线的根路径和 Codex 路由未注册该操作。
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过实际网关 HTTP 与 OpenAI 协议夹具验证路由缓存、重复查询 ID 一致、两种 include 编码、跨进程分页、空页、压缩项回放、无效查询及损坏上游页。跨 Key、跨响应游标、伪造游标和上游凭证变更均在出站前拒绝。四次生成的 14／2 Token 照常持久化，分页没有生成用量记录。Artisan 按请求核对通过。另通过 SQLite 持久响应及两种压缩回归、16 项 Rust 回归、两个 AI 包严格库级 Clippy 和三语文档构建。生产上游权限继续按实机矩阵验证。
+
+- [OpenAI Responses 输入条目列表](https://developers.openai.com/api/reference/resources/responses/subresources/input_items/methods/list)
+- [OpenAI Python SDK 分页入口](https://github.com/openai/openai-python/blob/main/src/openai/resources/responses/input_items.py)
+- [固定 Sub2API Responses 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L241)
 
 ### xAI 自定义音色
 

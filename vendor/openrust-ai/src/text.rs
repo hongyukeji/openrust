@@ -279,6 +279,14 @@ pub trait TextProvider: Send + Sync {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
     }
 
+    fn response_input_items<'a>(
+        &'a self,
+        _id: &'a str,
+        _query: &'a [(String, String)],
+    ) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
     fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
         None
@@ -999,15 +1007,7 @@ impl TextProvider for OpenAiTextProvider {
             if !self.supports_response_state() {
                 return Err(AiError::EndpointNotSupported);
             }
-            if !id.starts_with("resp_")
-                || id.len() > 128
-                || !id
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-            {
-                return Err(AiError::InvalidPrompt);
-            }
-            let path = format!("responses/{id}");
+            let path = response_path(id)?;
             let client = self.connection.request(None)?;
             let response = if delete {
                 client.send(http::Method::DELETE, &path).await
@@ -1015,6 +1015,31 @@ impl TextProvider for OpenAiTextProvider {
                 client.get(&path).await
             };
             response.map_err(transport_error)
+        })
+    }
+
+    fn response_input_items<'a>(
+        &'a self,
+        id: &'a str,
+        query: &'a [(String, String)],
+    ) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async move {
+            if !self.supports_response_state() {
+                return Err(AiError::EndpointNotSupported);
+            }
+            let mut path = format!("{}/input_items", response_path(id)?);
+            if !query.is_empty() {
+                let encoded = url::form_urlencoded::Serializer::new(String::new())
+                    .extend_pairs(query.iter().map(|(key, value)| (key, value)))
+                    .finish();
+                path.push('?');
+                path.push_str(&encoded);
+            }
+            self.connection
+                .request(None)?
+                .get(&path)
+                .await
+                .map_err(transport_error)
         })
     }
 
@@ -1356,6 +1381,18 @@ impl OpenAiTextProvider {
         }
         Ok(body)
     }
+}
+
+fn response_path(id: &str) -> AiResult<String> {
+    if !id.starts_with("resp_")
+        || !(6..=128).contains(&id.len())
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    {
+        return Err(AiError::InvalidPrompt);
+    }
+    Ok(format!("responses/{id}"))
 }
 
 impl StepTextGateway for OpenAiTextProvider {

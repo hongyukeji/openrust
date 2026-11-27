@@ -67,6 +67,8 @@ pub(super) struct Context {
 struct Payload {
     scope: String,
     id: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    upstream_id: Option<Value>,
     token: String,
 }
 
@@ -97,23 +99,26 @@ impl Context {
                     .iter_mut()
                     .filter(|item| is_compaction(item))
                     .all(|item| {
-                        let Some(token) = self.open(item) else {
+                        let Some(payload) = self.open(item) else {
                             return false;
                         };
-                        item["encrypted_content"] = token.into();
+                        if let Some(id) = payload.upstream_id {
+                            item["id"] = id;
+                        }
+                        item["encrypted_content"] = payload.token.into();
                         true
                     })
             })
     }
 
-    fn open(&self, item: &Value) -> Option<String> {
+    fn open(&self, item: &Value) -> Option<Payload> {
         let token = item["encrypted_content"].as_str()?.strip_prefix(PREFIX)?;
         let data = self.crypt.decrypt_string(token).ok()?;
         let payload: Payload = serde_json::from_slice(&data).ok()?;
-        (payload.scope == self.scope && payload.id == item["id"]).then_some(payload.token)
+        (payload.scope == self.scope && payload.id == item["id"]).then_some(payload)
     }
 
-    fn wrap(&mut self, item: &Value) -> Option<String> {
+    fn wrap(&mut self, item: &Value, upstream_id: Option<Value>) -> Option<String> {
         let token = item["encrypted_content"].as_str()?;
         if token.trim().is_empty() {
             return None;
@@ -121,6 +126,7 @@ impl Context {
         let data = serde_json::to_vec(&Payload {
             scope: self.scope.clone(),
             id: item["id"].clone(),
+            upstream_id,
             token: token.into(),
         })
         .ok()?;
@@ -143,7 +149,7 @@ impl Context {
         };
         let mut protected = false;
         for item in output.iter_mut().filter(|item| is_compaction(item)) {
-            let Some(token) = self.wrap(item) else {
+            let Some(token) = self.wrap(item, None) else {
                 return false;
             };
             item["encrypted_content"] = token.into();
@@ -151,6 +157,21 @@ impl Context {
         }
         protected
     }
+}
+
+pub(super) fn protect_list_item(
+    item: &mut Value,
+    context: Option<&mut Context>,
+    upstream_id: Value,
+) -> bool {
+    if !is_compaction(item) {
+        return true;
+    }
+    let Some(token) = context.and_then(|context| context.wrap(item, Some(upstream_id))) else {
+        return false;
+    };
+    item["encrypted_content"] = token.into();
+    true
 }
 
 pub(super) fn protect_output(
@@ -191,7 +212,7 @@ fn protect_item(item: &mut Value, context: Option<&mut Context>, complete: bool)
         }
         return true;
     }
-    let Some(token) = context.and_then(|context| context.wrap(item)) else {
+    let Some(token) = context.and_then(|context| context.wrap(item, None)) else {
         return false;
     };
     item["encrypted_content"] = token.into();

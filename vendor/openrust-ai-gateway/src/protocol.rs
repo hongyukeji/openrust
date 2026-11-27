@@ -52,6 +52,10 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         shared_routes(router)?;
         router.get("/responses/{response_id}", response_state::get)?;
         router.delete("/responses/{response_id}", response_state::delete)?;
+        router.get(
+            "/responses/{response_id}/input_items",
+            response_state::input_items,
+        )?;
         router.post("/messages", messages)?;
         router.post("/systemone", system_one::route)?;
         router.get("/usage", usage_summary::show)?;

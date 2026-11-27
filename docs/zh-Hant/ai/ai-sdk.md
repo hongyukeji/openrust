@@ -260,7 +260,9 @@ Schedule::configure(|schedule| {
 
 在使用原生 OpenAI Responses 連線的公開模型上設定 `"responses_state": true`，建立請求傳入 `"store": true`。JSON、SSE 和 WebSocket 均傳回不透明的 `resp_or_` 識別碼。使用同一閘道 Key 和公開模型，把此識別碼作為 `previous_response_id` 即可透過 HTTP 或 WebSocket 續接。需要儲存新回應時再次設定 `store`。
 
-透過 `GET /v1/responses/{response_id}` 讀取已儲存的回應，透過 `DELETE /v1/responses/{response_id}` 刪除。讀取傳回 JSON，並隱藏上游的父回應識別碼。各閘道執行個體應使用同一應用程式加密金鑰和上游憑證。回應由上游連線儲存，保留期限由上游決定。此設定適用於一般生成時儲存回應。背景執行、取消、輸入項目清單及共用上游資源引用另行處理。
+透過 `GET /v1/responses/{response_id}` 讀取已儲存的回應，透過 `DELETE /v1/responses/{response_id}` 刪除。讀取傳回 JSON，並隱藏上游的父回應識別碼。各閘道執行個體應使用同一應用程式加密金鑰和上游憑證。回應由上游連線儲存，保留期限由上游決定。此設定適用於一般生成時儲存回應。背景執行、取消、串流讀取及共用上游資源引用另行處理。
+
+透過 `GET /v1/responses/{response_id}/input_items` 查看已儲存的輸入，支援 `limit`（1–100）、`order`（`asc` 或 `desc`）和 `include`。當 `has_more` 為真時，在相同回應的下一次查詢中把傳回的 `last_id` 傳給 `after`。閘道轉送前會驗證游標是否屬於該回應和 Key。
 
 ### Responses WebSocket {#responses-websocket}
 

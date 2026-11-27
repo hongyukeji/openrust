@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use hmac_sha256::HMAC;
 use openrust::{encryption::Encrypter, support::facades::Crypt};
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
+use subtle::ConstantTimeEq;
 
 use super::{
     Admission, AiError, Facade as _, Gateway, HttpFuture, HttpResult, Key, Protocol, Request,
@@ -11,6 +13,7 @@ use super::{
 };
 
 const PREFIX: &str = "resp_or_";
+const ITEM_PREFIX: &str = "item_or_";
 const PROTOCOL: Protocol = Protocol::OpenAi;
 
 #[derive(Serialize, Deserialize)]
@@ -201,29 +204,42 @@ fn read(crypt: &Encrypter, id: &str) -> Option<Binding> {
 }
 
 pub(super) fn get(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(resource(request, false))
+    Box::pin(resource(request, Resource::Get))
 }
 
 pub(super) fn delete(request: &mut Request) -> HttpFuture<'_, HttpResult> {
-    Box::pin(resource(request, true))
+    Box::pin(resource(request, Resource::Delete))
 }
 
-async fn resource(request: &mut Request, delete: bool) -> HttpResult {
+pub(super) fn input_items(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(resource(request, Resource::InputItems))
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum Resource {
+    Get,
+    Delete,
+    InputItems,
+}
+
+async fn resource(request: &mut Request, resource: Resource) -> HttpResult {
     let gateway = Gateway::get_facade_root()?;
     let key = match authorize(&gateway, PROTOCOL.token(request), PROTOCOL).await {
         Ok(key) => key,
         Err(response) => return response,
     };
-    if request.uri().query().is_some_and(|query| !query.is_empty()) {
+    if resource != Resource::InputItems
+        && request.uri().query().is_some_and(|query| !query.is_empty())
+    {
         return PROTOCOL.error(
             StatusCode::BAD_REQUEST,
             "unsupported_parameter",
             "持久响应读取仅支持 JSON",
         );
     }
-    let Some((id, binding)) = request.route("response_id").and_then(|id| {
+    let Some((id, binding, crypt)) = request.route("response_id").and_then(|id| {
         let crypt = Crypt::get_facade_root().ok()?;
-        Some((id, read(&crypt, id)?))
+        Some((id, read(&crypt, id)?, crypt))
     }) else {
         return not_found();
     };
@@ -244,6 +260,16 @@ async fn resource(request: &mut Request, delete: bool) -> HttpResult {
             })
     else {
         return not_found();
+    };
+    let query = if resource == Resource::InputItems {
+        match items_query(request, &crypt, &binding) {
+            Ok(query) => query,
+            Err(message) => {
+                return PROTOCOL.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        Vec::new()
     };
     if let Some(response) = admit(&key, PROTOCOL).await? {
         return Ok(response);
@@ -266,10 +292,20 @@ async fn resource(request: &mut Request, delete: bool) -> HttpResult {
     } else {
         None
     };
-    let result = target
-        .provider
-        .response_resource(&binding.upstream, delete)
-        .await;
+    let result = match resource {
+        Resource::Get | Resource::Delete => {
+            target
+                .provider
+                .response_resource(&binding.upstream, resource == Resource::Delete)
+                .await
+        }
+        Resource::InputItems => {
+            target
+                .provider
+                .response_input_items(&binding.upstream, &query)
+                .await
+        }
+    };
     if let Some(lease) = lease {
         let _ = lease.release().await;
     }
@@ -304,22 +340,165 @@ async fn resource(request: &mut Request, delete: bool) -> HttpResult {
         .supports_for(TextEndpoint::CompactResponses, &key)
         .then(|| compact::Context::new(&key, &binding.model, target))
         .flatten();
-    if data["id"].as_str() != Some(binding.upstream.as_str())
-        || !compact::protect_output(&mut data, context.as_mut(), true)
-    {
-        return PROTOCOL.error(
-            StatusCode::BAD_GATEWAY,
-            "invalid_upstream_response",
-            "上游未返回匹配的持久响应",
-        );
+    if resource == Resource::InputItems {
+        if !protect_items(&mut data, &binding, &crypt, context.as_mut()) {
+            return malformed();
+        }
+    } else {
+        if data["id"].as_str() != Some(binding.upstream.as_str())
+            || !compact::protect_output(&mut data, context.as_mut(), true)
+        {
+            return malformed();
+        }
+        data["id"] = id.into();
+        if let Some(previous) = data.get_mut("previous_response_id") {
+            *previous = Value::Null;
+        }
+        rename_model(&mut data, &binding.model);
     }
-    data["id"] = id.into();
-    if let Some(previous) = data.get_mut("previous_response_id") {
-        *previous = Value::Null;
-    }
-    rename_model(&mut data, &binding.model);
     Response::json(reply.status(), data)
         .map(|response| response.with_headers(downstream_headers(reply.headers())))
+}
+
+fn item_signature(key: &[u8], binding: &Binding, item: &str) -> String {
+    let message = crate::session_affinity::key(&[
+        "responses-input-item",
+        &binding.scope,
+        &binding.upstream,
+        item,
+    ]);
+    let signature: sha2::digest::Output<sha2::Sha256> = HMAC::mac(message, key).into();
+    format!("{signature:x}")
+}
+
+fn open_cursor<'a>(crypt: &Encrypter, binding: &Binding, cursor: &'a str) -> Option<&'a str> {
+    let (item, signature) = cursor.strip_prefix(ITEM_PREFIX)?.split_once('.')?;
+    if !valid_item_id(item) || signature.len() != 64 {
+        return None;
+    }
+    crypt
+        .get_all_keys()
+        .into_iter()
+        .any(|key| {
+            bool::from(
+                signature
+                    .as_bytes()
+                    .ct_eq(item_signature(key, binding, item).as_bytes()),
+            )
+        })
+        .then_some(item)
+}
+
+fn items_query(
+    request: &Request,
+    crypt: &Encrypter,
+    binding: &Binding,
+) -> Result<Vec<(String, String)>, &'static str> {
+    let mut query = Vec::<(String, String)>::new();
+    let mut includes = 0;
+    for (name, value) in
+        url::form_urlencoded::parse(request.uri().query().unwrap_or_default().as_bytes())
+    {
+        let name = name.as_ref();
+        if name != "include" && name != "include[]" && query.iter().any(|(key, _)| key == name) {
+            return Err("输入条目查询参数重复");
+        }
+        match name {
+            "after" => {
+                let item = open_cursor(crypt, binding, &value)
+                    .ok_or("after 须使用此响应的输入条目标识")?;
+                query.push((name.into(), item.into()));
+            }
+            "limit"
+                if value
+                    .parse::<u8>()
+                    .is_ok_and(|limit| (1..=100).contains(&limit)) =>
+            {
+                query.push((name.into(), value.into_owned()));
+            }
+            "order" if matches!(value.as_ref(), "asc" | "desc") => {
+                query.push((name.into(), value.into_owned()));
+            }
+            "include" | "include[]"
+                if matches!(
+                    value.as_ref(),
+                    "file_search_call.results"
+                        | "web_search_call.results"
+                        | "web_search_call.action.sources"
+                        | "message.input_image.image_url"
+                        | "computer_call_output.output.image_url"
+                        | "code_interpreter_call.outputs"
+                        | "reasoning.encrypted_content"
+                        | "message.output_text.logprobs"
+                ) =>
+            {
+                includes += 1;
+                if includes > 8 {
+                    return Err("include 字段过多");
+                }
+                query.push(("include".into(), value.into_owned()));
+            }
+            _ => return Err("输入条目查询参数无效"),
+        }
+    }
+    Ok(query)
+}
+
+fn valid_item_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn protect_items(
+    data: &mut Value,
+    binding: &Binding,
+    crypt: &Encrypter,
+    mut compact: Option<&mut compact::Context>,
+) -> bool {
+    if data["object"] != "list" || !data["has_more"].is_boolean() {
+        return false;
+    }
+    let first = data["first_id"].clone();
+    let last = data["last_id"].clone();
+    let Some(items) = data["data"].as_array_mut() else {
+        return false;
+    };
+    if items.is_empty() {
+        return first.is_null() && last.is_null() && data["has_more"] == false;
+    }
+    if items.len() > 100 || items[0]["id"] != first || items[items.len() - 1]["id"] != last {
+        return false;
+    }
+    for item in items.iter_mut() {
+        let Some(raw) = item["id"].as_str().filter(|id| valid_item_id(id)) else {
+            return false;
+        };
+        let public = format!(
+            "{ITEM_PREFIX}{raw}.{}",
+            item_signature(crypt.get_key(), binding, raw)
+        );
+        let upstream_id = item["id"].clone();
+        item["id"] = public.into();
+        if !compact::protect_list_item(item, compact.as_deref_mut(), upstream_id) {
+            return false;
+        }
+    }
+    let first = items[0]["id"].clone();
+    let last = items[items.len() - 1]["id"].clone();
+    data["first_id"] = first;
+    data["last_id"] = last;
+    true
+}
+
+fn malformed() -> HttpResult {
+    PROTOCOL.error(
+        StatusCode::BAD_GATEWAY,
+        "invalid_upstream_response",
+        "上游未返回有效的持久响应资源",
+    )
 }
 
 fn not_found() -> HttpResult {
