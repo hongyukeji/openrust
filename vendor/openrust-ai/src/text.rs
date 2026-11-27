@@ -301,6 +301,10 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    fn xai_custom_voice_gateway(&self) -> Option<&dyn crate::XaiCustomVoiceGateway> {
+        None
+    }
+
     fn supports_endpoint(&self, _endpoint: TextEndpoint) -> bool {
         false
     }
@@ -993,6 +997,11 @@ impl TextProvider for OpenAiTextProvider {
                 embeddings: None,
             }) as Arc<dyn RerankingProvider>
         })
+    }
+
+    fn xai_custom_voice_gateway(&self) -> Option<&dyn crate::XaiCustomVoiceGateway> {
+        matches!(self.protocol, OpenAiProtocol::Xai)
+            .then(|| self.connection.as_ref() as &dyn crate::XaiCustomVoiceGateway)
     }
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {

@@ -34,6 +34,7 @@ mod image_upload;
 mod resources;
 mod usage_summary;
 mod websocket;
+mod xai_custom_voices;
 mod xai_speech;
 mod xai_transcription;
 
@@ -80,6 +81,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router
         .post("/stt", xai_transcription)?
         .streaming_body(xai_transcription::MAX_BODY_BYTES);
+    xai_custom_voices::routes(router)?;
     router.post("/messages/count_tokens", count_message_tokens)?;
     responses_routes(router)
 }
@@ -572,6 +574,22 @@ async fn relay(
             "该模型不支持此端点",
         );
     }
+    let custom_voice = if endpoint == TextEndpoint::XaiTextToSpeech {
+        if let Some(id) = data
+            .get("voice_id")
+            .and_then(Value::as_str)
+            .filter(|id| !xai_speech::builtin_voice(id))
+        {
+            match xai_custom_voices::load(&gateway, key, id).await {
+                Ok(voice) => Some(voice),
+                Err(response) => return response,
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     if endpoint.is_image()
         && (data.get("file_id").is_some_and(|value| !value.is_null())
             || data.values().any(resources::image_file_references))
@@ -846,6 +864,9 @@ async fn relay(
             gemini_cache
                 .as_ref()
                 .is_none_or(|cache| gemini_caches::cache_matches(cache, target))
+                && custom_voice.as_ref().is_none_or(|voice| {
+                    xai_custom_voices::scope(&name, target).as_ref() == Some(&voice.scope)
+                })
                 && (!sealed_responses
                     || (*upstream == TextEndpoint::ChatCompletions
                         && target.provider.supports_chat_reasoning_replay()))
@@ -857,6 +878,9 @@ async fn relay(
         .collect();
     if gemini_cache.is_some() && targets.is_empty() {
         return gemini_caches::not_found();
+    }
+    if custom_voice.is_some() && targets.is_empty() {
+        return xai_custom_voices::not_found();
     }
     if native_responses_only && targets.is_empty() {
         return protocol.error(
@@ -886,6 +910,9 @@ async fn relay(
         };
         if let Some(cache) = &gemini_cache {
             payload.insert("cachedContent".into(), json!(cache.upstream_name));
+        }
+        if let Some(voice) = &custom_voice {
+            payload.insert("voice_id".into(), json!(voice.upstream_id));
         }
         if gemini_count_envelope {
             payload = serde_json::Map::from_iter([(

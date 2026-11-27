@@ -305,11 +305,22 @@ Schedule::configure(|schedule| {
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，串流回傳 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音訊。結算後結束 HTTP 回應，取消下載時關閉上游連線。設定 `with_timestamps: true` 會收到含 Base64 音訊及字元級 `audio_timestamps` 的 JSON 回應。共享憑證只能使用 xAI 內建音色。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
+使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，串流回傳 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音訊。結算後結束 HTTP 回應，取消下載時關閉上游連線。設定 `with_timestamps: true` 會收到含 Base64 音訊及字元級 `audio_timestamps` 的 JSON 回應。可使用 xAI 內建音色或[目前 Key 名下的自訂音色](#gateway-custom-voices)。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
 
 啟用持久化用量後，Artisan 按嘗試顯示 `input_characters`。呼叫端的 `/v1/usage` 彙總已送出的字元數，包含失敗嘗試。閘道按原始 `text` 的 Unicode 純量值計數，包含空格和標記。發音替換及文字正規化不改變計數。
 
 在上游與下游費率中分別設定 `speech_per_million_characters`，單位為所選幣別每百萬字元，使用十進位字串。僅供合成的費率可將 `input` 和 `output` 設為 `"0"`。硬預算依所選費率在送出前預占。失敗嘗試可能繼續占用上游預算，直到成本對帳完成。匯入供應商合成彙總帳單時使用 `category: "text_to_speech"`。
+
+### 閘道自訂音色 {#gateway-custom-voices}
+
+發布 xAI [語音合成別名](#gateway-speech)，啟用 `ai_gateway.usage.enabled`，發布並執行最新的 `ai-gateway-migrations`。音色管理與合成使用同一個 Bearer 閘道 Key。上游連線須有 xAI Custom Voices API 權限。xAI 目前要求 Enterprise 帳號開放 API 建立，並有地區限制。xAI 接收最長 120 秒的參考片段。
+
+- `POST /v1/custom-voices` 接收 multipart 參考音訊 `file` 與 `name`、`language` 等選用的 xAI 中繼資料。Key 可用多個合成別名時，加入 `?model=<公開別名>`。閘道經私有暫存檔分塊上傳音訊，資料庫只保存歸屬及上游參照。
+- `GET /v1/custom-voices` 列出目前 Key 名下的音色。`limit` 支援 1 至 1,000，預設為 100。使用回傳的 `pagination_token` 取得下一頁。
+- `GET /v1/custom-voices/{id}` 讀取中繼資料，同一路徑的 `PATCH` 更新指定欄位。省略欄位會保留原值，傳 `null` 會清空該欄位。GET 路徑加 `/audio` 可串流下載原始樣本。`DELETE` 刪除音色並回傳 `{"deleted":true}`。
+- 將回傳的 `voice_id` 與同一個合成別名傳入 `POST /v1/tts`。音色固定使用建立時的連線及上游帳號。更換連線憑證後，該目標無法存取原音色。其他 Key 即使共用上游憑證也無法存取這條音色。
+
+啟用 `unversioned_paths` 後，也可透過 `/custom-voices` 呼叫上述操作。
 
 ### 閘道語音轉錄 {#gateway-transcription}
 

@@ -36,22 +36,7 @@ pub(super) async fn parse(
     directory: &Path,
 ) -> Result<(Map<String, Value>, Vec<(String, Part)>), HttpError> {
     let invalid = || HttpError::InvalidRequest;
-    let boundary = request
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|header| header.to_str().ok())
-        .and_then(|media| multer::parse_boundary(media).ok())
-        .filter(|boundary| (1..=70).contains(&boundary.len()))
-        .ok_or_else(invalid)?;
-    let sizes = multer::SizeLimit::new()
-        .per_field(1024)
-        .for_field("file", MAX_FILE_BYTES);
-    let unread = Arc::new(AtomicUsize::new(0));
-    let mut form = multer::Multipart::with_constraints(
-        multipart_input(request.take_streaming_body()?, unread.clone()),
-        boundary,
-        multer::Constraints::new().size_limit(sizes),
-    );
+    let (mut form, unread) = multipart(request)?;
     let mut fields = Map::new();
     let mut uploads = Vec::new();
     let mut audio = None;
@@ -97,6 +82,28 @@ pub(super) async fn parse(
     Ok((fields, uploads))
 }
 
+pub(super) fn multipart(
+    request: &mut Request,
+) -> Result<(multer::Multipart<'static>, Arc<AtomicUsize>), HttpError> {
+    let boundary = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|header| header.to_str().ok())
+        .and_then(|media| multer::parse_boundary(media).ok())
+        .filter(|boundary| (1..=70).contains(&boundary.len()))
+        .ok_or(HttpError::InvalidRequest)?;
+    let sizes = multer::SizeLimit::new()
+        .per_field(1024)
+        .for_field("file", MAX_FILE_BYTES);
+    let unread = Arc::new(AtomicUsize::new(0));
+    let form = multer::Multipart::with_constraints(
+        multipart_input(request.take_streaming_body()?, unread.clone()),
+        boundary,
+        multer::Constraints::new().size_limit(sizes),
+    );
+    Ok((form, unread))
+}
+
 fn multipart_input(
     body: impl Stream<Item = Result<Bytes, HttpError>> + Send,
     unread: Arc<AtomicUsize>,
@@ -119,7 +126,7 @@ fn multipart_input(
     }
 }
 
-async fn spool_audio(
+pub(super) async fn spool_audio(
     mut field: multer::Field<'_>,
     directory: &Path,
     unread: &AtomicUsize,
@@ -162,6 +169,10 @@ fn audio_format(
             _ => None,
         };
     }
+    audio_container(prefix)
+}
+
+pub(super) fn audio_container(prefix: Vec<u8>) -> Option<(&'static str, &'static str)> {
     let upload = UploadedFile::from_bytes(String::new(), None, prefix.into());
     match upload.extension()? {
         "aac" => Some(("aac", "audio/aac")),
@@ -179,7 +190,7 @@ fn audio_format(
     }
 }
 
-fn multipart_error(error: multer::Error) -> HttpError {
+pub(super) fn multipart_error(error: multer::Error) -> HttpError {
     match error {
         multer::Error::FieldSizeExceeded { .. } | multer::Error::StreamSizeExceeded { .. } => {
             HttpError::PayloadTooLarge

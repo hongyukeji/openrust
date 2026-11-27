@@ -305,11 +305,22 @@ To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize 
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and streams MP3, WAV, PCM, μ-law (`mulaw`), or A-law (`alaw`) audio. The HTTP response finishes after settlement. Cancelling the download closes the upstream stream. Set `with_timestamps: true` for a JSON response containing Base64 audio and character-level `audio_timestamps`. Use built-in xAI voice IDs on shared credentials. With `unversioned_paths` enabled, `POST /tts` is also available.
+Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and streams MP3, WAV, PCM, μ-law (`mulaw`), or A-law (`alaw`) audio. The HTTP response finishes after settlement. Cancelling the download closes the upstream stream. Set `with_timestamps: true` for a JSON response containing Base64 audio and character-level `audio_timestamps`. Use a built-in xAI voice ID or an [owned custom voice](#gateway-custom-voices). With `unversioned_paths` enabled, `POST /tts` is also available.
 
 With usage persistence enabled, Artisan lists `input_characters` for each synthesis attempt. The caller’s `/v1/usage` summaries count characters in dispatched requests, including failed attempts. The gateway counts Unicode scalar values in the original `text` field, including spaces and markers. Pronunciation replacement and text normalization do not alter the count.
 
 Set `speech_per_million_characters` on the upstream and downstream tariffs to price synthesis. Use decimal strings per million characters in the configured currency. Set `input` and `output` to `"0"` for a synthesis-only tariff. Hard budgets reserve funds from the selected rates before dispatch. Failed attempts can retain an upstream reservation until the cost is reconciled. Import supplier synthesis totals with `category: "text_to_speech"`.
+
+### Gateway custom voices {#gateway-custom-voices}
+
+Publish an xAI [speech synthesis alias](#gateway-speech), enable `ai_gateway.usage.enabled`, and publish and run the current `ai-gateway-migrations`. Use the same bearer gateway Key for voice management and synthesis. The upstream connection needs access to the xAI Custom Voices API. xAI currently requires Enterprise access for API creation and restricts it by region. xAI accepts reference clips up to 120 seconds.
+
+- `POST /v1/custom-voices` accepts a multipart reference audio `file` and optional xAI metadata such as `name` and `language`. When the Key can access multiple synthesis aliases, add `?model=<public-alias>`. The gateway streams the reference file through private temporary storage and retains only the ownership and upstream reference in the database.
+- `GET /v1/custom-voices` lists the Key’s voices. Pass `limit` (1–1,000, default 100) and use the returned `pagination_token` for the next page.
+- `GET /v1/custom-voices/{id}` reads metadata. `PATCH` on the same path updates supplied fields. Omit a field to keep its value, or send `null` to clear it. Append `/audio` to a GET request to stream the original sample. `DELETE` removes the voice and returns `{"deleted":true}`.
+- Pass the returned `voice_id` to `POST /v1/tts` with the same alias. The voice stays with the connection and upstream account on which it was created. Changing those credentials makes the old ID unavailable through that target. Other Keys cannot access it even when they share the same upstream credentials.
+
+Enable `unversioned_paths` to expose the same operations under `/custom-voices`.
 
 ### Gateway speech transcription {#gateway-transcription}
 

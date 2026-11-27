@@ -305,11 +305,22 @@ Schedule::configure(|schedule| {
 "speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
 ```
 
-使用 Bearer 网关 Key，提交 xAI 的 `text` 和 `language` JSON 字段。Key 恰好能访问一个语音合成别名时，网关会自动选择它。有多个可用别名时，在请求的 `model` 字段指定公开模型名。网关向 xAI 发送原生请求，流式返回 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音频。结算后结束 HTTP 响应，取消下载时关闭上游连接。设置 `with_timestamps: true` 会收到带 Base64 音频及字符级 `audio_timestamps` 的 JSON 响应。共享凭证只能使用 xAI 内置音色。启用 `unversioned_paths` 后也可调用 `POST /tts`。
+使用 Bearer 网关 Key，提交 xAI 的 `text` 和 `language` JSON 字段。Key 恰好能访问一个语音合成别名时，网关会自动选择它。有多个可用别名时，在请求的 `model` 字段指定公开模型名。网关向 xAI 发送原生请求，流式返回 MP3、WAV、PCM、μ-law（`mulaw`）或 A-law（`alaw`）音频。结算后结束 HTTP 响应，取消下载时关闭上游连接。设置 `with_timestamps: true` 会收到带 Base64 音频及字符级 `audio_timestamps` 的 JSON 响应。可使用 xAI 内置音色或[当前 Key 名下的自定义音色](#gateway-custom-voices)。启用 `unversioned_paths` 后也可调用 `POST /tts`。
 
 启用持久化用量后，Artisan 按尝试显示 `input_characters`。调用方的 `/v1/usage` 汇总已出站的字符数，包含失败尝试。网关按原始 `text` 的 Unicode 标量值计数，包含空格和标签。发音替换和文本规范化不改变计数。
 
 在上游和下游费率中分别设置 `speech_per_million_characters`，单位为所选币种每百万字符，使用十进制字符串。仅供合成的费率可将 `input` 和 `output` 设为 `"0"`。硬预算按所选费率在出站前预占。失败尝试可能继续占用上游预算，直到成本对账完成。导入供应商合成汇总账单时使用 `category: "text_to_speech"`。
+
+### 网关自定义音色 {#gateway-custom-voices}
+
+发布 xAI [语音合成别名](#gateway-speech)，启用 `ai_gateway.usage.enabled`，发布并执行最新的 `ai-gateway-migrations`。音色管理与合成使用同一个 Bearer 网关 Key。上游连接须有 xAI Custom Voices API 权限。xAI 目前要求 Enterprise 账号开放 API 创建，并有地区限制。xAI 接收最长 120 秒的参考片段。
+
+- `POST /v1/custom-voices` 接收 multipart 参考音频 `file` 和 `name`、`language` 等可选的 xAI 元数据。Key 可用多个合成别名时，添加 `?model=<公开别名>`。网关经私有临时文件分块上传音频，数据库只保存归属及上游引用。
+- `GET /v1/custom-voices` 列出当前 Key 名下的音色。`limit` 支持 1 至 1,000，默认为 100。使用返回的 `pagination_token` 获取下一页。
+- `GET /v1/custom-voices/{id}` 读取元数据，同一路径的 `PATCH` 更新指定字段。省略字段会保留原值，传 `null` 会清空该字段。GET 路径加 `/audio` 可流式下载原始样本。`DELETE` 删除音色并返回 `{"deleted":true}`。
+- 将返回的 `voice_id` 和同一个合成别名传入 `POST /v1/tts`。音色固定使用创建时的连接和上游账号。更换连接凭证后，该目标无法访问原音色。其他 Key 即使共享上游凭证也无法访问这条音色。
+
+启用 `unversioned_paths` 后，也可通过 `/custom-voices` 调用上述操作。
 
 ### 网关语音转录 {#gateway-transcription}
 

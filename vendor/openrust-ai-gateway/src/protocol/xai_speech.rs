@@ -19,6 +19,12 @@ const BUILTIN_VOICES: &[&str] = &[
     "orion", "perseus", "rigel", "sirius", "ursa", "zagan", "zenith",
 ];
 
+pub(super) fn builtin_voice(voice: &str) -> bool {
+    BUILTIN_VOICES
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(voice))
+}
+
 pub(super) fn implicit_model<'a>(
     gateway: &'a Gateway,
     key: &Key,
@@ -124,15 +130,12 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<(Reply, i64), &'st
     {
         return Err("语音合成需要有效的正文和语言");
     }
-    // 共享凭证不能读取其他调用方的自定义音色。
     if fields.get("voice_id").is_some_and(|voice| {
-        voice.as_str().is_none_or(|voice| {
-            !BUILTIN_VOICES
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(voice))
-        })
+        voice
+            .as_str()
+            .is_none_or(|voice| !builtin_voice(voice) && !super::xai_custom_voices::valid_id(voice))
     }) {
-        return Err("共享语音连接仅支持 xAI 内置音色");
+        return Err("voice_id 无效");
     }
     let Some(format) = fields.get("output_format") else {
         let codec = Codec::Audio(AudioFormat::Mp3);

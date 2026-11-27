@@ -80,6 +80,8 @@ mod usage_observation_migration;
 mod usage_resource_evidence_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs"]
 mod usage_scope_migration;
+#[path = "../database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs"]
+mod xai_custom_voices_migration;
 
 pub use configuration::load as default_config;
 use gateway::Gateway;
@@ -212,6 +214,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs",
         &input_characters_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs",
+        &xai_custom_voices_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -339,6 +345,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs",
                         include_bytes!("../database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000025_create_ai_gateway_xai_custom_voices_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",
