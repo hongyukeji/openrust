@@ -13,7 +13,7 @@
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 和 Bedrock 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
-| `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent?alt=sse`、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。JSON 流和异步批任务仍待核对。 |
+| `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。异步批任务仍待核对。 |
 | `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03／04 待按生命周期核对，依赖租户与账号归属。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |
 
@@ -296,6 +296,14 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过实际 HTTP、独立 Artisan 和
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的本地协议样例验证 OpenAI 竖图请求使用 `768x1152/premium`，Titan 横图使用 `1152x768/standard`，Stability 使用 `3:2/default`。模拟费率下，Titan 双图上游成本为 0.07 USD。分组倍率样例预占 0.10 USD，实际返回一张后扣减 0.05 USD。还复验了 SDK 图片、向量批量、并发预算、中断恢复、网关回归、严格 Clippy 和三语站点。真实 AWS 账户的账单对账待验。Nova Canvas 的历史协议样例来自本地服务，现行 AWS 模型卡标记其已退役，公开示例改用 Stable Image Core。
 
 - [AWS Titan 输出计价档位](https://docs.aws.amazon.com/bedrock/latest/userguide/titan-image-models.html) · [Nova Canvas 生命周期](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-canvas.html) · [Stable Image Core 模型卡](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-stability-ai-stable-image-core-1-0.html)
+
+## GW-03 Gemini JSON 数组与 SSE
+
+`streamGenerateContent` 使用 Google 的 `alt` 协商，缺省或 `json` 逐项返回 JSON 数组，`sse` 返回 SSE。复用原生 Gemini SSE 上游、模型授权、用量观察和结算。输出保留候选、函数调用及思考签名，将模型版本改为公开名。多候选流按索引确认全部结束或收到提示词拦截，待最终用量持久化后交付带终值的响应。缺少终态、传输中断或格式错误时按协商格式交付脱敏错误。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经独立 HTTP、Artisan 和本地 Gemini 协议服务核对首段早于上游结束、UTF-8 跨数据块、`alt=json`、`alt=sse`、`$alt`、分组拒绝、截断、取消、伪终帧、错误响应及私有上游标识隔离。另一个 Artisan 进程在第一候选结束后读到未结算记录，并在最终响应块到达时即能从账本读到结算结果。每个成功样本报告 8 输入、3 候选输出、2 推理 Token，模拟单价下成本 0.018 USD、应收 0.036 USD。18 项网关回归、严格 Clippy 与三语文档通过。固定 DSH 0.2.3-alpha.2 的 Gemini SSE 实际调用通过，同步复验 Chat Completions、Responses 和 Anthropic Messages。正式 Gemini 账户仍待实测。
+
+- [Google API 系统参数](https://cloud.google.com/apis/docs/system-parameters) · [Gemini 流式生成与候选](https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent) · [固定 Sub2API Gemini 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gemini_v1beta_handler.go)
 
 ## GW-03 Gemini 原生向量网关
 

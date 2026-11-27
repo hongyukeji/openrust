@@ -157,7 +157,9 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 同一个 Anthropic 发布模型可供 Messages、Responses 和 Chat Completions 客户端调用。转换支持文本、系统指令、基本采样参数和客户端函数工具，支持 JSON 和 SSE。工具调用 ID、流式参数增量和文本结果可双向传递。结构化输出和附件使用相应的原生端点。
 
-Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key。网关列出授权的 Gemini 模型，并支持 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中选择 `gemini` 连接，模型 ID 可带 `models/` 前缀。
+Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key。网关列出授权的 Gemini 模型，并支持 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent` 和 `:countTokens`。在 SDK 或 Artisan 中选择 `gemini` 连接，模型 ID 可带 `models/` 前缀。
+
+`:streamGenerateContent` 默认以 JSON 数组流式返回。可用 `?alt=json` 显式选择 JSON，或用 `?alt=sse` 选择 SSE。数组中的每一项是一个 Gemini 响应块。流开始后发生错误时，数组末尾会提供 Gemini 错误对象。
 
 公开模型映射可配置 `fallbacks`，依次尝试备用连接。每项填写 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。无状态请求遇到上游 429、5xx 等可重试错误时，网关会尝试备用连接。客户端仍使用同一个公开名，每次尝试用同一个请求 ID 记录。带工具、要求存储输出或已经开始返回的流不参与重放。
 

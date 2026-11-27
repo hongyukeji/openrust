@@ -157,7 +157,9 @@ Both conversion directions support buffered JSON and SSE, and use the published 
 
 The same published Anthropic model can serve Messages, Responses, and Chat Completions clients. Translation supports text, system instructions, basic sampling options and client function tools in JSON and SSE. Tool conversion preserves call IDs, streams argument deltas and accepts text results in both directions. Use a native endpoint for structured output or attachments.
 
-Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent?alt=sse`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.
+Gemini clients use the `/v1beta` API and send the client Key in `x-goog-api-key`. The gateway lists authorized Gemini models and accepts `:generateContent`, `:streamGenerateContent`, and `:countTokens` under `/v1beta/models/{model}`. In the SDK and Artisan, choose the `gemini` connection and enter its model ID with or without the `models/` prefix.
+
+`:streamGenerateContent` streams a JSON array by default. Send `?alt=json` to request it explicitly or `?alt=sse` for server-sent events. Each array element is a Gemini response chunk. A failure after streaming starts appears as a Gemini error object at the end of the array.
 
 Add `fallbacks` to a public model mapping to try backup connections in order. Each entry specifies `provider` and `model`, for example `[{"provider":"openai","model":"backup-model"}]`. The gateway can retry stateless requests after eligible upstream failures, including 429 and 5xx responses. It keeps the same public model and records each attempt under one request ID. Requests with tools or stored output, and streams already sent to the client, are excluded from replay.
 

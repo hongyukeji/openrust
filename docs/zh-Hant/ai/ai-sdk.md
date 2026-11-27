@@ -157,7 +157,9 @@ config["providers"]["sub2api"] = serde_json::json!({
 
 同一個 Anthropic 發佈模型可供 Messages、Responses 和 Chat Completions 用戶端呼叫。轉換支援文字、系統指示、基本取樣參數和用戶端函式工具，支援 JSON 和 SSE。工具呼叫 ID、串流參數增量與文字結果可雙向傳遞。結構化輸出和附件使用對應的原生端點。
 
-Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key。閘道列出已授權的 Gemini 模型，並支援 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent?alt=sse` 和 `:countTokens`。在 SDK 或 Artisan 中選擇 `gemini` 連線，模型 ID 可以帶 `models/` 前綴。
+Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key。閘道列出已授權的 Gemini 模型，並支援 `/v1beta/models/{model}` 下的 `:generateContent`、`:streamGenerateContent` 和 `:countTokens`。在 SDK 或 Artisan 中選擇 `gemini` 連線，模型 ID 可以帶 `models/` 前綴。
+
+`:streamGenerateContent` 預設以 JSON 陣列串流回傳。可用 `?alt=json` 明確選擇 JSON，或用 `?alt=sse` 選擇 SSE。陣列中的每一項是一個 Gemini 回應區塊。串流開始後若發生錯誤，陣列末尾會提供 Gemini 錯誤物件。
 
 公開模型對應可設定 `fallbacks`，依序嘗試備用連線。每項填寫 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。無狀態請求遇到上游 429、5xx 等可重試錯誤時，閘道會嘗試備用連線。用戶端仍使用同一個公開名稱，每次嘗試使用同一個請求 ID 記錄。帶有工具、要求儲存輸出或已開始回傳的串流不會重送。
 

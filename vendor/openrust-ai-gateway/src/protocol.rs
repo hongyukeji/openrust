@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt::Write as _};
+use std::{collections::HashSet, convert::Infallible, fmt::Write as _};
 
 use eventsource_stream::Eventsource as _;
 use futures_util::StreamExt as _;
@@ -353,8 +353,12 @@ impl Protocol {
     }
 
     fn stream_error(self) -> String {
+        format!("event: error\ndata: {}\n\n", self.stream_error_body())
+    }
+
+    fn stream_error_body(self) -> Value {
         let message = localization::error("stream", "上游流未能完成");
-        let error = match self {
+        match self {
             Self::OpenAi => error_body("upstream_error", &message),
             Self::Gemini => {
                 json!({"error":{"code":502,"status":"UNAVAILABLE","message":message}})
@@ -362,8 +366,7 @@ impl Protocol {
             Self::Anthropic => {
                 json!({"type":"error","error":{"type":"api_error","message":message}})
             }
-        };
-        format!("event: error\ndata: {error}\n\n")
+        }
     }
 }
 
@@ -503,17 +506,38 @@ async fn relay(
             "图片端点仅接收当前请求内的图片引用",
         );
     }
-    let streaming = if matches!(protocol, Protocol::Gemini) {
-        endpoint == TextEndpoint::GeminiStreamGenerateContent
+    let stream_format = if endpoint == TextEndpoint::GeminiStreamGenerateContent {
+        let alt = match (request.query(Some("alt")), request.query(Some("$alt"))) {
+            (Ok(None), Ok(value)) | (Ok(value), Ok(None)) => Ok(value),
+            _ => Err(()),
+        };
+        match alt {
+            Ok(None) => Some(StreamFormat::JsonArray { opened: false }),
+            Ok(Some(Value::String(alt))) if alt == "json" => {
+                Some(StreamFormat::JsonArray { opened: false })
+            }
+            Ok(Some(Value::String(alt))) if alt == "sse" => Some(StreamFormat::EventSource),
+            _ => {
+                return protocol.error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_request",
+                    "Gemini 流的 alt 只支持 json 或 sse",
+                );
+            }
+        }
+    } else if matches!(protocol, Protocol::Gemini) {
+        None
     } else {
         match data.get("stream") {
-            None | Some(Value::Bool(false) | Value::Null) => false,
-            Some(Value::String(value)) if uploads.is_some() && value == "false" => false,
-            Some(Value::String(value)) if uploads.is_some() && value == "true" => true,
+            None | Some(Value::Bool(false) | Value::Null) => None,
+            Some(Value::String(value)) if uploads.is_some() && value == "false" => None,
+            Some(Value::String(value)) if uploads.is_some() && value == "true" => {
+                Some(StreamFormat::EventSource)
+            }
             Some(Value::Bool(true))
                 if !endpoint.is_counting() && endpoint != TextEndpoint::Embeddings =>
             {
-                true
+                Some(StreamFormat::EventSource)
             }
             _ => {
                 return protocol.error(
@@ -524,6 +548,21 @@ async fn relay(
             }
         }
     };
+    let stream_options = stream_format.map(|format| StreamOptions {
+        format,
+        gemini_candidates: (endpoint == TextEndpoint::GeminiStreamGenerateContent).then(|| {
+            data.get("generationConfig")
+                .or_else(|| data.get("generation_config"))
+                .and_then(|config| {
+                    config
+                        .get("candidateCount")
+                        .or_else(|| config.get("candidate_count"))
+                })
+                .and_then(Value::as_u64)
+                .filter(|count| *count != 0)
+                .unwrap_or(1)
+        }),
+    });
     let mut native_responses_only = false;
     let mut server_tools = Vec::new();
     if matches!(
@@ -915,7 +954,16 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
-                return respond(upstream, name, endpoint, streaming, protocol, bridge, call).await;
+                return respond(
+                    upstream,
+                    name,
+                    endpoint,
+                    stream_options,
+                    protocol,
+                    bridge,
+                    call,
+                )
+                .await;
             }
             Err(rejected) => {
                 call.settle().await;
@@ -1199,16 +1247,16 @@ async fn respond(
     upstream: client::Response,
     name: String,
     endpoint: TextEndpoint,
-    streaming: bool,
+    stream_options: Option<StreamOptions>,
     protocol: Protocol,
     bridge: Option<Translation>,
     mut call: Call,
 ) -> HttpResult {
+    if let Some(options) = stream_options {
+        return stream(upstream, name, call, protocol, bridge, endpoint, options).await;
+    }
     let status = upstream.status();
     let headers = downstream_headers(upstream.headers());
-    if streaming {
-        return stream(upstream, headers, name, call, protocol, bridge, endpoint).await;
-    }
     call.release().await;
     let Ok(mut data) = upstream.json::<Value>() else {
         call.outcome("invalid_upstream_response");
@@ -1270,16 +1318,104 @@ async fn respond(
     Response::json(status, data).map(|response| response.with_headers(headers))
 }
 
+struct StreamOptions {
+    format: StreamFormat,
+    gemini_candidates: Option<u64>,
+}
+
+fn gemini_finished(data: &Value, candidates: u64, finished: &mut HashSet<u64>) -> bool {
+    fn reason(data: &Value, unspecified: &str) -> bool {
+        data.as_str()
+            .is_some_and(|reason| !reason.is_empty() && reason != unspecified)
+    }
+
+    if let Some(parts) = data["candidates"].as_array() {
+        finished.extend(parts.iter().filter_map(|candidate| {
+            let index = candidate["index"].as_u64().unwrap_or(0);
+            (index < candidates && reason(&candidate["finishReason"], "FINISH_REASON_UNSPECIFIED"))
+                .then_some(index)
+        }));
+    }
+    finished.len() as u64 == candidates
+        || reason(
+            &data["promptFeedback"]["blockReason"],
+            "BLOCK_REASON_UNSPECIFIED",
+        )
+}
+
+enum StreamFormat {
+    EventSource,
+    JsonArray { opened: bool },
+}
+
+impl StreamFormat {
+    fn content_type(&self) -> &'static str {
+        match self {
+            Self::EventSource => "text/event-stream",
+            Self::JsonArray { .. } => "application/json",
+        }
+    }
+
+    fn item(&mut self, data: &Value) -> String {
+        match self {
+            Self::EventSource => format!("data: {data}\n\n"),
+            Self::JsonArray { opened } => {
+                let delimiter = if std::mem::replace(opened, true) {
+                    ','
+                } else {
+                    '['
+                };
+                format!("{delimiter}{data}")
+            }
+        }
+    }
+
+    fn event(&mut self, event: eventsource_stream::Event, data: &Value) -> String {
+        if matches!(self, Self::JsonArray { .. }) {
+            return self.item(data);
+        }
+        let mut frame = String::new();
+        if event.event != "message" {
+            let _ = writeln!(frame, "event: {}", event.event);
+        }
+        if !event.id.is_empty() {
+            let _ = writeln!(frame, "id: {}", event.id);
+        }
+        if let Some(retry) = event.retry {
+            let _ = writeln!(frame, "retry: {}", retry.as_millis());
+        }
+        let _ = writeln!(frame, "data: {data}\n");
+        frame
+    }
+
+    fn error(&mut self, error: &Value) -> String {
+        match self {
+            Self::EventSource => format!("event: error\ndata: {error}\n\n"),
+            Self::JsonArray { .. } => self.item(error) + "]",
+        }
+    }
+
+    fn done(&self) -> &'static str {
+        match self {
+            Self::EventSource => "data: [DONE]\n\n",
+            Self::JsonArray { opened: true } => "]",
+            Self::JsonArray { opened: false } => "[]",
+        }
+    }
+}
+
 async fn stream(
     upstream: client::Response,
-    mut headers: HeaderMap,
     name: String,
     mut call: Call,
     protocol: Protocol,
     bridge: Option<Translation>,
     endpoint: TextEndpoint,
+    options: StreamOptions,
 ) -> HttpResult {
+    let mut format = options.format;
     let status = upstream.status();
+    let mut headers = downstream_headers(upstream.headers());
     let is_sse = upstream
         .headers()
         .get(header::CONTENT_TYPE)
@@ -1306,44 +1442,52 @@ async fn stream(
     };
     headers.insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_static("text/event-stream"),
+        HeaderValue::from_static(format.content_type()),
     );
     // HTTP 正文可能在请求语言作用域退出后才开始读取。
-    let error_frame = protocol.stream_error();
     if let Some(bridge) = bridge {
-        let stream = bridged_stream(body, bridge.stream(name), call, error_frame);
+        let stream = bridged_stream(body, bridge.stream(name), call, protocol.stream_error());
         return Ok(Response::stream(status, stream).with_headers(headers));
     }
+    let error = protocol.stream_error_body();
     let stream = async_stream::stream! {
         let mut events = body.eventsource();
         let mut terminal = false;
+        let mut gemini_completed = HashSet::new();
         while let Some(event) = events.next().await {
             let Ok(event) = event else {
                 call.outcome("stream_error");
                 call.settle().await;
-                yield Ok::<_, Infallible>(error_frame);
+                yield Ok::<_, Infallible>(format.error(&error));
                 return;
             };
             if event.data == "[DONE]" {
-                if (endpoint == TextEndpoint::Responses || endpoint.is_image()) && !terminal {
+                if (endpoint == TextEndpoint::Responses || endpoint.is_image()
+                    || endpoint == TextEndpoint::GeminiStreamGenerateContent) && !terminal {
                     call.outcome("incomplete_stream");
                     call.settle().await;
-                    yield Ok(error_frame);
+                    yield Ok(format.error(&error));
                     return;
                 }
                 if !call.complete().await {
-                    yield Ok(error_frame);
+                    yield Ok(format.error(&error));
                     return;
                 }
-                yield Ok("data: [DONE]\n\n".to_owned());
+                yield Ok(format.done().to_owned());
                 return;
             }
             let Ok(mut data) = serde_json::from_str::<Value>(&event.data) else {
                 call.outcome("stream_error");
                 call.settle().await;
-                yield Ok(error_frame);
+                yield Ok(format.error(&error));
                 return;
             };
+            if endpoint == TextEndpoint::GeminiStreamGenerateContent && !data.is_object() {
+                call.outcome("stream_error");
+                call.settle().await;
+                yield Ok(format.error(&error));
+                return;
+            }
             if matches!(data["type"].as_str(), Some("error" | "response.failed")) || event.event == "error" || data.get("error").is_some_and(|value| !value.is_null()) {
                 call.observe_bedrock_error_usage(&data);
                 if endpoint == TextEndpoint::Responses && data["type"] == "response.failed" {
@@ -1352,7 +1496,7 @@ async fn stream(
                 }
                 call.outcome("upstream_error");
                 call.settle().await;
-                yield Ok(error_frame);
+                yield Ok(format.error(&error));
                 return;
             }
             let ended = match endpoint {
@@ -1366,9 +1510,8 @@ async fn stream(
                 _ => false,
             };
             terminal |= ended;
-            if matches!(protocol, Protocol::Gemini) {
-                terminal |= data["candidates"][0]["finishReason"].as_str().is_some_and(|reason| reason != "FINISH_REASON_UNSPECIFIED")
-                    || data["promptFeedback"]["blockReason"].as_str().is_some_and(|reason| reason != "BLOCK_REASON_UNSPECIFIED");
+            if let Some(candidates) = options.gemini_candidates {
+                terminal |= gemini_finished(&data, candidates, &mut gemini_completed);
             }
             let mut observed = call.observe_usage(&data);
             rename_model(&mut data, &name);
@@ -1384,38 +1527,29 @@ async fn stream(
             let final_usage = ended || (matches!(protocol, Protocol::Gemini)
                 && terminal && data["usageMetadata"]["totalTokenCount"].is_u64());
             if final_usage && !call.complete().await {
-                yield Ok(error_frame);
+                yield Ok(format.error(&error));
                 return;
             }
             if !final_usage && observed && !call.persist_observation().await {
                 call.outcome("usage_storage_error");
-                yield Ok(error_frame);
+                yield Ok(format.error(&error));
                 return;
             }
             if ended && endpoint == TextEndpoint::ChatCompletions && call.hide_chat_usage {
                 continue;
             }
-            let mut frame = String::new();
-            if event.event != "message" {
-                let _ = writeln!(frame, "event: {}", event.event);
-            }
-            if !event.id.is_empty() {
-                let _ = writeln!(frame, "id: {}", event.id);
-            }
-            if let Some(retry) = event.retry {
-                let _ = writeln!(frame, "retry: {}", retry.as_millis());
-            }
-            let _ = writeln!(frame, "data: {data}\n");
-            yield Ok(frame);
+            yield Ok(format.event(event, &data));
         }
         if terminal {
             if !call.complete().await {
-                yield Ok(error_frame);
+                yield Ok(format.error(&error));
+            } else if matches!(format, StreamFormat::JsonArray { .. }) {
+                yield Ok(format.done().to_owned());
             }
         } else {
             call.outcome("incomplete_stream");
             call.settle().await;
-            yield Ok(error_frame);
+            yield Ok(format.error(&error));
         }
     };
     Ok(Response::stream(status, stream).with_headers(headers))

@@ -72,6 +72,7 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
             ("/google/v1beta/models", "application/json", json!({"models":[{"name":"models/private.gemini","displayName":"Private Gemini"}],"nextPageToken":"two"}).to_string()),
             ("/google/v1beta/models?pageToken=two", "application/json", json!({"models":[{"name":"models/second"}]}).to_string()),
             ("/google/v1beta/models/private.gemini:generateContent", "application/json", content),
+            ("/google/v1beta/models/private.gemini:streamGenerateContent?alt=sse", "text/event-stream", sse.clone()),
             ("/google/v1beta/models/private.gemini:streamGenerateContent?alt=sse", "text/event-stream", sse),
             ("/google/v1beta/models/private.gemini:countTokens", "application/json", json!({"totalTokens":8}).to_string()),
         ] {
@@ -203,6 +204,30 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
     .await?;
     let text = std::str::from_utf8(response.streamed_content())?;
     assert!(text.contains("public-gemini") && !text.contains("private.gemini"));
+    let response = send(
+        &mut app,
+        "/v1beta/models/public-gemini:streamGenerateContent?alt=proto",
+        key,
+        Some(input.clone()),
+    )
+    .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = send(
+        &mut app,
+        "/v1beta/models/public-gemini:streamGenerateContent",
+        key,
+        Some(input.clone()),
+    )
+    .await?;
+    let chunks: Vec<Value> = serde_json::from_slice(response.streamed_content())?;
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(chunks[0]["modelVersion"], "public-gemini");
+    assert_eq!(
+        chunks[0]["candidates"][0]["content"]["parts"][0]["text"],
+        "内"
+    );
+    assert_eq!(chunks[1]["candidates"][0]["finishReason"], "STOP");
+    assert_eq!(chunks[1]["usageMetadata"]["candidatesTokenCount"], 2);
     let response = send(
         &mut app,
         "/v1beta/models/public-gemini:countTokens",
