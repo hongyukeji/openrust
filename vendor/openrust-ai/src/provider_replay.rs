@@ -14,6 +14,10 @@ pub(crate) struct ProviderReplay {
 #[serde(rename_all = "snake_case")]
 enum ReplayContent {
     ChatReasoning(String),
+    ChatSignedTurn {
+        token: String,
+        reasoning: Option<String>,
+    },
     OllamaThinking(String),
     ResponsesItems(Vec<Value>),
     BedrockBlocks(Vec<Value>),
@@ -40,32 +44,36 @@ impl ProviderReplay {
             return None;
         }
         let source = content?;
-        let content =
-            if let Some(reasoning) = source.get("reasoning_content").and_then(Value::as_str) {
-                if reasoning.is_empty() {
-                    return None;
-                }
-                ReplayContent::ChatReasoning(reasoning.to_owned())
-            } else if let Some(thinking) = source.get("ollama_thinking").and_then(Value::as_str) {
-                ReplayContent::OllamaThinking(thinking.to_owned())
-            } else if let Some(items) = source.get("responses_items").and_then(Value::as_array) {
-                ReplayContent::ResponsesItems(items.clone())
-            } else if let Some(blocks) = source.get("bedrock_blocks").and_then(Value::as_array) {
-                ReplayContent::BedrockBlocks(blocks.clone())
-            } else if let Some(blocks) = source
-                .as_array()
-                .filter(|blocks| anthropic_replayable(blocks))
-            {
-                ReplayContent::AnthropicBlocks(blocks.clone())
-            } else if let Some(parts) = source
-                .get("parts")
-                .and_then(Value::as_array)
-                .filter(|parts| gemini_replayable(parts))
-            {
-                ReplayContent::GeminiContent(serde_json::json!({"role":"model","parts":parts}))
-            } else {
+        let content = if let Some(token) = source[crate::CHAT_REASONING_REPLAY].as_str() {
+            ReplayContent::ChatSignedTurn {
+                token: token.into(),
+                reasoning: source["reasoning_content"].as_str().map(str::to_owned),
+            }
+        } else if let Some(reasoning) = source.get("reasoning_content").and_then(Value::as_str) {
+            if reasoning.is_empty() {
                 return None;
-            };
+            }
+            ReplayContent::ChatReasoning(reasoning.to_owned())
+        } else if let Some(thinking) = source.get("ollama_thinking").and_then(Value::as_str) {
+            ReplayContent::OllamaThinking(thinking.to_owned())
+        } else if let Some(items) = source.get("responses_items").and_then(Value::as_array) {
+            ReplayContent::ResponsesItems(items.clone())
+        } else if let Some(blocks) = source.get("bedrock_blocks").and_then(Value::as_array) {
+            ReplayContent::BedrockBlocks(blocks.clone())
+        } else if let Some(blocks) = source
+            .as_array()
+            .filter(|blocks| anthropic_replayable(blocks))
+        {
+            ReplayContent::AnthropicBlocks(blocks.clone())
+        } else if let Some(parts) = source
+            .get("parts")
+            .and_then(Value::as_array)
+            .filter(|parts| gemini_replayable(parts))
+        {
+            ReplayContent::GeminiContent(serde_json::json!({"role":"model","parts":parts}))
+        } else {
+            return None;
+        };
         Some(Self {
             scope: scope.into(),
             model: model.into(),
@@ -80,6 +88,14 @@ impl ProviderReplay {
     pub(crate) fn chat_reasoning(&self, scope: &str, model: &str) -> Option<&str> {
         match self.for_scope(scope, model)? {
             ReplayContent::ChatReasoning(reasoning) => Some(reasoning),
+            ReplayContent::ChatSignedTurn { reasoning, .. } => reasoning.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn chat_signed_turn(&self, scope: &str, model: &str) -> Option<&str> {
+        match self.for_scope(scope, model)? {
+            ReplayContent::ChatSignedTurn { token, .. } => Some(token),
             _ => None,
         }
     }

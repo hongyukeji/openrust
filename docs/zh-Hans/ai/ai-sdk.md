@@ -862,7 +862,9 @@ Cohere 读取原生浮点向量和计费输入 Token，Jina 使用 `retrieval.pa
 
 要通过网关发布 Bedrock 模型，在 `config/ai_gateway.rs` 的模型 `endpoints` 中加入 `chat/completions`。客户端用公开模型名调用 `POST /v1/chat/completions`。普通 JSON 和 SSE 都支持前置 system 或 developer 指令、文本历史、最大输出 Token、temperature、top-p 和最多四个停止字符串。设置 `stream_options.include_usage` 为 `true` 可收到末尾用量帧。省略该帧时网关仍记录用量。
 
-此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。需要回放签名推理的工具步骤可用原生 SDK。
+此入口支持文本和客户端函数工具。提交 `tools` 与可选的 `tool_choice`，下一轮保留工具定义，并用带原始 `tool_call_id` 的 `tool` 消息回送每个结果。并行结果会合并为一条 Bedrock 消息。若 `parallel_tool_calls` 为 `false`，网关会拒绝上游一次返回多个调用的响应。流式工具调用在 Bedrock 发出完整参数和最终用量后交付。
+
+Bedrock 随工具调用返回签名推理时，Chat Completions 会在助手消息或一条 SSE 增量里返回 `openrust_reasoning_replay`。续轮将该字段保留在重建的助手消息中，原样提交此前消息与工具调用，再附上工具结果。OpenRust SDK 在工具运行中自动处理该字段。回放使用同一网关 Key、公开模型和 Bedrock 连接，并使用显式 Bearer 或 SigV4 凭证。加密状态有效期一小时，可由共享应用密钥的进程恢复。其他入口中的签名推理可用原生 SDK 处理。
 
 用户消息可附带内联 PNG、JPEG、WebP 图片及 PDF、UTF-8 文本或 Markdown 文档。Chat Completions 在 `image_url.url` 传 Base64 data URL，文档用 `file` 传 `filename` 和 Base64 `file_data`。Responses 使用 `input_image` 和 `input_file`。带文档的消息需同时提供文本块，图片的 `detail` 支持 `auto`。单次请求最多 16 个附件，其中最多 5 份文档。单张图片上限 3.75 MB，每边最多 8,000 像素。单份文档上限 4.5 MB。这两个入口只接受内联数据。
 

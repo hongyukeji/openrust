@@ -13,12 +13,15 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
-use crate::{AiError, AiResult, FinishReason, ReasoningPart, StepEvent, Usage};
+use crate::{
+    AiError, AiResult, CHAT_REASONING_REPLAY, FinishReason, ReasoningPart, StepEvent, Usage,
+};
 
 use super::{
     BedrockMessage, BedrockProvider, ContentBlock, ConversationRole, InferenceConfiguration,
     ReasoningContentBlock, SystemContentBlock, TimeoutConfig,
     chat_media::ChatMedia,
+    chat_replay::{self, ChatReplay},
     chat_tools::{ChatTools, ToolHistory, has_only, wire_call},
     converse_error, finish_reason,
     relay::{error_response, relay_headers, relay_response},
@@ -38,7 +41,10 @@ pub(super) struct ChatRequest<'a> {
 }
 
 impl<'a> ChatRequest<'a> {
-    pub(super) fn parse(body: &'a Value) -> Result<Self, &'static str> {
+    pub(super) fn parse(
+        body: &'a Value,
+        replay: Option<&ChatReplay>,
+    ) -> Result<Self, &'static str> {
         let object = body.as_object().ok_or("Bedrock Chat 请求需要 JSON 对象")?;
         if object.iter().any(|(key, value)| {
             !value.is_null()
@@ -90,10 +96,10 @@ impl<'a> ChatRequest<'a> {
         let mut chat_tools = ChatTools::parse(body)?;
         let mut tool_history = ToolHistory::default();
         let mut media = ChatMedia::default();
-        for message in body["messages"]
+        let wire_messages = body["messages"]
             .as_array()
-            .ok_or("Bedrock Chat 缺少消息列表")?
-        {
+            .ok_or("Bedrock Chat 缺少消息列表")?;
+        for (index, message) in wire_messages.iter().enumerate() {
             let role = message["role"].as_str();
             if role == Some("tool") {
                 messages.extend(tool_history.accept(message)?);
@@ -101,7 +107,13 @@ impl<'a> ChatRequest<'a> {
             }
             tool_history.require_finished()?;
             let allowed = if role == Some("assistant") {
-                &["role", "content", "tool_calls"][..]
+                &[
+                    "role",
+                    "content",
+                    "tool_calls",
+                    "reasoning_content",
+                    CHAT_REASONING_REPLAY,
+                ][..]
             } else {
                 &["role", "content"][..]
             };
@@ -136,20 +148,33 @@ impl<'a> ChatRequest<'a> {
                     } else {
                         text_parts(&message["content"])?
                     };
-                    let mut content: Vec<_> = parts
-                        .into_iter()
-                        .map(|text| ContentBlock::Text(text.into()))
-                        .collect();
-                    for call in &calls {
-                        content.push(
-                            tools::call_block(call).map_err(|_| "无法构造 Bedrock 工具调用")?,
-                        );
-                    }
-                    let native = BedrockMessage::builder()
-                        .role(ConversationRole::Assistant)
-                        .set_content(Some(content))
-                        .build()
-                        .map_err(|_| "无法构造 Bedrock Chat 消息")?;
+                    let native = if let Some(token) = message.get(CHAT_REASONING_REPLAY) {
+                        replay
+                            .ok_or("当前 Bedrock 连接无法回放签名推理")?
+                            .restore(
+                                token,
+                                &wire_messages[..index],
+                                &parts.concat(),
+                                &calls,
+                                now(),
+                            )
+                            .map_err(|_| "Bedrock 签名推理状态无效、已过期或与当前请求不匹配")?
+                    } else {
+                        let mut content: Vec<_> = parts
+                            .into_iter()
+                            .map(|text| ContentBlock::Text(text.into()))
+                            .collect();
+                        for call in &calls {
+                            content.push(
+                                tools::call_block(call).map_err(|_| "无法构造 Bedrock 工具调用")?,
+                            );
+                        }
+                        BedrockMessage::builder()
+                            .role(ConversationRole::Assistant)
+                            .set_content(Some(content))
+                            .build()
+                            .map_err(|_| "无法构造 Bedrock Chat 助手消息")?
+                    };
                     messages.push(native);
                     tool_history.begin(&calls);
                 }
@@ -301,8 +326,10 @@ fn inference(body: &Value) -> Result<Option<InferenceConfiguration>, &'static st
 }
 
 impl BedrockProvider {
-    pub(super) async fn relay_chat(&self, body: Value) -> AiResult<Response> {
-        let request = ChatRequest::parse(&body).map_err(|_| AiError::InvalidPrompt)?;
+    pub(super) async fn relay_chat(&self, body: Value, scope: Option<&str>) -> AiResult<Response> {
+        let replay = ChatReplay::new(self, scope, body["model"].as_str());
+        let request =
+            ChatRequest::parse(&body, replay.as_ref()).map_err(|_| AiError::InvalidPrompt)?;
         let mut chat_tools = request.tools;
         let tool_config = chat_tools.config.take();
         let client = self.client().await?;
@@ -312,6 +339,14 @@ impl BedrockProvider {
         let timeout = aws_sdk_bedrockruntime::config::Builder::new()
             .timeout_config(TimeoutConfig::builder().operation_timeout(duration).build());
         let system = (!request.system.is_empty()).then_some(request.system);
+        let history = replay
+            .as_ref()
+            .filter(|_| tool_config.is_some())
+            .and_then(|_| {
+                body["messages"]
+                    .as_array()
+                    .map(|messages| chat_replay::history(messages))
+            });
         let identity = ChatIdentity::new(body["stream_options"]["include_usage"] == true);
         if request.stream {
             let deadline = tokio::time::Instant::now() + duration;
@@ -349,9 +384,20 @@ impl BedrockProvider {
                     let delta = match event {
                         Ok(StepEvent::TextPartDelta {delta, ..} | StepEvent::TextDelta(delta)) => json!({"content":delta}),
                         Ok(StepEvent::Reasoning(ReasoningPart::Delta {delta,..})) => json!({"reasoning_content":delta}),
-                        Ok(StepEvent::Finished {response,..}) if chat_tools.accepts(response.finish_reason, &response.tool_calls)
-                            && valid_chat_json(structured, response.finish_reason, response.text.as_deref().unwrap_or_default())
-                            && !private_tool_replay(response.provider_content.as_ref()) => {
+                        Ok(StepEvent::Finished {response,..}) => {
+                            let tool_turn = chat_tools.accepts(response.finish_reason, &response.tool_calls)
+                                && valid_chat_json(structured, response.finish_reason, response.text.as_deref().unwrap_or_default());
+                            let private = chat_replay::private_blocks(response.provider_content.as_ref());
+                            let token = seal(replay.as_ref(), history, response.text.as_deref().unwrap_or_default(), &response.tool_calls, private);
+                            let Ok(token) = token.and_then(|value| tool_turn.then_some(value).ok_or(AiError::InvalidResponse)) else {
+                                let failure = json!({"error":{"message":"Bedrock Chat 响应无法转换"},
+                                    "usage":usage_json(&response.usage)});
+                                yield Ok(format!("data: {failure}\n\n").into());
+                                return;
+                            };
+                            if let Some(token) = token {
+                                yield Ok(identity.frame(json!([{"index":0,"delta":{CHAT_REASONING_REPLAY:token},"finish_reason":null}]), None));
+                            }
                             if !response.tool_calls.is_empty() {
                                 let calls = response.tool_calls.iter().enumerate().map(|(index, call)| {
                                     let mut data = wire_call(call);
@@ -363,12 +409,6 @@ impl BedrockProvider {
                             yield Ok(identity.frame(json!([{"index":0,"delta":{},"finish_reason":response.finish_reason.as_str()}]), None));
                             yield Ok(identity.frame(json!([]), Some(usage_json(&response.usage))));
                             yield Ok(bytes::Bytes::from_static(b"data: [DONE]\n\n"));
-                            return;
-                        }
-                        Ok(StepEvent::Finished {response,..}) => {
-                            let failure = json!({"error":{"message":"Bedrock Chat 响应无法转换"},
-                                "usage":usage_json(&response.usage)});
-                            yield Ok(format!("data: {failure}\n\n").into());
                             return;
                         }
                         Err(_) => {
@@ -451,12 +491,23 @@ impl BedrockProvider {
                 _ => return invalid(),
             }
         }
-        if !chat_tools.accepts(reason, &calls)
-            || !valid_chat_json(structured, reason, &text)
-            || (!calls.is_empty() && signed)
-        {
+        if !chat_tools.accepts(reason, &calls) || !valid_chat_json(structured, reason, &text) {
             return invalid();
         }
+        let token = if signed && !calls.is_empty() {
+            let Ok(blocks) = tools::read_output(message.content()) else {
+                return invalid();
+            };
+            let Ok(Value::Array(blocks)) = serde_json::to_value(blocks) else {
+                return invalid();
+            };
+            match seal(replay.as_ref(), history, &text, &calls, Some(&blocks)) {
+                Ok(token) => token,
+                Err(_) => return invalid(),
+            }
+        } else {
+            None
+        };
         let content = if text.is_empty() && !calls.is_empty() {
             Value::Null
         } else {
@@ -465,6 +516,9 @@ impl BedrockProvider {
         let mut message = json!({"role":"assistant","content":content});
         if !calls.is_empty() {
             message["tool_calls"] = Value::Array(calls.iter().map(wire_call).collect());
+        }
+        if let Some(token) = token {
+            message[CHAT_REASONING_REPLAY] = token.into();
         }
         if !reasoning.is_empty() {
             message["reasoning_content"] = reasoning.join("\n\n").into();
@@ -485,14 +539,27 @@ pub(super) fn chat_reason(reason: FinishReason) -> bool {
     )
 }
 
-fn private_tool_replay(content: Option<&Value>) -> bool {
-    content
-        .and_then(|value| value["bedrock_blocks"].as_array())
-        .is_some_and(|blocks| {
-            blocks.iter().any(|block| {
-                block.get("signed_reasoning").is_some() || block.get("redacted_reasoning").is_some()
-            })
-        })
+fn seal(
+    replay: Option<&ChatReplay>,
+    history: Option<String>,
+    text: &str,
+    calls: &[crate::ToolCall],
+    blocks: Option<&[Value]>,
+) -> AiResult<Option<String>> {
+    let Some(blocks) = blocks else {
+        return Ok(None);
+    };
+    let (Some(replay), Some(history)) = (replay, history) else {
+        return Err(AiError::InvalidResponse);
+    };
+    replay.seal(history, text, calls, blocks, now()).map(Some)
+}
+
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 fn usage_json(usage: &Usage) -> Value {
@@ -519,10 +586,7 @@ impl ChatIdentity {
     fn new(include_usage: bool) -> Self {
         Self {
             id: format!("chatcmpl-{}", Str::ulid()),
-            created: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            created: now(),
             include_usage,
         }
     }

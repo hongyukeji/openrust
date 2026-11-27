@@ -164,6 +164,8 @@ pub use structured::{
 };
 pub use summarize::{SummarizeAgent, Summarizes, SummarizesText};
 pub use text::{AgentResponse, Meta, TextEndpoint, TextModelTier, TextPrompt, TextProvider};
+
+const CHAT_REASONING_REPLAY: &str = "openrust_reasoning_replay";
 pub use tool_choice::ToolChoice;
 pub use tools::{
     StepEvent, StepEventStream, StepResponse, StepTextGateway, Tool, ToolCall, ToolDefinition,

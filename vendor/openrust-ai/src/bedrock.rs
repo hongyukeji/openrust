@@ -1,6 +1,7 @@
 mod catalog;
 mod chat;
 mod chat_media;
+mod chat_replay;
 mod chat_tools;
 mod embeddings;
 mod image;
@@ -304,7 +305,7 @@ impl TextProvider for BedrockProvider {
         match endpoint {
             crate::TextEndpoint::Embeddings => relay::EmbeddingRequest::parse(body).err(),
             crate::TextEndpoint::ImagesGenerations => image::relay_image_request(body).err(),
-            crate::TextEndpoint::ChatCompletions => chat::ChatRequest::parse(body).err(),
+            crate::TextEndpoint::ChatCompletions => chat::ChatRequest::parse(body, None).err(),
             _ => None,
         }
     }
@@ -318,10 +319,35 @@ impl TextProvider for BedrockProvider {
             match endpoint {
                 crate::TextEndpoint::Embeddings => self.relay_embeddings(body).await,
                 crate::TextEndpoint::ImagesGenerations => self.relay_image(body).await,
-                crate::TextEndpoint::ChatCompletions => self.relay_chat(body).await,
+                crate::TextEndpoint::ChatCompletions => self.relay_chat(body, None).await,
                 _ => Err(AiError::EndpointNotSupported),
             }
         })
+    }
+
+    fn scoped_relay_request_error(
+        &self,
+        endpoint: crate::TextEndpoint,
+        body: &Value,
+        scope: Option<&str>,
+    ) -> Option<&'static str> {
+        if endpoint == crate::TextEndpoint::ChatCompletions {
+            let replay = chat_replay::ChatReplay::new(self, scope, body["model"].as_str());
+            return chat::ChatRequest::parse(body, replay.as_ref()).err();
+        }
+        self.relay_request_error(endpoint, body)
+    }
+
+    fn scoped_relay(
+        &self,
+        endpoint: crate::TextEndpoint,
+        body: Value,
+        scope: Option<String>,
+    ) -> HttpFuture<'_, AiResult<openrust::http::client::Response>> {
+        if endpoint == crate::TextEndpoint::ChatCompletions {
+            return Box::pin(async move { self.relay_chat(body, scope.as_deref()).await });
+        }
+        self.relay(endpoint, body)
     }
 
     fn split_embedding_relay(&self, body: &Value) -> Result<Option<Vec<Value>>, &'static str> {

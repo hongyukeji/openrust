@@ -223,11 +223,19 @@ SQLite、MySQL 8.4.13 及 PostgreSQL 18.7 均通过真实 HTTP、Artisan 和本�
 
 ## GW-03 Bedrock Chat 客户端函数
 
-Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Converse 工具构造。模型支持相应选项时可用自动、必选及指定工具。在后续请求保留启用的工具配置，用原调用 ID 回送结果。同一助手轮的多个结果合并为一条 AWS user 消息。缺失、重复或不匹配的结果在出站前拒绝。网关核对返回的工具名称、调用 ID、选择策略及并行限制。SSE 在原生终帧验证参数和用量后交付工具。需要重放签名或不透明推理的工具响应目前使用原生 SDK，网关拒绝交付这类调用。
+Chat 函数定义、对象 Schema、`strict` 和工具选择复用 SDK 的 Converse 工具构造。模型支持相应选项时可用自动、必选及指定工具。在后续请求保留启用的工具配置，用原调用 ID 回送结果。同一助手轮的多个结果合并为一条 AWS user 消息。缺失、重复或不匹配的结果在出站前拒绝。网关核对返回的工具名称、调用 ID、选择策略及并行限制。SSE 在原生终帧验证参数和用量后交付工具。Chat Completions 签名或不透明推理的工具回放见下节。
 
 本地 AWS 协议服务通过独立 Artisan 验证 SDK 直连与 SDK 经网关，两轮均保留 `stock:one`，总量为 34 输入和 8 输出 Token。外部 HTTP 验证 JSON 和 SSE 两轮、两个并行结果逆序回送、指定工具、必选、禁用、非法历史和签名不外泄。模拟工具调用的九次成功均各结算成本 0.03 USD、应收 0.06 USD。四次本地转换失败仍按 AWS 最终用量各记成本 0.03 USD，应收为零。缺最终元数据的截断流不发工具或 `[DONE]`，成本待核对。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过这组 HTTP 与 Artisan 验收。31 项回归、严格 Clippy 和三语站点通过。
 
 - [AWS 客户端工具调用](https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-client-side.html) · [AWS ToolUseBlock](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolUseBlock.html) · [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php)
+
+## GW-03 Bedrock Chat 签名工具回放
+
+普通助手消息及 SSE 增量可携带 `openrust_reasoning_replay`。使用应用加密服务保存原始 AWS 助手内容块，可见推理仍通过 `reasoning_content` 发出。状态绑定实际下游凭证、公开名、上游目标和显式 AWS 凭证，校验原始历史和助手文本及工具调用，有效期一小时。回放在预占和出站前验证，随后按原顺序恢复签名推理、脱敏块和工具调用。SDK 工具步骤自动保留此字段，跨进程共享应用密钥即可恢复。该批覆盖直接 Chat Completions 工具回放。Responses、仅文本推理及 AWS 默认凭证链仍待相应验收。
+
+独立 Artisan 验证 SDK 原生直连，以及 SDK 经网关的普通和流式两轮工具调用。外部 HTTP 通过本地 AWS 协议服务验证原始签名和脱敏字节回送，两轮运用原始调用 ID。SSE 取回的状态可由另一工作进程接续。过期状态、修改密文、历史、助手文本、换下游 Key、轮换 Key、换公开别名或换 AWS 凭证均在出站前拒绝。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各核对八次签名网关尝试的用量及成本。31 项回归、严格 Clippy 和三语站点通过。正式 AWS 账户验收继续单列。
+
+- [AWS 签名推理回放](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ReasoningTextBlock.html) · [Converse 会话要求](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
 
 ## GW-03 Bedrock 网关结构化输出
 

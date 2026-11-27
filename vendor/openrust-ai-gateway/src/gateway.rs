@@ -157,6 +157,20 @@ impl Key {
         }
     }
 
+    pub(crate) fn relay_scope(&self, model: &str, target: &Target) -> String {
+        let digest = self.digest.as_ref().expect("authorized key has a digest");
+        let mut hash = Sha256::new();
+        hash.update(b"openrust.ai-gateway.relay-state");
+        hash.update(digest);
+        hash.update(session_affinity::key(&[
+            &self.name,
+            self.managed_id.as_deref().unwrap_or_default(),
+            model,
+            &target.affinity_key,
+        ]));
+        format!("{:x}", hash.finalize())
+    }
+
     pub(crate) fn output_quota(&self) -> Option<OutputQuota> {
         self.group.as_ref().and_then(|group| group.quota)
     }
@@ -616,7 +630,7 @@ impl Gateway {
         Ok(Some(Arc::new(Key {
             name: record.name,
             managed_id: Some(record.id),
-            digest: None,
+            digest: Some(digest),
             group: Some(group.clone()),
             models: None,
             requests_per_minute: record

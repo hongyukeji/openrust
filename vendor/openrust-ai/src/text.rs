@@ -324,6 +324,25 @@ pub trait TextProvider: Send + Sync {
         None
     }
 
+    /// 使用网关提供的已鉴权请求范围检查私有协议状态。
+    fn scoped_relay_request_error(
+        &self,
+        endpoint: TextEndpoint,
+        body: &Value,
+        _scope: Option<&str>,
+    ) -> Option<&'static str> {
+        if endpoint == TextEndpoint::ChatCompletions
+            && body["messages"].as_array().is_some_and(|messages| {
+                messages
+                    .iter()
+                    .any(|message| message.get(crate::CHAT_REASONING_REPLAY).is_some())
+            })
+        {
+            return Some("当前连接不支持该签名推理状态");
+        }
+        self.relay_request_error(endpoint, body)
+    }
+
     /// 将一个向量请求拆成需要各自登记的一组原生调用。
     fn split_embedding_relay(&self, _body: &Value) -> Result<Option<Vec<Value>>, &'static str> {
         Ok(None)
@@ -332,6 +351,15 @@ pub trait TextProvider: Send + Sync {
     /// 向已配置的协议连接发送 JSON。调用方负责入站鉴权和模型授权。
     fn relay(&self, _endpoint: TextEndpoint, _body: Value) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
+    fn scoped_relay(
+        &self,
+        endpoint: TextEndpoint,
+        body: Value,
+        _scope: Option<String>,
+    ) -> HttpFuture<'_, AiResult<Response>> {
+        self.relay(endpoint, body)
     }
 
     fn relay_multipart(
@@ -1184,12 +1212,14 @@ fn restore_chat_reasoning(body: &mut Value, prompt: &AgentPrompt<'_>, scope: &st
     let mut index = usize::from(!prompt.text.instructions.is_empty());
     for message in prompt.messages {
         if message.role == MessageRole::Assistant
-            && let Some(reasoning) = message
-                .provider_replay
-                .as_ref()
-                .and_then(|replay| replay.chat_reasoning(scope, prompt.text.model))
+            && let Some(replay) = &message.provider_replay
         {
-            body["messages"][index]["reasoning_content"] = reasoning.into();
+            if let Some(reasoning) = replay.chat_reasoning(scope, prompt.text.model) {
+                body["messages"][index]["reasoning_content"] = reasoning.into();
+            }
+            if let Some(token) = replay.chat_signed_turn(scope, prompt.text.model) {
+                body["messages"][index][crate::CHAT_REASONING_REPLAY] = token.into();
+            }
         }
         index += if message.role == MessageRole::ToolResult {
             message.tool_results.len()

@@ -1,6 +1,9 @@
 use serde_json::{Value, json};
 
-use crate::{AiError, AiResult, StepResponse, ToolCall, ToolDefinition, ToolStep, Usage};
+use crate::{
+    AiError, AiResult, CHAT_REASONING_REPLAY, StepResponse, ToolCall, ToolDefinition, ToolStep,
+    Usage,
+};
 
 pub(crate) fn chat_request(
     mut body: Value,
@@ -16,13 +19,12 @@ pub(crate) fn chat_request(
             "function":{"name":call.name,"arguments":Value::Object(call.arguments.clone()).to_string()},
         })).collect::<Vec<_>>();
         let mut assistant = json!({"role":"assistant","content":step.text,"tool_calls":calls});
-        if let Some(reasoning) = step
-            .provider_content
-            .as_ref()
-            .and_then(|content| content.get("reasoning_content"))
-            .and_then(Value::as_str)
-        {
-            assistant["reasoning_content"] = reasoning.into();
+        if let Some(state) = step.provider_content.as_ref() {
+            for field in ["reasoning_content", CHAT_REASONING_REPLAY] {
+                if let Some(value) = state[field].as_str() {
+                    assistant[field] = value.into();
+                }
+            }
         }
         messages.push(assistant);
         messages.extend(step.results.iter().map(|result| {
@@ -107,6 +109,14 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
             tool_calls.push(parse_call(&call["id"], &call["function"])?);
         }
     }
+    let provider_content: serde_json::Map<_, _> = ["reasoning_content", CHAT_REASONING_REPLAY]
+        .into_iter()
+        .filter_map(|field| {
+            message[field]
+                .as_str()
+                .map(|value| (field.into(), value.into()))
+        })
+        .collect();
     Ok(StepResponse {
         model: data["model"].as_str().map(str::to_owned),
         text: message["content"].as_str().map(str::to_owned),
@@ -119,9 +129,7 @@ pub(crate) fn chat_step(data: Value) -> AiResult<StepResponse> {
         usage: Usage::from_openai(&data["usage"]),
         citations: Vec::new(),
         tool_calls,
-        provider_content: message["reasoning_content"]
-            .as_str()
-            .map(|reasoning| json!({"reasoning_content": reasoning})),
+        provider_content: (!provider_content.is_empty()).then_some(provider_content.into()),
     })
 }
 

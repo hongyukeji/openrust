@@ -727,11 +727,20 @@ async fn relay(
         } else {
             None
         };
+        let relay_scope = (endpoint == TextEndpoint::ChatCompletions
+            && upstream_endpoint == endpoint)
+            .then(|| key.relay_scope(&name, target));
         if let Some(message) = batch
             .as_deref()
             .unwrap_or(std::slice::from_ref(&payload))
             .iter()
-            .find_map(|part| target.provider.relay_request_error(upstream_endpoint, part))
+            .find_map(|part| {
+                target.provider.scoped_relay_request_error(
+                    upstream_endpoint,
+                    part,
+                    relay_scope.as_deref(),
+                )
+            })
         {
             conversion_error = Some(message);
             continue;
@@ -861,6 +870,7 @@ async fn relay(
             upstream_endpoint,
             payload,
             uploads.take(),
+            relay_scope,
             protocol,
             &mut call,
         )
@@ -1050,6 +1060,7 @@ async fn request_upstream(
     endpoint: TextEndpoint,
     data: Value,
     uploads: Option<Vec<(String, client::Part)>>,
+    scope: Option<String>,
     protocol: Protocol,
     call: &mut Call,
 ) -> Result<client::Response, UpstreamFailure> {
@@ -1058,7 +1069,7 @@ async fn request_upstream(
     }
     let dispatched = match uploads {
         Some(parts) => target.provider.relay_multipart(endpoint, data, parts).await,
-        None => target.provider.relay(endpoint, data).await,
+        None => target.provider.scoped_relay(endpoint, data, scope).await,
     };
     let upstream = match dispatched {
         Ok(response) => response,

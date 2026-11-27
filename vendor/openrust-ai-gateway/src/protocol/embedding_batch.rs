@@ -15,8 +15,16 @@ pub(super) async fn relay(
     let mut embeddings = Vec::with_capacity(parts.len());
     let mut total = Some(0_u64);
     for (index, (part, call)) in parts.into_iter().zip(&mut calls).enumerate() {
-        let upstream =
-            request_upstream(target, TextEndpoint::Embeddings, part, None, protocol, call).await;
+        let upstream = request_upstream(
+            target,
+            TextEndpoint::Embeddings,
+            part,
+            None,
+            None,
+            protocol,
+            call,
+        )
+        .await;
         let upstream = match upstream {
             Ok(upstream) => upstream,
             Err(failure) => {

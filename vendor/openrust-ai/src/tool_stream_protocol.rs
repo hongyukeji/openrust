@@ -143,6 +143,7 @@ struct Chat {
     text: Option<String>,
     reason: Option<String>,
     reasoning_content: Option<String>,
+    reasoning_replay: Option<String>,
     usage: Usage,
     calls: BTreeMap<u64, Call>,
 }
@@ -171,6 +172,10 @@ impl Chat {
                 .get_or_insert_default()
                 .push_str(reasoning);
         }
+        set_once(
+            &mut self.reasoning_replay,
+            delta[crate::CHAT_REASONING_REPLAY].as_str(),
+        )?;
         if delta["refusal"]
             .as_str()
             .is_some_and(|message| !message.is_empty())
@@ -226,7 +231,8 @@ impl Chat {
         let mut response = tool_protocol::chat_step(json!({
             "model":self.model,"choices":[{
                 "finish_reason":reason,
-                "message":{"content":self.text,"tool_calls":calls,"reasoning_content":self.reasoning_content}
+                "message":{"content":self.text,"tool_calls":calls,"reasoning_content":self.reasoning_content,
+                    crate::CHAT_REASONING_REPLAY:self.reasoning_replay}
             }],
         }))?;
         response.usage = self.usage;
