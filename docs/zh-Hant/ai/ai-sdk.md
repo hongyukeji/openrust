@@ -297,6 +297,18 @@ Schedule::configure(|schedule| {
 
 啟用 Bedrock 圖片計費前，發佈並執行最新的 `ai-gateway-migrations`。在上游和下游費率中設定 `image`，用十進位字串表示對應幣別的每圖單價，例如 `"image": "0.04"`。依尺寸和品質分級時，設定 `image_tiers`，例如 `{"768x1152/premium": "0.08"}`。閘道依實際送往 Bedrock 的參數選擇費率，Stability 使用 `3:2/default` 這類鍵。未命中時使用 `image` 固定費率。兩項都缺少時，該方向金額保留待核對，硬預算也無法依該方向預留。帳本會儲存選中的 `image_tier` 和單價。只依圖片計費時將 `input` 和 `output` 設為 `"0"`。閘道依請求的 `n` 預留，再依實際傳回且通過驗證的圖片數結算。已知數量會顯示於用量帳本及 `/v1/usage` 的 `output_images`。未知供應商費用保留待核對，可用 AWS 帳單對帳。
 
+### 閘道語音合成 {#gateway-speech}
+
+要開放 `POST /v1/tts`，為 `xai` 連線發布一個模型，並授權呼叫端的閘道 Key。可在 `config/ai_gateway.rs` 的 `models` 下加入以下範例。
+
+```rust
+"speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
+```
+
+使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，並回傳 MP3、WAV 或 PCM 音訊位元組。共享憑證只能使用 xAI 內建音色。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
+
+啟用持久化用量後，閘道記錄呼叫嘗試及上游狀態。語音合成沒有 Token 計數或 Token 費用。拒絕未知費用的硬預算會在送出前攔截合成請求。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

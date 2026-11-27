@@ -28,7 +28,7 @@
 | `GET /v1/images/batches/{id}/items`、`GET /v1/images/batches/{id}/items/{custom_id}/content`、`GET /v1/images/batches/{id}/download`、`POST /v1/images/batches/{id}/cancel`、`DELETE /v1/images/batches/{id}/outputs` | 网关 Key，任务项、结果、取消与删除 | GW-03／04 待验证资源所属、二进制结果、部分失败和可重试性。 |
 | `POST /v1/videos`、`POST /v1/videos/{generations,edits,extensions}`、`GET /v1/videos/{id}[/content]`、`GET /v1/videos/{generations,edits,extensions}/{id}[/content]` | 网关 Key，依平台支持创建／编辑／扩展、状态与二进制读取 | AI-06／GW-03／04 待按平台验证任务 ID、状态、取消与内容。 |
 | `POST /{api/v3,v3,v1}/contents/generations/tasks`、`GET/DELETE /{api/v3,v3,v1}/contents/generations/tasks/{id}` 及无版本同路径 | 网关 Key，Seedance 任务创建、查询和删除 | GW-03／04 待按国内视频供应商任务及资源所有权验收。 |
-| `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03／04 的自托管语音路由仍待逐操作验收，音色资源要求所属校验。 |
+| `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收二进制 `POST /v1/tts` 和可选的 `POST /tts`。网关转录、语音流及自定义音色管理仍待验收。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | GW-03／04 待验收不同实时入口的上游支持、双向生命周期与归属。 |
 | `POST /v1/systemone`、`POST /v1/alpha/search`、`POST /v1/{web_search,x_search}` | 网关 Key 与平台能力门控，部分动作有独立文本正文限制 | GW-03 待按原生平台能力裁决，分别验收错误和限制。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
@@ -341,6 +341,14 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 以独立进程和本地 Gemini 协议
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数据、过期拒绝、活跃文件保留、已完成和未完成会话清理、孤立暂存对象、清理失败重试及实际 `schedule:run`。Artisan 帮助通过现有语言资源覆盖 18 种运行时语言。三语开发文档给出调度用法。
 
 - [Gemini 文件保留时限](https://aistudio.google.com/docs/files) · [Laravel 调度 Artisan 命令](https://laravel.com/framework/docs/12.x/scheduling#scheduling-artisan-commands)
+
+## GW-03 xAI 网关语音合成
+
+依据固定 Sub2API 的 Grok 语音入口开放 `POST /v1/tts` 及可选无版本别名。通过 `models.<name>.endpoints = ["tts"]` 向授权调用方发布。原生请求未指定模型时只选调用方唯一获准的合成模型，多模型需显式选择。公开别名和网关 Key 均不发往上游。共享连接允许 xAI 内置音色，合成输出支持二进制 MP3、WAV 和 PCM。上游结果须通过音频校验，并在持久化结算后交付。已经发往上游的合成请求失败后不自动重放。
+
+本地 xAI 协议服务实测 SDK 直连、SDK 经网关、外部 HTTP、Artisan 路由和 SQLite 用量。校验上游身份、无版本别名、跨授权、多个模型、未知费用硬预算、请求限流、音色资源隔离、无 Token 误计、无备用重放、上游错误脱敏、二进制字节及结果类型。七次网关出站尝试含五次成功、一次上游 503 和一次无效音频，其 Token 与计费明细保持空值。13 项 SDK 和网关回归、严格 Clippy 及三语文档站点通过。字符费用、带时间戳的结果、电话音频格式、流式合成和 xAI 正式账户仍待验收。
+
+- [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L296-L309) · [xAI Text to Speech](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
 
 ## GW-03 Gemini 完整生成请求计数
 

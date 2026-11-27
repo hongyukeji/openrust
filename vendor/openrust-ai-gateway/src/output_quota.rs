@@ -29,7 +29,10 @@ impl OutputQuota {
         native_openai: bool,
         payload: &mut Value,
     ) -> Result<Option<i64>, &'static str> {
-        if endpoint.is_counting() || endpoint.is_embedding() {
+        if endpoint.is_counting()
+            || endpoint.is_embedding()
+            || endpoint == TextEndpoint::XaiTextToSpeech
+        {
             return Ok(None);
         }
         limit_output(self.max_output_tokens, endpoint, native_openai, payload).map(Some)

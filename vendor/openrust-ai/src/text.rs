@@ -411,6 +411,7 @@ pub enum TextEndpoint {
     Embeddings,
     ImagesGenerations,
     ImagesEdits,
+    XaiTextToSpeech,
     GeminiGenerateContent,
     GeminiStreamGenerateContent,
     GeminiCountTokens,
@@ -431,6 +432,7 @@ impl TextEndpoint {
             Self::Embeddings => "embeddings",
             Self::ImagesGenerations => "images/generations",
             Self::ImagesEdits => "images/edits",
+            Self::XaiTextToSpeech => "tts",
             Self::GeminiGenerateContent => "generateContent",
             Self::GeminiStreamGenerateContent => "streamGenerateContent",
             Self::GeminiCountTokens => "countTokens",
@@ -989,7 +991,10 @@ impl TextProvider for OpenAiTextProvider {
 
     fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
         if matches!(self.protocol, OpenAiProtocol::Xai) {
-            return endpoint == TextEndpoint::Responses;
+            return matches!(
+                endpoint,
+                TextEndpoint::Responses | TextEndpoint::XaiTextToSpeech
+            );
         }
         match endpoint {
             TextEndpoint::Embeddings => {
@@ -1008,10 +1013,14 @@ impl TextProvider for OpenAiTextProvider {
         }
     }
 
-    fn relay(&self, endpoint: TextEndpoint, body: Value) -> HttpFuture<'_, AiResult<Response>> {
+    fn relay(&self, endpoint: TextEndpoint, mut body: Value) -> HttpFuture<'_, AiResult<Response>> {
         Box::pin(async move {
             if !self.supports_endpoint(endpoint) {
                 return Err(AiError::EndpointNotSupported);
+            }
+            if endpoint == TextEndpoint::XaiTextToSpeech {
+                let fields = body.as_object_mut().ok_or(AiError::InvalidPrompt)?;
+                fields.remove("model");
             }
             let stream = !endpoint.is_counting()
                 && endpoint != TextEndpoint::Embeddings

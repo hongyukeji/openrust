@@ -744,7 +744,8 @@ impl TextEndpoint {
             | Self::GeminiBatchGenerateContent
             | Self::GeminiAsyncBatchEmbedContent
             | Self::ImagesGenerations
-            | Self::ImagesEdits => Err(AiError::StreamingNotSupported),
+            | Self::ImagesEdits
+            | Self::XaiTextToSpeech => Err(AiError::StreamingNotSupported),
         }
     }
 }

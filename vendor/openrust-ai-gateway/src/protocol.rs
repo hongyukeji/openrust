@@ -34,6 +34,7 @@ mod image_upload;
 mod resources;
 mod usage_summary;
 mod websocket;
+mod xai_speech;
 
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
@@ -74,6 +75,7 @@ fn shared_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/embeddings", embeddings)?;
     router.post("/images/generations", images_generations)?;
     router.post("/images/edits", images_edits)?;
+    router.post("/tts", xai_speech)?;
     router.post("/messages/count_tokens", count_message_tokens)?;
     responses_routes(router)
 }
@@ -213,6 +215,7 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::Embeddings,
                     TextEndpoint::ImagesGenerations,
                     TextEndpoint::ImagesEdits,
+                    TextEndpoint::XaiTextToSpeech,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -300,6 +303,10 @@ fn messages(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 
 fn count_message_tokens(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(relay(request, TextEndpoint::CountMessageTokens, None))
+}
+
+fn xai_speech(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(relay(request, TextEndpoint::XaiTextToSpeech, None))
 }
 
 #[derive(Clone, Copy)]
@@ -499,7 +506,25 @@ async fn relay(
         };
         (data, None)
     };
-    let Some(name) = path_model.or_else(|| {
+    let speech_format = if endpoint == TextEndpoint::XaiTextToSpeech {
+        match xai_speech::validate(&data) {
+            Ok(format) => Some(format),
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message);
+            }
+        }
+    } else {
+        None
+    };
+    let implicit_model = if speech_format.is_some() && !data.contains_key("model") {
+        match xai_speech::implicit_model(&gateway, key) {
+            Ok(model) => Some(model.to_owned()),
+            Err((status, code, message)) => return protocol.error(status, code, message),
+        }
+    } else {
+        None
+    };
+    let Some(name) = path_model.or(implicit_model).or_else(|| {
         data.get("model")
             .and_then(Value::as_str)
             .filter(|name| !name.is_empty())
@@ -750,6 +775,7 @@ async fn relay(
                     .any(|message| message.get(openrust_ai::CHAT_REASONING_REPLAY).is_some())
             });
     let may_replay = !endpoint.is_image()
+        && speech_format.is_none()
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1023,6 +1049,9 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
+                if let Some(format) = speech_format {
+                    return xai_speech::respond(upstream, format, call).await;
+                }
                 return respond(
                     upstream,
                     name,

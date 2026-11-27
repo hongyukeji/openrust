@@ -297,6 +297,18 @@ For a Bedrock text-to-image model, publish only `images/generations`. The respon
 
 For Bedrock image billing, publish and run the latest `ai-gateway-migrations`. Set `image` in the upstream and downstream tariffs to a decimal amount per image in the tariff currency, for example `"image": "0.04"`. Use `image_tiers` for size and quality prices, for example `{"768x1152/premium": "0.08"}`. The gateway selects the tier from the request sent to Bedrock. Stability uses keys such as `3:2/default`. Use `image` as a flat fallback for unmatched tiers. When neither rate exists, that side stays unpriced and a hard budget cannot reserve against it. The ledger saves the selected `image_tier` and unit price. Set `input` and `output` to `"0"` for an image-only tariff. The gateway reserves against the requested count `n`, then settles against the validated images actually returned. `output_images` appears in the attempt ledger and in `/v1/usage` when a count is available. Unknown provider charges remain pending and can be reconciled against AWS billing.
 
+### Gateway speech synthesis {#gateway-speech}
+
+To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize it for the caller’s gateway Key. For example, add this entry under `models` in `config/ai_gateway.rs`.
+
+```rust
+"speech": {"provider": "xai", "model": "tts", "endpoints": ["tts"]}
+```
+
+Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and returns MP3, WAV, or PCM audio bytes. Use built-in xAI voice IDs on shared credentials. With `unversioned_paths` enabled, `POST /tts` is also available.
+
+The gateway records attempts and upstream status when usage persistence is enabled. Audio attempts have no token counts or token charges. A hard monetary budget that rejects unknown costs blocks synthesis before dispatch.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.
