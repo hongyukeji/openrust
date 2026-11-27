@@ -204,7 +204,7 @@ SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 的独立 HTTP 与 Artisan 验证了�
 
 ## GW-05 Codex 专用前缀
 
-`/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。搜索与 Realtime Calls 仍待后续验收。
+`/backend-api/codex` 复用主 Responses 路由的鉴权、模型授权和用量记账。同一个网关 Key 可以读取专用模型目录、创建 Responses、读取输入 Token 数量和建立 Responses WebSocket。官方 Codex 0.170.0 的 `debug models` 和 `exec` 分别在隔离容器中重新加载该目录和完成流式生成。独立 HTTP、WebSocket 和 Artisan 覆盖计数、鉴权、分组范围与路径边界。固定版 Realtime Calls 的结果见[原版 Codex WebRTC 信令](#原版-codex-webrtc-信令)，独立搜索仍待 G21 验收。
 
 - [Sub2API 固定基线路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L408)
 
@@ -403,6 +403,16 @@ OpenAI 公开 Live 使用 `POST /v1/live/sessions` 的 WebRTC JSON 封装及 `/v
 数据库保存本地 ID、Key 归属、路由族及上游账号的绑定、上游 ID 和控制租约。SDP、事件、音频、凭证和证明头保持在请求链路。每次升级重新校验 Key、路由和账号绑定，跨调用方使用 404 隐藏会话。原子租约跨进程排除并行控制连接，断开可重接。终态或可确认的上游资源消失会释放映射。超过一小时上限时向上游请求结束。观察进程和会话用量见[后台接管与终态归集](#live-后台接管与终态归集)。
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关进程和上游协议夹具验收。覆盖迁移发布、路由列表与缓存、两种创建、无版本路由拒绝、硬配额拦截、跨 Key 和凭证更换、同一会话双向帧与模型覆写、并行接管拒绝、断开后跨进程重接、终态回收和在线控制到期时主动请求挂断。SQLite 音色回归、12 项 SDK 和网关用例、两 AI 包严格库级 Clippy 及三语文档检查通过。真实供应商账号和 WebRTC 媒体平面留待实机验收。
+
+### 原版 Codex WebRTC 信令
+
+Codex 0.170.0 从 `Location` 提取 `rtc_…` 或 UUID，原网关返回的裸 ULID 无法被客户端使用。Codex 建立呼叫时签发 `rtc_` 前缀，存储和用量仍使用原始 ULID。V1 通过 `GET /backend-api/codex/realtime?call_id={call_id}` 接入，V3 使用 `GET /backend-api/codex/{call_id}`。已有裸 ULID 的 Codex 路径仍可重连。所有接入方式复用原 Key、账号指纹、模型状态和控制租约，外部 ID 映射到已有用量记录。
+
+GitHub 发布资产的 macOS ARM64 二进制经 SHA-256 核对，为原版 Codex 0.170.0。在临时独立客户端目录通过 `app-server` 调用 `thread/realtime/start` 和 `stop`。SQLite、PostgreSQL 18.7、MySQL 8.4.13 对接本地上游夹具，验证 V1 和 V3 的真实 HTTP 呼叫、SDP 通知与 WebSocket 握手，V1 的 `session.update`、V3 直接接入、另一获准 Key 的 404、重复控制的 409、上游凭证和 attestation、路由缓存及正常停止。SQLite 后台观察与到期回收回归、11 项网关回归、严格库级 Clippy 和三语文档通过。正式供应商账号、服务端 attestation 和媒体平面仍需实机验收。
+
+- [Codex 0.170.0 发布资产](https://github.com/openai/codex/releases/tag/rust-v0.170.0)
+- [固定 Codex Realtime Call 的 ID 解析](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/codex-api/src/endpoint/realtime_call.rs#L259)
+- [固定 Codex 官方 app-server 信令测试](https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/app-server/tests/suite/v2/realtime_conversation.rs)
 
 ### Live 后台接管与终态归集
 

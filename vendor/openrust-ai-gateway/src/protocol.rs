@@ -58,6 +58,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.get("/models", codex_models)?;
         router.post("/alpha/search", alpha_search::route)?;
         router.post("/realtime/calls", live::create_codex)?;
+        router.get("/realtime", live::sideband_codex)?;
         router.get("/{call_id}", live::sideband_codex)?;
         responses_routes(router)
     })?;

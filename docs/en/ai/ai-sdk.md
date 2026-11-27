@@ -320,9 +320,11 @@ Configure a [Live provider connection](#live-webrtc), then publish the upstream 
 
 Send `POST /v1/live` with the Bearer gateway Key and JSON or multipart fields `sdp` and `session`. The `session.model` field selects the public alias. It can be omitted when exactly one Live alias is available. The response is the SDP answer and a local Sideband URL in `Location`. Codex clients can use `POST /backend-api/codex/realtime/calls` with a Codex Live connection.
 
+For Codex 0.170.0 WebRTC, set the call base URL to the gateway’s `/backend-api/codex` prefix. Use that prefix as the V3 Sideband base, or append `/realtime` for V1. The gateway issues a local `rtc_` call ID. V3 attaches to `GET /backend-api/codex/{call_id}`; V1 uses `GET /backend-api/codex/realtime?call_id={call_id}`. Both require the same gateway Key used to create the call.
+
 Open the Sideband URL with the same gateway Key. One control connection can use the session at a time. You can reconnect with the same Key after the active controller releases it, including through another gateway process. The session stays bound to the original upstream connection and model and expires after one hour. The `ai-gateway-live` runner observes unattended sessions, yields to an authorized controller, and recovers expired calls after a restart. Keep it enabled on at least one gateway process. Each process can observe up to 32 sessions concurrently. Drain existing sessions before changing the upstream connection or its credentials so the runner can still reach their original account.
 
-Use `./artisan ai:gateway:usage:list --request-id=<call-id>` with the ID from `Location`. The gateway records one terminal outcome and its observed elapsed time in `resource_usage.session_duration_ms`. Supplier usage and money can remain unknown. The session duration is separate from transcription duration.
+Use `./artisan ai:gateway:usage:list --request-id=<call-id>` with the ID from `Location`. The gateway records one terminal outcome and its observed elapsed time in `resource_usage.session_duration_ms`. Supplier usage and money can remain unknown. The session duration is separate from transcription duration. For Codex calls, remove the `rtc_` prefix before querying Artisan.
 
 ### Gateway xAI Realtime {#gateway-xai-realtime}
 

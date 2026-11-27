@@ -62,6 +62,9 @@
   - [x] Codex PAT 经 Responses 执行 Alpha Search 的[本地三库验收](gateway.md#codex-pat-经-responses-执行-alpha-search)。Codex 固定客户端另见 G21。
   - [x] TypeSafe `systemone` 的[本地三库验收](gateway.md#typesafe-system-one)。正式连接与账单见 E11。
 - [ ] **G21 Codex 搜索与 Realtime Calls**。用固定客户端验收专用路径、凭证范围和会话归属。
+  - [x] [固定版 Codex WebRTC V1／V3 信令与 Sideband](gateway.md#原版-codex-webrtc-信令)已在本地三库验收。
+  - [ ] 固定版 Codex 独立搜索触发及结果回送。
+  - [ ] 正式 Codex 搜索和 Realtime 的账号权限、服务端 attestation 与媒体实机。
 - [ ] **G22 剩余兼容路径**。按端点通过 `route:list` 和真实 HTTP 核对启用条件、授权及账号隔离。
   - [ ] 其余无版本别名。
   - [ ] Antigravity 专用入口。

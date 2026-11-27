@@ -55,7 +55,7 @@ impl Entry {
     fn sideband_path(self) -> &'static str {
         match self {
             Self::Versioned => "/v1/live/",
-            Self::Codex => "/backend-api/codex/",
+            Self::Codex => "/backend-api/codex/rtc_",
         }
     }
 }
@@ -233,7 +233,24 @@ async fn upgrade(request: &mut Request, entry: Entry) -> HttpResult {
         Ok(key) => key,
         Err(response) => return response,
     };
-    let Some(id) = request.route("call_id").filter(|id| {
+    let query_id = match entry {
+        Entry::Codex if request.route("call_id").is_none() => request
+            .query(Some("call_id"))
+            .ok()
+            .flatten()
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .and_then(|id| id.strip_prefix("rtc_"))
+                    .map(str::to_owned)
+            }),
+        _ => None,
+    };
+    let path_id = request.route("call_id").map(|id| match entry {
+        Entry::Codex => id.strip_prefix("rtc_").unwrap_or(id),
+        Entry::Versioned => id,
+    });
+    let Some(id) = path_id.or(query_id.as_deref()).filter(|id| {
         id.len() == 26
             && id
                 .bytes()
