@@ -313,7 +313,9 @@ The gateway records attempts and upstream status when usage persistence is enabl
 
 Publish an `xai` connection with `"endpoints": ["stt"]` and the upstream transcription model in `config/ai_gateway.rs`. Grant the public alias to the caller’s gateway Key. `POST /v1/stt` takes a bearer Key and one multipart `file`. The entire request, including multipart headers, is limited to 8 MiB. A Key with one transcription alias can omit `model`. For multiple aliases, send the public alias as the multipart `model` field. Enable `unversioned_paths` to also expose `POST /stt`.
 
-The gateway forwards repeated `keyterm` and `redact` fields and uploads the file last. Raw PCM, μ-law and A-law require `audio_format` and a supported `sample_rate`. The response retains provider timestamps, speaker numbers and duration. Usage persistence records the attempt without token charges. Hard budgets that reject unknown costs block the request before dispatch.
+The gateway forwards repeated `keyterm` and `redact` fields and uploads the file last. Raw PCM, μ-law and A-law require `audio_format` and a supported `sample_rate`. The response retains provider timestamps, speaker numbers and duration. With usage persistence enabled, the attempt and the reported duration in `audio_duration_ms` appear in Artisan and the caller’s `/v1/usage` summaries. Hard budgets that reject unknown costs block the request before dispatch.
+
+Set `audio_per_hour` on both upstream and downstream tariffs to price xAI transcription by reported audio duration. For requests with `redact` fields, configure the additional `audio_redaction_per_hour` on each tariff. An explicit `"0"` specifies a free surcharge. Rates are decimal strings per audio hour in the configured currency. Set `input` and `output` to `"0"` for a transcription-only tariff. Missing rates or missing duration keep the relevant amount pending. Import provider totals with `category: "speech_to_text"` to reconcile transcription costs independently of token totals.
 
 ### Connect DeepSeek Harness {#dsh-model-connection}
 

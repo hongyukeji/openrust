@@ -123,12 +123,10 @@ pub(super) async fn parse(
     Ok((fields, uploads))
 }
 
-pub(super) fn validate_response(value: &mut Value) -> bool {
-    let Some(data) = value.as_object_mut() else {
-        return false;
-    };
+pub(super) fn validate_response(value: &mut Value) -> Option<i64> {
+    let data = value.as_object_mut()?;
+    let duration_ms = duration_ms(data.get("duration")?)?;
     if !data.get("text").is_some_and(Value::is_string)
-        || data.get("duration").and_then(seconds).is_none()
         || !valid_words(data.get("words"))
         || !data.get("channels").is_none_or(|channels| {
             channels.as_array().is_some_and(|channels| {
@@ -140,7 +138,7 @@ pub(super) fn validate_response(value: &mut Value) -> bool {
             })
         })
     {
-        return false;
+        return None;
     }
     data.retain(|key, _| {
         matches!(
@@ -148,7 +146,27 @@ pub(super) fn validate_response(value: &mut Value) -> bool {
             "text" | "language" | "duration" | "words" | "channels" | "model"
         )
     });
-    true
+    Some(duration_ms)
+}
+
+fn duration_ms(value: &Value) -> Option<i64> {
+    let number = value.as_number()?.to_string();
+    let (whole, fraction) = number.split_once('.').unwrap_or((&number, ""));
+    let whole = whole.parse::<u64>().ok()?;
+    let fraction = fraction.trim_end_matches('0');
+    if fraction.len() > 3 {
+        return None;
+    }
+    let fractional_ms = if fraction.is_empty() {
+        0
+    } else {
+        fraction.parse::<u64>().ok()? * 10_u64.pow(3 - fraction.len() as u32)
+    };
+    whole
+        .checked_mul(1000)?
+        .checked_add(fractional_ms)?
+        .try_into()
+        .ok()
 }
 
 fn seconds(value: &Value) -> Option<f64> {

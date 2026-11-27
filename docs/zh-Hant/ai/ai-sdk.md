@@ -313,7 +313,9 @@ Schedule::configure(|schedule| {
 
 在 `config/ai_gateway.rs` 為 `xai` 連線設定上游轉錄模型與 `"endpoints": ["stt"]`，並向閘道 Key 授權公開別名。`POST /v1/stt` 接收 Bearer Key 和一個 multipart `file`。包含 multipart 標頭在內的整個請求本文上限為 8 MiB。Key 只有一個轉錄別名時可以省略 `model`。有多個時，在 multipart 的 `model` 欄位指定公開別名。啟用 `unversioned_paths` 後也可呼叫 `POST /stt`。
 
-閘道保留重複的 `keyterm` 和 `redact` 欄位，將音訊檔案放在最後上傳。原始 PCM、μ-law 和 A-law 須指定 `audio_format` 和受支援的 `sample_rate`。回應保留上游的時間戳記、說話者編號和音訊時長。啟用持久化用量時記錄嘗試，轉錄無 Token 費用。拒絕未知費用的硬預算會在送出前攔截請求。
+閘道保留重複的 `keyterm` 和 `redact` 欄位，將音訊檔案放在最後上傳。原始 PCM、μ-law 和 A-law 須指定 `audio_format` 和受支援的 `sample_rate`。回應保留上游的時間戳記、說話者編號和音訊時長。啟用持久化用量後，Artisan 和呼叫端的 `/v1/usage` 可查詢上游回報的 `audio_duration_ms`。拒絕未知費用的硬預算會在送出前攔截請求。
+
+在上游和下游費率中分別設定 `audio_per_hour`，即可按上游回報的音訊時長結算 xAI 轉錄。包含 `redact` 欄位時，兩側費率還需設定 `audio_redaction_per_hour`。明確填入 `"0"` 表示這項附加費用為零。費率使用十進位字串，單位為所選幣別每音訊小時。僅供轉錄的費率可把 `input` 和 `output` 設為 `"0"`。缺少費率或時長時，對應金額保留待核對。匯入供應商彙總帳單時使用 `category: "speech_to_text"`，即可按轉錄類別獨立對帳。
 
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 

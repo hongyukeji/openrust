@@ -931,7 +931,18 @@ async fn relay(
                 continue 'targets;
             }
         }
-        let charges = gateway.charge_plan(key, &name, target, upstream_endpoint, &payload);
+        let charges = gateway
+            .charge_plan(key, &name, target, upstream_endpoint, &payload)
+            .map(|plan| {
+                if endpoint == TextEndpoint::XaiSpeechToText {
+                    let redacted = uploads
+                        .as_ref()
+                        .is_some_and(|parts| parts.iter().any(|(name, _)| name == "redact"));
+                    plan.with_audio_redaction(redacted)
+                } else {
+                    plan
+                }
+            });
         let budget = match gateway.budget_reservations(
             key,
             target,
@@ -1410,7 +1421,7 @@ async fn respond(
             "上游未返回有效的 Gemini Token 数",
         );
     } else if endpoint == TextEndpoint::XaiSpeechToText {
-        if !xai_transcription::validate_response(&mut data) {
+        let Some(duration_ms) = xai_transcription::validate_response(&mut data) else {
             call.outcome("invalid_upstream_response");
             call.settle().await;
             return protocol.error(
@@ -1418,7 +1429,8 @@ async fn respond(
                 "invalid_upstream_response",
                 "上游未返回有效的语音转录",
             );
-        }
+        };
+        call.observe_audio_duration(duration_ms, data["model"].as_str());
     } else if !endpoint.is_counting() {
         call.observe_usage(&data);
         call.observe_final_cost(&data);

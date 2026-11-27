@@ -143,6 +143,10 @@ struct Tariff {
     reasoning: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     image: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    audio_per_hour: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    audio_redaction_per_hour: Option<Amount>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     image_tiers: BTreeMap<String, Amount>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
@@ -256,6 +260,7 @@ impl PriceBook {
         ChargePlan {
             version: self.version.clone(),
             by_image,
+            audio_redaction: false,
             upstream_model: upstream_model.to_owned(),
             upstream: selected(upstream),
             downstream: selected(downstream),
@@ -381,12 +386,23 @@ pub(crate) async fn close_interrupted_embedding(
 pub(crate) struct ChargePlan {
     version: String,
     pub(crate) by_image: bool,
+    audio_redaction: bool,
     upstream_model: String,
     upstream: Option<Tariff>,
     downstream: Option<Tariff>,
 }
 
 impl ChargePlan {
+    pub(crate) fn with_audio_redaction(mut self, enabled: bool) -> Self {
+        self.audio_redaction = enabled;
+        if !enabled {
+            for tariff in self.upstream.iter_mut().chain(self.downstream.iter_mut()) {
+                tariff.audio_redaction_per_hour = None;
+            }
+        }
+        self
+    }
+
     pub(crate) async fn recover(
         transaction: &mut Transaction,
         attempt: &str,
@@ -438,6 +454,7 @@ impl ChargePlan {
             upstream,
             downstream,
             by_image: false,
+            audio_redaction: false,
         }))
     }
 
@@ -595,7 +612,13 @@ impl ChargePlan {
         {
             return ("model_mismatch", None);
         }
-        if self.by_image && tariff.image.is_none() {
+        let audio =
+            settlement.upstream_endpoint == openrust_ai::TextEndpoint::XaiSpeechToText.path();
+        if self.by_image && tariff.image.is_none()
+            || audio
+                && (tariff.audio_per_hour.is_none()
+                    || self.audio_redaction && tariff.audio_redaction_per_hour.is_none())
+        {
             return ("missing_price", None);
         }
         if settlement.state != "final" || (direction == "cost" && settlement.cost_pending) {
@@ -605,6 +628,10 @@ impl ChargePlan {
             settlement
                 .output_images
                 .and_then(|count| tariff.image_amount(count, Rounding::HalfEven))
+        } else if audio {
+            settlement
+                .audio_duration_ms
+                .and_then(|milliseconds| tariff.audio_amount(milliseconds))
         } else {
             tariff.quote(settlement)
         };
@@ -616,6 +643,15 @@ impl ChargePlan {
 }
 
 impl Tariff {
+    fn audio_amount(&self, milliseconds: i64) -> Option<Amount> {
+        let rate = self
+            .audio_per_hour?
+            .0
+            .checked_add(self.audio_redaction_per_hour.map_or(0, |rate| rate.0))?;
+        let numerator = rate.checked_mul(i128::from(milliseconds))?;
+        self.scaled_amount(numerator, 3_600_000, Rounding::HalfEven)
+    }
+
     fn image_amount(&self, count: i64, rounding: Rounding) -> Option<Amount> {
         let amount = self.image?.0.checked_mul(i128::from(count))?;
         self.amount(amount.checked_mul(PER_MILLION)?, rounding)
@@ -655,8 +691,12 @@ impl Tariff {
     }
 
     fn amount(&self, numerator: i128, rounding: Rounding) -> Option<Amount> {
+        self.scaled_amount(numerator, PER_MILLION, rounding)
+    }
+
+    fn scaled_amount(&self, numerator: i128, units: i128, rounding: Rounding) -> Option<Amount> {
         let (quotient, remainder, divisor) = if let Some(multiplier) = self.multiplier {
-            let divisor = PER_MILLION * SCALE;
+            let divisor = units * SCALE;
             // 分解两侧整除项，避免在最终金额可表示时中间乘积溢出。
             let fraction = numerator % divisor;
             let tail = fraction * (multiplier.0 % divisor);
@@ -666,11 +706,7 @@ impl Tariff {
                 .checked_add(tail / divisor)?;
             (quotient, tail % divisor, divisor)
         } else {
-            (
-                numerator / PER_MILLION,
-                numerator % PER_MILLION,
-                PER_MILLION,
-            )
+            (numerator / units, numerator % units, units)
         };
         round_amount(quotient, remainder, divisor, rounding)
     }

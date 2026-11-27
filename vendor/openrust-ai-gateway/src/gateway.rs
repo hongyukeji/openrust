@@ -909,6 +909,7 @@ impl Gateway {
         let by_image = target.provider.relay_meters_images(endpoint);
         let billable = by_image
             || endpoint.is_embedding()
+            || endpoint == TextEndpoint::XaiSpeechToText
             || matches!(
                 endpoint,
                 TextEndpoint::Responses
@@ -971,6 +972,17 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) fn observe_audio_duration(
+        &mut self,
+        milliseconds: i64,
+        reported_model: Option<&str>,
+    ) {
+        self.context
+            .insert("audio_duration_ms".into(), json!(milliseconds));
+        if let Some(model) = reported_model {
+            self.observe_field("reported_model", json!(model));
+        }
+    }
     pub(crate) fn attempt_id(&self) -> Option<&str> {
         self.attempt.as_ref().map(|attempt| attempt.id.as_str())
     }

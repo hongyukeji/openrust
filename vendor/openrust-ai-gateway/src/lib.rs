@@ -19,6 +19,8 @@ mod accounts;
 mod aggregate_costs;
 #[path = "../database/migrations/2026_11_26_000011_create_ai_gateway_cost_totals_table.rs"]
 mod aggregate_costs_migration;
+#[path = "../database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs"]
+mod audio_duration_migration;
 mod billing;
 #[path = "../database/migrations/2026_11_26_000013_create_ai_gateway_charge_adjustments_table.rs"]
 mod billing_adjustments_migration;
@@ -200,6 +202,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs",
         &usage_resource_evidence_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs",
+        &audio_duration_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -319,6 +325,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs",
                         include_bytes!("../database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

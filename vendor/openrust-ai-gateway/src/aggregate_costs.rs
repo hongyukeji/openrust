@@ -16,6 +16,7 @@ mod gemini_storage;
 
 const TABLE: &str = "ai_gateway_cost_totals";
 const TOKENS: &str = "tokens";
+const SPEECH_TO_TEXT: &str = "speech_to_text";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -86,7 +87,15 @@ impl Default for Recorded {
     }
 }
 
-type RecordedTotals = BTreeMap<(String, Option<String>), Recorded>;
+type RecordedTotals = BTreeMap<(String, &'static str, Option<String>), Recorded>;
+
+fn recorded_category(category: Option<&str>) -> Option<&'static str> {
+    match category {
+        None => Some(TOKENS),
+        Some(SPEECH_TO_TEXT) => Some(SPEECH_TO_TEXT),
+        _ => None,
+    }
+}
 
 async fn recorded(
     transaction: &mut Transaction,
@@ -94,11 +103,14 @@ async fn recorded(
     totals: &[CostTotal],
     window: (i64, i64),
 ) -> DatabaseResult<RecordedTotals> {
-    let providers: BTreeSet<_> = totals
+    let scopes: BTreeSet<_> = totals
         .iter()
-        .filter(|total| total.category.is_none())
-        .map(|total| total.provider.as_str())
+        .filter_map(|total| {
+            recorded_category(total.category.as_deref())
+                .map(|category| (total.provider.as_str(), category))
+        })
         .collect();
+    let providers: BTreeSet<_> = scopes.iter().map(|(provider, _)| *provider).collect();
     let mut result = RecordedTotals::new();
     if providers.is_empty() {
         return Ok(result);
@@ -113,6 +125,7 @@ async fn recorded(
         .select([
             "ai_gateway_usage.id",
             "ai_gateway_usage.provider",
+            "ai_gateway_usage.endpoint",
             "ai_gateway_charges.attempt_id",
             "ai_gateway_charges.currency",
             "ai_gateway_charges.amount",
@@ -128,7 +141,10 @@ async fn recorded(
             "ai_gateway_usage.endpoint",
             crate::usage::gemini_caches::OPERATIONS
                 .into_iter()
-                .chain([openrust_ai::TextEndpoint::GeminiCountTokens.path()])
+                .chain([
+                    openrust_ai::TextEndpoint::GeminiCountTokens.path(),
+                    openrust_ai::TextEndpoint::XaiTextToSpeech.path(),
+                ])
                 .map(Value::from)
                 .collect(),
         )
@@ -143,25 +159,30 @@ async fn recorded(
             .first()
             .is_some_and(|previous| previous.get("id") != row.get("id"))
         {
-            count_attempt(&mut result, &providers, &attempt_rows)?;
+            count_attempt(&mut result, &scopes, &attempt_rows)?;
             attempt_rows.clear();
         }
         attempt_rows.push(row);
     }
     if !attempt_rows.is_empty() {
-        count_attempt(&mut result, &providers, &attempt_rows)?;
+        count_attempt(&mut result, &scopes, &attempt_rows)?;
     }
     Ok(result)
 }
 
 fn count_attempt(
     result: &mut RecordedTotals,
-    providers: &BTreeSet<&str>,
+    scopes: &BTreeSet<(&str, &str)>,
     rows: &[Row],
 ) -> DatabaseResult<()> {
     let row = &rows[0];
     let provider = text(row, "provider")?;
-    if !providers.contains(provider.as_str()) {
+    let category = if text(row, "endpoint")? == openrust_ai::TextEndpoint::XaiSpeechToText.path() {
+        SPEECH_TO_TEXT
+    } else {
+        TOKENS
+    };
+    if !scopes.contains(&(provider.as_str(), category)) {
         return Ok(());
     }
     let mut currency = optional_text(row, "currency")?;
@@ -170,7 +191,7 @@ fn count_attempt(
         currency = actual.currency.or(currency);
         amount = actual.amount;
     }
-    let entry = result.entry((provider, currency)).or_default();
+    let entry = result.entry((provider, category, currency)).or_default();
     let value = match billing::adjustments::summarize(rows, amount.as_deref())? {
         Some(adjustments) => adjustments.net(),
         None => amount.as_deref().map(Amount::ledger).transpose()?,
@@ -209,13 +230,18 @@ pub(crate) async fn save(
     let storage = gemini_storage::totals(transaction, &scopes, window).await?;
     let mut compared = Vec::with_capacity(totals.len());
     for total in totals {
-        let (known, pending) = if total.category.is_none() {
+        let category = recorded_category(total.category.as_deref());
+        let (known, pending) = if let Some(category) = category {
             let known = baseline
-                .get(&(total.provider.clone(), Some(total.currency.clone())))
+                .get(&(
+                    total.provider.clone(),
+                    category,
+                    Some(total.currency.clone()),
+                ))
                 .copied()
                 .unwrap_or_default();
             let unknown = baseline
-                .get(&(total.provider.clone(), None))
+                .get(&(total.provider.clone(), category, None))
                 .copied()
                 .unwrap_or_default();
             (known, known.pending + unknown.pending)
@@ -239,7 +265,7 @@ pub(crate) async fn save(
                 Some(estimate) if estimate.priced > 0 => "estimated_storage",
                 _ => "no_local_storage",
             }
-        } else if total.category.is_some() {
+        } else if category.is_none() {
             "unmapped_category"
         } else if pending != 0 {
             "pending_local_cost"

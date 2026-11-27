@@ -354,11 +354,21 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 通过 `models.<name>.endpoints = ["stt"]` 开放 `POST /v1/stt` 和可选的 `POST /stt`。调用方只有一个可用别名时可省略模型，网关将公开模型替换为上游模型。共享网关仅接受本次上传的单文件，含 multipart 头在内的请求体沿用框架的 8 MiB 上限。拒绝远程 URL、重复单值字段及多文件。保留重复的 `keyterm` 与 `redact` 并将文件放在最后。容器音频按内容识别，原始 PCM、μ-law 和 A-law 按显式格式和采样率转发。响应保留转录、词级时间、说话人和音频时长，并屏蔽上游内部字段。
 
-网关复用现有分组、上游账号、预算和用量登记。拒绝未知费用的硬预算在出站前拦截，已出站失败不自动重放。转录尝试的 Token 保持未知，持续时长计费和正式账单待后续核对。
+网关复用现有分组、上游账号、预算和用量登记。拒绝未知费用的硬预算在出站前拦截，已出站失败不自动重放。转录尝试的 Token 保持未知，按时长计费与对账见下一节。
 
 本地 xAI 协议服务验证独立 Artisan SDK 直连、SDK 经网关和独立 HTTP。核对 WAV、原始 PCM、μ-law、A-law、原始字节与 MIME、重复字段、文件最后上传、模型和账号切换、跨 Key 拒绝、大小超限 413、恶意上游错误脱敏、无自动重放、异常时间戳及 SQLite 持久化。八次网关出站尝试含六次成功、一次上游 503 和一次无效时间戳，所有尝试的 Token 留空，结算未产生计费行。13 项 SDK 和网关回归、严格 Clippy 与三语文档站点通过。正式 xAI 账户和更大文件的流式接收仍待验收。
 
 - [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L296-L309) · [xAI Speech to Text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+
+## GW-04 xAI 转录时长计量、计费与对账
+
+将上游转录响应的秒数按协议的三位小数转换为整数 `audio_duration_ms`。已验证的时长在成功响应前与尝试、价格快照及费用一并结算。零毫秒保持为零，字段缺失或响应无效的尝试保留未知。Artisan 以及当前 Key 的累计、按日和按模型汇总均可读取已确认时长。历史记录不回填。
+
+上游成本与下游应收分别配置 `audio_per_hour`，有任意 `redact` 字段时只加一次 `audio_redaction_per_hour`。按配置币种和分组倍率计算，金额最后执行半偶舍入。缺费率的方向留待核对，失败尝试不形成下游应收。无法在出站前确认时长上限时，拒绝未知费用的硬预算仍阻断转录。供应商汇总账单用 `speech_to_text` 分类，Token 汇总单独比较。逐尝试正式成本证据仍可按上游请求 ID 导入。
+
+本地模拟的 1.234 秒按 3.6 USD／小时计为 0.001234 USD，脱敏时配置同额附加费，成本为 0.002468 USD。下游费率 7.2 USD／小时乘分组倍率 1.25，应收 0.003085 USD。初次导入确认本地 0.00617 USD 和两次待补证尝试，追加 0.003 USD 与明确零的上游账单证据后，转录汇总匹配 0.00917 USD，Token 汇总无待定项。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 已通过独立 HTTP 与 Artisan，复验用量隔离、零值、缺费率、失败后上游成本补证、迁移发布与重跑保留历史行。12 项网关回归、严格 Clippy 和三语文档站点通过。真实 xAI 价格、账号及正式账单仍待联调。
+
+- [xAI 转录时长及脱敏收费说明](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
 
 ## GW-03 Gemini 完整生成请求计数
 
