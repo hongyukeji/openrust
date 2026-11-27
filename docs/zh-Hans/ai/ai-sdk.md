@@ -307,7 +307,9 @@ Schedule::configure(|schedule| {
 
 使用 Bearer 网关 Key，提交 xAI 的 `text` 和 `language` JSON 字段。Key 恰好能访问一个语音合成别名时，网关会自动选择它。有多个可用别名时，在请求的 `model` 字段指定公开模型名。网关向 xAI 发送原生请求，并返回 MP3、WAV 或 PCM 音频字节。共享凭证只能使用 xAI 内置音色。启用 `unversioned_paths` 后也可调用 `POST /tts`。
 
-启用持久化用量后，网关记录调用尝试及上游状态。语音合成没有 Token 计数或 Token 费用。拒绝未知费用的硬预算会在出站前拦截合成请求。
+启用持久化用量后，Artisan 按尝试显示 `input_characters`。调用方的 `/v1/usage` 汇总已出站的字符数，包含失败尝试。网关按原始 `text` 的 Unicode 标量值计数，包含空格和标签。发音替换和文本规范化不改变计数。
+
+在上游和下游费率中分别设置 `speech_per_million_characters`，单位为所选币种每百万字符，使用十进制字符串。仅供合成的费率可将 `input` 和 `output` 设为 `"0"`。硬预算按所选费率在出站前预占。失败尝试可能继续占用上游预算，直到成本对账完成。导入供应商合成汇总账单时使用 `category: "text_to_speech"`。
 
 ### 网关语音转录 {#gateway-transcription}
 

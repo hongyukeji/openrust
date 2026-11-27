@@ -153,8 +153,9 @@ impl Budget {
         ) && billable_text_only(endpoint, payload)
             || endpoint == TextEndpoint::GeminiBatchGenerateContent
                 && crate::gemini_batch_input::text_output(payload);
+        let bounded_speech = endpoint == TextEndpoint::XaiTextToSpeech;
         if let Some(charges) = charges
-            && (bounded_text || endpoint.is_embedding() || charges.by_image)
+            && (bounded_text || endpoint.is_embedding() || charges.by_image || bounded_speech)
         {
             let mut capped = payload.clone();
             let items = if endpoint.is_gemini_batch() {
@@ -174,7 +175,7 @@ impl Budget {
                         .filter(|count| *count > 0)
                         .ok_or("无法确认图片生成数量上限")?
                 }
-            } else if endpoint.is_embedding() {
+            } else if endpoint.is_embedding() || bounded_speech {
                 0
             } else {
                 let cap = output_quota.map_or(self.max_output_tokens, |quota| {

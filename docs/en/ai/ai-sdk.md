@@ -307,7 +307,9 @@ To expose `POST /v1/tts`, publish a model for an `xai` connection and authorize 
 
 Send a bearer gateway Key and the xAI JSON fields `text` and `language`. When the Key can access exactly one TTS alias, the alias is selected automatically. With multiple aliases, include the public name in the request’s `model` field. The gateway sends the native request to xAI and returns MP3, WAV, or PCM audio bytes. Use built-in xAI voice IDs on shared credentials. With `unversioned_paths` enabled, `POST /tts` is also available.
 
-The gateway records attempts and upstream status when usage persistence is enabled. Audio attempts have no token counts or token charges. A hard monetary budget that rejects unknown costs blocks synthesis before dispatch.
+With usage persistence enabled, Artisan lists `input_characters` for each synthesis attempt. The caller’s `/v1/usage` summaries count characters in dispatched requests, including failed attempts. The gateway counts Unicode scalar values in the original `text` field, including spaces and markers. Pronunciation replacement and text normalization do not alter the count.
+
+Set `speech_per_million_characters` on the upstream and downstream tariffs to price synthesis. Use decimal strings per million characters in the configured currency. Set `input` and `output` to `"0"` for a synthesis-only tariff. Hard budgets reserve funds from the selected rates before dispatch. Failed attempts can retain an upstream reservation until the cost is reconciled. Import supplier synthesis totals with `category: "text_to_speech"`.
 
 ### Gateway speech transcription {#gateway-transcription}
 

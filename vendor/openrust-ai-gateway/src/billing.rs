@@ -147,6 +147,8 @@ struct Tariff {
     audio_per_hour: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     audio_redaction_per_hour: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    speech_per_million_characters: Option<Amount>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     image_tiers: BTreeMap<String, Amount>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
@@ -261,6 +263,7 @@ impl PriceBook {
             version: self.version.clone(),
             by_image,
             audio_redaction: false,
+            input_characters: None,
             upstream_model: upstream_model.to_owned(),
             upstream: selected(upstream),
             downstream: selected(downstream),
@@ -387,12 +390,18 @@ pub(crate) struct ChargePlan {
     version: String,
     pub(crate) by_image: bool,
     audio_redaction: bool,
+    input_characters: Option<i64>,
     upstream_model: String,
     upstream: Option<Tariff>,
     downstream: Option<Tariff>,
 }
 
 impl ChargePlan {
+    pub(crate) fn with_input_characters(mut self, characters: i64) -> Self {
+        self.input_characters = Some(characters);
+        self
+    }
+
     pub(crate) fn with_audio_redaction(mut self, enabled: bool) -> Self {
         self.audio_redaction = enabled;
         if !enabled {
@@ -455,6 +464,7 @@ impl ChargePlan {
             downstream,
             by_image: false,
             audio_redaction: false,
+            input_characters: None,
         }))
     }
 
@@ -474,6 +484,9 @@ impl ChargePlan {
     fn ceiling(&self, tariff: &Tariff, currency: &str, output: i64, items: i64) -> Option<i64> {
         if tariff.currency != currency {
             return None;
+        }
+        if let Some(characters) = self.input_characters {
+            return tariff.speech_amount(characters, Rounding::Ceiling)?.atoms();
         }
         if self.by_image {
             return tariff.image_amount(output, Rounding::Ceiling)?.atoms();
@@ -614,10 +627,13 @@ impl ChargePlan {
         }
         let audio =
             settlement.upstream_endpoint == openrust_ai::TextEndpoint::XaiSpeechToText.path();
+        let speech =
+            settlement.upstream_endpoint == openrust_ai::TextEndpoint::XaiTextToSpeech.path();
         if self.by_image && tariff.image.is_none()
             || audio
                 && (tariff.audio_per_hour.is_none()
                     || self.audio_redaction && tariff.audio_redaction_per_hour.is_none())
+            || speech && tariff.speech_per_million_characters.is_none()
         {
             return ("missing_price", None);
         }
@@ -632,6 +648,10 @@ impl ChargePlan {
             settlement
                 .audio_duration_ms
                 .and_then(|milliseconds| tariff.audio_amount(milliseconds))
+        } else if speech {
+            settlement
+                .input_characters
+                .and_then(|characters| tariff.speech_amount(characters, Rounding::HalfEven))
         } else {
             tariff.quote(settlement)
         };
@@ -643,6 +663,14 @@ impl ChargePlan {
 }
 
 impl Tariff {
+    fn speech_amount(&self, characters: i64, rounding: Rounding) -> Option<Amount> {
+        let numerator = self
+            .speech_per_million_characters?
+            .0
+            .checked_mul(i128::from(characters))?;
+        self.amount(numerator, rounding)
+    }
+
     fn audio_amount(&self, milliseconds: i64) -> Option<Amount> {
         let rate = self
             .audio_per_hour?

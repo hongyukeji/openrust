@@ -50,6 +50,8 @@ mod gemini_batch_input;
 mod gemini_batches_migration;
 #[path = "../database/migrations/2026_11_27_000021_create_ai_gateway_gemini_caches_table.rs"]
 mod gemini_caches_migration;
+#[path = "../database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs"]
+mod input_characters_migration;
 mod invocation;
 #[path = "../database/migrations/2026_11_26_000008_add_invocation_to_ai_gateway_usage.rs"]
 mod invocation_migration;
@@ -206,6 +208,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs",
         &audio_duration_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs",
+        &input_characters_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -329,6 +335,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs",
                         include_bytes!("../database/migrations/2026_11_27_000023_add_audio_duration_to_ai_gateway_usage.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000024_add_input_characters_to_ai_gateway_usage.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

@@ -307,7 +307,9 @@ Schedule::configure(|schedule| {
 
 使用 Bearer 閘道 Key，提交 xAI 的 `text` 和 `language` JSON 欄位。Key 恰好可存取一個語音合成別名時，閘道會自動選取它。有多個可用別名時，在請求的 `model` 欄位指定公開模型名稱。閘道向 xAI 發送原生請求，並回傳 MP3、WAV 或 PCM 音訊位元組。共享憑證只能使用 xAI 內建音色。啟用 `unversioned_paths` 後也可呼叫 `POST /tts`。
 
-啟用持久化用量後，閘道記錄呼叫嘗試及上游狀態。語音合成沒有 Token 計數或 Token 費用。拒絕未知費用的硬預算會在送出前攔截合成請求。
+啟用持久化用量後，Artisan 按嘗試顯示 `input_characters`。呼叫端的 `/v1/usage` 彙總已送出的字元數，包含失敗嘗試。閘道按原始 `text` 的 Unicode 純量值計數，包含空格和標記。發音替換及文字正規化不改變計數。
+
+在上游與下游費率中分別設定 `speech_per_million_characters`，單位為所選幣別每百萬字元，使用十進位字串。僅供合成的費率可將 `input` 和 `output` 設為 `"0"`。硬預算依所選費率在送出前預占。失敗嘗試可能繼續占用上游預算，直到成本對帳完成。匯入供應商合成彙總帳單時使用 `category: "text_to_speech"`。
 
 ### 閘道語音轉錄 {#gateway-transcription}
 

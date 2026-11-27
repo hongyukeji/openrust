@@ -17,6 +17,7 @@ mod gemini_storage;
 const TABLE: &str = "ai_gateway_cost_totals";
 const TOKENS: &str = "tokens";
 const SPEECH_TO_TEXT: &str = "speech_to_text";
+const TEXT_TO_SPEECH: &str = "text_to_speech";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -93,6 +94,7 @@ fn recorded_category(category: Option<&str>) -> Option<&'static str> {
     match category {
         None => Some(TOKENS),
         Some(SPEECH_TO_TEXT) => Some(SPEECH_TO_TEXT),
+        Some(TEXT_TO_SPEECH) => Some(TEXT_TO_SPEECH),
         _ => None,
     }
 }
@@ -141,10 +143,7 @@ async fn recorded(
             "ai_gateway_usage.endpoint",
             crate::usage::gemini_caches::OPERATIONS
                 .into_iter()
-                .chain([
-                    openrust_ai::TextEndpoint::GeminiCountTokens.path(),
-                    openrust_ai::TextEndpoint::XaiTextToSpeech.path(),
-                ])
+                .chain([openrust_ai::TextEndpoint::GeminiCountTokens.path()])
                 .map(Value::from)
                 .collect(),
         )
@@ -177,10 +176,11 @@ fn count_attempt(
 ) -> DatabaseResult<()> {
     let row = &rows[0];
     let provider = text(row, "provider")?;
-    let category = if text(row, "endpoint")? == openrust_ai::TextEndpoint::XaiSpeechToText.path() {
-        SPEECH_TO_TEXT
-    } else {
-        TOKENS
+    let endpoint = text(row, "endpoint")?;
+    let category = match endpoint.as_str() {
+        path if path == openrust_ai::TextEndpoint::XaiSpeechToText.path() => SPEECH_TO_TEXT,
+        path if path == openrust_ai::TextEndpoint::XaiTextToSpeech.path() => TEXT_TO_SPEECH,
+        _ => TOKENS,
     };
     if !scopes.contains(&(provider.as_str(), category)) {
         return Ok(());

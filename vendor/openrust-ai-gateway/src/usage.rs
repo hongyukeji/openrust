@@ -25,7 +25,7 @@ pub(crate) mod gemini_batches;
 pub(crate) mod gemini_caches;
 
 const TABLE: &str = "ai_gateway_usage";
-const COLUMNS: [&str; 30] = [
+const COLUMNS: [&str; 31] = [
     "id",
     "request_id",
     "key_id",
@@ -42,6 +42,7 @@ const COLUMNS: [&str; 30] = [
     "output_tokens",
     "output_images",
     "audio_duration_ms",
+    "input_characters",
     "cached_input_tokens",
     "cache_write_input_tokens",
     "reasoning_tokens",
@@ -65,6 +66,7 @@ const ROLLUP: &str = "
     COUNT(finished_at) AS settled_attempts, SUM(input_tokens) AS input_tokens,
     SUM(output_tokens) AS output_tokens, SUM(output_images) AS output_images,
     SUM(audio_duration_ms) AS audio_duration_ms, SUM(cached_input_tokens) AS cache_read_tokens,
+    SUM(CASE WHEN dispatch_started_at IS NOT NULL THEN input_characters END) AS input_characters,
     SUM(cache_write_input_tokens) AS cache_creation_tokens, SUM(reasoning_tokens) AS reasoning_tokens,
     SUM(CASE WHEN input_tokens IS NOT NULL THEN input_tokens + COALESCE(output_tokens, 0)
         + CASE WHEN upstream_endpoint = 'messages' THEN COALESCE(cached_input_tokens, 0)
@@ -118,6 +120,8 @@ pub(crate) struct UsageTotals {
     output_images: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     audio_duration_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_characters: Option<u64>,
     cache_read_tokens: Option<u64>,
     cache_creation_tokens: Option<u64>,
     reasoning_tokens: Option<u64>,
@@ -167,6 +171,7 @@ pub(crate) struct Settlement {
     pub(crate) output_tokens: Option<i64>,
     pub(crate) output_images: Option<i64>,
     pub(crate) audio_duration_ms: Option<i64>,
+    pub(crate) input_characters: Option<i64>,
     pub(crate) cached_input_tokens: Option<i64>,
     pub(crate) cache_write_input_tokens: Option<i64>,
     pub(crate) reasoning_tokens: Option<i64>,
@@ -197,6 +202,7 @@ impl Settlement {
         let output = count("output_tokens");
         let images = count("output_images");
         let duration = count("audio_duration_ms");
+        let characters = count("input_characters");
         let cache_read = count("cached_input_tokens");
         let cache_written = count("cache_write_input_tokens");
         let reasoning = count("reasoning_tokens");
@@ -216,7 +222,8 @@ impl Settlement {
             == Some(true);
         let state = if !dispatch_started {
             "not_dispatched"
-        } else if outcome == "completed" && (images.is_some() || duration.is_some())
+        } else if outcome == "completed"
+            && (images.is_some() || duration.is_some() || characters.is_some())
             || (outcome == "completed"
                 || confirmed_error
                 || input_only && outcome == "batch_aborted")
@@ -229,6 +236,7 @@ impl Settlement {
             output,
             images,
             duration,
+            characters,
             cache_read,
             cache_written,
             reasoning,
@@ -251,6 +259,7 @@ impl Settlement {
             output_tokens: output,
             output_images: images,
             audio_duration_ms: duration,
+            input_characters: characters,
             cached_input_tokens: cache_read,
             cache_write_input_tokens: cache_written,
             reasoning_tokens: reasoning,
@@ -321,6 +330,8 @@ pub(crate) struct UsageRecord {
     output_images: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     audio_duration_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_characters: Option<i64>,
     cached_input_tokens: Option<i64>,
     cache_write_input_tokens: Option<i64>,
     reasoning_tokens: Option<i64>,
@@ -557,6 +568,12 @@ impl UsageStore {
                         .and_then(serde_json::Value::as_i64),
                 ),
             );
+        }
+        if let Some(characters) = context
+            .get("input_characters")
+            .and_then(serde_json::Value::as_i64)
+        {
+            record.insert("input_characters".into(), characters.into());
         }
         if let UsageOwner::Static(scope) = owner {
             record.insert("static_key_scope".into(), scope.into());
@@ -986,6 +1003,7 @@ fn decode(row: &Row) -> DatabaseResult<UsageRecord> {
         output_tokens: integer("output_tokens")?,
         output_images: integer("output_images")?,
         audio_duration_ms: integer("audio_duration_ms")?,
+        input_characters: integer("input_characters")?,
         cached_input_tokens: integer("cached_input_tokens")?,
         cache_write_input_tokens: integer("cache_write_input_tokens")?,
         reasoning_tokens: integer("reasoning_tokens")?,
@@ -1033,6 +1051,7 @@ impl UsageTotals {
             output_tokens: number(row, "output_tokens")?,
             output_images: number(row, "output_images")?,
             audio_duration_ms: number(row, "audio_duration_ms")?,
+            input_characters: number(row, "input_characters")?,
             cache_read_tokens: number(row, "cache_read_tokens")?,
             cache_creation_tokens: number(row, "cache_creation_tokens")?,
             reasoning_tokens: number(row, "reasoning_tokens")?,

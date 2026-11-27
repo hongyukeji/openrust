@@ -34,7 +34,7 @@ pub(super) fn implicit_model<'a>(
     Ok(name)
 }
 
-pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'static str> {
+pub(super) fn validate(fields: &Map<String, Value>) -> Result<(AudioFormat, i64), &'static str> {
     if fields.keys().any(|field| {
         !matches!(
             field.as_str(),
@@ -45,6 +45,7 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'sta
                 | "output_format"
                 | "speed"
                 | "normalize"
+                | "text_normalization"
                 | "replace"
                 | "with_timestamps"
         )
@@ -54,20 +55,23 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'sta
     ) {
         return Err("语音合成只支持二进制音频响应及原生合成字段");
     }
-    if !fields
+    let characters = fields
         .get("text")
         .and_then(Value::as_str)
-        .is_some_and(|text| !text.trim().is_empty() && text.chars().count() <= 60_000)
-        || !fields
-            .get("language")
-            .and_then(Value::as_str)
-            .is_some_and(|language| {
-                !language.is_empty()
-                    && language.len() <= 35
-                    && language
-                        .bytes()
-                        .all(|value| value.is_ascii_alphanumeric() || value == b'-')
-            })
+        .filter(|text| !text.trim().is_empty())
+        .and_then(|text| i64::try_from(text.chars().count()).ok())
+        .filter(|characters| *characters <= 60_000)
+        .ok_or("语音合成需要有效的正文和语言")?;
+    if !fields
+        .get("language")
+        .and_then(Value::as_str)
+        .is_some_and(|language| {
+            !language.is_empty()
+                && language.len() <= 35
+                && language
+                    .bytes()
+                    .all(|value| value.is_ascii_alphanumeric() || value == b'-')
+        })
     {
         return Err("语音合成需要有效的正文和语言");
     }
@@ -82,7 +86,7 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'sta
         return Err("共享语音连接仅支持 xAI 内置音色");
     }
     let Some(format) = fields.get("output_format") else {
-        return Ok(AudioFormat::Mp3);
+        return Ok((AudioFormat::Mp3, characters));
     };
     let format = format
         .as_object()
@@ -92,7 +96,7 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'sta
                 .all(|key| matches!(key.as_str(), "codec" | "sample_rate" | "bit_rate"))
         })
         .ok_or("无效的音频格式配置")?;
-    match format.get("codec") {
+    let codec = match format.get("codec") {
         None => Ok(AudioFormat::Mp3),
         Some(codec) => match codec.as_str() {
             Some("mp3") => Ok(AudioFormat::Mp3),
@@ -100,7 +104,8 @@ pub(super) fn validate(fields: &Map<String, Value>) -> Result<AudioFormat, &'sta
             Some("pcm") => Ok(AudioFormat::Pcm),
             _ => Err("语音合成只支持 MP3、WAV 和 PCM 音频"),
         },
-    }
+    }?;
+    Ok((codec, characters))
 }
 
 pub(super) async fn respond(

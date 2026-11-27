@@ -714,6 +714,7 @@ impl Gateway {
             invocation: None,
         };
         let admission = AttemptAdmission {
+            input_characters: None,
             resource_id: Some(format!("cachedContents/{}", cache.id)),
             lease,
             quota: None,
@@ -765,6 +766,7 @@ impl Gateway {
             operation,
             hide_chat_usage,
             resource_id,
+            input_characters,
         } = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
@@ -786,6 +788,9 @@ impl Gateway {
         ]
         .into_iter()
         .collect();
+        if let Some(characters) = input_characters {
+            context.insert("input_characters".into(), json!(characters));
+        }
         if let Some(invocation) = identity.invocation {
             context.insert("consumer_invocation".into(), json!(invocation.id));
             context.insert("model_turn".into(), json!(invocation.model_turn));
@@ -909,7 +914,7 @@ impl Gateway {
         let by_image = target.provider.relay_meters_images(endpoint);
         let billable = by_image
             || endpoint.is_embedding()
-            || endpoint == TextEndpoint::XaiSpeechToText
+            || endpoint.is_xai_voice()
             || matches!(
                 endpoint,
                 TextEndpoint::Responses
@@ -941,6 +946,7 @@ struct UsageRoute {
 }
 
 pub(crate) struct AttemptAdmission {
+    pub(crate) input_characters: Option<i64>,
     pub(crate) lease: Option<ConcurrencyLease>,
     pub(crate) quota: Option<QuotaReservation>,
     pub(crate) budget: BudgetReservations,

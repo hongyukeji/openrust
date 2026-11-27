@@ -346,9 +346,19 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 依据固定 Sub2API 的 Grok 语音入口开放 `POST /v1/tts` 及可选无版本别名。通过 `models.<name>.endpoints = ["tts"]` 向授权调用方发布。原生请求未指定模型时只选调用方唯一获准的合成模型，多模型需显式选择。公开别名和网关 Key 均不发往上游。共享连接允许 xAI 内置音色，合成输出支持二进制 MP3、WAV 和 PCM。上游结果须通过音频校验，并在持久化结算后交付。已经发往上游的合成请求失败后不自动重放。
 
-本地 xAI 协议服务实测 SDK 直连、SDK 经网关、外部 HTTP、Artisan 路由和 SQLite 用量。校验上游身份、无版本别名、跨授权、多个模型、未知费用硬预算、请求限流、音色资源隔离、无 Token 误计、无备用重放、上游错误脱敏、二进制字节及结果类型。七次网关出站尝试含五次成功、一次上游 503 和一次无效音频，其 Token 与计费明细保持空值。13 项 SDK 和网关回归、严格 Clippy 及三语文档站点通过。字符费用、带时间戳的结果、电话音频格式、流式合成和 xAI 正式账户仍待验收。
+本地 xAI 协议服务实测 SDK 直连、SDK 经网关、外部 HTTP、Artisan 路由和 SQLite 用量。校验上游身份、无版本别名、跨授权、多个模型、未知费用硬预算、请求限流、音色资源隔离、无 Token 误计、无备用重放、上游错误脱敏、二进制字节及结果类型。七次网关出站尝试含五次成功、一次上游 503 和一次无效音频，其 Token 与计费明细保持空值。13 项 SDK 和网关回归、严格 Clippy 及三语文档站点通过。字符计费与对账见下一节。带时间戳的结果、电话音频格式、流式合成和 xAI 正式账户仍待验收。
 
 - [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L296-L309) · [xAI Text to Speech](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
+
+## GW-04 xAI 合成字符计量、计费与对账
+
+按上游原始 `text` 的输入字符计费，网关以 Unicode 标量值计数，保留空格、标点和语音标签。发音替换和文本规范化维持原计数。只在账本保存整数 `input_characters`，请求原文不入账。尝试级记录保留计数，调用方 `/v1/usage` 汇总已出站尝试，失败尝试保留计数。历史行的未知值不回填。
+
+以 `speech_per_million_characters` 分别配置上游和下游费率，沿用价格快照、分组倍率以及现有的预算事务。硬预算在出站前按所选费率预占，成功后按实际账目结算。已出站且供应商费用未知的失败尝试保留上游预占，供正式证据核销。失败不形成下游应收。供应商合成费用以 `text_to_speech` 分类对账。
+
+本地协议样本混合汉字、表情、组合字符及前后空格，共 7 个 Unicode 标量值。按样本上游费率 15 USD／百万字符计算为 0.000105 USD，应收按 20 USD／百万字符和 1.25 分组倍率计算为 0.000175 USD。并发下先到请求预占 0.0001 USD，第二次拦截在出站前。两笔失败先保留 0.00006 USD 上游预占，导入 0.00002 USD 与明确零后，合成汇总匹配 0.000275 USD，预占释放，Token 与转录汇总独立。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经独立 HTTP 和 Artisan 验收三条调用路径、分组与账号预算、并发预占、费率换版后旧快照、迁移发布及重跑保留历史行。12 项网关回归、严格 Clippy 和三语文档站点通过，并复验了 SQLite 转录账目。正式 xAI 账户的 Unicode 口径、实价及账单待 E09 实测。
+
+- [xAI 语音合成入参和发音替换](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech) · [xAI 按字符报价](https://docs.x.ai/developers/models/text-to-speech)
 
 ## GW-03 xAI 网关语音转录
 

@@ -523,7 +523,7 @@ async fn relay(
         };
         (data, None)
     };
-    let speech_format = if endpoint == TextEndpoint::XaiTextToSpeech {
+    let speech = if endpoint == TextEndpoint::XaiTextToSpeech {
         match xai_speech::validate(&data) {
             Ok(format) => Some(format),
             Err(message) => {
@@ -934,7 +934,9 @@ async fn relay(
         let charges = gateway
             .charge_plan(key, &name, target, upstream_endpoint, &payload)
             .map(|plan| {
-                if endpoint == TextEndpoint::XaiSpeechToText {
+                if let Some((_, characters)) = speech {
+                    plan.with_input_characters(characters)
+                } else if endpoint == TextEndpoint::XaiSpeechToText {
                     let redacted = uploads
                         .as_ref()
                         .is_some_and(|parts| parts.iter().any(|(name, _)| name == "redact"));
@@ -1009,6 +1011,7 @@ async fn relay(
                     resource_id: gemini_cache
                         .as_ref()
                         .map(|cache| format!("cachedContents/{}", cache.id)),
+                    input_characters: speech.map(|(_, characters)| characters),
                     lease,
                     quota: reservation,
                     budget,
@@ -1077,7 +1080,7 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
-                if let Some(format) = speech_format {
+                if let Some((format, _)) = speech {
                     return xai_speech::respond(upstream, format, call).await;
                 }
                 return respond(
