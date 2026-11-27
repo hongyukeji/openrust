@@ -262,6 +262,10 @@ impl TextProvider for BedrockProvider {
         }
     }
 
+    fn relay_meters_images(&self, endpoint: crate::TextEndpoint) -> bool {
+        endpoint == crate::TextEndpoint::ImagesGenerations
+    }
+
     fn relay_request_error(
         &self,
         endpoint: crate::TextEndpoint,

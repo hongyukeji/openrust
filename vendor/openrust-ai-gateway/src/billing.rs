@@ -124,6 +124,8 @@ struct Tariff {
     cache_write: Option<Amount>,
     reasoning: Option<Amount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    image: Option<Amount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     input_token_limit: Option<i64>,
     #[serde(
         skip_deserializing,
@@ -193,6 +195,7 @@ impl PriceBook {
         upstream_model: &str,
         model: &str,
         multiplier: Option<Amount>,
+        by_image: bool,
     ) -> ChargePlan {
         let mut downstream = self.downstream.get(model).cloned();
         if let Some(tariff) = &mut downstream {
@@ -200,6 +203,7 @@ impl PriceBook {
         }
         ChargePlan {
             version: self.version.clone(),
+            by_image,
             upstream_model: upstream_model.to_owned(),
             upstream: self
                 .upstream
@@ -312,6 +316,7 @@ pub(crate) async fn close_interrupted_embedding(
 #[derive(Clone)]
 pub(crate) struct ChargePlan {
     version: String,
+    pub(crate) by_image: bool,
     upstream_model: String,
     upstream: Option<Tariff>,
     downstream: Option<Tariff>,
@@ -327,10 +332,13 @@ impl ChargePlan {
     }
 
     fn ceiling(&self, tariff: &Tariff, currency: &str, output: i64) -> Option<i64> {
-        let cap = self.upstream.as_ref()?.input_token_limit?;
         if tariff.currency != currency {
             return None;
         }
+        if self.by_image {
+            return tariff.image_amount(output, Rounding::Ceiling)?.atoms();
+        }
+        let cap = self.upstream.as_ref()?.input_token_limit?;
         let input_rate = [Some(tariff.input), tariff.cache_read, tariff.cache_write]
             .into_iter()
             .flatten()
@@ -456,10 +464,20 @@ impl ChargePlan {
         {
             return ("model_mismatch", None);
         }
+        if self.by_image && tariff.image.is_none() {
+            return ("missing_price", None);
+        }
         if settlement.state != "final" {
             return ("awaiting_usage", None);
         }
-        match tariff.quote(settlement) {
+        let amount = if self.by_image {
+            settlement
+                .output_images
+                .and_then(|count| tariff.image_amount(count, Rounding::HalfEven))
+        } else {
+            tariff.quote(settlement)
+        };
+        match amount {
             Some(amount) => ("priced", Some(amount)),
             None => ("awaiting_usage", None),
         }
@@ -467,6 +485,11 @@ impl ChargePlan {
 }
 
 impl Tariff {
+    fn image_amount(&self, count: i64, rounding: Rounding) -> Option<Amount> {
+        let amount = self.image?.0.checked_mul(i128::from(count))?;
+        self.amount(amount.checked_mul(PER_MILLION)?, rounding)
+    }
+
     fn quote(&self, settlement: &Settlement) -> Option<Amount> {
         let mut input = i128::from(settlement.input_tokens?);
         if settlement.input_only {

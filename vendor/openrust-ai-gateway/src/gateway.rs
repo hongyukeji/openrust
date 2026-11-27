@@ -659,6 +659,10 @@ impl Gateway {
             ),
             ("input_tokens".into(), Value::Null),
             ("output_tokens".into(), Value::Null),
+            (
+                "image_metered".into(),
+                json!(target.provider.relay_meters_images(upstream_endpoint)),
+            ),
         ]
         .into_iter()
         .collect();
@@ -784,7 +788,9 @@ impl Gateway {
         target: &Target,
         endpoint: TextEndpoint,
     ) -> Option<ChargePlan> {
-        let billable = endpoint.is_embedding()
+        let by_image = target.provider.relay_meters_images(endpoint);
+        let billable = by_image
+            || endpoint.is_embedding()
             || matches!(
                 endpoint,
                 TextEndpoint::Responses
@@ -799,6 +805,7 @@ impl Gateway {
                 &target.upstream_model,
                 name,
                 key.rate_multiplier(),
+                by_image,
             )
         })
     }
@@ -824,6 +831,15 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) fn observe_buffered_images(&mut self, payload: &Value) {
+        if self.context.get("image_metered").and_then(Value::as_bool) == Some(true)
+            && let Some(images) = payload["data"].as_array()
+        {
+            self.context
+                .insert("output_images".into(), json!(images.len()));
+        }
+    }
+
     pub(crate) async fn finish_batch(calls: &mut [Self], successful: bool) -> bool {
         let attempts = calls
             .iter()

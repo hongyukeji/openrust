@@ -22,7 +22,7 @@ use crate::{
 mod batch_recovery;
 
 const TABLE: &str = "ai_gateway_usage";
-const COLUMNS: [&str; 26] = [
+const COLUMNS: [&str; 27] = [
     "id",
     "request_id",
     "key_id",
@@ -37,6 +37,7 @@ const COLUMNS: [&str; 26] = [
     "status",
     "input_tokens",
     "output_tokens",
+    "output_images",
     "cached_input_tokens",
     "cache_write_input_tokens",
     "reasoning_tokens",
@@ -56,7 +57,7 @@ const DAY_START: &str = "started_at - (started_at % 86400)";
 const ROLLUP: &str = "
     COUNT(DISTINCT request_id) AS requests, COUNT(*) AS attempts,
     COUNT(finished_at) AS settled_attempts, SUM(input_tokens) AS input_tokens,
-    SUM(output_tokens) AS output_tokens, SUM(cached_input_tokens) AS cache_read_tokens,
+    SUM(output_tokens) AS output_tokens, SUM(output_images) AS output_images, SUM(cached_input_tokens) AS cache_read_tokens,
     SUM(cache_write_input_tokens) AS cache_creation_tokens, SUM(reasoning_tokens) AS reasoning_tokens,
     SUM(CASE WHEN input_tokens IS NOT NULL THEN input_tokens + COALESCE(output_tokens, 0)
         + CASE WHEN upstream_endpoint = 'messages' THEN COALESCE(cached_input_tokens, 0)
@@ -104,6 +105,8 @@ pub(crate) struct UsageTotals {
     settled_attempts: u64,
     input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_images: Option<u64>,
     cache_read_tokens: Option<u64>,
     cache_creation_tokens: Option<u64>,
     reasoning_tokens: Option<u64>,
@@ -151,6 +154,7 @@ pub(crate) struct Settlement {
     status: Option<i64>,
     pub(crate) input_tokens: Option<i64>,
     pub(crate) output_tokens: Option<i64>,
+    pub(crate) output_images: Option<i64>,
     pub(crate) cached_input_tokens: Option<i64>,
     pub(crate) cache_write_input_tokens: Option<i64>,
     pub(crate) reasoning_tokens: Option<i64>,
@@ -177,6 +181,7 @@ impl Settlement {
         };
         let input = count("input_tokens");
         let output = count("output_tokens");
+        let images = count("output_images");
         let cache_read = count("cached_input_tokens");
         let cache_written = count("cache_write_input_tokens");
         let reasoning = count("reasoning_tokens");
@@ -190,12 +195,13 @@ impl Settlement {
             );
         let state = if !dispatch_started {
             "not_dispatched"
-        } else if (outcome == "completed" || input_only && outcome == "batch_aborted")
-            && input.is_some()
-            && (input_only || output.is_some())
+        } else if outcome == "completed" && images.is_some()
+            || (outcome == "completed" || input_only && outcome == "batch_aborted")
+                && input.is_some()
+                && (input_only || output.is_some())
         {
             "final"
-        } else if [input, output, cache_read, cache_written, reasoning]
+        } else if [input, output, images, cache_read, cache_written, reasoning]
             .into_iter()
             .any(|counter| counter.is_some())
         {
@@ -210,6 +216,7 @@ impl Settlement {
             status: count("status"),
             input_tokens: input,
             output_tokens: output,
+            output_images: images,
             cached_input_tokens: cache_read,
             cache_write_input_tokens: cache_written,
             reasoning_tokens: reasoning,
@@ -227,6 +234,7 @@ impl Settlement {
             ("status".into(), nullable(self.status)),
             ("input_tokens".into(), nullable(self.input_tokens)),
             ("output_tokens".into(), nullable(self.output_tokens)),
+            ("output_images".into(), nullable(self.output_images)),
             (
                 "cached_input_tokens".into(),
                 nullable(self.cached_input_tokens),
@@ -268,6 +276,8 @@ pub(crate) struct UsageRecord {
     status: Option<i64>,
     input_tokens: Option<i64>,
     output_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_images: Option<i64>,
     cached_input_tokens: Option<i64>,
     cache_write_input_tokens: Option<i64>,
     reasoning_tokens: Option<i64>,
@@ -924,6 +934,7 @@ fn decode(row: &Row) -> DatabaseResult<UsageRecord> {
         status: integer("status")?,
         input_tokens: integer("input_tokens")?,
         output_tokens: integer("output_tokens")?,
+        output_images: integer("output_images")?,
         cached_input_tokens: integer("cached_input_tokens")?,
         cache_write_input_tokens: integer("cache_write_input_tokens")?,
         reasoning_tokens: integer("reasoning_tokens")?,
@@ -963,6 +974,7 @@ impl UsageTotals {
             settled_attempts: count("settled_attempts")?,
             input_tokens: number(row, "input_tokens")?,
             output_tokens: number(row, "output_tokens")?,
+            output_images: number(row, "output_images")?,
             cache_read_tokens: number(row, "cache_read_tokens")?,
             cache_creation_tokens: number(row, "cache_creation_tokens")?,
             reasoning_tokens: number(row, "reasoning_tokens")?,

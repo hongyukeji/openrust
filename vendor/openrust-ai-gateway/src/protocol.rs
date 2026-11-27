@@ -1183,6 +1183,7 @@ async fn respond(
     } else if !endpoint.is_counting() {
         call.observe_usage(&data);
         call.observe_final_cost(&data);
+        call.observe_buffered_images(&data);
     }
     if let Some(bridge) = bridge {
         let Some(response) = bridge.response(name.clone(), &data) else {

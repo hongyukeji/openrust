@@ -261,6 +261,8 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 發佈 Bedrock 文字生圖模型時，只列出 `images/generations`。回應透過 `data[].b64_json` 傳回 Base64 PNG。Nova Canvas 和 Titan 單次 AWS 呼叫最多生成五張圖，直式和橫式分別對應 Bedrock 的 `768x1152` 和 `1152x768`。Stability Stable Image 使用長寬比和模型預設品質，每次生成一張。Bedrock 生成使用一般 JSON 回應。
 
+啟用 Bedrock 圖片計費前，發佈並執行最新的 `ai-gateway-migrations`。在上游和下游費率中設定 `image`，用十進位字串表示對應幣別的每圖單價，例如 `"image": "0.04"`。這是依模型設定的固定費率。只依圖片計費時將 `input` 和 `output` 設為 `"0"`。閘道依請求的 `n` 預留，再依實際傳回且通過驗證的圖片數結算。已知數量會顯示於用量帳本及 `/v1/usage` 的 `output_images`。未知供應商費用保留待核對，可用 AWS 帳單對帳。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

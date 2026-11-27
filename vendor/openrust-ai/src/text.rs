@@ -301,6 +301,11 @@ pub trait TextProvider: Send + Sync {
         endpoint.path()
     }
 
+    /// 此普通 JSON 路径以已验证的 data 图片条目作为计量证据。
+    fn relay_meters_images(&self, _endpoint: TextEndpoint) -> bool {
+        false
+    }
+
     /// 在预占和记录出站尝试前检查协议转换能否保留调用语义。
     fn relay_request_error(&self, _endpoint: TextEndpoint, _body: &Value) -> Option<&'static str> {
         None

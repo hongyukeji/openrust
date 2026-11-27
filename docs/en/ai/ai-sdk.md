@@ -261,6 +261,8 @@ Use `POST /v1/images/generations` with JSON and `POST /v1/images/edits` with JSO
 
 For a Bedrock text-to-image model, publish only `images/generations`. The response contains Base64 PNG in `data[].b64_json`. Nova Canvas and Titan generate up to five images in one AWS call. Portrait and landscape requests map to the Bedrock presets `768x1152` and `1152x768`. Stability Stable Image uses the aspect ratio and default quality, with one image per request. Bedrock generation uses a buffered JSON response.
 
+For Bedrock image billing, publish and run the latest `ai-gateway-migrations`. Set `image` in the upstream and downstream tariffs to a decimal amount per image in the tariff currency, for example `"image": "0.04"`. This is a flat rate configured per model. Set `input` and `output` to `"0"` for an image-only tariff. The gateway reserves against the requested count `n`, then settles against the validated images actually returned. `output_images` appears in the attempt ledger and in `/v1/usage` when a count is available. Unknown provider charges remain pending and can be reconciled against AWS billing.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

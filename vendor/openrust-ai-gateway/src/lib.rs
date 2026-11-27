@@ -44,6 +44,8 @@ mod invocation_migration;
 mod key_migration;
 mod localization;
 mod managed_keys;
+#[path = "../database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs"]
+mod output_images_migration;
 mod output_quota;
 #[path = "../database/migrations/2026_11_26_000003_create_ai_gateway_output_quota_table.rs"]
 mod output_quota_migration;
@@ -157,6 +159,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs",
         &reported_cost_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs",
+        &output_images_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -248,6 +254,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs",
                         include_bytes!("../database/migrations/2026_11_26_000015_add_reported_cost_to_ai_gateway_charges.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs",
+                        include_bytes!("../database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

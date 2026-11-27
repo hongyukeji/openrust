@@ -151,11 +151,20 @@ impl Budget {
             endpoint,
             TextEndpoint::Responses | TextEndpoint::ChatCompletions | TextEndpoint::Messages
         ) && billable_text_only(endpoint, payload);
-        if (bounded_text || endpoint.is_embedding())
-            && let Some(charges) = charges
+        if let Some(charges) = charges
+            && (bounded_text || endpoint.is_embedding() || charges.by_image)
         {
             let mut capped = payload.clone();
-            let output = if endpoint.is_embedding() {
+            let output = if charges.by_image {
+                if payload["n"].is_null() {
+                    1
+                } else {
+                    payload["n"]
+                        .as_i64()
+                        .filter(|count| *count > 0)
+                        .ok_or("无法确认图片生成数量上限")?
+                }
+            } else if endpoint.is_embedding() {
                 0
             } else {
                 let cap = output_quota.map_or(self.max_output_tokens, |quota| {
