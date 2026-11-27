@@ -41,6 +41,7 @@
 - [ ] **G02 Responses 与 Messages 的双向高级字段**。按方向验证附件、签名推理、服务端工具和不可转换时的响应。
 - [ ] **G03 Gemini 跨协议裁决**。按适用入站协议核对文本流、工具及签名关联、结构化输出和用量。
 - [ ] **G04 Responses 持久状态与子路径**。分别核对 `store`、`previous_response_id`、`background` 和外部资源引用的准入及跨租户拒绝。
+  - [x] [独立 Compact 暴露、归属与回放](gateway.md#responses-独立压缩与归属校验)已通过本地三库。
 - [ ] **G05 Responses 上游 WebSocket**。验证上游握手、复用、断线、取消、续接和终态。
 - [ ] **G06 WebSocket 预热**。核对适用上游、出站与用量归属，以及失败后的连接状态。
 - [ ] **G07 WebSocket 实时转向**。验证生成中转向、旧分支状态、并行隔离和回合终态。
@@ -67,7 +68,8 @@
   - [ ] 正式 Codex 搜索和 Realtime 的账号权限、服务端 attestation 与媒体实机。
 - [ ] **G22 剩余兼容路径**。按端点通过 `route:list` 和真实 HTTP 核对启用条件、授权及账号隔离。
   - [x] [22 条现有无版本别名](gateway.md#现有无版本路径核对)已按开关、路由缓存、授权和用量在本地三库验收。
-  - [ ] Responses Compact 和适用子路径随 G04 开放并验收。
+  - [x] [Responses Compact 无版本别名](gateway.md#responses-独立压缩与归属校验)已通过本地三库。
+  - [ ] 其余适用 Responses 状态子路径随 G04 验收。
   - [ ] 异步图片、通用视频和 Seedance 缺失别名随 G09／G10、G13、G14 验收。
   - [x] Antigravity [专用路径与账号隔离](gateway.md#antigravity-专用路径与账号隔离)已通过本地三库。实际原生账号与凭证见 B01、E11。
 

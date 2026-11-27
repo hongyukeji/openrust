@@ -20,6 +20,7 @@ const OPTIONAL_PATHS: &[(&str, &str)] = &[
     ("GET", "/responses"),
     ("POST", "/responses"),
     ("POST", "/responses/input_tokens"),
+    ("POST", "/responses/compact"),
     ("POST", "/embeddings"),
     ("POST", "/messages/count_tokens"),
     ("POST", "/images/generations"),

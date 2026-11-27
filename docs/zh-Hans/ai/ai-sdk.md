@@ -172,7 +172,7 @@ let control = live.connect_live_sideband(&call.id).await?;
 
 | 能力 | 无版本路径 |
 | --- | --- |
-| 目录与推理 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /embeddings`、`POST /messages/count_tokens` |
+| 目录与推理 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /responses/compact`、`POST /embeddings`、`POST /messages/count_tokens` |
 | 图片 | `POST /images/generations`、`POST /images/edits` |
 | xAI 语音 | `POST /tts`、`POST /stt`、`GET /realtime`（WebSocket）、`/custom-voices` 下的[自定义音色操作](#gateway-custom-voices) |
 | 搜索 | `POST /web_search`、`POST /x_search`、`POST /alpha/search` |
@@ -245,6 +245,14 @@ Schedule::configure(|schedule| {
 ```
 
 签发和轮换只返回一次可用的 Bearer Token。数据库保存 SHA-256 摘要。轮换沿用 Key ID、分组、有效期和请求额度。旧版本、撤销或过期的 Token 后续请求返回 HTTP 401。需要定制迁移时，执行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新编译后运行迁移。
+
+### Responses 会话压缩 {#responses-compact}
+
+发布 OpenAI 协议模型时配置 `"endpoints": ["responses", "responses/compact"]`。向 `POST /v1/responses/compact` 发送公开模型名和完整的内联会话 `input`。Codex 可使用 `/backend-api/codex/responses/compact`，开启 `unversioned_paths` 后也可使用 `/responses/compact`。
+
+保留响应的完整 `output` 数组，用作下一次 Responses 请求的输入，并在后面追加新消息。OpenRust 将加密压缩项绑定到签发时的网关 Key、公开模型和上游连接。请完整保留压缩项，负责后续请求的网关进程须配置相同的应用加密密钥。
+
+压缩同步返回并记录上游报告的用量。该路由使用内联上下文，拒绝上游存储的响应 ID、后台调用和共享上游资源引用。
 
 ### Responses WebSocket {#responses-websocket}
 

@@ -172,7 +172,7 @@ let control = live.connect_live_sideband(&call.id).await?;
 
 | 能力 | 無版本路徑 |
 | --- | --- |
-| 目錄與推論 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /embeddings`、`POST /messages/count_tokens` |
+| 目錄與推論 | `GET /models`、`GET /models/{model}`、`POST /chat/completions`、`POST /responses`、`GET /responses`（WebSocket）、`POST /responses/input_tokens`、`POST /responses/compact`、`POST /embeddings`、`POST /messages/count_tokens` |
 | 圖片 | `POST /images/generations`、`POST /images/edits` |
 | xAI 語音 | `POST /tts`、`POST /stt`、`GET /realtime`（WebSocket）、`/custom-voices` 下的[自訂音色操作](#gateway-custom-voices) |
 | 搜尋 | `POST /web_search`、`POST /x_search`、`POST /alpha/search` |
@@ -245,6 +245,14 @@ Schedule::configure(|schedule| {
 ```
 
 簽發和輪替只回傳一次可用的 Bearer Token。資料庫儲存 SHA-256 摘要。輪替沿用 Key ID、群組、有效期限與請求額度。舊版、撤銷或過期的 Token 後續請求回傳 HTTP 401。需要自訂遷移時，執行 `./artisan vendor:publish --tag=ai-gateway-migrations`，重新編譯後執行遷移。
+
+### Responses 工作階段壓縮 {#responses-compact}
+
+發佈 OpenAI 協定模型時設定 `"endpoints": ["responses", "responses/compact"]`。向 `POST /v1/responses/compact` 傳送公開模型名稱和完整的內嵌會話 `input`。Codex 可使用 `/backend-api/codex/responses/compact`，啟用 `unversioned_paths` 後也可使用 `/responses/compact`。
+
+保留回應的完整 `output` 陣列，作為下次 Responses 請求的輸入，並在後面附加新訊息。OpenRust 將加密壓縮項目綁定至簽發當時的閘道 Key、公開模型和上游連線。請完整保留壓縮項目，負責後續請求的閘道處理程序須設定相同的應用程式加密金鑰。
+
+壓縮同步回傳並記錄上游回報的用量。該路由使用內嵌上下文，拒絕上游儲存的回應 ID、背景呼叫和共用上游資源參照。
 
 ### Responses WebSocket {#responses-websocket}
 

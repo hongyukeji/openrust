@@ -28,6 +28,7 @@ type HttpResult = Result<Response, HttpError>;
 
 mod alpha_search;
 pub(crate) mod antigravity;
+mod compact;
 mod embedding_batch;
 mod gemini_batches;
 mod gemini_caches;
@@ -108,6 +109,7 @@ fn responses_routes(router: &mut Router) -> Result<(), RoutingError> {
     router.post("/responses", responses)?;
     router.get("/responses", websocket)?;
     router.post("/responses/input_tokens", count_response_tokens)?;
+    router.post("/responses/compact", compact::route)?;
     Ok(())
 }
 
@@ -268,6 +270,7 @@ async fn catalog(
                     TextEndpoint::ChatCompletions,
                     TextEndpoint::Responses,
                     TextEndpoint::CountResponseTokens,
+                    TextEndpoint::CompactResponses,
                     TextEndpoint::Embeddings,
                     TextEndpoint::ImagesGenerations,
                     TextEndpoint::ImagesEdits,
@@ -686,6 +689,31 @@ async fn relay(
             "该模型不支持此端点",
         );
     }
+    let compact_response = endpoint == TextEndpoint::CompactResponses;
+    let replays_compaction = compact::has_input(&data);
+    if compact_response
+        && data
+            .get("stream")
+            .is_some_and(|value| !value.is_null() && value != false)
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "invalid_stream",
+            "独立压缩仅支持同步响应",
+        );
+    }
+    if replays_compaction
+        && (!matches!(
+            endpoint,
+            TextEndpoint::Responses | TextEndpoint::CompactResponses
+        ) || !model.supports_for(TextEndpoint::CompactResponses, key))
+    {
+        return protocol.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "此端点不接收该压缩上下文",
+        );
+    }
     let alpha_search = if endpoint == TextEndpoint::AlphaSearch {
         match alpha_search::prepare(request, &mut data, model) {
             Ok(search) => Some(search),
@@ -793,7 +821,9 @@ async fn relay(
     let mut server_tools = Vec::new();
     if matches!(
         endpoint,
-        TextEndpoint::Responses | TextEndpoint::CountResponseTokens
+        TextEndpoint::Responses
+            | TextEndpoint::CompactResponses
+            | TextEndpoint::CountResponseTokens
     ) {
         // 共享上游 Key 暂不承载跨请求资源，防止不同下游 Key 通过资源 ID 互访。
         if ["store", "background"].iter().any(|field| {
@@ -805,7 +835,7 @@ async fn relay(
             .iter()
             .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
             || data.get("input").is_some_and(|input| {
-                if endpoint == TextEndpoint::Responses {
+                if !endpoint.is_counting() {
                     resources::openai_references(input)
                 } else {
                     input.as_array().is_some_and(|items| {
@@ -833,22 +863,23 @@ async fn relay(
                     );
                 }
             };
-        if endpoint == TextEndpoint::CountResponseTokens {
-            if data
+        if endpoint == TextEndpoint::CountResponseTokens
+            && data
                 .get("input")
                 .is_some_and(|input| !countable_input(input))
-            {
-                return protocol.error(
-                    StatusCode::BAD_REQUEST,
-                    "unsupported_count_input",
-                    "计数目前只接收文本和内联客户端函数项",
-                );
-            }
+        {
+            return protocol.error(
+                StatusCode::BAD_REQUEST,
+                "unsupported_count_input",
+                "计数目前只接收文本和内联客户端函数项",
+            );
+        }
+        if endpoint == TextEndpoint::Responses {
+            data.insert("store".into(), Value::Bool(false));
+        } else {
             for field in ["store", "background", "stream"] {
                 data.remove(field);
             }
-        } else {
-            data.insert("store".into(), Value::Bool(false));
         }
     }
     if endpoint == TextEndpoint::ChatCompletions
@@ -955,6 +986,8 @@ async fn relay(
         && !endpoint.is_xai_search()
         && endpoint != TextEndpoint::SystemOne
         && endpoint != TextEndpoint::AlphaSearch
+        && !compact_response
+        && !replays_compaction
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1006,6 +1039,11 @@ async fn relay(
                     || (*upstream == TextEndpoint::ChatCompletions
                         && target.provider.supports_chat_reasoning_replay()))
                 && (!native_responses_only || *upstream == endpoint)
+                && (!replays_compaction
+                    || (*upstream == endpoint
+                        && target
+                            .provider
+                            .supports_endpoint(TextEndpoint::CompactResponses)))
                 && server_tools
                     .iter()
                     .all(|kind| target.provider.supports_responses_server_tool(kind))
@@ -1056,6 +1094,19 @@ async fn relay(
             )]);
         }
         payload.insert("model".into(), json!(target.upstream_model));
+        let compact_context = if compact_response || replays_compaction {
+            let Some(context) = compact::Context::new(key, &name, target) else {
+                conversion_error = Some("当前连接无法保护压缩上下文");
+                continue;
+            };
+            if replays_compaction && !context.restore(&mut payload) {
+                conversion_error = Some("压缩上下文归属或完整性校验失败");
+                continue;
+            }
+            Some(context)
+        } else {
+            None
+        };
         if endpoint == TextEndpoint::AlphaSearch && upstream_endpoint == TextEndpoint::Responses {
             payload = alpha_search::responses_payload(payload);
         }
@@ -1263,6 +1314,15 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
+                if compact_response {
+                    return compact::respond(
+                        upstream,
+                        &name,
+                        compact_context.expect("压缩上下文已配置"),
+                        call,
+                    )
+                    .await;
+                }
                 if endpoint == TextEndpoint::AlphaSearch {
                     if upstream_endpoint == TextEndpoint::Responses {
                         return alpha_search::respond_responses(upstream, call).await;

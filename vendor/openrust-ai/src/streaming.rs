@@ -735,6 +735,7 @@ impl TextEndpoint {
                 })
             }
             Self::CountResponseTokens
+            | Self::CompactResponses
             | Self::CountMessageTokens
             | Self::GeminiCountTokens
             | Self::GeminiGenerateContent

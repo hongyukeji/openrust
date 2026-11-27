@@ -39,7 +39,7 @@
 
 | 基线入口 | 裁决 |
 |---|---|
-| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 已通过 [22 条现有可选别名的三库核对](#现有无版本路径核对)。待基础端点开放的 Responses 子路径和媒体别名见同节。 |
+| 无版本 `/models[/{model}]`、`/messages/count_tokens`、`/responses[/*subpath]`（POST、升级 GET）、`/chat/completions`、`/embeddings`、图片／视频／语音／实时／搜索部分路径 | 已通过 [22 条既有别名的三库核对](#现有无版本路径核对)，后续[新增 Responses Compact 别名](#responses-独立压缩与归属校验)也已独立验收。其余待开放子路径和媒体别名见同节。 |
 | `/backend-api/codex` 下的 `GET /models`、`POST /responses[/*subpath]`、`GET /responses`、`POST /alpha/search`、`POST /realtime/calls`、`GET /{call_id}` | GW-05 已实测专用模型目录、Responses 生成与输入计数、WebSocket。搜索与实时会话待验收，专用账号归 GW-04。 |
 | `GET /antigravity/models`、`/antigravity/v1` 下的目录、Messages、计数和用量、`/antigravity/v1beta` 下的 Gemini 目录与动作 | G22 的[专用路径与账号隔离](#antigravity-专用路径与账号隔离)已通过本地三库。实际上游账号与原生凭证生命周期见 B01、E11。 |
 | 上游 API Key、OAuth／订阅、平台专用连接与组合分组 | API Key 已通过 SDK 与自托管网关验证。同名模型按端点、原生／转换支持和账号可用性选路。OAuth 刷新、订阅限制、会话黏性、分组模型白名单和跨账号失败回退归 GW-04；管理与发布入口验收归 GW-05。 |
@@ -509,13 +509,13 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立本地网关和上游协议�
 
 ### 现有无版本路径核对
 
-`unversioned_paths` 默认为关闭。开启后明确注册 22 条 GET／POST／PATCH／DELETE 路由（另有 GET 自动提供的 HEAD），与 `/v1` 共用 handler、Key、模型授权、账号选择及用量。包括目录和单模型、Chat、HTTP 与 WebSocket Responses、输入计数、Embeddings、Messages 计数、图片生成与编辑、TTS、STT、自定义音色六个操作、xAI 实时及三个独立搜索入口。固定基线没有根路径 Messages、System One、Live 或用量入口。
+`unversioned_paths` 默认为关闭。本轮基线范围有 22 条 GET／POST／PATCH／DELETE 路由（另有 GET 自动提供的 HEAD），与 `/v1` 共用 handler、Key、模型授权、账号选择及用量。包括目录和单模型、Chat、HTTP 与 WebSocket Responses、输入计数、Embeddings、Messages 计数、图片生成与编辑、TTS、STT、自定义音色六个操作、xAI 实时及三个独立搜索入口。[独立压缩验收](#responses-独立压缩与归属校验)增加第 23 条。固定基线没有根路径 Messages、System One、Live 或用量入口。
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前后的 `route:list` 精确增量，重建两套缓存后逐路由发送 HTTP 请求。验证关闭时根路径 404、对应版本化路径继续要求认证，开启后两条路径均返回相同的未认证响应。另验收目录和单模型、Responses、原生计数和 Alpha Search 的授权、越权拒绝、相同上游路径及同一账目口径。新增 Rust 回归覆盖全部 22 条路径，四项计数测试与 12 项 HTTP／回退回归通过。计数测试的严格 Clippy 及三语文档通过。其他端点的成功请求及协议限制保留各节证据。
 
 | 仍缺基础操作的固定基线路由族 | 关联任务 |
 |---|---|
-| `POST /responses/compact` 及其他适用的 Responses 子路径 | G04 的资源范围与重放，连同 `/v1`、Codex 及无版本路径验收 |
+| 其余适用的 Responses 状态与资源子路径 | G04 按资源归属继续验收，覆盖 `/v1`、Codex 与适用无版本路径 |
 | `POST /images/{generations,edits}/async` 和 `GET /images/tasks/{id}` | G09 与 G10 的任务归属与读取 |
 | `/videos`、`/videos/{generations,edits,extensions}` 及其状态和内容路由 | G13 的视频任务与下载 |
 | `/contents/generations/tasks` 及任务查询和删除 | G14 的 Seedance 路径族及所有权 |
@@ -524,6 +524,18 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前�
 
 - [固定 Sub2API 无版本路由注册](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L381)
 - [OpenAI Responses Compact 公开契约](https://developers.openai.com/api/reference/resources/responses/methods/compact)
+
+### Responses 独立压缩与归属校验
+
+根据固定基线与 OpenAI 原生契约，发布模型显式添加 `responses/compact` 即可使用 `POST /v1/responses/compact`、Codex 同名子路径和可选无版本别名。网关保留 `response.compaction` 形状、完整 `output`、上下文中保留的消息及上游使用量。同步压缩复用原生具名连接。上游状态型引用继续按现有规则拒绝。
+
+压缩项由应用 Encrypter 封装，并验证下游 Key、公开模型、上游连接身份与凭证指纹及原上游压缩项 ID。后续 HTTP 或 WebSocket Responses 和二次压缩只会把校验通过的原始项送回同一连接。网关无需为这些压缩项另建数据库表。同一应用密钥的进程可继续回放，跨 Key、公开别名、凭证变更和篡改均在出站前拒绝。压缩与携带压缩项的请求派发后均不自动跨账号重放。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立 HTTP、WebSocket 及上游夹具验收版本化、Codex、无版本路径、路由缓存、进程重启、授权及篡改拒绝、24／6 Token、无效上游结果和 Artisan 按请求查询。另通过 SQLite 全部 23 条别名精确核对、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。上游正式模型权限、Responses 持久状态和服务端自动压缩继续按 G04 与实机矩阵核对。
+
+- [固定 Sub2API Responses 路径](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L241)
+- [OpenAI 独立压缩契约](https://developers.openai.com/api/reference/resources/responses/methods/compact)
+- [OpenAI 压缩上下文回放](https://developers.openai.com/api/docs/guides/compaction)
 
 ### xAI 自定义音色
 

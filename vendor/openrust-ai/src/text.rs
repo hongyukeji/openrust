@@ -439,6 +439,7 @@ pub enum TextEndpoint {
     ChatCompletions,
     Responses,
     CountResponseTokens,
+    CompactResponses,
     Messages,
     CountMessageTokens,
     Embeddings,
@@ -467,6 +468,7 @@ impl TextEndpoint {
             Self::ChatCompletions => "chat/completions",
             Self::Responses => "responses",
             Self::CountResponseTokens => "responses/input_tokens",
+            Self::CompactResponses => "responses/compact",
             Self::Messages => "messages",
             Self::CountMessageTokens => "messages/count_tokens",
             Self::Embeddings => "embeddings",
@@ -1105,6 +1107,7 @@ impl TextProvider for OpenAiTextProvider {
                     || self.connection.images_configured()
             }
             TextEndpoint::CountResponseTokens => matches!(self.protocol, OpenAiProtocol::Responses),
+            TextEndpoint::CompactResponses => matches!(self.protocol, OpenAiProtocol::Responses),
             TextEndpoint::AlphaSearch => self.alpha_search_endpoint() == Some(endpoint),
             TextEndpoint::ChatCompletions => true,
             _ => self.protocol.endpoint() == endpoint,

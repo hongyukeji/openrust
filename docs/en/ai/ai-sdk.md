@@ -172,7 +172,7 @@ Set `unversioned_paths` to `true` in `config/ai_gateway.rs` to enable the follow
 
 | Protocol | Unversioned paths |
 | --- | --- |
-| Catalog and inference | `GET /models`, `GET /models/{model}`, `POST /chat/completions`, `POST /responses`, `GET /responses` (WebSocket), `POST /responses/input_tokens`, `POST /embeddings`, `POST /messages/count_tokens` |
+| Catalog and inference | `GET /models`, `GET /models/{model}`, `POST /chat/completions`, `POST /responses`, `GET /responses` (WebSocket), `POST /responses/input_tokens`, `POST /responses/compact`, `POST /embeddings`, `POST /messages/count_tokens` |
 | Images | `POST /images/generations`, `POST /images/edits` |
 | xAI voice | `POST /tts`, `POST /stt`, `GET /realtime` (WebSocket), [custom voice operations](#gateway-custom-voices) under `/custom-voices` |
 | Search | `POST /web_search`, `POST /x_search`, `POST /alpha/search` |
@@ -245,6 +245,14 @@ For database-managed keys, set `managed_keys.enabled` to `true`. The optional `m
 ```
 
 Creation and rotation return the bearer token once. The database stores its SHA-256 digest. Rotation preserves the key ID, group, expiry and request limit. Subsequent requests with rotated, revoked or expired tokens receive HTTP 401. To customize the migration, publish it with `./artisan vendor:publish --tag=ai-gateway-migrations` and rebuild before running migrations.
+
+### Responses session compaction {#responses-compact}
+
+Publish an OpenAI protocol model with `"endpoints": ["responses", "responses/compact"]`. Send its public alias and the full inline conversation as `input` to `POST /v1/responses/compact`. Codex can use `/backend-api/codex/responses/compact`. Enable `unversioned_paths` for `/responses/compact`.
+
+Keep the full returned `output` array and use it as the next Responses input, followed by any new messages. OpenRust wraps each encrypted compaction item for the gateway Key, public model, and upstream connection that produced it. Keep the item intact. Set the same application encryption key across gateway processes that can handle the next request.
+
+Compaction is synchronous and records upstream-reported usage. Use the inline context for this route. Requests requiring upstream stored response IDs, background execution, or shared upstream resource references are rejected.
 
 ### Responses over WebSocket {#responses-websocket}
 
