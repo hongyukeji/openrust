@@ -741,6 +741,8 @@ impl TextEndpoint {
             | Self::Embeddings
             | Self::GeminiEmbedContent
             | Self::GeminiBatchEmbedContents
+            | Self::GeminiBatchGenerateContent
+            | Self::GeminiAsyncBatchEmbedContent
             | Self::ImagesGenerations
             | Self::ImagesEdits => Err(AiError::StreamingNotSupported),
         }

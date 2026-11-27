@@ -20,6 +20,7 @@ use crate::{
 };
 
 mod batch_recovery;
+pub(crate) mod gemini_batches;
 
 const TABLE: &str = "ai_gateway_usage";
 const COLUMNS: [&str; 27] = [
@@ -61,7 +62,9 @@ const ROLLUP: &str = "
     SUM(cache_write_input_tokens) AS cache_creation_tokens, SUM(reasoning_tokens) AS reasoning_tokens,
     SUM(CASE WHEN input_tokens IS NOT NULL THEN input_tokens + COALESCE(output_tokens, 0)
         + CASE WHEN upstream_endpoint = 'messages' THEN COALESCE(cached_input_tokens, 0)
-        + COALESCE(cache_write_input_tokens, 0) ELSE 0 END END) AS total_tokens
+        + COALESCE(cache_write_input_tokens, 0)
+        WHEN upstream_endpoint IN ('generateContent', 'streamGenerateContent', 'batchGenerateContent')
+        THEN COALESCE(reasoning_tokens, 0) ELSE 0 END END) AS total_tokens
 ";
 
 pub(crate) enum UsageOwner<'a> {
@@ -70,7 +73,7 @@ pub(crate) enum UsageOwner<'a> {
 }
 
 impl UsageOwner<'_> {
-    fn invocation_scope(&self, invocation: &str) -> String {
+    pub(crate) fn invocation_scope(&self, invocation: &str) -> String {
         let (kind, owner) = match self {
             Self::Managed(id) => ("managed", *id),
             Self::Static(scope) => ("static", scope.as_str()),
@@ -159,6 +162,7 @@ pub(crate) struct Settlement {
     pub(crate) cache_write_input_tokens: Option<i64>,
     pub(crate) reasoning_tokens: Option<i64>,
     pub(crate) reported_cost_usd: Option<billing::Amount>,
+    pub(crate) cost_pending: bool,
     upstream_request_id: Option<String>,
     pub(crate) reported_model: Option<String>,
     finished_at: i64,
@@ -191,7 +195,9 @@ impl Settlement {
                 context
                     .get("upstream_endpoint")
                     .and_then(serde_json::Value::as_str),
-                Some("embeddings" | "embedContent" | "batchEmbedContents")
+                Some(
+                    "embeddings" | "embedContent" | "batchEmbedContents" | "asyncBatchEmbedContent"
+                )
             );
         let confirmed_error = context
             .get("confirmed_error_usage")
@@ -217,6 +223,7 @@ impl Settlement {
         };
         Self {
             outcome,
+            cost_pending: false,
             state,
             input_only,
             status: count("status"),

@@ -215,7 +215,7 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 13] = [
+const ENDPOINTS: [TextEndpoint; 15] = [
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -226,6 +226,8 @@ const ENDPOINTS: [TextEndpoint; 13] = [
     TextEndpoint::GeminiCountTokens,
     TextEndpoint::GeminiEmbedContent,
     TextEndpoint::GeminiBatchEmbedContents,
+    TextEndpoint::GeminiBatchGenerateContent,
+    TextEndpoint::GeminiAsyncBatchEmbedContent,
     TextEndpoint::Embeddings,
     TextEndpoint::ImagesGenerations,
     TextEndpoint::ImagesEdits,
@@ -233,7 +235,7 @@ const ENDPOINTS: [TextEndpoint; 13] = [
 
 pub(crate) struct Target {
     pub(crate) affinity_key: String,
-    provider_name: String,
+    pub(crate) provider_name: String,
     pub(crate) provider: Arc<dyn TextProvider>,
     pub(crate) upstream_model: String,
     pub(crate) account: Option<Arc<Account>>,
@@ -301,6 +303,9 @@ impl Model {
 }
 
 fn resolve_endpoint(provider: &dyn TextProvider, endpoint: TextEndpoint) -> Option<TextEndpoint> {
+    if endpoint.is_gemini_batch() {
+        return provider.gemini_batch_gateway().map(|_| endpoint);
+    }
     if provider.supports_endpoint(endpoint) {
         return Some(endpoint);
     }
@@ -433,7 +438,9 @@ impl Gateway {
                     })
                     .filter(|endpoint| {
                         model.endpoints.as_ref().map_or(
-                            !endpoint.is_image() && !endpoint.is_gemini_embedding(),
+                            !endpoint.is_image()
+                                && !endpoint.is_gemini_embedding()
+                                && !endpoint.is_gemini_batch(),
                             |configured| configured.iter().any(|path| path == endpoint.path()),
                         )
                     })
@@ -447,6 +454,11 @@ impl Gateway {
                     return Err(invalid(format!(
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
+                }
+                if endpoints.iter().any(|endpoint| endpoint.is_gemini_batch())
+                    && usage_store.is_none()
+                {
+                    return Err(invalid("Gemini 批任务需要启用持久化用量"));
                 }
                 if model.server_tools.iter().any(|tool| {
                     !endpoints.contains(&TextEndpoint::Responses)
@@ -810,6 +822,7 @@ impl Gateway {
                     | TextEndpoint::Messages
                     | TextEndpoint::GeminiGenerateContent
                     | TextEndpoint::GeminiStreamGenerateContent
+                    | TextEndpoint::GeminiBatchGenerateContent
             );
         self.billing.as_ref().filter(|_| billable).map(|prices| {
             let tier = by_image
@@ -858,6 +871,13 @@ pub(crate) struct Call {
 }
 
 impl Call {
+    pub(crate) fn attempt_id(&self) -> Option<&str> {
+        self.attempt.as_ref().map(|attempt| attempt.id.as_str())
+    }
+
+    pub(crate) fn defer_settlement(&mut self) {
+        self.attempt = None;
+    }
     pub(crate) fn observe_buffered_images(&mut self, payload: &Value) {
         if self.context.get("image_metered").and_then(Value::as_bool) == Some(true)
             && let Some(images) = payload["data"].as_array()

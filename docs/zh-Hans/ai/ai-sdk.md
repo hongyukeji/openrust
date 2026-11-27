@@ -161,6 +161,10 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 默认以 JSON 数组流式返回。可用 `?alt=json` 显式选择 JSON，或用 `?alt=sse` 选择 SSE。数组中的每一项是一个 Gemini 响应块。流开始后发生错误时，数组末尾会提供 Gemini 错误对象。
 
+发布 Gemini 异步批任务时，启用网关用量存储，发布并运行 `ai-gateway-migrations`，再将 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公开模型的 `endpoints`。将内联请求提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用网关返回的 `batches/…` 名称查询、取消或删除任务。`GET /v1beta/batches` 列出当前 Key 的任务，支持 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
+
+请按批任务价格配置具名连接和公开模型的费率。网关登记一次提交，确认最终条目用量后结算。内联向量批次可按每项的 `input_token_limit` 预占。启用硬预算或输出配额的生成批次须先有对应的上限计算才能提交。共享连接使用内联请求。文件型批任务与结果下载可通过 Gemini SDK 直连使用。
+
 公开模型映射可配置 `fallbacks`，依次尝试备用连接。每项填写 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。无状态请求遇到上游 429、5xx 等可重试错误时，网关会尝试备用连接。客户端仍使用同一个公开名，每次尝试用同一个请求 ID 记录。带工具、要求存储输出或已经开始返回的流不参与重放。
 
 可在 `config/ai_gateway.rs` 中设置 `accounts.deepseek.cooldown_seconds = 30`，让具名上游连接在返回 HTTP 429、503 或 529 后进入冷却。上游有效的 `Retry-After` 优先，最长 24 小时。引用同一连接的所有公开模型共用冷却状态。可用连接都在冷却时，网关返回 HTTP 503 和 `Retry-After`。多进程部署可把 `account_cache_store` 指向共享缓存，例如 `redis`。

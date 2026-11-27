@@ -161,6 +161,10 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 `:streamGenerateContent` 預設以 JSON 陣列串流回傳。可用 `?alt=json` 明確選擇 JSON，或用 `?alt=sse` 選擇 SSE。陣列中的每一項是一個 Gemini 回應區塊。串流開始後若發生錯誤，陣列末尾會提供 Gemini 錯誤物件。
 
+要發佈 Gemini 非同步批次工作，請啟用閘道用量儲存、發佈並執行 `ai-gateway-migrations`，再將 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公開模型的 `endpoints`。將內嵌請求提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用閘道回傳的 `batches/…` 名稱查詢、取消或刪除工作。`GET /v1beta/batches` 列出目前 Key 的工作，支援 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
+
+請依批次工作的價格設定具名連線與公開模型費率。閘道登記一次提交，確認最終項目的用量後結算。內嵌向量批次可按每項的 `input_token_limit` 預留。啟用硬預算或輸出配額的生成批次須先有對應的上限計算才能提交。共用連線採用內嵌請求。檔案型批次工作與結果下載可透過 Gemini SDK 直接連線使用。
+
 公開模型對應可設定 `fallbacks`，依序嘗試備用連線。每項填寫 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。無狀態請求遇到上游 429、5xx 等可重試錯誤時，閘道會嘗試備用連線。用戶端仍使用同一個公開名稱，每次嘗試使用同一個請求 ID 記錄。帶有工具、要求儲存輸出或已開始回傳的串流不會重送。
 
 可在 `config/ai_gateway.rs` 中設定 `accounts.deepseek.cooldown_seconds = 30`，讓具名上游連線在回傳 HTTP 429、503 或 529 後進入冷卻。上游有效的 `Retry-After` 優先，最長 24 小時。使用同一連線的所有公開模型共用冷卻狀態。可用連線都在冷卻時，閘道回傳 HTTP 503 及 `Retry-After`。多程序部署可將 `account_cache_store` 指向共用快取，例如 `redis`。

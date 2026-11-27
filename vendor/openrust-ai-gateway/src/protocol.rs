@@ -27,6 +27,7 @@ use crate::{
 type HttpResult = Result<Response, HttpError>;
 
 mod embedding_batch;
+mod gemini_batches;
 mod image_upload;
 mod resources;
 mod usage_summary;
@@ -47,7 +48,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         router.get("/models", gemini_models)?;
         router.get("/models/{model}", gemini_model)?;
         router.post("/models/{model}", gemini_operation)?;
-        Ok(())
+        gemini_batches::routes(router)
     })
 }
 
@@ -106,6 +107,15 @@ fn gemini_operation(request: &mut Request) -> HttpFuture<'_, HttpResult> {
             "countTokens" => TextEndpoint::GeminiCountTokens,
             "embedContent" => TextEndpoint::GeminiEmbedContent,
             "batchEmbedContents" => TextEndpoint::GeminiBatchEmbedContents,
+            "batchGenerateContent" | "asyncBatchEmbedContent" => {
+                let model = model.to_owned();
+                let endpoint = if action == "batchGenerateContent" {
+                    TextEndpoint::GeminiBatchGenerateContent
+                } else {
+                    TextEndpoint::GeminiAsyncBatchEmbedContent
+                };
+                return gemini_batches::create(request, model, endpoint).await;
+            }
             _ => {
                 return Protocol::Gemini.error(
                     StatusCode::NOT_FOUND,
@@ -165,12 +175,14 @@ fn catalog_protocol(request: &Request) -> Protocol {
     }
 }
 
-const GEMINI_MODEL_OPERATIONS: [TextEndpoint; 5] = [
+const GEMINI_MODEL_OPERATIONS: [TextEndpoint; 7] = [
     TextEndpoint::GeminiGenerateContent,
     TextEndpoint::GeminiStreamGenerateContent,
     TextEndpoint::GeminiCountTokens,
     TextEndpoint::GeminiEmbedContent,
     TextEndpoint::GeminiBatchEmbedContents,
+    TextEndpoint::GeminiBatchGenerateContent,
+    TextEndpoint::GeminiAsyncBatchEmbedContent,
 ];
 
 async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> HttpResult {
@@ -434,7 +446,9 @@ async fn relay(
         | TextEndpoint::GeminiStreamGenerateContent
         | TextEndpoint::GeminiCountTokens
         | TextEndpoint::GeminiEmbedContent
-        | TextEndpoint::GeminiBatchEmbedContents => Protocol::Gemini,
+        | TextEndpoint::GeminiBatchEmbedContents
+        | TextEndpoint::GeminiBatchGenerateContent
+        | TextEndpoint::GeminiAsyncBatchEmbedContent => Protocol::Gemini,
         _ => Protocol::OpenAi,
     };
     let key = match authorize(&gateway, protocol.token(request), protocol).await {

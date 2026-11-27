@@ -369,6 +369,60 @@ pub(crate) struct ChargePlan {
 }
 
 impl ChargePlan {
+    pub(crate) async fn recover(
+        transaction: &mut Transaction,
+        attempt: &str,
+        upstream_model: String,
+    ) -> DatabaseResult<Option<Self>> {
+        let rows = transaction
+            .table(TABLE)
+            .r#where("attempt_id", "=", attempt)
+            .get()
+            .await?;
+        if rows.is_empty() {
+            return Ok(None);
+        }
+        let invalid = || openrust::database::DatabaseError::InvalidScalar;
+        let mut cost = None;
+        let mut receivable = None;
+        for row in &rows {
+            let mut charge = decode(row)?;
+            let tariff = charge
+                .tariff
+                .take()
+                .map(|mut tariff| {
+                    let object = tariff.as_object_mut().ok_or_else(invalid)?;
+                    let multiplier = object
+                        .remove("rate_multiplier")
+                        .map(serde_json::from_value)
+                        .transpose()
+                        .map_err(|_| invalid())?;
+                    let mut tariff: Tariff =
+                        serde_json::from_value(tariff).map_err(|_| invalid())?;
+                    tariff.multiplier = multiplier;
+                    Ok::<_, openrust::database::DatabaseError>(tariff)
+                })
+                .transpose()?;
+            match charge.direction.as_str() {
+                "cost" if cost.is_none() => cost = Some((charge.version, tariff)),
+                "receivable" if receivable.is_none() => receivable = Some((charge.version, tariff)),
+                _ => return Err(invalid()),
+            }
+        }
+        let ((version, upstream), (other, downstream)) =
+            cost.zip(receivable).ok_or_else(invalid)?;
+        if version != other {
+            return Err(invalid());
+        }
+        Ok(Some(Self {
+            version,
+            upstream_model,
+            upstream,
+            downstream,
+            by_image: false,
+        }))
+    }
+
     pub(crate) fn receivable_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
         self.ceiling(self.downstream.as_ref()?, currency, output)
     }
@@ -513,7 +567,7 @@ impl ChargePlan {
         if self.by_image && tariff.image.is_none() {
             return ("missing_price", None);
         }
-        if settlement.state != "final" {
+        if settlement.state != "final" || (direction == "cost" && settlement.cost_pending) {
             return ("awaiting_usage", None);
         }
         let amount = if self.by_image {
@@ -549,6 +603,7 @@ impl Tariff {
         }
         if settlement.upstream_endpoint == "streamGenerateContent"
             || settlement.upstream_endpoint == "generateContent"
+            || settlement.upstream_endpoint == "batchGenerateContent"
         {
             output = output.checked_add(i128::from(settlement.reasoning_tokens?))?;
         }

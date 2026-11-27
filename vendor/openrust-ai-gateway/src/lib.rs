@@ -37,6 +37,8 @@ mod configuration;
 #[path = "../database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs"]
 mod cost_pages_migration;
 mod gateway;
+#[path = "../database/migrations/2026_11_26_000017_create_ai_gateway_gemini_batches_table.rs"]
+mod gemini_batches_migration;
 mod invocation;
 #[path = "../database/migrations/2026_11_26_000008_add_invocation_to_ai_gateway_usage.rs"]
 mod invocation_migration;
@@ -163,6 +165,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs",
         &output_images_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_26_000017_create_ai_gateway_gemini_batches_table.rs",
+        &gemini_batches_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -258,6 +264,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs",
                         include_bytes!("../database/migrations/2026_11_26_000016_add_output_images_to_ai_gateway_usage.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_26_000017_create_ai_gateway_gemini_batches_table.rs",
+                        include_bytes!("../database/migrations/2026_11_26_000017_create_ai_gateway_gemini_batches_table.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

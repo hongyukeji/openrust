@@ -13,7 +13,8 @@
 | `POST /v1/messages` | 网关 Key 与分组，按上游平台在 Messages 与 OpenAI 网关间派发 | 已验收 Anthropic 同协议、独立凭证和原生错误。到 Responses 与 Chat Completions 的普通、SSE 文本及客户端函数工具均已通过真实 HTTP 协议模拟。原生资源和签名推理块仍待核对。 |
 | `POST /v1/messages/count_tokens` | 网关 Key，按供应商选择原生计数、桥接或本地估算 | 已验收 Anthropic 原生计数及映射到 OpenAI Responses 和 Bedrock 计数。上游返回的计数与生成用量分开；其他上游仍待核对。 |
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
-| `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。异步批任务仍待核对。 |
+| `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。内联异步批任务见下文。 |
+| `POST /v1beta/models/{model}:{batchGenerateContent,asyncBatchEmbedContent}`、`GET /v1beta/batches[/{id}]`、`POST /v1beta/batches/{id}:cancel`、`DELETE /v1beta/batches/{id}` | Google Batch API 原生生命周期，资源归属及单项计量 | GW-03／04 已验收内联任务。共享文件、结果文件下载和生成批次硬上限继续单列。 |
 | `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03／04 待按生命周期核对，依赖租户与账号归属。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |
 
@@ -299,9 +300,11 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的本地协议样例验证 OpenAI 竖
 
 ## GW-03／GW-04 Gemini 异步批任务
 
-原生连接已提供批量生成、异步向量及任务生命周期，见 [Gemini 异步批任务 SDK](README.md#gemini-异步批任务-sdk)。网关外部接口待实现。创建需登记出站尝试与下游 Key、公开模型、上游连接和实际任务 ID，返回本地任务名。列表从本地归属查询。读取、取消、删除和结果下载使用原连接及认证范围，不向备用账号转发已有任务。验证使用同名上游任务的两个账号、Key 轮换、撤销、进程重启、重复查询及未获授权的文件引用。
+内联批量生成和异步向量通过显式模型端点启用，复用 [Gemini 异步批任务 SDK](README.md#gemini-异步批任务-sdk)。提交登记一次出站尝试，保存下游 Key 归属、公开模型、原上游连接范围和实际任务名，客户端收到本地 ID。列表先按本地归属分页，再到对应连接读取状态。读取、取消和删除要求当前 Key 仍获准使用原模型和原上游范围。创建结果不确定时保留原尝试并停止选号。删除前先读取可用结果，成功删除后保留账务及本地删除标记。
 
-请求受理时保存批次费率及预占，结果可用后依据上游结果逐项核对，区分失败、零和未知。轮询和重启不得产生第二笔生成账目。取消、删除、迟到结果及不确定是否创建成功均须保留对账证据。文件型输入与下载需复用私有 Storage 和网关文件归属，在权限和用量可验证后开放。
+结算复用提交时的费率快照。终态结果或必需计数迟到时保留待结算；证据齐全后用同一个数据库事务更新用量、两侧费用和预占，并发查询只结算一次。成功项形成应收，失败项的上游成本保留待核对。向量批次可按每项配置的输入上界预占；生成批次的硬货币上限与输出配额计算继续待实现。文件型输入和结果下载继续依赖私有 Storage 与网关文件归属。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经真实 HTTP、独立 Artisan 和本地 Gemini 协议服务验证迁移发布、同名上游任务的账号隔离、公开模型重写、重启续查、托管 Key 轮换与撤销、上游凭证变更、分页、取消、删除、共享文件与文件搜索拒绝，以及备用连接存在时不重发提交。验证 SDK 经网关读取结果、终态先到及并发结算。生成样本一项成功一项失败，共确认 8 输入、3 候选输出和 2 推理 Token，应收 0.036 USD，成本待核对。向量批次预占 0.02 USD 成本和 0.04 USD 应收，结算 0.007 和 0.014 USD。`/v1/usage` 验证总量包含 Gemini 推理 Token。15 项回归、严格 Clippy 及三语文档通过。正式 Gemini 账号待实测。
 
 ## GW-03 Gemini JSON 数组与 SSE
 

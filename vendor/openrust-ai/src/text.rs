@@ -412,6 +412,8 @@ pub enum TextEndpoint {
     GeminiCountTokens,
     GeminiEmbedContent,
     GeminiBatchEmbedContents,
+    GeminiBatchGenerateContent,
+    GeminiAsyncBatchEmbedContent,
 }
 
 impl TextEndpoint {
@@ -430,6 +432,8 @@ impl TextEndpoint {
             Self::GeminiCountTokens => "countTokens",
             Self::GeminiEmbedContent => "embedContent",
             Self::GeminiBatchEmbedContents => "batchEmbedContents",
+            Self::GeminiBatchGenerateContent => "batchGenerateContent",
+            Self::GeminiAsyncBatchEmbedContent => "asyncBatchEmbedContent",
         }
     }
 
@@ -441,7 +445,15 @@ impl TextEndpoint {
     }
 
     pub const fn is_embedding(self) -> bool {
-        matches!(self, Self::Embeddings) || self.is_gemini_embedding()
+        matches!(self, Self::Embeddings | Self::GeminiAsyncBatchEmbedContent)
+            || self.is_gemini_embedding()
+    }
+
+    pub const fn is_gemini_batch(self) -> bool {
+        matches!(
+            self,
+            Self::GeminiBatchGenerateContent | Self::GeminiAsyncBatchEmbedContent
+        )
     }
 
     pub const fn is_image(self) -> bool {
