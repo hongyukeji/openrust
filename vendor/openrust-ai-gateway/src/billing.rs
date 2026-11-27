@@ -423,22 +423,28 @@ impl ChargePlan {
         }))
     }
 
-    pub(crate) fn receivable_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
-        self.ceiling(self.downstream.as_ref()?, currency, output)
+    pub(crate) fn receivable_ceiling(
+        &self,
+        currency: &str,
+        output: i64,
+        items: i64,
+    ) -> Option<i64> {
+        self.ceiling(self.downstream.as_ref()?, currency, output, items)
     }
 
-    pub(crate) fn cost_ceiling(&self, currency: &str, output: i64) -> Option<i64> {
-        self.ceiling(self.upstream.as_ref()?, currency, output)
+    pub(crate) fn cost_ceiling(&self, currency: &str, output: i64, items: i64) -> Option<i64> {
+        self.ceiling(self.upstream.as_ref()?, currency, output, items)
     }
 
-    fn ceiling(&self, tariff: &Tariff, currency: &str, output: i64) -> Option<i64> {
+    fn ceiling(&self, tariff: &Tariff, currency: &str, output: i64, items: i64) -> Option<i64> {
         if tariff.currency != currency {
             return None;
         }
         if self.by_image {
             return tariff.image_amount(output, Rounding::Ceiling)?.atoms();
         }
-        let cap = self.upstream.as_ref()?.input_token_limit?;
+        let cap = i128::from(self.upstream.as_ref()?.input_token_limit?)
+            .checked_mul(i128::from(items))?;
         let input_rate = [Some(tariff.input), tariff.cache_read, tariff.cache_write]
             .into_iter()
             .flatten()
@@ -449,7 +455,7 @@ impl ChargePlan {
             .0
             .max(tariff.reasoning.map_or(0, |rate| rate.0));
         let units = input_rate
-            .checked_mul(i128::from(cap))?
+            .checked_mul(cap)?
             .checked_add(output_rate.checked_mul(i128::from(output))?)?;
         tariff.amount(units, Rounding::Ceiling)?.atoms()
     }

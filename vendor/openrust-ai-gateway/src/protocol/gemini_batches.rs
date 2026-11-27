@@ -11,7 +11,10 @@ use super::{
     Admission, AttemptAdmission, CallIdentity, Gateway, HttpResult, Key, Protocol, Target,
     UsageAdmission, account_state_unavailable, admit, authorize, rename_model, resources,
 };
-use crate::usage::{Settlement, UsageStore, gemini_batches::Batch};
+use crate::{
+    gemini_batch_input,
+    usage::{Settlement, UsageStore, gemini_batches::Batch},
+};
 
 const PROTOCOL: Protocol = Protocol::Gemini;
 
@@ -67,7 +70,7 @@ pub(super) async fn create(
         Err(HttpError::PayloadTooLarge) => return super::request_too_large(PROTOCOL),
         Err(_) => return invalid("无法读取批任务正文"),
     };
-    let Ok(mut data) = serde_json::from_slice::<Value>(&body) else {
+    let Ok(data) = serde_json::from_slice::<Value>(&body) else {
         return invalid("批任务需要 JSON 对象");
     };
     if data.as_object().is_none_or(|body| body.len() != 1) {
@@ -77,7 +80,6 @@ pub(super) async fn create(
         Ok(count) => count,
         Err(message) => return invalid(message),
     };
-    let payload = &mut data["batch"];
     let cache_store = gateway.account_cache_store.as_deref();
     for (target, _) in model_config.targets_for(endpoint, &key) {
         let Some(provider) = target.provider.gemini_batch_gateway() else {
@@ -97,9 +99,10 @@ pub(super) async fn create(
                 Err(_) => return account_state_unavailable(PROTOCOL),
             }
         }
-        let charges = gateway.charge_plan(&key, &model, target, endpoint, payload);
-        let Ok(mut budget) =
-            gateway.budget_reservations(&key, target, endpoint, payload, charges.as_ref())
+        let mut payload = data["batch"].clone();
+        let charges = gateway.charge_plan(&key, &model, target, endpoint, &payload);
+        let Ok(budget) =
+            gateway.budget_reservations(&key, target, endpoint, &mut payload, charges.as_ref())
         else {
             return PROTOCOL.error(
                 StatusCode::BAD_REQUEST,
@@ -107,16 +110,7 @@ pub(super) async fn create(
                 "无法确认此批任务的货币费用上限",
             );
         };
-        for reservation in [&mut budget.group, &mut budget.account]
-            .into_iter()
-            .flatten()
-        {
-            let Some(atoms) = reservation.atoms.checked_mul(i64::from(count)) else {
-                return invalid("批任务预算超出可用金额范围");
-            };
-            reservation.atoms = atoms;
-        }
-        let quota = match key.output_reservation(endpoint, target, payload) {
+        let quota = match key.output_reservation(endpoint, target, &mut payload) {
             Ok(quota) => quota,
             Err(message) => return invalid(message),
         };
@@ -184,16 +178,16 @@ pub(super) async fn create(
         }
         // 提交结果未确认时只保留原尝试，禁止把请求重发给另一个账号。
         call.outcome("batch_submission_unknown");
-        rewrite_input_models(payload, &target.upstream_model);
+        rewrite_input_models(&mut payload, &target.upstream_model);
         let operation = if endpoint.is_embedding() {
             GeminiBatchRequest::Embed {
                 model: &target.upstream_model,
-                batch: payload,
+                batch: &payload,
             }
         } else {
             GeminiBatchRequest::Generate {
                 model: &target.upstream_model,
-                batch: payload,
+                batch: &payload,
             }
         };
         let upstream = match provider.send_batch(operation).await {
@@ -257,7 +251,7 @@ fn validate_inline(body: &Value, model: &str, endpoint: TextEndpoint) -> Result<
         return Err("批任务含有不支持的字段");
     }
     validate_model(object, model)?;
-    let inputs = inputs_shape(body).ok_or("共享连接仅支持内联请求批次")?;
+    let inputs = gemini_batch_input::requests(body).ok_or("共享连接仅支持内联请求批次")?;
     if inputs.is_empty() {
         return Err("批任务至少需要一项请求");
     }
@@ -326,33 +320,13 @@ fn validate_model(object: &Map<String, Value>, expected: &str) -> Result<(), &'s
     Ok(())
 }
 
-fn inputs_shape(body: &Value) -> Option<&Vec<Value>> {
-    let input = match (body.get("inputConfig"), body.get("input_config")) {
-        (Some(input), None) | (None, Some(input)) => input.as_object()?,
-        _ => return None,
-    };
-    let requests = input.get("requests")?.as_object()?;
-    if input.len() != 1 || requests.len() != 1 {
-        return None;
-    }
-    requests.get("requests")?.as_array()
-}
-
 fn rewrite_input_models(body: &mut Value, upstream: &str) {
     body.as_object_mut().expect("已验证 batch").remove("model");
-    let key = if body.get("inputConfig").is_some() {
-        "inputConfig"
-    } else {
-        "input_config"
-    };
     let resource = format!(
         "models/{}",
         upstream.strip_prefix("models/").unwrap_or(upstream)
     );
-    for item in body[key]["requests"]["requests"]
-        .as_array_mut()
-        .expect("已验证批任务请求")
-    {
+    for item in gemini_batch_input::requests_mut(body).expect("已验证批任务请求") {
         if let Some(model) = item["request"].get_mut("model") {
             *model = json!(resource);
         }
@@ -624,11 +598,7 @@ fn batch_settlement(batch: &Batch, job: &Value) -> Option<Settlement> {
         ("reasoning_tokens", "thoughtsTokenCount", false),
     ] {
         let total = successes.iter().try_fold(0_i64, |sum, item| {
-            sum.checked_add(
-                item["usageMetadata"][upstream]
-                    .as_i64()
-                    .filter(|value| *value >= 0)?,
-            )
+            sum.checked_add(usage_count(&item["usageMetadata"], upstream)?)
         });
         if let Some(count) = total {
             context.insert(field.into(), json!(count));
@@ -657,6 +627,17 @@ fn batch_settlement(batch: &Batch, job: &Value) -> Option<Settlement> {
     let mut settlement = Settlement::from_context("completed", &context, true);
     settlement.cost_pending = cost_pending;
     Some(settlement)
+}
+
+fn usage_count(usage: &Value, field: &str) -> Option<i64> {
+    let nonnegative = |field: &str| usage[field].as_i64().filter(|value| *value >= 0);
+    if field == "thoughtsTokenCount" && usage.get(field).is_none() {
+        let visible =
+            nonnegative("promptTokenCount")?.checked_add(nonnegative("candidatesTokenCount")?)?;
+        // 总量与输入和候选的和相同，才能确认省略的推理计数为零。
+        return (nonnegative("totalTokenCount")? == visible).then_some(0);
+    }
+    nonnegative(field)
 }
 
 fn batch_items(job: &Value) -> Option<&Vec<Value>> {

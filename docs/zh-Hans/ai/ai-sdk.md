@@ -163,7 +163,7 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 发布 Gemini 异步批任务时，启用网关用量存储，发布并运行 `ai-gateway-migrations`，再将 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公开模型的 `endpoints`。将内联请求提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用网关返回的 `batches/…` 名称查询、取消或删除任务。`GET /v1beta/batches` 列出当前 Key 的任务，支持 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
-请按批任务价格配置具名连接和公开模型的费率。网关登记一次提交，确认最终条目用量后结算。内联向量批次可按每项的 `input_token_limit` 预占。启用硬预算或输出配额的生成批次须先有对应的上限计算才能提交。共享连接使用内联请求。文件型批任务与结果下载可通过 Gemini SDK 直连使用。
+请按批任务价格配置具名连接和公开模型的费率。网关只登记一次提交，取得最终条目用量后结算。启用硬预算时，为上游模型设置可信的单项输入上界 `input_token_limit`，内联向量批次也按此上界预占。启用硬预算或输出配额的内联生成批次支持文本输出。网关取最严格的配置上限，按每项的候选数换算 `maxOutputTokens`，保留调用方更小的上限和原有推理设置。候选输出和推理 Token 均计入配额。用量无法确认时保留配额预占。共享连接使用内联请求。文件型批任务与结果下载可通过 Gemini SDK 直连使用。
 
 公开模型映射可配置 `fallbacks`，依次尝试备用连接。每项填写 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。无状态请求遇到上游 429、5xx 等可重试错误时，网关会尝试备用连接。客户端仍使用同一个公开名，每次尝试用同一个请求 ID 记录。带工具、要求存储输出或已经开始返回的流不参与重放。
 

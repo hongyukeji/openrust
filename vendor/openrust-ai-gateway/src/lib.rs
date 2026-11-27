@@ -37,6 +37,7 @@ mod configuration;
 #[path = "../database/migrations/2026_11_26_000012_create_ai_gateway_cost_pages_tables.rs"]
 mod cost_pages_migration;
 mod gateway;
+mod gemini_batch_input;
 #[path = "../database/migrations/2026_11_26_000017_create_ai_gateway_gemini_batches_table.rs"]
 mod gemini_batches_migration;
 mod invocation;

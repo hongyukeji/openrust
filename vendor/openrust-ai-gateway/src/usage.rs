@@ -892,10 +892,12 @@ impl UsageAttempt {
                     account.settle(transaction, plan.cost(settlement)).await?;
                 }
             }
-            if let Some(quota) = &self.quota
-                && settlement.outcome == "completed"
-            {
-                quota.settle(transaction, settlement.output_tokens).await?;
+            if let Some(quota) = &self.quota {
+                if settlement.state == "not_dispatched" {
+                    quota.settle(transaction, Some(0)).await?;
+                } else if settlement.outcome == "completed" {
+                    quota.settle(transaction, settlement.output_tokens).await?;
+                }
             }
         }
         Ok(changed)

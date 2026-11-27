@@ -6,6 +6,7 @@ use crate::{
     billing::{self, ChargePlan},
     budget,
     managed_keys::{integer, now, text},
+    output_quota,
 };
 
 const TABLE: &str = "ai_gateway_gemini_batches";
@@ -209,6 +210,21 @@ impl UsageStore {
                                 )
                                 .await?;
                             }
+                        }
+                        if changed == 1
+                            && settlement.outcome == "completed"
+                            && let Some(Value::Text(id)) = row.get("output_quota_id")
+                        {
+                            let amount = integer(&row, "reserved_output_tokens")?
+                                .ok_or(DatabaseError::InvalidScalar)?;
+                            let tokens = settlement.output_tokens.and_then(|output| {
+                                if output > amount {
+                                    return Some(output);
+                                }
+                                let total = output.checked_add(settlement.reasoning_tokens?)?;
+                                (!settlement.cost_pending || total > amount).then_some(total)
+                            });
+                            output_quota::settle_reserved(transaction, id, amount, tokens).await?;
                         }
                         if deleted {
                             transaction

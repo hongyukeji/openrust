@@ -150,11 +150,21 @@ impl Budget {
         let bounded_text = matches!(
             endpoint,
             TextEndpoint::Responses | TextEndpoint::ChatCompletions | TextEndpoint::Messages
-        ) && billable_text_only(endpoint, payload);
+        ) && billable_text_only(endpoint, payload)
+            || endpoint == TextEndpoint::GeminiBatchGenerateContent
+                && crate::gemini_batch_input::text_output(payload);
         if let Some(charges) = charges
             && (bounded_text || endpoint.is_embedding() || charges.by_image)
         {
             let mut capped = payload.clone();
+            let items = if endpoint.is_gemini_batch() {
+                crate::gemini_batch_input::requests(payload)
+                    .and_then(|items| i64::try_from(items.len()).ok())
+                    .filter(|count| *count > 0)
+                    .ok_or("无法确认 Gemini 批次项数")?
+            } else {
+                1
+            };
             let output = if charges.by_image {
                 if payload["n"].is_null() {
                     1
@@ -173,8 +183,8 @@ impl Budget {
                 limit_output(cap, endpoint, native_openai, &mut capped)?
             };
             let atoms = match scope {
-                BudgetScope::Group(_) => charges.receivable_ceiling(&self.currency, output),
-                BudgetScope::Account(_) => charges.cost_ceiling(&self.currency, output),
+                BudgetScope::Group(_) => charges.receivable_ceiling(&self.currency, output, items),
+                BudgetScope::Account(_) => charges.cost_ceiling(&self.currency, output, items),
             };
             if let Some(atoms) = atoms {
                 *payload = capped;

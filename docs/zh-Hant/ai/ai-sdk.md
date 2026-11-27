@@ -163,7 +163,7 @@ Gemini 用戶端使用 `/v1beta` API，透過 `x-goog-api-key` 提交下游 Key�
 
 要發佈 Gemini 非同步批次工作，請啟用閘道用量儲存、發佈並執行 `ai-gateway-migrations`，再將 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公開模型的 `endpoints`。將內嵌請求提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用閘道回傳的 `batches/…` 名稱查詢、取消或刪除工作。`GET /v1beta/batches` 列出目前 Key 的工作，支援 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
-請依批次工作的價格設定具名連線與公開模型費率。閘道登記一次提交，確認最終項目的用量後結算。內嵌向量批次可按每項的 `input_token_limit` 預留。啟用硬預算或輸出配額的生成批次須先有對應的上限計算才能提交。共用連線採用內嵌請求。檔案型批次工作與結果下載可透過 Gemini SDK 直接連線使用。
+請依批次工作的價格設定具名連線與公開模型費率。閘道只登記一次提交，取得最終項目用量後結算。啟用硬預算時，為上游模型設定可信的單項輸入上限 `input_token_limit`，內嵌向量批次也依此上限預留。啟用硬預算或輸出配額的內嵌生成批次支援文字輸出。閘道採用最嚴格的設定上限，依每項的候選數換算 `maxOutputTokens`，保留呼叫端較小的上限和原有推理設定。候選輸出與推理 Token 均計入配額。用量無法確認時保留配額預留。共用連線採用內嵌請求。檔案型批次工作與結果下載可透過 Gemini SDK 直接連線使用。
 
 公開模型對應可設定 `fallbacks`，依序嘗試備用連線。每項填寫 `provider` 和 `model`，例如 `[{"provider":"openai","model":"backup-model"}]`。無狀態請求遇到上游 429、5xx 等可重試錯誤時，閘道會嘗試備用連線。用戶端仍使用同一個公開名稱，每次嘗試使用同一個請求 ID 記錄。帶有工具、要求儲存輸出或已開始回傳的串流不會重送。
 

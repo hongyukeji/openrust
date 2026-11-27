@@ -42,6 +42,9 @@ pub(crate) fn limit_output(
     native_openai: bool,
     payload: &mut Value,
 ) -> Result<i64, &'static str> {
+    if endpoint == TextEndpoint::GeminiBatchGenerateContent {
+        return crate::gemini_batch_input::limit_output(payload, max_output_tokens);
+    }
     let fields: &[&str] = match endpoint {
         TextEndpoint::ChatCompletions if native_openai => &["max_completion_tokens", "max_tokens"],
         TextEndpoint::ChatCompletions => &["max_tokens", "max_completion_tokens"],
@@ -141,34 +144,38 @@ impl QuotaReservation {
         transaction: &mut Transaction,
         output_tokens: Option<i64>,
     ) -> DatabaseResult<()> {
-        let Some(output_tokens) = output_tokens else {
-            return Ok(());
-        };
-        if output_tokens == self.amount {
-            return Ok(());
-        }
-        let query = transaction
-            .table(TABLE)
-            .r#where("id", "=", self.id.as_str());
-        if output_tokens > self.amount {
-            // 供应商超出请求上限。本窗口停止准入，真实值仍记录在用量表。
-            let changed = query
-                .update(Record::from([("overrun".into(), true.into())]))
-                .await?;
-            if changed == 0
-                && !transaction
-                    .table(TABLE)
-                    .r#where("id", "=", self.id.as_str())
-                    .r#where("overrun", "=", true)
-                    .exists()
-                    .await?
-            {
-                return Err(DatabaseError::InvalidQuery("AI 网关输出配额结算失败"));
-            }
-            return Ok(());
-        }
-        release_reservation(transaction, &self.id, self.amount - output_tokens).await
+        settle_reserved(transaction, &self.id, self.amount, output_tokens).await
     }
+}
+
+pub(crate) async fn settle_reserved(
+    transaction: &mut Transaction,
+    id: &str,
+    amount: i64,
+    output_tokens: Option<i64>,
+) -> DatabaseResult<()> {
+    let Some(output_tokens) = output_tokens.filter(|tokens| *tokens != amount) else {
+        return Ok(());
+    };
+    let query = transaction.table(TABLE).r#where("id", "=", id);
+    if output_tokens > amount {
+        // 供应商超出请求上限。本窗口停止准入，真实值仍记录在用量表。
+        let changed = query
+            .update(Record::from([("overrun".into(), true.into())]))
+            .await?;
+        if changed == 0
+            && !transaction
+                .table(TABLE)
+                .r#where("id", "=", id)
+                .r#where("overrun", "=", true)
+                .exists()
+                .await?
+        {
+            return Err(DatabaseError::InvalidQuery("AI 网关输出配额结算失败"));
+        }
+        return Ok(());
+    }
+    release_reservation(transaction, id, amount - output_tokens).await
 }
 
 pub(crate) async fn release_reservation(
