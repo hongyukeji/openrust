@@ -267,6 +267,18 @@ pub trait TextProvider: Send + Sync {
             .then_some(TextEndpoint::AlphaSearch)
     }
 
+    fn supports_response_state(&self) -> bool {
+        false
+    }
+
+    fn response_resource<'a>(
+        &'a self,
+        _id: &'a str,
+        _delete: bool,
+    ) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
     /// 按供应商语义读取原生响应的用量对象。默认使用端点的标准计数。
     fn normalize_reported_usage(&self, _usage: &Value) -> Option<Usage> {
         None
@@ -972,6 +984,38 @@ impl TextProvider for OpenAiTextProvider {
     fn alpha_search_endpoint(&self) -> Option<TextEndpoint> {
         matches!(self.protocol, OpenAiProtocol::Responses)
             .then(|| self.connection.alpha_search_endpoint())
+    }
+
+    fn supports_response_state(&self) -> bool {
+        matches!(self.protocol, OpenAiProtocol::Responses)
+    }
+
+    fn response_resource<'a>(
+        &'a self,
+        id: &'a str,
+        delete: bool,
+    ) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async move {
+            if !self.supports_response_state() {
+                return Err(AiError::EndpointNotSupported);
+            }
+            if !id.starts_with("resp_")
+                || id.len() > 128
+                || !id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+            {
+                return Err(AiError::InvalidPrompt);
+            }
+            let path = format!("responses/{id}");
+            let client = self.connection.request(None)?;
+            let response = if delete {
+                client.send(http::Method::DELETE, &path).await
+            } else {
+                client.get(&path).await
+            };
+            response.map_err(transport_error)
+        })
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {

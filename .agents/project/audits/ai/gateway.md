@@ -515,12 +515,12 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前�
 
 | 仍缺基础操作的固定基线路由族 | 关联任务 |
 |---|---|
-| 其余适用的 Responses 状态与资源子路径 | G04 按资源归属继续验收，覆盖 `/v1`、Codex 与适用无版本路径 |
+| 其余适用的 Responses 状态与资源子路径 | G04 按固定基线逐条裁决。已验收 [`/v1` 持久响应读取和删除](#responses-持久响应与归属续接)，后台状态和剩余资源子路径仍待验。 |
 | `POST /images/{generations,edits}/async` 和 `GET /images/tasks/{id}` | G09 与 G10 的任务归属与读取 |
 | `/videos`、`/videos/{generations,edits,extensions}` 及其状态和内容路由 | G13 的视频任务与下载 |
 | `/contents/generations/tasks` 及任务查询和删除 | G14 的 Seedance 路径族及所有权 |
 
-上表当前 HTTP 返回 404。G22 在这些基础操作及对应别名验收后闭合。
+上表尚未实现的路径当前 HTTP 返回 404。G22 在这些基础操作及对应别名验收后闭合。
 
 - [固定 Sub2API 无版本路由注册](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L381)
 - [OpenAI Responses Compact 公开契约](https://developers.openai.com/api/reference/resources/responses/methods/compact)
@@ -543,10 +543,23 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用独立 HTTP、WebSocket 及上游�
 
 缓冲 JSON 和流式终态均保护完整的压缩项。SSE 及转发到 WebSocket 的中间项去除未完成的密文，完成项和最终 `output` 对同一上游项复用同一个受保护的值。压缩事件、普通输出和最终用量共用原请求 ID。上游意外返回的压缩项或缺少完成所需密文时，返回脱敏错误并保留已观测用量。之后的内联回放复用独立压缩的 Key、模型和连接绑定。
 
-SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立进程和 OpenAI 协议夹具验收缓冲 JSON、SSE 中间及完成事件、WebSocket 显式触发、进程重启后的 HTTP 回放、跨 Key 拒绝、阈值和触发顺序错误、模型能力门控、嵌入工具授权、异常事件脱敏和 75／9 Token。通过 Artisan 检查路由缓存与请求用量。另通过 SQLite 独立 Compact 回归、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。真实上游模型权限与持久状态仍待验收。
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立进程和 OpenAI 协议夹具验收缓冲 JSON、SSE 中间及完成事件、WebSocket 显式触发、进程重启后的 HTTP 回放、跨 Key 拒绝、阈值和触发顺序错误、模型能力门控、嵌入工具授权、异常事件脱敏和 75／9 Token。通过 Artisan 检查路由缓存与请求用量。另通过 SQLite 独立 Compact 回归、16 项 Rust 回归、两 AI 包严格库级 Clippy 和三语文档构建。真实上游模型权限仍待验收。持久状态见下一节。
 
 - [OpenAI 自动压缩与触发项](https://developers.openai.com/api/docs/guides/compaction)
 - [OpenAI SSE 压缩事件契约](https://developers.openai.com/api/reference/resources/responses/streaming-events)
+
+### Responses 持久响应与归属续接
+
+公开模型以 `responses_state: true` 显式开放持久响应，需要原生 OpenAI Responses 连接。创建时传 `store: true`，在 JSON、SSE 和 WebSocket 中获得同一响应的受保护标识。标识绑定下游 Key、公开模型、实际连接和上游凭证指纹。续接仅回到原连接，派发后不自动换账号重试。历史输入无法从续接请求估算，硬预算沿用未知成本策略。上游保存响应，网关通过现有加密服务保护标识。
+
+`GET /v1/responses/{response_id}` 读取 JSON，`DELETE /v1/responses/{response_id}` 删除。资源操作复用现有 Key 准入与账号并发限制，不创建生成用量记录。读取隐藏上游的父响应标识。固定 Sub2API 基线的根路径和 Codex 路由没有这两个资源操作。后台执行、取消、流式读取、输入条目及其他共享上游资源由 G04 继续审计。
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过独立 HTTP 服务和上游协议夹具核对路由缓存、缓冲创建、SSE 标识一致、重启后的 HTTP 读取及 HTTP／WebSocket 续接、删除后 404。跨 Key、跨模型、上游凭证变化、标识篡改和直接传入上游 ID 均在出站前拒绝。成功的四次生成分别记录 14／2 Token，读取和删除不产生生成记录。Artisan 按请求查询通过。另在 SQLite 验证硬预算在出站前拒绝无法预估的历史续接，和两种压缩的独立回归。16 项 Rust 回归、两个 AI 包的严格库级 Clippy 和三语文档构建通过。全仓格式检查仍报告 Fortify 和框架测试的既有差异，全仓 Clippy 仍报告核心框架的四项既有告警。生产上游的实际权限、保留周期和费用继续按实机矩阵核对。
+
+- [OpenAI Responses 创建](https://developers.openai.com/api/reference/resources/responses/methods/create)
+- [OpenAI Responses 读取](https://developers.openai.com/api/reference/resources/responses/methods/retrieve)
+- [OpenAI Responses 删除](https://developers.openai.com/api/reference/resources/responses/methods/delete)
+- [OpenAI 会话续接与历史用量](https://developers.openai.com/api/docs/guides/conversation-state)
 
 ### xAI 自定义音色
 

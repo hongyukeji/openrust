@@ -57,6 +57,8 @@ struct ModelConfiguration {
     endpoints: Option<Vec<String>>,
     codex: Option<CodexMetadata>,
     #[serde(default)]
+    responses_state: bool,
+    #[serde(default)]
     gemini_cached_contents: bool,
     #[serde(default)]
     server_tools: HashSet<ResponsesServerTool>,
@@ -292,6 +294,7 @@ pub(crate) struct Target {
 
 pub(crate) struct Model {
     pub(crate) codex: Option<CodexMetadata>,
+    pub(crate) responses_state: bool,
     pub(crate) gemini_cached_contents: bool,
     server_tools: HashSet<ResponsesServerTool>,
     file_search_collections: HashSet<String>,
@@ -535,6 +538,14 @@ impl Gateway {
                         "公开模型 {name} 的端点为空、重复或不受该连接支持"
                     )));
                 }
+                if model.responses_state
+                    && (!endpoints.contains(&TextEndpoint::Responses)
+                        || !targets
+                            .iter()
+                            .any(|target| target.provider.supports_response_state()))
+                {
+                    return Err(invalid("Responses 持久状态需要原生 Responses 连接"));
+                }
                 if endpoints
                     .iter()
                     .any(|endpoint| endpoint.is_gemini_batch() || *endpoint == TextEndpoint::Live)
@@ -603,6 +614,7 @@ impl Gateway {
                         targets,
                         endpoints,
                         codex: model.codex,
+                        responses_state: model.responses_state,
                         gemini_cached_contents: model.gemini_cached_contents,
                         server_tools: model.server_tools,
                         file_search_collections: model.file_search_collections,

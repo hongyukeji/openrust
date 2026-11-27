@@ -256,6 +256,12 @@ Compaction is synchronous and records upstream-reported usage. Use the inline co
 
 For server-side compaction in a normal Responses call, set `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`, or place one `{"type": "compaction_trigger"}` item at the end of the input to compact immediately. Use a model published for both Responses and Compact. The gateway applies the same protection to completed compaction items in JSON, SSE, and WebSocket responses. Continue by supplying the returned items inline.
 
+### Stored Responses {#responses-state}
+
+Set `"responses_state": true` on a public model backed by a native OpenAI Responses connection. Send `"store": true` when creating a response. JSON, SSE and WebSocket return an opaque `resp_or_` ID. With the same gateway Key and public model, use that ID as `previous_response_id` in another HTTP or WebSocket call. Set `store` again to retain the new response.
+
+Use `GET /v1/responses/{response_id}` to retrieve a stored response and `DELETE /v1/responses/{response_id}` to delete it. Retrieval returns JSON and omits the upstream parent ID. Keep the application encryption key and upstream credentials consistent across gateway instances. The upstream connection stores the response and determines retention. This setting covers stored responses created during normal generation. Background runs, cancellation, input-item listing and shared upstream resource references are outside this setting.
+
 ### Responses over WebSocket {#responses-websocket}
 
 Connect to `wss://your-app.example/v1/responses` with the same Bearer Key as the HTTP endpoint. With `unversioned_paths` enabled you can also connect to `/responses`. Send a `response.create` JSON text frame and read the Responses events until `response.completed` or `response.incomplete`.

@@ -37,6 +37,7 @@ mod image_upload;
 mod live;
 pub(crate) use live::LiveObserver;
 mod resources;
+mod response_state;
 mod system_one;
 mod usage_summary;
 mod websocket;
@@ -49,6 +50,8 @@ mod xai_transcription;
 pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
         shared_routes(router)?;
+        router.get("/responses/{response_id}", response_state::get)?;
+        router.delete("/responses/{response_id}", response_state::delete)?;
         router.post("/messages", messages)?;
         router.post("/systemone", system_one::route)?;
         router.get("/usage", usage_summary::show)?;
@@ -690,6 +693,16 @@ async fn relay(
         );
     }
     let compact_response = endpoint == TextEndpoint::CompactResponses;
+    let state = if endpoint == TextEndpoint::Responses {
+        match response_state::prepare(&data, model.responses_state) {
+            Ok(state) => state,
+            Err(message) => {
+                return protocol.error(StatusCode::BAD_REQUEST, "unsupported_state", message);
+            }
+        }
+    } else {
+        None
+    };
     let replays_compaction = compact::has_input(&data);
     let automatic_compaction = if endpoint == TextEndpoint::Responses {
         match compact::automatic_request(&data) {
@@ -828,6 +841,7 @@ async fn relay(
                 .unwrap_or(1)
         }),
         compaction: None,
+        state: None,
     };
     let mut native_responses_only = false;
     let mut server_tools = Vec::new();
@@ -838,14 +852,18 @@ async fn relay(
             | TextEndpoint::CountResponseTokens
     ) {
         // 共享上游 Key 暂不承载跨请求资源，防止不同下游 Key 通过资源 ID 互访。
-        if ["store", "background"].iter().any(|field| {
-            !matches!(
-                data.get(*field),
-                None | Some(Value::Null | Value::Bool(false))
-            )
-        }) || ["previous_response_id", "conversation", "prompt"]
-            .iter()
-            .any(|field| data.get(*field).is_some_and(|value| !value.is_null()))
+        if (state.is_none()
+            && ["store", "previous_response_id"].iter().any(|field| {
+                data.get(*field).is_some_and(|value| {
+                    !value.is_null() && (*field == "previous_response_id" || value != false)
+                })
+            }))
+            || data
+                .get("background")
+                .is_some_and(|value| !value.is_null() && value != false)
+            || ["conversation", "prompt"]
+                .iter()
+                .any(|field| !matches!(data.get(*field), None | Some(Value::Null)))
             || data.get("input").is_some_and(|input| {
                 if !endpoint.is_counting() {
                     resources::openai_references(input)
@@ -896,7 +914,10 @@ async fn relay(
             );
         }
         if endpoint == TextEndpoint::Responses {
-            data.insert("store".into(), Value::Bool(false));
+            data.insert(
+                "store".into(),
+                Value::Bool(state.as_ref().is_some_and(|state| state.store)),
+            );
         } else {
             for field in ["store", "background", "stream"] {
                 data.remove(field);
@@ -1009,6 +1030,7 @@ async fn relay(
         && endpoint != TextEndpoint::AlphaSearch
         && !compact_response
         && !uses_compaction
+        && state.is_none()
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1061,6 +1083,9 @@ async fn relay(
                     || (*upstream == TextEndpoint::ChatCompletions
                         && target.provider.supports_chat_reasoning_replay()))
                 && (!native_responses_only || *upstream == endpoint)
+                && (state.is_none()
+                    || (*upstream == TextEndpoint::Responses
+                        && target.provider.supports_response_state()))
                 && (!uses_compaction
                     || (*upstream == endpoint
                         && target
@@ -1116,6 +1141,15 @@ async fn relay(
             )]);
         }
         payload.insert("model".into(), json!(target.upstream_model));
+        let state_context = if let Some(state) = &state {
+            let Some(context) = state.bind(key, &name, target, &mut payload) else {
+                conversion_error = Some("无法在当前网关连接访问该持久响应");
+                continue;
+            };
+            Some(context)
+        } else {
+            None
+        };
         let compact_context = if compact_response || uses_compaction {
             let Some(context) = compact::Context::new(key, &name, target) else {
                 conversion_error = Some("当前连接无法保护压缩上下文");
@@ -1366,6 +1400,7 @@ async fn relay(
                     endpoint,
                     ResponseOptions {
                         compaction: compact_context,
+                        state: state_context,
                         ..response_options
                     },
                     protocol,
@@ -1766,6 +1801,19 @@ async fn respond(
             "上游压缩项无法校验或保护",
         );
     }
+    if let Some(state) = &mut options.state
+        && !state.rewrite(&mut data, true)
+    {
+        call.outcome("invalid_upstream_response");
+        if !call.settle().await {
+            return usage_storage_failure(protocol, &mut call).response;
+        }
+        return protocol.error(
+            StatusCode::BAD_GATEWAY,
+            "invalid_upstream_response",
+            "上游未返回有效的响应标识",
+        );
+    }
     if let Some(bridge) = bridge {
         let Some(response) = bridge.response(name.clone(), &data) else {
             call.outcome("invalid_upstream_response");
@@ -1799,6 +1847,7 @@ struct ResponseOptions {
     stream: Option<StreamFormat>,
     gemini_candidates: Option<u64>,
     compaction: Option<compact::Context>,
+    state: Option<response_state::Context>,
 }
 
 fn gemini_finished(data: &Value, candidates: u64, finished: &mut HashSet<u64>) -> bool {
@@ -2004,6 +2053,14 @@ async fn stream(
             }
             if endpoint == TextEndpoint::Responses
                 && !compact::protect_event(&mut data, options.compaction.as_mut())
+            {
+                call.outcome("invalid_upstream_response");
+                call.settle().await;
+                yield Ok(format.error(&error));
+                return;
+            }
+            if let Some(state) = &mut options.state
+                && !state.rewrite_event(&mut data, ended)
             {
                 call.outcome("invalid_upstream_response");
                 call.settle().await;

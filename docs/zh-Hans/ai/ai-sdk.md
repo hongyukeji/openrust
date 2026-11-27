@@ -256,6 +256,12 @@ Schedule::configure(|schedule| {
 
 普通 Responses 请求可设置 `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`，也可在输入末尾追加一个 `{"type": "compaction_trigger"}` 立即触发压缩。模型须同时发布 Responses 和 Compact。网关对 JSON、SSE 和 WebSocket 中完成的压缩项使用同一归属保护。下一次请求可内联传回这些项。
 
+### Responses 持久响应 {#responses-state}
+
+在使用原生 OpenAI Responses 连接的公开模型上设置 `"responses_state": true`，创建请求传入 `"store": true`。JSON、SSE 和 WebSocket 均返回不透明的 `resp_or_` 标识。使用同一网关 Key 和公开模型，把该标识作为 `previous_response_id` 即可通过 HTTP 或 WebSocket 续接。需要保存新响应时再次设置 `store`。
+
+通过 `GET /v1/responses/{response_id}` 读取已保存的响应，通过 `DELETE /v1/responses/{response_id}` 删除。读取返回 JSON，并隐藏上游的父响应标识。各网关实例应使用同一应用加密密钥和上游凭证。响应由上游连接保存，保留期限由上游决定。此设置适用于正常生成时保存响应。后台运行、取消、输入条目列表及共享上游资源引用另行处理。
+
 ### Responses WebSocket {#responses-websocket}
 
 使用 HTTP 端点同一 Bearer Key 连接 `wss://your-app.example/v1/responses`。启用 `unversioned_paths` 时也可使用 `/responses`。发送 `response.create` JSON 文本帧，读取 Responses 事件直至 `response.completed` 或 `response.incomplete`。

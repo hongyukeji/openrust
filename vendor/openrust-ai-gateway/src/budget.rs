@@ -221,6 +221,8 @@ fn billable_text_only(endpoint: TextEndpoint, payload: &Value) -> bool {
         "mcp_servers",
         "container",
         "service_tier",
+        "previous_response_id",
+        "context_management",
     ]
     .into_iter()
     .any(present)

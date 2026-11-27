@@ -249,6 +249,10 @@ impl Turn {
         }
         let previous = match body.remove("previous_response_id") {
             None | Some(Value::Null) => None,
+            Some(Value::String(id)) if super::response_state::is_public_id(&id) => {
+                body.insert("previous_response_id".into(), id.into());
+                None
+            }
             Some(Value::String(id)) if !id.is_empty() && id.len() <= 256 => Some(id),
             _ => {
                 return Err(fail(

@@ -256,6 +256,12 @@ Schedule::configure(|schedule| {
 
 一般 Responses 請求可設定 `"context_management": [{"type": "compaction", "compact_threshold": 200000}]`，也可在輸入末尾附加一個 `{"type": "compaction_trigger"}` 立即觸發壓縮。模型須同時發佈 Responses 與 Compact。閘道對 JSON、SSE 和 WebSocket 中完成的壓縮項目使用相同的歸屬保護。下次請求可內嵌傳回這些項目。
 
+### Responses 持久回應 {#responses-state}
+
+在使用原生 OpenAI Responses 連線的公開模型上設定 `"responses_state": true`，建立請求傳入 `"store": true`。JSON、SSE 和 WebSocket 均傳回不透明的 `resp_or_` 識別碼。使用同一閘道 Key 和公開模型，把此識別碼作為 `previous_response_id` 即可透過 HTTP 或 WebSocket 續接。需要儲存新回應時再次設定 `store`。
+
+透過 `GET /v1/responses/{response_id}` 讀取已儲存的回應，透過 `DELETE /v1/responses/{response_id}` 刪除。讀取傳回 JSON，並隱藏上游的父回應識別碼。各閘道執行個體應使用同一應用程式加密金鑰和上游憑證。回應由上游連線儲存，保留期限由上游決定。此設定適用於一般生成時儲存回應。背景執行、取消、輸入項目清單及共用上游資源引用另行處理。
+
 ### Responses WebSocket {#responses-websocket}
 
 使用 HTTP 端點相同的 Bearer Key 連線到 `wss://your-app.example/v1/responses`。啟用 `unversioned_paths` 時也可使用 `/responses`。傳送 `response.create` JSON 文字訊框，讀取 Responses 事件直到 `response.completed` 或 `response.incomplete`。
