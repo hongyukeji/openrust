@@ -384,6 +384,34 @@ X Search accepts `allowed_x_handles`, `excluded_x_handles`, `from_date`, `to_dat
 
 With gateway usage enabled, a successful search records `resource_usage.search_requests` and any upstream token counts or reported cost. A group or account budget that requires a known cost ceiling rejects these searches before dispatch.
 
+### TypeSafe System One gateway {#gateway-system-one}
+
+Publish a `systemone` model using the existing `typesafe` connection. Set `TYPESAFE_API_KEY` on the gateway and use its public model alias with a gateway Bearer key.
+
+```json
+{
+  "public-jev": {
+    "provider": "typesafe",
+    "model": "jev-latest",
+    "endpoints": ["systemone"]
+  }
+}
+```
+
+Send `POST /v1/systemone` with `model`, a string, object, or array as `state`, and a nonempty `questions` object keyed by question name. This gateway endpoint supports synchronous `noul`, `choice`, and `score` questions. For image assets, use the direct TypeSafe SDK connection.
+
+```json
+{
+  "model": "public-jev",
+  "state": "I would like to return my order.",
+  "questions": {
+    "return": {"type": "noul", "instructions": "Is this a return request?"}
+  }
+}
+```
+
+To call the gateway from `Classification`, configure a `system-one` connection with the gateway base URL ending in `/v1`, the gateway key, and the public classification model alias. If the gateway policy requires a fixed output-token or cost ceiling, the request is rejected before dispatch.
+
 ### Connect DeepSeek Harness {#dsh-model-connection}
 
 In DeepSeek Harness, open **Settings → Models → Add model provider** and choose **Custom model API**. Enter a provider ID, the gateway's downstream Key, and the base URL for the chosen protocol.

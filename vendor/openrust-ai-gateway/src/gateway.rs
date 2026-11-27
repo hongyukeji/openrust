@@ -229,11 +229,12 @@ impl Key {
     }
 }
 
-const ENDPOINTS: [TextEndpoint; 21] = [
+const ENDPOINTS: [TextEndpoint; 22] = [
     TextEndpoint::Live,
     TextEndpoint::XaiRealtime,
     TextEndpoint::XaiWebSearch,
     TextEndpoint::XaiXSearch,
+    TextEndpoint::SystemOne,
     TextEndpoint::ChatCompletions,
     TextEndpoint::Responses,
     TextEndpoint::CountResponseTokens,
@@ -479,6 +480,7 @@ impl Gateway {
                             !endpoint.is_image()
                                 && !endpoint.is_xai_voice()
                                 && !endpoint.is_xai_search()
+                                && *endpoint != TextEndpoint::SystemOne
                                 && !endpoint.is_gemini_embedding()
                                 && !endpoint.is_gemini_batch()
                                 && *endpoint != TextEndpoint::Live,
@@ -973,6 +975,7 @@ impl Gateway {
                 TextEndpoint::Responses
                     | TextEndpoint::ChatCompletions
                     | TextEndpoint::Messages
+                    | TextEndpoint::SystemOne
                     | TextEndpoint::GeminiGenerateContent
                     | TextEndpoint::GeminiStreamGenerateContent
                     | TextEndpoint::GeminiBatchGenerateContent

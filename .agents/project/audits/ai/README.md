@@ -356,6 +356,8 @@ SQLite 队列使用独立 HTTP 和 Artisan 派发。验收检查数据库队列�
 
 独立 Artisan 和 HTTP 通过三个本地 TCP 协议服务逐个验证认证、路径、默认及显式模型、图片和结构化状态、用量、越界分级响应。TypeSafe 一并验证状态键冲突。现阶段图片输入支持 PNG、JPEG，OpenRouter 和 Gemini 另接受 WebP。命名附件、Gemini 远端图片、分类故障转移和真实账户验收继续单列。
 
+System One 现已通过网关公开模型调用。SDK 直连、SDK 经网关和独立 HTTP 的三库结果见[网关 System One 验收](gateway.md#typesafe-system-one)。
+
 - [固定 Laravel TypeSafe Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TypeSafeGateway.php) · [固定 Laravel Gemini Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Gemini/GeminiClassificationGateway.php) · [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)
 
 ## AI-05 分类 Fake 与便捷入口

@@ -31,7 +31,8 @@
 | `POST /v1/tts`、`POST /v1/stt`、`GET/POST /v1/custom-voices`、`GET/PATCH/DELETE /v1/custom-voices/{id}`、`GET /v1/custom-voices/{id}/audio` | 网关 Key，固定版本依平台开放；文本、上传、下载或资源管理 | AI-06 已验收 xAI SDK [原生语音合成](README.md#xai-原生语音合成)与[原生转录](README.md#xai-原生转录)。GW-03 已验收 `POST /v1/tts` 的 HTTP 音频流和时间戳响应、multipart `POST /v1/stt` 和两条可选无版本别名。自定义音色六个操作和合成引用已通过本地三库验收。双向实时语音及供应商实机仍待验收。 |
 | `POST /v1/live`、`GET /v1/live/{call_id}`、`GET /v1/realtime` | 网关 Key，Live 与 Sideband 或实时协议升级 | G18 的 Live 与 Sideband 创建、归属、双向帧、观察接管、到期回收和用量终态已通过本地三库。G19 的 xAI Realtime 升级、双向事件、取消和同连接多轮也已完成本地三库。 |
 | `POST /v1/{web_search,x_search}` 和可选无版本别名 | 网关 Key、公开模型和搜索工具授权，转换为 xAI 原生 Responses | G20 已完成[独立搜索的本地三库验收](#xai-独立搜索)。供应商实机见 E09，工具计费见 B05。 |
-| `POST /v1/systemone`、`POST /v1/alpha/search` | 网关 Key，分别要求 TypeSafe System One 与 OpenAI／Codex 连接能力 | G20 待完成两项平台动作。Codex 专属路径与正式客户端另见 G21。 |
+| `POST /v1/systemone` | 网关 Key 与已发布的 TypeSafe 模型，原生同步分类 | G20 已通过 [System One 本地三库验收](#typesafe-system-one)。TypeSafe 正式账号和账单见 E11。 |
+| `POST /v1/alpha/search` | 网关 Key 与 OpenAI／Codex 连接能力 | G20 待按协议和用量验收。Codex 专属路径与正式客户端另见 G21。 |
 | `GET /v1/usage` | 网关 Key，调用方用量 | GW-04 已实测按 Key 聚合、UTC 日序列及按公开模型分日期范围统计。旧 Sub2API 专用计费入口的历史联调和移除结果见本账本末节。 |
 
 ## 兼容路径与账号类型
@@ -436,6 +437,21 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过独立 HTTP 进程和 xAI 协议
 - [Sub2API 固定版 X Search 字段](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/openai_x_search.go#L12)
 - [xAI Web Search](https://docs.x.ai/developers/tools/web-search)
 - [xAI X Search](https://docs.x.ai/developers/tools/x-search)
+
+### TypeSafe System One
+
+`POST /v1/systemone` 复用 SDK 已有 `system-one` 驱动和 TypeSafe Bearer 连接。只对显式配置 `endpoints: ["systemone"]` 的公开模型授权，网关将公开别名映射到具名连接上的原生模型，并把响应模型映射回公开别名。固定基线只注册版本化入口。旧版 OpenRust 仅列过计划，当前 SDK 已按固定 Laravel 分类实现提供直连。
+
+同步 JSON 接收字符串、对象或数组状态，允许同一次请求包含具名 `noul`、`choice` 和 `score` 问题。网关验证问题名、字段及分级类型，再用结构化 JSON 出站。固定基线范围为文本题型，网关拒绝图片资产、`box`、multipart 及流式调用。供应商现行 OpenAPI 另提供图像能力，SDK 直连的内联图片按原有契约运行。要求确定费用或输出 Token 上限的策略在出站前拦截。已派发的请求不自动重放。
+
+成功响应保留具名答案与原始用量。独立用量记录接受上游数字及数字字符串，将报告数值归整后参与结算，供应商没有提供的字段保留未知。响应按固定 4 MiB 上限读取，超限和不可解析时保留已收到的上游状态及请求 ID 供对账。网关按实际映射模型与配置费率分别记录成本和下游应收。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过 TypeSafe 协议夹具的 SDK 直连、SDK 经网关和独立 HTTP。验证路由缓存、无版本路径拒绝、Key 和公开模型访问、三种题型、无权或无效请求、重复问题名、429 无重放、响应超限及错误证据。Artisan 和数据库均核对 12／4 Token、模拟成本 0.0002 USD 和下游应收 0.0004 USD。两 AI 包严格库级 Clippy、13 项 SDK 分类和网关回归、三语文档通过。正式 TypeSafe 账号与账单见 E11。
+
+- [固定 Sub2API 网关实现](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_systemone.go)
+- [固定 Sub2API 校验与响应边界](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/pkg/typesafe)
+- [固定 Laravel TypeSafe Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/TypeSafeGateway.php)
+- [TypeSafe 官方 OpenAPI](https://api.typesafe.ai/openapi.json)
 
 ### xAI 自定义音色
 

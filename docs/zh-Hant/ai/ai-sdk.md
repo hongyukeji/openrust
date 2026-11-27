@@ -384,6 +384,34 @@ X Search 可設定 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 開啟閘道用量後，成功的搜尋記錄 `resource_usage.search_requests` 及上游回報的 Token 數和費用。要求確認費用上限的群組或帳號預算會在對上游送出前拒絕此類請求。
 
+### TypeSafe System One 閘道 {#gateway-system-one}
+
+透過現有 `typesafe` 連線發佈 `systemone` 模型。在閘道設定 `TYPESAFE_API_KEY`，用戶端攜帶閘道 Bearer Key 並使用公開模型名稱。
+
+```json
+{
+  "public-jev": {
+    "provider": "typesafe",
+    "model": "jev-latest",
+    "endpoints": ["systemone"]
+  }
+}
+```
+
+傳送 `POST /v1/systemone`，本文包含 `model`、字串或物件或陣列型別的 `state`，以及依問題名稱組織的非空 `questions` 物件。閘道支援同步 `noul`、`choice` 和 `score`。圖片資產可透過 SDK 直連 TypeSafe。
+
+```json
+{
+  "model": "public-jev",
+  "state": "I would like to return my order.",
+  "questions": {
+    "return": {"type": "noul", "instructions": "這是退貨請求嗎？"}
+  }
+}
+```
+
+應用透過 `Classification` 呼叫閘道時，使用 `system-one` 驅動，將連線 URL 設為以 `/v1` 結尾的閘道位址，設定閘道 Key 及公開分類模型名稱。要求確定輸出 Token 或費用上限的原則會在送出至上游前拒絕請求。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中開啟 **設定 → 模型 → 新增模型供應商**，選擇 **自訂模型 API**。填入連線 ID、閘道下游 Key 以及對應協定的基礎 URL。

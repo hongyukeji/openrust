@@ -384,6 +384,34 @@ X Search 可设置 `allowed_x_handles`、`excluded_x_handles`、`from_date`、`t
 
 开启网关用量后，成功的搜索记录 `resource_usage.search_requests` 及上游报告的 Token 数和费用。要求确认费用上限的分组或账号预算会在出站前拒绝此类请求。
 
+### TypeSafe System One 网关 {#gateway-system-one}
+
+通过现有 `typesafe` 连接发布 `systemone` 模型。在网关配置 `TYPESAFE_API_KEY`，客户端携带网关 Bearer Key 并使用公开模型名。
+
+```json
+{
+  "public-jev": {
+    "provider": "typesafe",
+    "model": "jev-latest",
+    "endpoints": ["systemone"]
+  }
+}
+```
+
+发送 `POST /v1/systemone`，正文包含 `model`、字符串或对象或数组类型的 `state`，以及按问题名组织的非空 `questions` 对象。网关支持同步 `noul`、`choice` 和 `score`。图片资产可通过 SDK 直连 TypeSafe。
+
+```json
+{
+  "model": "public-jev",
+  "state": "I would like to return my order.",
+  "questions": {
+    "return": {"type": "noul", "instructions": "这是退货请求吗？"}
+  }
+}
+```
+
+应用通过 `Classification` 调用网关时，使用 `system-one` 驱动，将连接 URL 设为以 `/v1` 结尾的网关地址，配置网关 Key 及公开分类模型名。要求确定输出 Token 或费用上限的策略会在出站前拒绝请求。
+
 ### 接入 DeepSeek Harness {#dsh-model-connection}
 
 在 DeepSeek Harness 中打开 **设置 → 模型 → 添加模型提供商**，选择 **自定义模型 API**。填写连接 ID、网关下游 Key 和对应协议的基础 URL。

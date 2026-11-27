@@ -34,6 +34,7 @@ mod image_upload;
 mod live;
 pub(crate) use live::LiveObserver;
 mod resources;
+mod system_one;
 mod usage_summary;
 mod websocket;
 mod xai_custom_voices;
@@ -46,6 +47,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("/v1"), |router| {
         shared_routes(router)?;
         router.post("/messages", messages)?;
+        router.post("/systemone", system_one::route)?;
         router.get("/usage", usage_summary::show)?;
         router.post("/live", live::create)?;
         router.get("/live/{call_id}", live::sideband)?;
@@ -236,6 +238,7 @@ async fn catalog(token: Option<&str>, id: Option<&str>, protocol: Protocol) -> H
                     TextEndpoint::XaiSpeechToText,
                     TextEndpoint::XaiWebSearch,
                     TextEndpoint::XaiXSearch,
+                    TextEndpoint::SystemOne,
                 ]
                 .into_iter()
                 .any(|endpoint| model.supports_for(endpoint, key)),
@@ -560,12 +563,22 @@ async fn relay(
             }
         };
         // 协议正文保留提示词和工具参数原文，绕开应用对 JSON 输入的清理。
-        let Ok(Value::Object(data)) = serde_json::from_slice(&body) else {
-            return protocol.error(
+        let data = if endpoint == TextEndpoint::SystemOne {
+            system_one::decode(&body).map_err(|message| {
+                protocol.error(StatusCode::BAD_REQUEST, "invalid_request", message)
+            })
+        } else if let Ok(Value::Object(data)) = serde_json::from_slice(&body) {
+            Ok(data)
+        } else {
+            Err(protocol.error(
                 StatusCode::BAD_REQUEST,
                 "invalid_json",
                 "请求正文必须是 JSON 对象",
-            );
+            ))
+        };
+        let data = match data {
+            Ok(data) => data,
+            Err(response) => return response,
         };
         (data, None)
     };
@@ -867,6 +880,7 @@ async fn relay(
     let may_replay = !endpoint.is_image()
         && !endpoint.is_xai_voice()
         && !endpoint.is_xai_search()
+        && endpoint != TextEndpoint::SystemOne
         && gemini_cache.is_none()
         && !sealed_responses
         && !sealed_chat
@@ -1163,6 +1177,9 @@ async fn relay(
         .await
         {
             Ok(upstream) => {
+                if endpoint == TextEndpoint::SystemOne {
+                    return system_one::respond(upstream, &name, call).await;
+                }
                 if let Some(search) = search {
                     return search.respond(upstream, call).await;
                 }

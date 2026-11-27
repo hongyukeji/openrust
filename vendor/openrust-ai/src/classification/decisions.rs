@@ -1,11 +1,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use openrust::{http::HttpFuture, support::Str};
+use openrust::{
+    http::{HttpFuture, client},
+    support::Str,
+};
 use serde_json::{Map, Value, json};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ImageAttachment, ImageFormat, TextPrompt, TextProvider,
-    Usage,
+    AgentResponse, AiError, AiResult, ImageAttachment, ImageFormat, TextEndpoint, TextPrompt,
+    TextProvider, Usage,
     connection::Connection,
     text::{transport_error, validate},
 };
@@ -44,6 +47,28 @@ impl TextProvider for HttpDecisionsProvider {
     fn classification_provider(&self) -> Option<Arc<dyn ClassificationProvider>> {
         Some(Arc::new(self.clone()))
     }
+
+    fn supports_endpoint(&self, endpoint: TextEndpoint) -> bool {
+        matches!(self.protocol, DecisionsProtocol::SystemOne) && endpoint == TextEndpoint::SystemOne
+    }
+
+    fn relay(
+        &self,
+        endpoint: TextEndpoint,
+        body: Value,
+    ) -> HttpFuture<'_, AiResult<client::Response>> {
+        Box::pin(async move {
+            if !self.supports_endpoint(endpoint) {
+                return Err(AiError::EndpointNotSupported);
+            }
+            self.connection
+                .request(None)?
+                .stream()
+                .post(endpoint.path(), &body)
+                .await
+                .map_err(transport_error)
+        })
+    }
 }
 
 impl ClassificationProvider for HttpDecisionsProvider {
@@ -74,7 +99,7 @@ impl ClassificationProvider for HttpDecisionsProvider {
                             "true".parse().expect("valid header value"),
                         );
                     }
-                    "systemone"
+                    TextEndpoint::SystemOne.path()
                 }
                 DecisionsProtocol::OpenRouter => {
                     let mut base = url::Url::parse(self.connection.base_url())
