@@ -2,26 +2,31 @@
 
 集中列出已发现的未完成事项及条件性后续；已完成范围和验收边界见[当前交接](current.md)及对应主题记录。本页不是全框架审计已经结束的声明，接手时仍须按最新源码和逐项账本核对。
 
-## 双机接续顺序（2026-11-26）
+## Windows 接续顺序（2026-11-27）
 
-本轮暂停开发。恢复后，开发机按下表接续源码和测试夹具，验收机按下一表接收固定提交。两台机器可并行处理不同批次，同一候选由一台机器维护。交接时记录提交 SHA、目标或 feature、测试命令、工具链和服务版本。尚未提交的工作区改动与 `target/tmp/` 候选只在当前机器可用，须先按原交接记录恢复候选并交接，再由另一台机器验收。验收失败回原批次修正，修正后用新 SHA 复验。
+全部待办由另一台 Windows 开发电脑接续，覆盖开发、验收和发布条件跟进。开发与验收分成两个阶段，由 Windows 按同一批次推进。涉及 macOS、Linux 和真实供应商的验收，由 Windows 负责排期并在对应目标环境取得证据。下表按已有候选和实际依赖排序，独立批次可并行。历史交接仍作为证据入口。
+
+Windows 从 `origin/master` 已推送的提交接续，开工前记录完整 SHA 并对照各主题最新记录。本机未提交改动、隔离源码和日志须核对归属并完成交接，Windows 才能使用。本机未找到历史记录中的 `tinker-integration/` 和 `controller-singleton-source/`，仍有 `target/tmp/logging-tutorial-20261124/source/`。先核对原接手记录和可恢复的候选，核对不上时按已提交源码和固定上游重建对应批次，其他可独立推进的任务继续。Windows 构建使用项目[构建守卫](conventions.md#构建产物管理)的 `py -3 -B` 入口。
 
 ### 开发顺序
 
-| 顺序 | 开发机任务 | 可并行和前置条件 |
+| 顺序 | 待开发任务 | 接续条件与依赖 |
 | --- | --- | --- |
-| 1 | 按 [Artisan 与 Controllers 交接](#artisan-controllers-handoff)恢复可选 Tinker，再接续 Controllers 的批量单例、URI 动词及剩余锚点。 | 先核对保留的源码快照、已提交基线和固定上游对照，按候选分别交接。 |
-| 2 | 按各自账本继续 Webhook、内容审核和观测扩展剩余契约。 | Webhook 可靠接收接缝是内容审核相关回调工作的前置。Pulse、Telescope 的独立工作可与第 1 项并行。 |
-| 3 | 接续[全仓 Laravel 对齐](#laravel-对齐后续边界)的 Validation、TestResponse、Query 和 ORM 裁决。 | 可独立交付的组件分批推进，公共接口依赖固定上游裁决和共享模块的已固定提交。 |
+| 1 | 接续 [Artisan 与 Controllers](#artisan-controllers-handoff)。先核对可选 Tinker 候选，能恢复则完成该批。Controllers 从批量单例、资源 URI 动词及剩余章节继续。 | 两项分批。Tinker 候选暂不可用时，Controllers 可从账本和已提交基线先做。原快照及旧工具链证据需按当前源码和 Rust 1.95.0 重验。 |
+| 2 | 推进[全仓 Laravel 对齐](#laravel-对齐后续边界)。核对并补齐 Validation、TestResponse、Query 和 ORM 剩余公开契约。 | 按统一裁决队列逐项核对固定上游和旧版。下游批次实际依赖的接口先固定，独立组件可与教程并行。PCRE2 补丁迁移等待上游提供等价接口。 |
+| 3 | 接续 [Webhook 收发](#webhook独立扩展持续实施中完整收发未闭合)。按逐类型账本处理确认存在的源码缺口。 | 优先固定供内容审核回调复用的接收契约；已实现的恢复、拓扑和代理路径按账本进入验收。 |
+| 4 | 接续[内容审核](#内容安全与内容审核实施中)。按 CM 计划处理四家视频审核的剩余模态、回调和恢复契约。 | 回调联调依赖 Webhook 的可靠接收契约；独立驱动及模态核对可先行。实际供应商账号和样本作为验收输入。 |
+| 5 | 接续[观测扩展](#observability-handoff)。按账本推进 Pulse Recorder／Livewire 和 Telescope Watcher 剩余公开契约。 | 不涉及同一共享接口的批次可并行。已提交的 Telescope 调度诊断、Horizon 集群及平台项目进入验收队列。 |
+| 6 | 接续 [E07 AI SDK 与模型网关](#e07-ai-handoff)。从 G04／G22 的未完成项及专项待办继续。 | 以 AI 专项账本的批次依赖为准，与观测扩展可并行。已验的后台 JSON 和其他已闭合子项沿用原证据。 |
 
 ### 验收顺序
 
-| 顺序 | 验收机任务 | 输入和通过条件 |
+| 顺序 | 验收任务 | 输入和通过条件 |
 | --- | --- | --- |
-| 1 | 从已提交源码并行恢复跨后端与平台专项。 | [Webhook 恢复事件](#webhook-recovery-handoff) `cb8151df1` 的 SQLite 已通过，补 PostgreSQL／MySQL、Redis 队列和双 Scheduler。[Telescope 调度诊断](#observability-handoff) `5f0b2a769` 补 PostgreSQL／MySQL。Docker／Lima 就绪后，依冻结 SHA 跑较新 Linux ARM64 生产制品及 Linux 调度用户矩阵。 |
-| 2 | 验收开发机交接的候选，到一批验一批。 | Tinker 跑真实 PTY、单次求值、默认关闭和部署烟测。Controllers 跑上游对照、真实 TCP、`route:list` 和三语。细项与命令见各自交接。 |
-| 3 | 选定最终交付快照后，执行 [REL-V01](#平台与发布条件)及完整平台矩阵。 | 固定源码、依赖、feature 与制品，运行组合回归、迁移、启动关停及许可核对。已验旧制品的结果只适用于对应快照。 |
-| 4 | [真实供应商与部署验收](#external-acceptance)。 | 授权账号、实际端点和平台齐备后按各条执行。BCP 47 实际迁移由目标环境部署者按备份和冲突审阅流程独立推进。发布须完成最终分发批准。 |
+| 1 | 优先复验已有固定提交的跨后端缺口。 | [Webhook 恢复事件](#webhook-recovery-handoff) `cb8151df1` 补 PostgreSQL／MySQL、Redis 队列和双 Scheduler。[Telescope 调度诊断](#observability-handoff) `5f0b2a769` 补 PostgreSQL／MySQL。SQLite 按各自记录保留已通过证据。Docker／Lima 或对应目标环境就绪后，可并行续验已冻结的 Linux ARM64 制品和 Linux 调度用户矩阵。 |
+| 2 | 每完成一批开发，在固定提交上执行相关验收。 | 记录提交 SHA、改动范围、feature、测试命令、工具链、实际平台和服务版本。Tinker 及 Controllers 沿用各自交接的 PTY、独立命令、真实 HTTP、`route:list` 和三语验收。其余按专项账本从实际消费者验收。失败回原批次修正，并用新 SHA 复验。 |
+| 3 | 固定最终交付组合，执行 [REL-V01 与平台矩阵](#平台与发布条件)。 | 核对源码、依赖、feature、平台和制品。按目标环境运行组合回归、迁移、启动关停及许可核对，旧制品证据只适用于当时的快照。 |
+| 4 | 跟进[真实供应商与部署验收](#external-acceptance)及[语言标识部署迁移](#语言标识统一迁移)。 | 在授权账号、实际端点、目标平台或应用映射齐备后按项执行，可与本地批次并行。目标环境部署者按备份和冲突审阅流程落实 BCP 47 迁移，Windows 跟进并收录结果。最终分发按用户授权办理。 |
 
 ## 待认领的缺口
 
