@@ -858,6 +858,8 @@ Bedrock 的普通和流式调用均支持 `with_schema`。SDK 通过专用工具
 
 使用 Bedrock 文生图时，设置 `AI_IMAGE_PROVIDER=bedrock` 和 `BEDROCK_IMAGE_MODEL=amazon.nova-canvas-v1:0`，再调用 `Image::of(prompt)?.portrait().generate().await?`。驱动支持 Nova Canvas、Titan Image Generator，以及使用 Bedrock `images` 响应的 Stability Stable Image 模型。通过 `square`、`portrait` 或 `landscape` 选择宽高比，用 `store` 或 `store_as` 保存到配置好的磁盘。需要基于参考图进行编辑时，请选择支持图像附件的驱动。
 
+运行 `./artisan ai:models bedrock` 可发现当前区域的基础模型与有效推理配置。目录使用已配置的 Bedrock Bearer Key 或 AWS IAM 凭证链。凭证需允许 `bedrock:ListFoundationModels` 和 `bedrock:ListInferenceProfiles`。需要覆盖控制面基础地址时，设置 `BEDROCK_CATALOG_URL`。其中一个列表调用失败时，命令仍显示另一个列表的结果、已配置的文本模型 ID 和发现错误。默认模型仍由应用选择。
+
 使用 xAI 文本模型时，设置 `AI_PROVIDER=xai`、`XAI_API_KEY` 和 `XAI_MODEL`。用 `XAI_URL` 覆盖默认地址 `https://api.x.ai/v1`，用 `XAI_MODEL_CHEAPEST` 和 `XAI_MODEL_SMARTEST` 配置模型档位。连接使用原生 Responses，支持 SSE、结构化输出、本地函数工具，以及受支持模型的图像输入。上游返回加密推理时，本地工具续步会把它随请求发回。运行 `./artisan ai:models xai` 查看发现的模型及已配置的模型。
 
 使用 xAI 原生连接时，SDK 用量和网关账本将推理 Token 计入输出总量一次，并单独记录推理子项。上游同时报告总量时，按总量判断输出字段是否已经包含推理。网关原生转发保留上游响应中的用量字段。

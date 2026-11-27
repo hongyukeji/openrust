@@ -1,3 +1,4 @@
+mod catalog;
 mod embeddings;
 mod image;
 mod invoke;
@@ -7,10 +8,13 @@ mod tools;
 
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 
-use aws_config::{BehaviorVersion, sts::AssumeRoleProvider};
+use aws_config::{BehaviorVersion, SdkConfig, sts::AssumeRoleProvider};
 use aws_sdk_bedrockruntime::{
     Client,
-    config::{Credentials, Region, Token, retry::RetryConfig, timeout::TimeoutConfig},
+    config::{
+        Credentials, Region, SharedCredentialsProvider, Token, retry::RetryConfig,
+        timeout::TimeoutConfig,
+    },
     error::{ProvideErrorMetadata, SdkError},
     operation::converse_stream::ConverseStreamOutput as StreamOutput,
     primitives::Blob,
@@ -38,13 +42,14 @@ use crate::{
     ModelCatalog, ReasoningPart, StepEvent, StepEventStream, StepResponse, StepTextGateway,
     StreamableAgentResponse, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition,
     ToolStep, Usage,
-    connection::{Authorization, Connection},
+    connection::{Authorization, Connection, validate_base_url},
 };
 
 #[derive(Deserialize)]
 struct Settings {
     region: Option<String>,
     url: Option<String>,
+    catalog_url: Option<String>,
     key_env: Option<String>,
     #[serde(default = "default_chain")]
     use_default_credential_provider: bool,
@@ -69,6 +74,8 @@ pub(crate) struct BedrockProvider {
     settings: Arc<Settings>,
     environment: Arc<Environment>,
     client: Arc<OnceCell<Client>>,
+    catalog_client: Arc<OnceCell<aws_sdk_bedrock::Client>>,
+    iam_config: Arc<OnceCell<SdkConfig>>,
 }
 
 impl BedrockProvider {
@@ -100,12 +107,17 @@ impl BedrockProvider {
         if settings.url.is_none() {
             config["url"] = "https://bedrock-runtime.amazonaws.com".into();
         }
+        if let Some(url) = &settings.catalog_url {
+            validate_base_url(url, "providers.<name>.catalog_url")?;
+        }
         let connection = Connection::new(config, environment.clone(), http, Authorization::Bearer)?;
         Ok(Self {
             connection: Arc::new(connection),
             settings: Arc::new(settings),
             environment,
             client: Arc::new(OnceCell::new()),
+            catalog_client: Arc::new(OnceCell::new()),
+            iam_config: Arc::new(OnceCell::new()),
         })
     }
 
@@ -129,58 +141,71 @@ impl BedrockProvider {
         )
     }
 
+    fn region(&self) -> Region {
+        Region::new(
+            self.settings
+                .region
+                .clone()
+                .unwrap_or_else(|| "us-east-1".into()),
+        )
+    }
+
+    async fn iam_config(&self) -> AiResult<&SdkConfig> {
+        self.iam_config
+            .get_or_try_init(|| async {
+                let mut loader =
+                    aws_config::defaults(BehaviorVersion::latest()).region(self.region());
+                match (
+                    self.env("AWS_ACCESS_KEY_ID")?,
+                    self.env("AWS_SECRET_ACCESS_KEY")?,
+                ) {
+                    (Some(id), Some(secret)) => {
+                        loader = loader.credentials_provider(Credentials::new(
+                            id,
+                            secret,
+                            self.env("AWS_SESSION_TOKEN")?,
+                            None,
+                            "openrust",
+                        ));
+                    }
+                    (None, None) if self.settings.use_default_credential_provider => {}
+                    _ => return Err(AiError::MissingCredential),
+                }
+                let shared = loader.load().await;
+                let mut iam = shared.to_builder();
+                iam.set_token_provider(None);
+                if let Some(role) = &self.settings.assume_role {
+                    let mut assume =
+                        AssumeRoleProvider::builder(role.arn.clone()).configure(&shared);
+                    if let Some(name) = &role.session_name {
+                        assume = assume.session_name(name);
+                    }
+                    if let Some(seconds) = role.duration_seconds {
+                        assume = assume.session_length(Duration::from_secs(seconds));
+                    }
+                    if let Some(id) = &role.external_id {
+                        assume = assume.external_id(id);
+                    }
+                    let provider = SharedCredentialsProvider::new(assume.build().await);
+                    iam = iam.credentials_provider(provider);
+                }
+                Ok(iam.build())
+            })
+            .await
+    }
+
     async fn client(&self) -> AiResult<&Client> {
         self.client
             .get_or_try_init(|| async {
-                let region = Region::new(
-                    self.settings
-                        .region
-                        .clone()
-                        .unwrap_or_else(|| "us-east-1".into()),
-                );
                 let retry = RetryConfig::standard().with_max_attempts(1);
-                let key = self.bearer_key()?;
-                let mut config = if let Some(key) = key {
+                let mut config = if let Some(key) = self.bearer_key()? {
                     aws_sdk_bedrockruntime::config::Builder::new()
                         .behavior_version(BehaviorVersion::latest())
-                        .region(region)
+                        .region(self.region())
                         .bearer_token(Token::new(key, None))
                         .auth_scheme_preference([HTTP_BEARER_AUTH_SCHEME_ID])
                 } else {
-                    let mut loader = aws_config::defaults(BehaviorVersion::latest()).region(region);
-                    match (
-                        self.env("AWS_ACCESS_KEY_ID")?,
-                        self.env("AWS_SECRET_ACCESS_KEY")?,
-                    ) {
-                        (Some(id), Some(secret)) => {
-                            loader = loader.credentials_provider(Credentials::new(
-                                id,
-                                secret,
-                                self.env("AWS_SESSION_TOKEN")?,
-                                None,
-                                "openrust",
-                            ));
-                        }
-                        (None, None) if self.settings.use_default_credential_provider => {}
-                        _ => return Err(AiError::MissingCredential),
-                    }
-                    let shared = loader.load().await;
-                    let mut config = aws_sdk_bedrockruntime::config::Builder::from(&shared);
-                    if let Some(role) = &self.settings.assume_role {
-                        let mut assume =
-                            AssumeRoleProvider::builder(role.arn.clone()).configure(&shared);
-                        if let Some(name) = &role.session_name {
-                            assume = assume.session_name(name);
-                        }
-                        if let Some(seconds) = role.duration_seconds {
-                            assume = assume.session_length(Duration::from_secs(seconds));
-                        }
-                        if let Some(id) = &role.external_id {
-                            assume = assume.external_id(id);
-                        }
-                        config = config.credentials_provider(assume.build().await);
-                    }
-                    config
+                    aws_sdk_bedrockruntime::config::Builder::from(self.iam_config().await?)
                 };
                 if let Some(endpoint) = &self.settings.url {
                     config = config.endpoint_url(endpoint);
@@ -205,7 +230,7 @@ impl TextProvider for BedrockProvider {
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
-        Box::pin(async { self.connection.catalog(Err(AiError::ModelsNotSupported)) })
+        Box::pin(self.discover_models())
     }
 
     fn embedding_provider(&self) -> Option<Arc<dyn crate::EmbeddingProvider>> {

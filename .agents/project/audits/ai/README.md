@@ -692,7 +692,7 @@ Responses 有独立条目 ID 时以条目 ID 标识 SDK 调用和审批，`resul
 
 `bedrock` 命名连接复用项目 AWS SDK 依赖风格，新增官方 Bedrock Runtime Rust SDK 1.151.0。客户端按需初始化，支持应用环境中的 Bearer、SigV4 静态凭证和会话令牌、AWS 默认凭证链、STS AssumeRole、区域及可覆盖的运行时端点。Converse 按固定 Laravel 映射系统指令、消息历史、内联图片和文档、采样选项及用量。输入总量含缓存读取和写入并保留两个子项。Typed SDK 负责模型路径编码和签名，单次请求关闭 SDK 自动重试，错误交给既有 SDK 处理。
 
-独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。远程目录仍待实施。IAM 实机和权限范围待正式账户验收。
+独立 Artisan 实际调用本地协议上游，分别验证 Bearer、HMAC 复算的 SigV4、共享凭证文件、模拟 STS 代入后的会话签名、禁用默认链时拒绝缺失凭证，以及配置模型清单。真实 HTTP 验证带斜杠的推理模型 ARN、采样参数、PNG 和 PDF 原始字节、缓存用量、过载和额度错误。19 项 SDK 回归、严格 Clippy 与三语站点检查通过。远程目录见下文。IAM 实机和权限范围待正式账户验收。
 
 - [固定 Laravel BedrockTextGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockTextGateway.php) · [AWS Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) · [AWS Rust SDK 1.151.0](https://docs.rs/aws-sdk-bedrockruntime/1.151.0/aws_sdk_bedrockruntime/)
 
@@ -731,6 +731,14 @@ Bedrock `ImageProvider` 按固定 Laravel 为 Nova Canvas、Titan Image Generato
 本地 AWS 协议服务通过独立 Artisan 验证 Nova、Titan、Bearer、尺寸和质量映射及存盘。独立 HTTP 验证 Stability 的模型 ARN、SigV4、再次存盘和私有磁盘逐字节回读，且无图片、损坏 Base64、非法内容与权限错误均被拒绝。普通／流式 Converse、向量与重排序同步复验；23 项 SDK 回归、严格 Clippy 和三语站点通过。正式 AWS 账户仍待验收。
 
 - [固定 Laravel BedrockImageGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Bedrock/BedrockImageGateway.php) · [Nova Canvas 请求与响应](https://docs.aws.amazon.com/nova/latest/userguide/image-gen-req-resp-structure.html) · [Titan Image Generator](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-image.html) · [Stability Stable Image Core](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-diffusion-stable-image-core-text-image-request-response.html)
+
+E07 模型发现通过 AWS 控制面 SDK 1.171.0 并行查询 `ListFoundationModels` 与 `ListInferenceProfiles`。具名连接可以用 `BEDROCK_CATALOG_URL` 单独覆盖控制面地址。AWS 支持这两项操作使用 Bearer，目录与推理都优先使用当前连接的 Key，IAM 路径复用区域、显式与默认凭证链和角色代入配置。基础模型保留上游显示名和模态。推理配置只列出有效条目并按下一页令牌翻页。目录可见性来自上游结果，调用仍按模型实际权限判定。
+
+远程结果与本地文本模型 ID 按 ID 合并，保留两种来源标记。单项发现失败时仍保留另一项结果和本地配置，并报告发现错误。两项均失败时保留本地配置，发现流程不写默认模型。
+
+独立 HTTP 和 Artisan 通过本地 AWS 协议服务验证基础模型和推理配置合并、签名复算、仅 Bearer、共享凭证文件、分页令牌和循环、单项及双项权限错误、端点分离、缺少凭证时回退本地，以及手动选型时配置文件未被修改。复验 Converse、ConverseStream、向量、重排序及文生图。23 项 SDK 回归、严格 Clippy 和三语站点通过。正式 AWS 账户和各区域权限仍待验收。
+
+- [AWS Bedrock 模型目录](https://docs.aws.amazon.com/bedrock/latest/userguide/models-get-info.html) · [AWS 推理配置与分页](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-view.html) · [AWS Bedrock Bearer 操作权限](https://docs.aws.amazon.com/service-authorization/latest/reference/list_bedrock.html) · [AWS Bedrock Rust SDK 1.171.0](https://docs.rs/aws-sdk-bedrock/1.171.0/aws_sdk_bedrock/)
 
 ### xAI 原生 Responses
 

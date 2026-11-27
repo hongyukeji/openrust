@@ -147,17 +147,7 @@ impl Connection {
                 AiError::InvalidConfiguration("providers.<name>.default_file_purpose")
             })?;
         }
-        let url = url::Url::parse(&config.url)
-            .map_err(|_| AiError::InvalidConfiguration("providers.<name>.url"))?;
-        if !matches!(url.scheme(), "http" | "https")
-            || url.host().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(AiError::InvalidConfiguration("providers.<name>.url"));
-        }
+        validate_base_url(&config.url, "providers.<name>.url")?;
         let headers = configured_headers(&config.headers)?;
         Ok(Self {
             authorization,
@@ -458,6 +448,20 @@ impl Connection {
             .await
             .map_err(transport_error)
     }
+}
+
+pub(crate) fn validate_base_url(value: &str, field: &'static str) -> AiResult<()> {
+    let url = url::Url::parse(value).map_err(|_| AiError::InvalidConfiguration(field))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(AiError::InvalidConfiguration(field));
+    }
+    Ok(())
 }
 
 fn configured_headers(headers: &BTreeMap<String, String>) -> AiResult<HeaderMap> {
