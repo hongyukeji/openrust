@@ -72,6 +72,8 @@ mod usage;
 mod usage_migration;
 #[path = "../database/migrations/2026_11_26_000005_add_observation_to_ai_gateway_usage.rs"]
 mod usage_observation_migration;
+#[path = "../database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs"]
+mod usage_resource_evidence_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_key_scope_to_ai_gateway_usage.rs"]
 mod usage_scope_migration;
 
@@ -194,6 +196,10 @@ static USAGE_MIGRATIONS: &[MigrationEntry] = &[
         "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000021_create_ai_gateway_gemini_caches_table.rs",
         &gemini_caches_migration::MIGRATION,
     ),
+    MigrationEntry::new(
+        "vendor/openrust-ai-gateway/database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs",
+        &usage_resource_evidence_migration::MIGRATION,
+    ),
 ];
 
 #[derive(Default, Deserialize)]
@@ -309,6 +315,10 @@ impl ServiceProvider for AiGatewayServiceProvider {
                     (
                         "database/migrations/2026_11_27_000021_create_ai_gateway_gemini_caches_table.rs",
                         include_bytes!("../database/migrations/2026_11_27_000021_create_ai_gateway_gemini_caches_table.rs"),
+                    ),
+                    (
+                        "database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs",
+                        include_bytes!("../database/migrations/2026_11_27_000022_add_resource_evidence_to_ai_gateway_usage.rs"),
                     ),
                 ],
                 "ai-gateway-migrations",

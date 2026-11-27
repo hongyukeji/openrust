@@ -3,7 +3,10 @@ use openrust_ai::{GeminiCacheExpiration, GeminiCacheRequest, GeminiCachedContent
 use serde_json::Map;
 
 use super::*;
-use crate::usage::{UsageStore, gemini_caches::Cache};
+use crate::usage::{
+    UsageStore,
+    gemini_caches::{CREATE, Cache, DELETE, UPDATE},
+};
 
 const PROTOCOL: Protocol = Protocol::Gemini;
 const GENERATION: [TextEndpoint; 2] = [
@@ -82,6 +85,19 @@ async fn create(request: &mut Request) -> HttpResult {
     {
         return invalid("Gemini 缓存仅接收内联内容及客户端函数定义");
     }
+    let expirations = [
+        data.get("ttl"),
+        data.get("expireTime"),
+        data.get("expire_time"),
+    ];
+    if expirations.iter().flatten().count() > 1
+        || expirations
+            .into_iter()
+            .flatten()
+            .any(|value| value.as_str().is_none_or(|value| value.trim().is_empty()))
+    {
+        return invalid("Gemini 缓存过期时间无效");
+    }
     let model = model.to_owned();
     data.remove("model");
     let Some(target) = cache_targets(&gateway, &key, &model).next() else {
@@ -119,6 +135,7 @@ async fn create(request: &mut Request) -> HttpResult {
             model: &target.upstream_model,
             content: &content,
         },
+        Some((&key, &cache, CREATE)),
     )
     .await
     {
@@ -178,7 +195,7 @@ async fn manage(request: &mut Request, action: Action) -> HttpResult {
     }
     let name = &cache.upstream_name;
     let upstream = match action {
-        Action::Get => send(&gateway, target, GeminiCacheRequest::Get { name }).await,
+        Action::Get => send(&gateway, target, GeminiCacheRequest::Get { name }, None).await,
         Action::Update => {
             if !can_change_expiry(&gateway, &key, target) {
                 return unbounded();
@@ -208,10 +225,19 @@ async fn manage(request: &mut Request, action: Action) -> HttpResult {
                 &gateway,
                 target,
                 GeminiCacheRequest::Update { name, expiration },
+                Some((&key, &cache, UPDATE)),
             )
             .await
         }
-        Action::Delete => send(&gateway, target, GeminiCacheRequest::Delete { name }).await,
+        Action::Delete => {
+            send(
+                &gateway,
+                target,
+                GeminiCacheRequest::Delete { name },
+                Some((&key, &cache, DELETE)),
+            )
+            .await
+        }
     };
     let upstream = match upstream {
         Ok(response) => response,
@@ -278,7 +304,7 @@ async fn list(request: &mut Request) -> HttpResult {
             continue;
         };
         let name = &cache.upstream_name;
-        let upstream = match send(&gateway, target, GeminiCacheRequest::Get { name }).await {
+        let upstream = match send(&gateway, target, GeminiCacheRequest::Get { name }, None).await {
             Ok(response) => response,
             Err(error) => return error,
         };
@@ -388,9 +414,10 @@ async fn send(
     gateway: &Gateway,
     target: &Target,
     operation: GeminiCacheRequest<'_>,
+    usage: Option<(&Key, &Cache, &'static str)>,
 ) -> Result<client::Response, HttpResult> {
     let cache_store = gateway.account_cache_store.as_deref();
-    let _lease = if let Some(account) = &target.account {
+    let lease = if let Some(account) = &target.account {
         if let Some(cooldown) = &account.cooldown
             && !matches!(cooldown.remaining(cache_store).await, Ok(None))
         {
@@ -407,20 +434,53 @@ async fn send(
         .provider
         .gemini_cache_gateway()
         .expect("已核对 Gemini 缓存能力");
-    provider
-        .send_cache(operation)
-        .await
-        .map_err(|error| match error {
-            AiError::InvalidPrompt | AiError::InvalidProviderOptions => {
-                invalid("Gemini 缓存参数无效")
+    let mut lease = lease;
+    let mut call = if let Some((key, cache, action)) = usage {
+        let mut call = gateway
+            .cache_usage(key, cache, target, action, lease.take())
+            .await
+            .map_err(|_| unavailable())?;
+        if !call.begin_dispatch().await {
+            return Err(unavailable());
+        }
+        Some(call)
+    } else {
+        None
+    };
+    let upstream = provider.send_cache(operation).await;
+    if let Some(call) = &mut call {
+        match &upstream {
+            Ok(response) => {
+                call.status(response.status());
+                call.observe_headers(response.headers());
+                if response.successful() {
+                    if !matches!(usage, Some((_, _, DELETE)))
+                        && let Ok(data) = response.json::<Value>()
+                    {
+                        call.observe_cache_resource(&data, matches!(usage, Some((_, _, CREATE))));
+                    }
+                    call.outcome("completed");
+                } else {
+                    call.outcome("upstream_error");
+                }
             }
-            AiError::Timeout => PROTOCOL.error(
-                StatusCode::GATEWAY_TIMEOUT,
-                "upstream_timeout",
-                "上游 Gemini 缓存请求超时",
-            ),
-            _ => malformed(),
-        })
+            Err(_) => call.outcome("transport_error"),
+        }
+        let settled = call.settle().await;
+        call.release().await;
+        if !settled {
+            return Err(unavailable());
+        }
+    }
+    upstream.map_err(|error| match error {
+        AiError::InvalidPrompt | AiError::InvalidProviderOptions => invalid("Gemini 缓存参数无效"),
+        AiError::Timeout => PROTOCOL.error(
+            StatusCode::GATEWAY_TIMEOUT,
+            "upstream_timeout",
+            "上游 Gemini 缓存请求超时",
+        ),
+        _ => malformed(),
+    })
 }
 
 async fn load(store: &UsageStore, key: &Key, id: &str) -> Result<Cache, HttpResult> {

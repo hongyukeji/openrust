@@ -15,7 +15,7 @@
 | `GET /v1/models`、`GET /v1/models/{model}` | 网关 Key，按授权返回目录或单模型；列表中 `client_version` 有 Codex 模型清单分支 | GW-02 OpenAI 列表，GW-03 单模型及 Anthropic 格式。GW-05 的 `client_version` 清单、鉴权、别名及 ETag 已通过 HTTP 和 Artisan，固定版 Codex 已通过真实进程验收。 |
 | `GET /v1beta/models`、`GET /v1beta/models/{model}`、`POST /v1beta/models/{model}:{action}` | Google 协议 Key 与分组，原生模型目录及动作派发 | GW-03 已验收目录、单模型、`generateContent`、`streamGenerateContent` 的 JSON 数组与 SSE、`countTokens`、`x-goog-api-key` 及 Google 认证错误。另已验收原生 `embedContent`、`batchEmbedContents`、目录能力、同一公开模型重写及共享文件隔离。内联异步批任务见下文。 |
 | `POST /v1beta/models/{model}:{batchGenerateContent,asyncBatchEmbedContent}`、`GET /v1beta/batches[/{id}]`、`POST /v1beta/batches/{id}:cancel`、`DELETE /v1beta/batches/{id}` | Google Batch API 原生生命周期，资源归属及单项计量 | GW-03／04 已验收内联任务及文本生成批次硬预算和输出配额。结果下载和文件型任务提交见下文。 |
-| `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03 已验收创建、分页、读取、过期更新、删除及普通／SSE 生成引用。GW-04 已验收生成缓存命中计费，缓存创建和存储费用待对账。 |
+| `POST/GET /v1beta/cachedContents`、`GET/PATCH/DELETE /v1beta/cachedContents/{id}` | Google 协议 Key 与分组，网关资源 ID 绑定上游账号 | GW-03 已验收创建、分页、读取、过期更新、删除及普通／SSE 生成引用。GW-04 已验收生成缓存命中计费、生命周期费用证据导入及 SKU 汇总隔离。正式账单与存储 SKU 分摊待验。 |
 | `POST /v1/embeddings` | 网关 Key 与分组，固定版本限制 OpenAI 平台 | AI-05／GW-03 已验收 OpenAI 协议 JSON、维数、批量、公开模型与真实 Token。其他原生协议待核对。 |
 
 ## 媒体、实时与运维
@@ -346,9 +346,17 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 验收迁移回滚再升级、旧数�
 
 公开模型显式启用 `gemini_cached_contents` 后，网关先登记本地资源，再用获准的 Gemini 连接创建缓存。数据库保存归属、公开模型、上游范围及资源映射。未确认创建保留登记，外部列表和读取只返回已绑定资源。硬预算要求拒绝未知费用时，网关在出站前拦截创建和有效期更新。普通及流式生成在发送前校验当前 Key、公开模型、端点授权及原连接凭证。只在该连接内改写缓存名称，失败后不向备用账号提交同一请求。
 
-SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经真实 HTTP、独立 Artisan SDK 和本地 Gemini 协议服务验证迁移发布与回滚、迁移缺失时无上游请求、两个账号同名资源、分页、两种过期时间更新、跨 Key／模型阻断、凭证轮换失效、SDK 经网关创建、上游过期后的读取与删除、原账号出错不回退、普通／SSE 生成引用。各成功生成确认 3005 输入、3000 缓存输入和 2 输出 Token，模拟费率下成本为 0.309 USD、应收为 1.518 USD。缓存创建、持有费用及正式 Gemini 账号对账待后续验收。
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 经真实 HTTP、独立 Artisan SDK 和本地 Gemini 协议服务验证迁移发布与回滚、迁移缺失时无上游请求、两个账号同名资源、分页、两种过期时间更新、跨 Key／模型阻断、凭证轮换失效、SDK 经网关创建、上游过期后的读取与删除、原账号出错不回退、普通／SSE 生成引用。各成功生成确认 3005 输入、3000 缓存输入和 2 输出 Token，模拟费率下成本为 0.309 USD、应收为 1.518 USD。缓存创建与持有费用见下文。
 
 - [Gemini 缓存 REST 参考](https://aistudio.google.com/api-reference/caching) · [Gemini 显式缓存 SDK](README.md#gemini-显式上下文缓存-sdk)
+
+### Gemini 缓存生命周期费用证据
+
+创建、有效期修改和删除在出站前独立登记。通过 `resource_id` 关联缓存和生成请求，在 SQLite、PostgreSQL、MySQL 上回读上游请求 ID、实际缓存 Token 和上游时间字段。创建和续期的上游成本保留待证据状态，删除操作和生命周期下游应收为零。普通与流式生成按原价格快照和缓存命中数量独立核算。用于生成请求的 Token 账单汇总排除生命周期行。
+
+三库经真实 HTTP、独立 Artisan 和合成供应商账单验证部分账单不立即确认、完整修订按上游请求 ID 确认创建 0.07 USD 与续期 0.02 USD、重复导入无重复确认。生成记录对照值 0.618 USD 保持独立，单独的存储 SKU 汇总 0.31 USD 保留为未映射类别。SQLite 同步复验原两轮三次尝试的 0.23 USD 成本和 0.25 USD 应收，以及更正与冲突证据。正式 Gemini 账单和存储 SKU 分摊尚待验证。
+
+- [Google Cloud 按 SKU 核对 Gemini 用量费用](https://aistudio.google.com/docs/billing#evaluate-spend)
 
 ## GW-03 Gemini JSON 数组与 SSE
 

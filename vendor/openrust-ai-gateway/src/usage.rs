@@ -25,7 +25,7 @@ pub(crate) mod gemini_batches;
 pub(crate) mod gemini_caches;
 
 const TABLE: &str = "ai_gateway_usage";
-const COLUMNS: [&str; 27] = [
+const COLUMNS: [&str; 29] = [
     "id",
     "request_id",
     "key_id",
@@ -53,6 +53,8 @@ const COLUMNS: [&str; 27] = [
     "consumer_invocation",
     "invocation_scope",
     "model_turn",
+    "resource_id",
+    "resource_usage",
 ];
 
 pub(crate) const DAY: i64 = 86_400;
@@ -165,6 +167,7 @@ pub(crate) struct Settlement {
     pub(crate) reasoning_tokens: Option<i64>,
     pub(crate) reported_cost_usd: Option<billing::Amount>,
     pub(crate) cost_pending: bool,
+    resource_usage: Option<serde_json::Value>,
     upstream_request_id: Option<String>,
     pub(crate) reported_model: Option<String>,
     finished_at: i64,
@@ -226,6 +229,7 @@ impl Settlement {
         Self {
             outcome,
             cost_pending: false,
+            resource_usage: context.get("resource_usage").cloned(),
             state,
             input_only,
             status: count("status"),
@@ -246,6 +250,12 @@ impl Settlement {
     fn observation(&self) -> Record {
         Record::from([
             ("usage_state".into(), self.state.into()),
+            (
+                "resource_usage".into(),
+                self.resource_usage
+                    .as_ref()
+                    .map_or(Value::Null, |value| value.to_string().into()),
+            ),
             ("status".into(), nullable(self.status)),
             ("input_tokens".into(), nullable(self.input_tokens)),
             ("output_tokens".into(), nullable(self.output_tokens)),
@@ -308,6 +318,10 @@ pub(crate) struct UsageRecord {
     invocation_scope: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     model_turn: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resource_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resource_usage: Option<serde_json::Value>,
 }
 
 impl UsageStore {
@@ -495,6 +509,7 @@ impl UsageStore {
             ("upstream_model".into(), field("upstream_model")),
             ("endpoint".into(), field("endpoint")),
             ("upstream_endpoint".into(), field("upstream_endpoint")),
+            ("resource_id".into(), field("resource_id")),
             (
                 "outcome".into(),
                 if count > 1 {
@@ -964,6 +979,12 @@ fn decode(row: &Row) -> DatabaseResult<UsageRecord> {
         consumer_invocation: optional_text("consumer_invocation")?,
         invocation_scope: optional_text("invocation_scope")?,
         model_turn: integer("model_turn")?,
+        resource_id: optional_text("resource_id")?,
+        resource_usage: optional_text("resource_usage")?
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(|_| DatabaseError::InvalidScalar)?,
     })
 }
 

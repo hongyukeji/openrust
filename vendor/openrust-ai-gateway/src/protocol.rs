@@ -923,6 +923,9 @@ async fn relay(
                     invocation: invocation.as_ref(),
                 },
                 AttemptAdmission {
+                    resource_id: gemini_cache
+                        .as_ref()
+                        .map(|cache| format!("cachedContents/{}", cache.id)),
                     lease,
                     quota: reservation,
                     budget,

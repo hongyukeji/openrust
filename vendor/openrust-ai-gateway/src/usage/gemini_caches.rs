@@ -6,6 +6,11 @@ use crate::{
     session_affinity,
 };
 
+pub(crate) const CREATE: &str = "cachedContents.create";
+pub(crate) const UPDATE: &str = "cachedContents.patch";
+pub(crate) const DELETE: &str = "cachedContents.delete";
+pub(crate) const OPERATIONS: [&str; 3] = [CREATE, UPDATE, DELETE];
+
 const TABLE: &str = "ai_gateway_gemini_caches";
 
 pub(crate) struct Cache {

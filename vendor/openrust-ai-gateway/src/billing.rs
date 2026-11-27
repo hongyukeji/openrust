@@ -553,11 +553,18 @@ impl ChargePlan {
         tariff: Option<&Tariff>,
         settlement: &Settlement,
     ) -> (&'static str, Option<Amount>) {
+        let cache_lifecycle = crate::usage::gemini_caches::OPERATIONS
+            .contains(&settlement.upstream_endpoint.as_str());
         if settlement.state == "not_dispatched"
-            || (direction == "receivable" && settlement.outcome != "completed")
+            || settlement.upstream_endpoint == crate::usage::gemini_caches::DELETE
+            || (direction == "receivable" && (cache_lifecycle || settlement.outcome != "completed"))
         {
             // 内部失败尝试不会形成下游应收。
             return ("not_billable", tariff.map(|_| Amount(0)));
+        }
+        if cache_lifecycle {
+            // 创建及续期成本需上游账务证据，缓存 Token 数不能作为已结算金额。
+            return ("awaiting_usage", None);
         }
         let Some(tariff) = tariff else {
             return ("missing_price", None);

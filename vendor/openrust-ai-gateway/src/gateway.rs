@@ -10,7 +10,7 @@ use openrust::{
     container::ServiceKey,
     database::{DatabaseError, DatabaseResult},
     log::Logger,
-    support::facades::Facade,
+    support::{Date, DateTimezone, Str, facades::Facade},
 };
 use openrust_ai::{AiManager, TextEndpoint, TextProvider};
 use serde::Deserialize;
@@ -683,6 +683,76 @@ impl Gateway {
         admission: AttemptAdmission,
     ) -> Result<Vec<Call>, UsageAdmission> {
         let (endpoint, upstream_endpoint) = endpoints;
+        self.record_usage(
+            key,
+            name,
+            target,
+            UsageRoute {
+                endpoint: endpoint.path(),
+                image_metered: target.provider.relay_meters_images(upstream_endpoint),
+            },
+            identity,
+            admission,
+        )
+        .await
+    }
+
+    pub(crate) async fn cache_usage(
+        &self,
+        key: &Key,
+        cache: &crate::usage::gemini_caches::Cache,
+        target: &Target,
+        operation: &'static str,
+        lease: Option<ConcurrencyLease>,
+    ) -> Result<Call, UsageAdmission> {
+        let request_id = Str::ulid().to_string();
+        let identity = CallIdentity {
+            request_id: &request_id,
+            invocation: None,
+        };
+        let admission = AttemptAdmission {
+            resource_id: Some(format!("cachedContents/{}", cache.id)),
+            lease,
+            quota: None,
+            budget: BudgetReservations::default(),
+            count: 1,
+            charges: self.billing.as_ref().map(|prices| {
+                prices.select(
+                    &target.provider_name,
+                    &target.upstream_model,
+                    &cache.model,
+                    key.rate_multiplier(),
+                    false,
+                    None,
+                )
+            }),
+            operation,
+            hide_chat_usage: false,
+        };
+        self.record_usage(
+            key,
+            &cache.model,
+            target,
+            UsageRoute {
+                endpoint: operation,
+                image_metered: false,
+            },
+            identity,
+            admission,
+        )
+        .await
+        .map(|mut attempts| attempts.pop().expect("缓存变更只登记一次尝试"))
+    }
+
+    async fn record_usage(
+        &self,
+        key: &Key,
+        name: &str,
+        target: &Target,
+        route: UsageRoute,
+        identity: CallIdentity<'_>,
+        admission: AttemptAdmission,
+    ) -> Result<Vec<Call>, UsageAdmission> {
         let AttemptAdmission {
             mut lease,
             quota: reservation,
@@ -691,6 +761,7 @@ impl Gateway {
             charges,
             operation,
             hide_chat_usage,
+            resource_id,
         } = admission;
         let mut context: openrust::log::LogContext = [
             ("key".into(), json!(key.name)),
@@ -703,14 +774,12 @@ impl Gateway {
             ("model".into(), json!(name)),
             ("upstream_model".into(), json!(target.upstream_model)),
             ("provider".into(), json!(target.provider_name)),
-            ("endpoint".into(), json!(endpoint.path())),
+            ("endpoint".into(), json!(route.endpoint)),
+            ("resource_id".into(), json!(resource_id)),
             ("upstream_endpoint".into(), json!(operation)),
             ("input_tokens".into(), Value::Null),
             ("output_tokens".into(), Value::Null),
-            (
-                "image_metered".into(),
-                json!(target.provider.relay_meters_images(upstream_endpoint)),
-            ),
+            ("image_metered".into(), json!(route.image_metered)),
         ]
         .into_iter()
         .collect();
@@ -862,6 +931,11 @@ impl Gateway {
     }
 }
 
+struct UsageRoute {
+    endpoint: &'static str,
+    image_metered: bool,
+}
+
 pub(crate) struct AttemptAdmission {
     pub(crate) lease: Option<ConcurrencyLease>,
     pub(crate) quota: Option<QuotaReservation>,
@@ -869,6 +943,7 @@ pub(crate) struct AttemptAdmission {
     pub(crate) count: usize,
     pub(crate) charges: Option<ChargePlan>,
     pub(crate) operation: &'static str,
+    pub(crate) resource_id: Option<String>,
     pub(crate) hide_chat_usage: bool,
 }
 
@@ -900,6 +975,36 @@ impl Call {
     pub(crate) fn defer_settlement(&mut self) {
         self.attempt = None;
     }
+    pub(crate) fn observe_cache_resource(&mut self, payload: &Value, created: bool) {
+        let mut evidence = serde_json::Map::new();
+        for (wire, name) in [
+            ("createTime", "created_at"),
+            ("updateTime", "updated_at"),
+            ("expireTime", "expires_at"),
+        ] {
+            if let Some(timestamp) = payload[wire].as_str().and_then(|value| value.parse().ok()) {
+                let canonical = Date::from_utc(timestamp, DateTimezone::UTC);
+                evidence.insert(
+                    name.into(),
+                    json!(canonical.as_date_time().timestamp().as_second()),
+                );
+            }
+        }
+        if let Some(tokens) = payload["usageMetadata"]["totalTokenCount"].as_i64()
+            && tokens >= 0
+        {
+            evidence.insert("tokens".into(), json!(tokens));
+            if created {
+                self.context
+                    .insert("cache_write_input_tokens".into(), json!(tokens));
+            }
+        }
+        if !evidence.is_empty() {
+            self.context
+                .insert("resource_usage".into(), Value::Object(evidence));
+        }
+    }
+
     pub(crate) fn observe_buffered_images(&mut self, payload: &Value) {
         if self.context.get("image_metered").and_then(Value::as_bool) == Some(true)
             && let Some(images) = payload["data"].as_array()

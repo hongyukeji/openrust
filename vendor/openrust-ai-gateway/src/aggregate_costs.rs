@@ -120,6 +120,13 @@ async fn recorded(
                 .map(|provider| Value::from(*provider))
                 .collect(),
         )
+        .where_not_in(
+            "ai_gateway_usage.endpoint",
+            crate::usage::gemini_caches::OPERATIONS
+                .into_iter()
+                .map(Value::from)
+                .collect(),
+        )
         .r#where("ai_gateway_usage.dispatch_started_at", ">=", window.0)
         .r#where("ai_gateway_usage.dispatch_started_at", "<", window.1);
     let mut rows = billing::adjustments::with_adjustments(with_evidence(query, connection)?)

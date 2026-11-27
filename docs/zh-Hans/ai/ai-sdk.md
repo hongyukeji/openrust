@@ -165,6 +165,8 @@ Gemini 客户端使用 `/v1beta` API，通过 `x-goog-api-key` 提交下游 Key�
 
 在 `:generateContent` 或 `:streamGenerateContent` 中，把网关返回的 `name` 作为 `cachedContent`，沿用同一个 Key 和公开模型。网关会把请求发给创建缓存的连接。创建时可使用内联内容和客户端函数定义。生成用量按配置的缓存输入费率结算，缓存创建和存储费用仍需供应商账单证据。分组或账号预算要求拒绝上界未知的费用时，网关会在出站前拒绝创建和修改有效期。
 
+网关将创建、修改有效期和删除分别记为缓存生命周期操作。`ai:gateway:usage:list --billing` 通过 `resource_id` 关联生成记录，并显示上游请求 ID 与上游报告的资源用量。创建和有效期更新的上游费用在取得账单证据前保持待确认，生命周期操作不产生下游应收。账单包含请求 ID 时，可用 `ai:gateway:billing:import` 导入对应证据。只有 SKU 汇总的存储费用应单独填写 `category`。网关保留汇总金额，不将其分配给单次操作或加到生成 Token 的汇总中。
+
 发布 Gemini 异步批任务时，启用网关用量存储，发布并运行 `ai-gateway-migrations`，再将 `batchGenerateContent` 或 `asyncBatchEmbedContent` 加入公开模型的 `endpoints`。将批任务提交到 `POST /v1beta/models/{alias}:batchGenerateContent` 或 `POST /v1beta/models/{alias}:asyncBatchEmbedContent`。使用网关返回的 `batches/…` 名称查询、取消或删除任务。`GET /v1beta/batches` 列出当前 Key 的任务，支持 `pageSize` 和 `pageToken`。各入口均使用 `x-goog-api-key`。
 
 请按批任务价格配置具名连接和公开模型的费率。网关只登记一次提交，取得最终条目用量后结算。启用硬预算时，为上游模型设置可信的单项输入上界 `input_token_limit`，向量批次也按此上界预占。启用硬预算或输出配额的生成批次支持文本输出。网关取最严格的配置上限，按每项的候选数换算 `maxOutputTokens`，保留调用方更小的上限和原有推理设置。候选输出和推理 Token 均计入配额。用量无法确认时保留配额预占。Gemini 返回结果文件时，网关在 `response.responsesFile` 中返回当前 Key 有权访问的文件名。用 `GeminiBatches::download`，或持同一 Key 请求 `GET /download/v1beta/{responsesFile}:download?alt=media`。结果以 JSONL 流式返回，单行最大 64 MiB。下载中断后从头重试。
