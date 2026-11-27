@@ -790,6 +790,14 @@ xAI 文本、SSE 终帧与图像响应以 `Usage::cost_in_usd_ticks` 暴露上�
 
 SDK 直连、外部 Responses 和 SDK 经网关的原生 xAI 组合证据见 [GW-04 xAI 原生 Responses 三条链路](gateway.md#xai-原生-responses-三条链路)。
 
+### xAI 原生转录
+
+固定 Laravel 的 xAI 供应商公开文本和图像能力。E07 为 Grok 语音入口补充 SDK 直连，沿用 `Transcription` 和同一个命名连接。原生 `/v1/stt` 先发模型、语言和说话人参数，再发按实际格式识别的上传文件。模型由应用配置或在调用时显式指定，示例使用 xAI 文档中的 `grok-voice-transcribe-2.0`。词级时间戳映射到 `segments`，数字说话人编号保留原值并转换为 SDK 的字符串类型。上游报告时长单独保留，未报告的 Token 保持未知。
+
+独立 Artisan 与 HTTP 经本地协议服务实测鉴权、缺模型时未出站、应用配置和逐次模型选择、完整 WAV 字节及 multipart 顺序、词级时间戳、说话人编号 0、静音、错误时长、颠倒的时间戳、缺少说话人编号和上游 403。九项 SDK 回归、严格 Clippy 和三语站点检查通过。包测试复验 multipart、原生映射及现有 OpenAI 音频和 Fake。GW-03 自托管语音路由、正式 xAI 账号实机验收仍待完成。
+
+- [固定 Laravel XaiProvider](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/XaiProvider.php) · [固定 Sub2API Grok 语音路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L299-L309) · [xAI Speech to Text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+
 ### Groq 文本与转录
 
 `groq` 连接复用 Chat Completions 的工具与 SSE。SDK 使用 `max_completion_tokens`，传入图片并拒绝文档，普通及流式响应读取推理内容。仅非流式无工具请求使用原生 JSON Schema。有工具或流时在指令内附带 Schema，终态要求结果可解析为 JSON 对象。498 容量不足进入文本故障转移。转录使用 `verbose_json` multipart，返回原文、分段和上游时长。说话人区分请求在出站前返回配置错误。

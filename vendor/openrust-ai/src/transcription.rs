@@ -399,6 +399,7 @@ pub(crate) enum TranscriptionProtocol {
     OpenAi,
     Mistral,
     Groq,
+    Xai,
 }
 
 pub(crate) struct HttpTranscriptionProvider {
@@ -423,6 +424,7 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
             prompt.validate()?;
             let mistral = matches!(self.protocol, TranscriptionProtocol::Mistral);
             let groq = matches!(self.protocol, TranscriptionProtocol::Groq);
+            let xai = matches!(self.protocol, TranscriptionProtocol::Xai);
             if groq && prompt.diarize {
                 return Err(AiError::InvalidConfiguration("transcription.diarize"));
             }
@@ -436,13 +438,24 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                 }
                 Value::Array(fields)
             } else {
-                let mut fields = json!({"model":prompt.model,"response_format":if groq {"verbose_json"} else {"json"}});
+                let mut fields = json!({"model":prompt.model});
                 if let Some(language) = prompt.language {
                     fields["language"] = language.into();
                 }
-                if prompt.diarize {
-                    fields["response_format"] = "diarized_json".into();
-                    fields["chunking_strategy"] = "auto".into();
+                if xai {
+                    if prompt.diarize {
+                        fields["diarize"] = "true".into();
+                    }
+                } else {
+                    fields["response_format"] = if prompt.diarize {
+                        fields["chunking_strategy"] = "auto".into();
+                        "diarized_json"
+                    } else if groq {
+                        "verbose_json"
+                    } else {
+                        "json"
+                    }
+                    .into();
                 }
                 fields
             };
@@ -453,22 +466,21 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                 .connection
                 .request(Some(prompt.timeout))?
                 .attach("file", file)
-                .post("audio/transcriptions", &body)
+                .post(if xai { "stt" } else { "audio/transcriptions" }, &body)
                 .await
                 .map_err(transport_error)?;
             let data: Value = validate(Ok(response))?
                 .json()
                 .map_err(|_| AiError::InvalidResponse)?;
-            let text = data["text"]
-                .as_str()
-                .ok_or(AiError::InvalidResponse)?
-                .into();
-            let segments = match data.get("segments") {
+            let text = data["text"].as_str().ok_or(AiError::InvalidResponse)?;
+            let segments = match data.get(if xai { "words" } else { "segments" }) {
                 Some(Value::Array(segments)) => segments
                     .iter()
                     .map(|value| segment(value, self.protocol))
                     .collect::<AiResult<_>>()?,
-                None | Some(Value::Null) if !prompt.diarize => Vec::new(),
+                None | Some(Value::Null) if !prompt.diarize || (xai && text.is_empty()) => {
+                    Vec::new()
+                }
                 _ => return Err(AiError::InvalidResponse),
             };
             if prompt.diarize
@@ -489,7 +501,9 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                     usage["prompt_tokens_details"]["audio_tokens"].as_u64(),
                     usage["prompt_audio_seconds"].as_f64(),
                 ),
-                TranscriptionProtocol::Groq => (Usage::default(), None, data["duration"].as_f64()),
+                TranscriptionProtocol::Groq | TranscriptionProtocol::Xai => {
+                    (Usage::default(), None, data["duration"].as_f64())
+                }
                 TranscriptionProtocol::OpenAi => (
                     Usage {
                         prompt_tokens: usage["input_tokens"].as_u64(),
@@ -502,11 +516,13 @@ impl TranscriptionProvider for HttpTranscriptionProvider {
                         .or_else(|| data["duration"].as_f64()),
                 ),
             };
-            if seconds.is_some_and(|duration| duration < 0.0 || !duration.is_finite()) {
+            if seconds.is_some_and(|duration| duration < 0.0 || !duration.is_finite())
+                || (xai && seconds.is_none() && !data["duration"].is_null())
+            {
                 return Err(AiError::InvalidResponse);
             }
             Ok(TranscriptionResponse {
-                text,
+                text: text.into(),
                 segments,
                 language: data["language"]
                     .as_str()
@@ -536,6 +552,7 @@ fn segment(value: &Value, protocol: TranscriptionProtocol) -> AiResult<Transcrip
         .or_else(|| (mistral && value["end"].is_null()).then_some(start))
         .filter(|end| end.is_finite() && *end >= start)
         .ok_or(AiError::InvalidResponse)?;
+    let speaker = &value[if mistral { "speaker_id" } else { "speaker" }];
     Ok(TranscriptionSegment {
         start,
         end,
@@ -543,8 +560,10 @@ fn segment(value: &Value, protocol: TranscriptionProtocol) -> AiResult<Transcrip
             .as_str()
             .ok_or(AiError::InvalidResponse)?
             .into(),
-        speaker: value[if mistral { "speaker_id" } else { "speaker" }]
-            .as_str()
-            .map(str::to_owned),
+        speaker: if matches!(protocol, TranscriptionProtocol::Xai) {
+            speaker.as_u64().map(|id| id.to_string())
+        } else {
+            speaker.as_str().map(str::to_owned)
+        },
     })
 }

@@ -28,7 +28,7 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
     let upstream = TcpListener::bind("127.0.0.1:0").await?;
     let address = upstream.local_addr()?;
     let fixture = tokio::spawn(async move {
-        for phase in ["speech", "text", "diarize", "invalid"] {
+        for phase in ["speech", "text", "diarize", "invalid", "xai"] {
             let (socket, _) = timeout(Duration::from_secs(5), upstream.accept())
                 .await
                 .unwrap()
@@ -36,12 +36,12 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
             let mut socket = BufReader::new(socket);
             let mut line = String::new();
             socket.read_line(&mut line).await.unwrap();
-            let path = if phase == "speech" {
-                "speech"
-            } else {
-                "transcriptions"
+            let path = match phase {
+                "speech" => "/v1/audio/speech",
+                "xai" => "/v1/stt",
+                _ => "/v1/audio/transcriptions",
             };
-            assert_eq!(line.trim_end(), format!("POST /v1/audio/{path} HTTP/1.1"));
+            assert_eq!(line.trim_end(), format!("POST {path} HTTP/1.1"));
             let mut size = 0;
             let mut content_type = String::new();
             let mut authorized = false;
@@ -87,6 +87,13 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
                     assert!(body.contains("\r\n\r\nauto\r\n"));
                     assert!(body.contains("\r\n\r\ndiarize-model\r\n"));
                     json!({"text":"Voice A: Read","segments":[{"start":0.0,"end":1.2,"text":"Read","speaker":"A"}],"usage":{"type":"duration","seconds":1.2}})
+                } else if phase == "xai" {
+                    assert!(!body.contains("name=\"response_format\""));
+                    assert!(body.contains("\r\n\r\ngrok-voice-transcribe-2.0\r\n"));
+                    let diarize = body.find("\r\n\r\ntrue\r\n").unwrap();
+                    let file = body.find("name=\"file\"").unwrap();
+                    assert!(diarize < file);
+                    json!({"text":"Read","language":"en","duration":1.2,"words":[{"start":0.0,"end":1.0,"text":"Read","speaker":0}]})
                 } else {
                     json!({"text":"invalid","segments":[{"start":2.0,"end":1.0,"text":"reversed"}]})
                 };
@@ -168,6 +175,16 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
                             .await,
                         Err(AiError::InvalidResponse)
                     ));
+                    let transcript = Transcription::from_upload(&file)
+                        .unwrap()
+                        .diarize(true)
+                        .generate_with(Some("xai"), None)
+                        .await
+                        .unwrap();
+                    assert_eq!(transcript.text, "Read");
+                    assert_eq!(transcript.language.as_deref(), Some("en"));
+                    assert_eq!(transcript.segments[0].speaker.as_deref(), Some("0"));
+                    assert_eq!(transcript.usage.seconds, Some(1.2));
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;
                 Ok(())
@@ -176,7 +193,7 @@ async fn speech_and_transcription_use_binary_audio_and_report_usage()
     fs::write(
         app.root().join(".env.testing"),
         format!(
-            "AI_AUDIO_PROVIDER=openai\nAI_TRANSCRIPTION_PROVIDER=openai\nOPENAI_AUDIO_MODEL=tts-default\nOPENAI_TRANSCRIPTION_MODEL=transcript-default\nOPENAI_URL=http://{address}/v1\nOPENAI_API_KEY=audio-fixture\n"
+            "AI_AUDIO_PROVIDER=openai\nAI_TRANSCRIPTION_PROVIDER=openai\nOPENAI_AUDIO_MODEL=tts-default\nOPENAI_TRANSCRIPTION_MODEL=transcript-default\nOPENAI_URL=http://{address}/v1\nOPENAI_API_KEY=audio-fixture\nXAI_URL=http://{address}/v1\nXAI_API_KEY=audio-fixture\nXAI_TRANSCRIPTION_MODEL=grok-voice-transcribe-2.0\n"
         ),
     )?;
     assert_eq!(app.get("/audio").await?.status(), StatusCode::OK);

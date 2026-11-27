@@ -41,6 +41,9 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "XAI_MODEL",
     )?;
     xai["models"]["images"] = json!({"default": env.get_utf8("XAI_IMAGE_MODEL")?});
+    xai["models"]["transcription"] = json!({
+        "default": env.get_utf8("XAI_TRANSCRIPTION_MODEL")?,
+    });
     let bedrock_region = env
         .get_utf8("AWS_REGION")?
         .or(env.get_utf8("AWS_DEFAULT_REGION")?)

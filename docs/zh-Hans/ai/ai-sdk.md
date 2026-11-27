@@ -1077,6 +1077,8 @@ Gemini 通过原生 Interactions API 合成语音和转录音频。合成设置 
 
 使用 ElevenLabs 时，设置 `ELEVENLABS_API_KEY`，通过 `AI_AUDIO_PROVIDER` 或 `AI_TRANSCRIPTION_PROVIDER` 选用 `eleven`，再用 `ELEVENLABS_AUDIO_MODEL` 或 `ELEVENLABS_TRANSCRIPTION_MODEL` 选择模型。默认地址是 `https://api.elevenlabs.io/v1`，可用 `ELEVENLABS_URL` 覆盖。运行 `./artisan ai:models eleven` 查看模型。合成支持 MP3、WAV、Opus 和 PCM，可用 `voice()` 指定 ElevenLabs 音色 ID。启用说话人区分后，转录返回带时间戳的词及上游报告的说话人 ID。
 
+使用 xAI 语音转录时，设置 `AI_TRANSCRIPTION_PROVIDER=xai` 和 `XAI_API_KEY`。SDK 调用原生 `/v1/stt`。设置 `XAI_TRANSCRIPTION_MODEL=grok-voice-transcribe-2.0`，或通过 `generate_with` 指定本次调用的模型。可用 `XAI_URL` 覆盖基础地址。词级时间戳位于 `segments`。启用 `diarize(true)` 后，数字说话人编号以字符串返回，例如 `"0"`。供应商报告的音频时长位于 `usage.seconds`。[xAI 语音转录](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text)
+
 在应用测试作用域内调用 `Audio::fake([])?` 或 `Transcription::fake(["测试转录".into()])?`。用 `fake_with` 根据请求生成替身响应。默认语音替身返回占位字节。测试需要播放或转录该音频时，通过 `AudioResponse::from_bytes` 提供有效的音频样本。用 `assert_generated`、`assert_not_generated` 和 `assert_nothing_generated` 检查调用。对返回的替身调用 `prevent_stray_audio(true)` 或 `prevent_stray_transcriptions(true)`，可在响应序列耗尽时报告错误。
 
 ### 排队处理媒体请求 {#queued-audio}

@@ -917,6 +917,7 @@ impl TextProvider for OpenAiTextProvider {
         let protocol = match self.protocol {
             OpenAiProtocol::Mistral => TranscriptionProtocol::Mistral,
             OpenAiProtocol::Groq => TranscriptionProtocol::Groq,
+            OpenAiProtocol::Xai => TranscriptionProtocol::Xai,
             OpenAiProtocol::Responses => TranscriptionProtocol::OpenAi,
             OpenAiProtocol::ChatCompletions if self.connection.transcription_configured() => {
                 TranscriptionProtocol::OpenAi
