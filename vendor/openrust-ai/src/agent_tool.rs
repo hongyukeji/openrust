@@ -1,4 +1,4 @@
-use std::{any::type_name, borrow::Cow};
+use std::{any::type_name, borrow::Cow, sync::LazyLock};
 
 use openrust::{
     http::HttpFuture,
@@ -28,6 +28,17 @@ pub trait CanActAsTool: Agent + Sized {
 
 type PromptAgent<A> = for<'a> fn(&'a A, &'a str) -> HttpFuture<'a, AiResult<String>>;
 
+static TOOL_MESSAGES: LazyLock<Value> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../lang/zh-Hans/tools.json"))
+        .expect("内置 AI 工具词条必须为有效 JSON")
+});
+
+fn default_message(key: &str) -> &'static str {
+    TOOL_MESSAGES["agent"][key]
+        .as_str()
+        .expect("内置子 Agent 工具词条必须为字符串")
+}
+
 enum ToolDescription {
     Default(String),
     Custom(String),
@@ -45,9 +56,8 @@ impl<A: Agent> AgentTool<A> {
     pub fn new(agent: A) -> Self {
         let kind = type_name::<A>().split('<').next().unwrap_or_default();
         let name = kind.rsplit("::").next().unwrap_or("agent").to_owned();
-        let description = format!(
-            "将独立任务交给 {name} 并返回回答。请给出完整任务，子 Agent 无法读取父会话历史。"
-        );
+        let fallback = default_message("description").replace(":agent", &name);
+        let description = agent_description(&name, &fallback);
         Self {
             agent,
             name,
@@ -81,11 +91,9 @@ impl<A: Agent> Tool for AgentTool<A> {
 
     fn localized_description(&self) -> Cow<'_, str> {
         match &self.description {
-            ToolDescription::Default(fallback) => Cow::Owned(localization::text(
-                "ai::tools.agent.description",
-                &[("agent".into(), self.name.clone())].into(),
-                fallback,
-            )),
+            ToolDescription::Default(fallback) => {
+                Cow::Owned(agent_description(&self.name, fallback))
+            }
             ToolDescription::Custom(text) => Cow::Borrowed(text),
         }
     }
@@ -98,7 +106,7 @@ impl<A: Agent> Tool for AgentTool<A> {
                 .description(localization::text(
                     "ai::tools.agent.task",
                     &Default::default(),
-                    "交给子 Agent 的独立任务。",
+                    default_message("task"),
                 ))
                 .required(true)
                 .into(),
@@ -115,6 +123,14 @@ impl<A: Agent> Tool for AgentTool<A> {
             (self.prompt)(&self.agent, task).await
         })
     }
+}
+
+fn agent_description(name: &str, fallback: &str) -> String {
+    localization::text(
+        "ai::tools.agent.description",
+        &[("agent".into(), name.to_owned())].into(),
+        fallback,
+    )
 }
 
 fn prompt_text<'a, A: Agent>(agent: &'a A, task: &'a str) -> HttpFuture<'a, AiResult<String>> {
