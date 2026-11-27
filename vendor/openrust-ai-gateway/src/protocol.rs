@@ -52,6 +52,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
         shared_routes(router)?;
         router.get("/responses/{response_id}", response_state::get)?;
         router.delete("/responses/{response_id}", response_state::delete)?;
+        router.post("/responses/{response_id}/cancel", response_state::cancel)?;
         router.get(
             "/responses/{response_id}/input_items",
             response_state::input_items,
@@ -830,6 +831,22 @@ async fn relay(
             }
         }
     };
+    if state.as_ref().is_some_and(|state| state.background) {
+        if stream_format.is_some() {
+            return protocol.error(
+                StatusCode::BAD_REQUEST,
+                "unsupported_state",
+                "后台响应目前使用 JSON 创建和查询",
+            );
+        }
+        if gateway.usage_store.is_none() {
+            return protocol.error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "usage_unavailable",
+                "后台响应需要启用持久化用量",
+            );
+        }
+    }
     let response_options = ResponseOptions {
         stream: stream_format,
         gemini_candidates: (endpoint == TextEndpoint::GeminiStreamGenerateContent).then(|| {
@@ -862,9 +879,13 @@ async fn relay(
                     !value.is_null() && (*field == "previous_response_id" || value != false)
                 })
             }))
+            || (endpoint != TextEndpoint::Responses
+                && data
+                    .get("background")
+                    .is_some_and(|value| !value.is_null() && value != false))
             || data
-                .get("background")
-                .is_some_and(|value| !value.is_null() && value != false)
+                .get("background_options")
+                .is_some_and(|value| !value.is_null())
             || ["conversation", "prompt"]
                 .iter()
                 .any(|field| !matches!(data.get(*field), None | Some(Value::Null)))
@@ -1397,6 +1418,17 @@ async fn relay(
                 }
                 if let Some((format, _)) = speech {
                     return xai_speech::respond(upstream, format, call).await;
+                }
+                if state.as_ref().is_some_and(|state| state.background) {
+                    return response_state::respond_background(
+                        upstream,
+                        target,
+                        state_context.expect("后台响应需要归属上下文"),
+                        compact_context,
+                        call,
+                        gateway.usage_store.as_ref().expect("后台响应需要用量存储"),
+                    )
+                    .await;
                 }
                 return respond(
                     upstream,

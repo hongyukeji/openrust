@@ -19,6 +19,7 @@ use crate::{
     reconciliation,
 };
 
+mod background_responses;
 mod batch_recovery;
 pub(crate) mod gemini_batch_files;
 pub(crate) mod gemini_batches;

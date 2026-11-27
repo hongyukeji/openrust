@@ -1118,6 +1118,14 @@ impl Call {
         self.attempt.as_ref().map(|attempt| attempt.id.as_str())
     }
 
+    pub(crate) async fn park_background(&mut self, resource: &str) -> bool {
+        let Some(attempt) = self.attempt.take() else {
+            return false;
+        };
+        self.outcome("background_pending");
+        attempt.park_background(resource).await.is_ok()
+    }
+
     pub(crate) fn defer_settlement(&mut self) {
         self.attempt = None;
     }
@@ -1378,7 +1386,7 @@ impl Call {
     }
 }
 
-fn valid_reported_identifier(id: &str) -> bool {
+pub(crate) fn valid_reported_identifier(id: &str) -> bool {
     !id.is_empty() && id.len() <= 255 && id.bytes().all(|byte| byte.is_ascii_graphic())
 }
 

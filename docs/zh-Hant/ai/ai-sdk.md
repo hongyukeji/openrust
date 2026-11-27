@@ -260,9 +260,15 @@ Schedule::configure(|schedule| {
 
 在使用原生 OpenAI Responses 連線的公開模型上設定 `"responses_state": true`，建立請求傳入 `"store": true`。JSON、SSE 和 WebSocket 均傳回不透明的 `resp_or_` 識別碼。使用同一閘道 Key 和公開模型，把此識別碼作為 `previous_response_id` 即可透過 HTTP 或 WebSocket 續接。需要儲存新回應時再次設定 `store`。
 
-透過 `GET /v1/responses/{response_id}` 讀取已儲存的回應，透過 `DELETE /v1/responses/{response_id}` 刪除。讀取傳回 JSON，並隱藏上游的父回應識別碼。各閘道執行個體應使用同一應用程式加密金鑰和上游憑證。回應由上游連線儲存，保留期限由上游決定。此設定適用於一般生成時儲存回應。背景執行、取消、串流讀取及共用上游資源引用另行處理。
+透過 `GET /v1/responses/{response_id}` 讀取已儲存的回應，透過 `DELETE /v1/responses/{response_id}` 刪除。讀取傳回 JSON，並隱藏上游的父回應識別碼。各閘道執行個體應使用同一應用程式加密金鑰和上游憑證。回應由上游連線儲存，保留期限由上游決定。此設定適用於一般生成時儲存回應。串流讀取及共用上游資源引用另行處理。
 
 透過 `GET /v1/responses/{response_id}/input_items` 查看已儲存的輸入，支援 `limit`（1–100）、`order`（`asc` 或 `desc`）和 `include`。當 `has_more` 為真時，在相同回應的下一次查詢中把傳回的 `last_id` 傳給 `after`。閘道轉送前會驗證游標是否屬於該回應和 Key。
+
+### Responses 背景執行 {#responses-background}
+
+開啟閘道用量持久化。對已啟用 `responses_state` 的模型，在 Responses JSON 請求中傳入 `"background": true`。上游狀態為 `queued` 或 `in_progress` 時，使用同一 Key 透過 `GET /v1/responses/{response_id}` 繼續查詢。透過 `POST /v1/responses/{response_id}/cancel` 取消。使用同一資料庫、應用程式加密金鑰及上游憑證的閘道執行個體可以接續查詢和取消。
+
+閘道在讀到終態後結算原生成嘗試，查詢和取消不會另記生成嘗試。觀察到終態後可以刪除回應。上游決定保留期限，包括 `store: false` 時的暫時可用期限。背景串流、完成時間視窗選項及自動輪詢另行處理。
 
 ### Responses WebSocket {#responses-websocket}
 

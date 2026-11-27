@@ -279,6 +279,10 @@ pub trait TextProvider: Send + Sync {
         Box::pin(async { Err(AiError::EndpointNotSupported) })
     }
 
+    fn cancel_response<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async { Err(AiError::EndpointNotSupported) })
+    }
+
     fn response_input_items<'a>(
         &'a self,
         _id: &'a str,
@@ -965,7 +969,11 @@ impl TextProvider for OpenAiTextProvider {
     }
 
     fn normalize_reported_usage(&self, usage: &Value) -> Option<Usage> {
-        matches!(self.protocol, OpenAiProtocol::Xai).then(|| Usage::from_xai_responses(usage))
+        match self.protocol {
+            OpenAiProtocol::Responses => Some(Usage::from_openai(usage)),
+            OpenAiProtocol::Xai => Some(Usage::from_xai_responses(usage)),
+            _ => None,
+        }
     }
 
     fn supports_standalone_search(&self) -> bool {
@@ -1015,6 +1023,20 @@ impl TextProvider for OpenAiTextProvider {
                 client.get(&path).await
             };
             response.map_err(transport_error)
+        })
+    }
+
+    fn cancel_response<'a>(&'a self, id: &'a str) -> HttpFuture<'a, AiResult<Response>> {
+        Box::pin(async move {
+            if !self.supports_response_state() {
+                return Err(AiError::EndpointNotSupported);
+            }
+            let path = format!("{}/cancel", response_path(id)?);
+            self.connection
+                .request(None)?
+                .send(http::Method::POST, &path)
+                .await
+                .map_err(transport_error)
         })
     }
 

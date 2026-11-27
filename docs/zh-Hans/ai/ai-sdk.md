@@ -260,9 +260,15 @@ Schedule::configure(|schedule| {
 
 在使用原生 OpenAI Responses 连接的公开模型上设置 `"responses_state": true`，创建请求传入 `"store": true`。JSON、SSE 和 WebSocket 均返回不透明的 `resp_or_` 标识。使用同一网关 Key 和公开模型，把该标识作为 `previous_response_id` 即可通过 HTTP 或 WebSocket 续接。需要保存新响应时再次设置 `store`。
 
-通过 `GET /v1/responses/{response_id}` 读取已保存的响应，通过 `DELETE /v1/responses/{response_id}` 删除。读取返回 JSON，并隐藏上游的父响应标识。各网关实例应使用同一应用加密密钥和上游凭证。响应由上游连接保存，保留期限由上游决定。此设置适用于正常生成时保存响应。后台运行、取消、流式读取及共享上游资源引用另行处理。
+通过 `GET /v1/responses/{response_id}` 读取已保存的响应，通过 `DELETE /v1/responses/{response_id}` 删除。读取返回 JSON，并隐藏上游的父响应标识。各网关实例应使用同一应用加密密钥和上游凭证。响应由上游连接保存，保留期限由上游决定。此设置适用于正常生成时保存响应。流式读取及共享上游资源引用另行处理。
 
 通过 `GET /v1/responses/{response_id}/input_items` 查看已保存的输入，支持 `limit`（1–100）、`order`（`asc` 或 `desc`）和 `include`。当 `has_more` 为真时，在同一响应的下一次查询中把返回的 `last_id` 传给 `after`。网关转发前校验游标是否属于该响应和 Key。
+
+### Responses 后台执行 {#responses-background}
+
+开启网关用量持久化。对已启用 `responses_state` 的模型，在 Responses JSON 请求中传入 `"background": true`。上游状态为 `queued` 或 `in_progress` 时，使用同一 Key 通过 `GET /v1/responses/{response_id}` 继续查询。通过 `POST /v1/responses/{response_id}/cancel` 取消。使用同一数据库、应用加密密钥和上游凭证的网关实例可以接续查询和取消。
+
+网关在读到终态后结算原生成尝试，查询和取消不会另记生成尝试。观察到终态后可以删除响应。上游决定保留期限，包括 `store: false` 时的临时可用期限。后台流式传输、完成时间窗口选项及自动轮询另行处理。
 
 ### Responses WebSocket {#responses-websocket}
 

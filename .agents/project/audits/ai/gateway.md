@@ -515,7 +515,7 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立网关进程比较开关前�
 
 | 仍缺基础操作的固定基线路由族 | 关联任务 |
 |---|---|
-| 其余适用的 Responses 状态与资源子路径 | G04 按固定基线逐条裁决。已验收 [`/v1` 持久响应读取和删除](#responses-持久响应与归属续接)及[输入条目分页](#responses-输入条目分页)，后台状态和剩余资源子路径仍待验。 |
+| 其余适用的 Responses 状态与资源子路径 | G04 按固定基线逐条裁决。已验收 [`/v1` 持久响应读取和删除](#responses-持久响应与归属续接)及[输入条目分页](#responses-输入条目分页)，后台 JSON 执行和取消见[终态结算](#responses-后台执行与终态结算)，流式读取和剩余资源子路径仍待验。 |
 | `POST /images/{generations,edits}/async` 和 `GET /images/tasks/{id}` | G09 与 G10 的任务归属与读取 |
 | `/videos`、`/videos/{generations,edits,extensions}` 及其状态和内容路由 | G13 的视频任务与下载 |
 | `/contents/generations/tasks` 及任务查询和删除 | G14 的 Seedance 路径族及所有权 |
@@ -552,7 +552,7 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 通过独立进程和 OpenAI 协议夹�
 
 公开模型以 `responses_state: true` 显式开放持久响应，需要原生 OpenAI Responses 连接。创建时传 `store: true`，在 JSON、SSE 和 WebSocket 中获得同一响应的受保护标识。标识绑定下游 Key、公开模型、实际连接和上游凭证指纹。续接仅回到原连接，派发后不自动换账号重试。历史输入无法从续接请求估算，硬预算沿用未知成本策略。上游保存响应，网关通过现有加密服务保护标识。
 
-`GET /v1/responses/{response_id}` 读取 JSON，`DELETE /v1/responses/{response_id}` 删除。资源操作复用现有 Key 准入与账号并发限制，不创建生成用量记录。读取隐藏上游的父响应标识。固定 Sub2API 基线的根路径和 Codex 路由没有这两个资源操作。输入条目见下一节。后台执行、取消、流式读取及其他共享上游资源由 G04 继续审计。
+`GET /v1/responses/{response_id}` 读取 JSON，`DELETE /v1/responses/{response_id}` 删除。资源操作复用现有 Key 准入与账号并发限制，不创建生成用量记录。读取隐藏上游的父响应标识。固定 Sub2API 基线的根路径和 Codex 路由没有这两个资源操作。输入条目和后台执行见后续小节。流式读取及其他共享上游资源由 G04 继续审计。
 
 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过独立 HTTP 服务和上游协议夹具核对路由缓存、缓冲创建、SSE 标识一致、重启后的 HTTP 读取及 HTTP／WebSocket 续接、删除后 404。跨 Key、跨模型、上游凭证变化、标识篡改和直接传入上游 ID 均在出站前拒绝。成功的四次生成分别记录 14／2 Token，读取和删除不产生生成记录。Artisan 按请求查询通过。另在 SQLite 验证硬预算在出站前拒绝无法预估的历史续接，和两种压缩的独立回归。16 项 Rust 回归、两个 AI 包的严格库级 Clippy 和三语文档构建通过。全仓格式检查仍报告 Fortify 和框架测试的既有差异，全仓 Clippy 仍报告核心框架的四项既有告警。生产上游的实际权限、保留周期和费用继续按实机矩阵核对。
 
@@ -569,6 +569,18 @@ SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 通过实际网关 HTTP 与 OpenAI 协
 
 - [OpenAI Responses 输入条目列表](https://developers.openai.com/api/reference/resources/responses/subresources/input_items/methods/list)
 - [OpenAI Python SDK 分页入口](https://github.com/openai/openai-python/blob/main/src/openai/resources/responses/input_items.py)
+- [固定 Sub2API Responses 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L241)
+
+### Responses 后台执行与终态结算
+
+在启用用量持久化的原生 OpenAI 模型上，`responses_state` 允许 JSON 请求传入 `background: true`。使用同一网关 Key 查询 `GET /v1/responses/{response_id}` 或通过 `POST /v1/responses/{response_id}/cancel` 取消。响应标识将原用量尝试和上游归属一起加密保存。网关在返回标识前登记上游资源，保留创建时的请求 ID、费用快照及预算预占。出站后不换账号重试。删除前需通过查询或取消观察终态。固定 Sub2API 基线未开放对应取消子路径。
+
+`queued` 和 `in_progress` 保持待结算。并发观察终态时，原用量尝试只更新一次，费用及预算在同一事务结算。取消、失败和不完整响应按既有内部失败规则记录已知上游成本，无下游应收。缺失的用量不会当作零；费用和预算按既有未知证据规则处理。网关查询、取消和删除不另记生成尝试。
+
+SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 实测路由缓存、异步提交、重启后双进程并发查询、即时终态、待结算时拒绝删除、终态后删除、重复取消、跨 Key 和凭证变化拒绝。查询阶段更换费率配置后仍按创建快照结算 14／2 Token，上游成本 0.00018 USD、下游应收 0.00036 USD。仍在运行时保留预算和配额预占，终态后释放未使用部分。Artisan 用量和计费查询、16 项 Rust 回归、两个 AI 包库级严格 Clippy 和三语文档通过。后台流式创建及恢复、完成时间窗的供应商费率、无人查询时的恢复与生产上游仍待验收。
+
+- [OpenAI 后台执行指南](https://developers.openai.com/api/docs/guides/background)
+- [OpenAI Responses 取消契约](https://developers.openai.com/api/reference/resources/responses/methods/cancel)
 - [固定 Sub2API Responses 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go#L241)
 
 ### xAI 自定义音色

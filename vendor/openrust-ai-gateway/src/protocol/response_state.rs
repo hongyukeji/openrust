@@ -1,7 +1,15 @@
 use std::sync::Arc;
 
 use hmac_sha256::HMAC;
-use openrust::{encryption::Encrypter, support::facades::Crypt};
+use openrust::{encryption::Encrypter, http::client, log::LogContext, support::facades::Crypt};
+use openrust_ai::TextProvider;
+use serde_json::json;
+
+use crate::{
+    billing::Amount,
+    gateway::Call,
+    usage::{Settlement, UsageStore},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use subtle::ConstantTimeEq;
@@ -21,10 +29,13 @@ struct Binding {
     model: String,
     upstream: String,
     scope: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    attempt: Option<String>,
 }
 
 pub(super) struct State {
     pub(super) store: bool,
+    pub(super) background: bool,
     previous: Option<String>,
 }
 
@@ -35,15 +46,21 @@ pub(super) struct Context {
     store: bool,
     previous: Option<String>,
     issued: Option<(String, String)>,
+    attempt: Option<String>,
 }
 
 pub(super) fn prepare(
     data: &Map<String, Value>,
     enabled: bool,
 ) -> Result<Option<State>, &'static str> {
-    let store = match data.get("store") {
+    let background = match data.get("background") {
         None | Some(Value::Null | Value::Bool(false)) => false,
         Some(Value::Bool(true)) => true,
+        _ => return Err("background 须为布尔值"),
+    };
+    let store = match data.get("store") {
+        None | Some(Value::Null) => background,
+        Some(Value::Bool(value)) => *value,
         _ => return Err("store 须为布尔值"),
     };
     let previous = match data.get("previous_response_id") {
@@ -51,13 +68,17 @@ pub(super) fn prepare(
         Some(Value::String(id)) if token(id).is_some() => Some(id.clone()),
         _ => return Err("previous_response_id 须使用当前网关签发的标识"),
     };
-    if !store && previous.is_none() {
+    if !store && !background && previous.is_none() {
         return Ok(None);
     }
     if !enabled {
         return Err("此公开模型未启用 Responses 持久状态");
     }
-    Ok(Some(State { store, previous }))
+    Ok(Some(State {
+        store,
+        background,
+        previous,
+    }))
 }
 
 impl State {
@@ -81,9 +102,10 @@ impl State {
             crypt,
             model: model.into(),
             scope,
-            store: self.store,
+            store: self.store || self.background,
             previous: self.previous.clone(),
             issued: None,
+            attempt: None,
         })
     }
 }
@@ -142,6 +164,7 @@ impl Context {
             model: self.model.clone(),
             upstream: id.into(),
             scope: self.scope.clone(),
+            attempt: self.attempt.clone(),
         };
         let raw = self
             .crypt
@@ -211,6 +234,10 @@ pub(super) fn delete(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(resource(request, Resource::Delete))
 }
 
+pub(super) fn cancel(request: &mut Request) -> HttpFuture<'_, HttpResult> {
+    Box::pin(resource(request, Resource::Cancel))
+}
+
 pub(super) fn input_items(request: &mut Request) -> HttpFuture<'_, HttpResult> {
     Box::pin(resource(request, Resource::InputItems))
 }
@@ -219,6 +246,7 @@ pub(super) fn input_items(request: &mut Request) -> HttpFuture<'_, HttpResult> {
 enum Resource {
     Get,
     Delete,
+    Cancel,
     InputItems,
 }
 
@@ -261,6 +289,39 @@ async fn resource(request: &mut Request, resource: Resource) -> HttpResult {
     else {
         return not_found();
     };
+    if resource == Resource::Cancel && binding.attempt.is_none() {
+        return PROTOCOL.error(
+            StatusCode::BAD_REQUEST,
+            "unsupported_state",
+            "只有后台响应可取消",
+        );
+    }
+    let background_store = if binding.attempt.is_some() {
+        let Some(store) = &gateway.usage_store else {
+            return storage_error();
+        };
+        Some(store)
+    } else {
+        None
+    };
+    if resource == Resource::Delete
+        && let Some((store, attempt)) = background_store.zip(binding.attempt.as_deref())
+    {
+        match store
+            .background_pending(attempt, &background_resource(&binding.upstream))
+            .await
+        {
+            Ok(false) => {}
+            Ok(true) => {
+                return PROTOCOL.error(
+                    StatusCode::CONFLICT,
+                    "response_pending",
+                    "请先查询后台响应终态或取消响应",
+                );
+            }
+            Err(_) => return storage_error(),
+        }
+    }
     let query = if resource == Resource::InputItems {
         match items_query(request, &crypt, &binding) {
             Ok(query) => query,
@@ -299,6 +360,7 @@ async fn resource(request: &mut Request, resource: Resource) -> HttpResult {
                 .response_resource(&binding.upstream, resource == Resource::Delete)
                 .await
         }
+        Resource::Cancel => target.provider.cancel_response(&binding.upstream).await,
         Resource::InputItems => {
             target
                 .provider
@@ -345,9 +407,23 @@ async fn resource(request: &mut Request, resource: Resource) -> HttpResult {
             return malformed();
         }
     } else {
-        if data["id"].as_str() != Some(binding.upstream.as_str())
-            || !compact::protect_output(&mut data, context.as_mut(), true)
+        if data["id"].as_str() != Some(binding.upstream.as_str()) {
+            return malformed();
+        }
+        if matches!(resource, Resource::Get | Resource::Cancel)
+            && let Some((store, attempt)) = background_store.zip(binding.attempt.as_deref())
+            && let Err(error) = finish_background(
+                store,
+                attempt,
+                &binding.upstream,
+                &data,
+                target.provider.as_ref(),
+            )
+            .await
         {
+            return error;
+        }
+        if !compact::protect_output(&mut data, context.as_mut(), true) {
             return malformed();
         }
         data["id"] = id.into();
@@ -358,6 +434,112 @@ async fn resource(request: &mut Request, resource: Resource) -> HttpResult {
     }
     Response::json(reply.status(), data)
         .map(|response| response.with_headers(downstream_headers(reply.headers())))
+}
+
+pub(super) async fn respond_background(
+    upstream: client::Response,
+    target: &Target,
+    mut context: Context,
+    mut compact_context: Option<compact::Context>,
+    mut call: Call,
+    store: &UsageStore,
+) -> HttpResult {
+    let status = upstream.status();
+    let headers = downstream_headers(upstream.headers());
+    let Some(mut data) = upstream.json::<Value>().ok() else {
+        call.outcome("invalid_upstream_response");
+        return malformed();
+    };
+    let Some(id) = data["id"]
+        .as_str()
+        .filter(|id| valid_upstream(id))
+        .map(str::to_owned)
+    else {
+        call.outcome("invalid_upstream_response");
+        return malformed();
+    };
+    let Some(attempt) = call.attempt_id().map(str::to_owned) else {
+        return storage_error();
+    };
+    if !call.park_background(&background_resource(&id)).await {
+        return storage_error();
+    }
+    call.release().await;
+    context.attempt = Some(attempt.clone());
+    if let Err(error) =
+        finish_background(store, &attempt, &id, &data, target.provider.as_ref()).await
+    {
+        return error;
+    }
+    if !compact::protect_output(&mut data, compact_context.as_mut(), true)
+        || !context.rewrite(&mut data, true)
+    {
+        return malformed();
+    }
+    rename_model(&mut data, &context.model);
+    Response::json(status, data).map(|response| response.with_headers(headers))
+}
+
+fn background_resource(id: &str) -> String {
+    format!("openai-response:{id}")
+}
+
+async fn finish_background(
+    store: &UsageStore,
+    attempt: &str,
+    id: &str,
+    data: &Value,
+    provider: &dyn TextProvider,
+) -> Result<(), HttpResult> {
+    if data["object"] != "response" {
+        return Err(malformed());
+    }
+    let outcome = match data["status"].as_str() {
+        Some("queued" | "in_progress") => return Ok(()),
+        Some("completed") => "completed",
+        Some("failed") => "background_failed",
+        Some("cancelled") => "background_cancelled",
+        Some("incomplete") => "background_incomplete",
+        _ => return Err(malformed()),
+    };
+    let mut context = LogContext::new();
+    context.insert("upstream_endpoint".into(), json!("responses"));
+    if let Some(model) = data["model"]
+        .as_str()
+        .filter(|model| crate::gateway::valid_reported_identifier(model))
+    {
+        context.insert("reported_model".into(), json!(model));
+    }
+    let usage = provider
+        .normalize_reported_usage(&data["usage"])
+        .unwrap_or_default();
+    for (field, count) in [
+        ("input_tokens", usage.prompt_tokens),
+        ("output_tokens", usage.completion_tokens),
+        ("cached_input_tokens", usage.cache_read_input_tokens),
+        ("cache_write_input_tokens", usage.cache_write_input_tokens),
+        ("reasoning_tokens", usage.reasoning_tokens),
+    ] {
+        if let Some(count) = count.and_then(|count| i64::try_from(count).ok()) {
+            context.insert(field.into(), json!(count));
+        }
+    }
+    // 终态的上游用量可确认为成本。失败、取消和不完整响应不产生下游应收。
+    context.insert("confirmed_error_usage".into(), json!(true));
+    let mut settlement = Settlement::from_context(outcome, &context, true);
+    settlement.reported_cost_usd = usage.cost_in_usd_ticks.map(Amount::from_usd_ticks);
+    store
+        .finish_background(attempt, &background_resource(id), settlement)
+        .await
+        .map_err(|_| storage_error())
+}
+
+fn storage_error() -> HttpResult {
+    PROTOCOL.error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "usage_unavailable",
+        "后台响应用量暂无法持久化",
+    )
 }
 
 fn item_signature(key: &[u8], binding: &Binding, item: &str) -> String {
